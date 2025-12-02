@@ -730,12 +730,14 @@ export function getColorLayers(
 
 	while (lo <= hi) {
 		const mid = (lo + hi) >>> 1;
-		const record = records[mid]!;
+		const record = records[mid];
+		if (!record) break;
 
 		if (record.glyphId === glyphId) {
 			const layers: LayerRecord[] = [];
 			for (let i = 0; i < record.numLayers; i++) {
-				layers.push(colr.layerRecords[record.firstLayerIndex + i]!);
+				const layer = colr.layerRecords[record.firstLayerIndex + i];
+				if (layer) layers.push(layer);
 			}
 			return layers;
 		} else if (record.glyphId < glyphId) {
@@ -761,7 +763,8 @@ export function getColorPaint(colr: ColrTable, glyphId: GlyphId): Paint | null {
 
 	while (lo <= hi) {
 		const mid = (lo + hi) >>> 1;
-		const record = records[mid]!;
+		const record = records[mid];
+		if (!record) break;
 
 		if (record.glyphId === glyphId) {
 			return record.paint;

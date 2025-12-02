@@ -113,13 +113,17 @@ export class GlyphBuffer {
 		let j = end - 1;
 		while (i < j) {
 			// Swap infos
-			const tmpInfo = this.infos[i]!;
-			this.infos[i] = this.infos[j]!;
+			const tmpInfo = this.infos[i];
+			const tmpInfoJ = this.infos[j];
+			if (!tmpInfo || !tmpInfoJ) break;
+			this.infos[i] = tmpInfoJ;
 			this.infos[j] = tmpInfo;
 
 			// Swap positions
-			const tmpPos = this.positions[i]!;
-			this.positions[i] = this.positions[j]!;
+			const tmpPos = this.positions[i];
+			const tmpPosJ = this.positions[j];
+			if (!tmpPos || !tmpPosJ) break;
+			this.positions[i] = tmpPosJ;
 			this.positions[j] = tmpPos;
 
 			i++;
@@ -142,9 +146,9 @@ export class GlyphBuffer {
 	serialize(): string {
 		const parts: string[] = [];
 
-		for (let i = 0; i < this.infos.length; i++) {
-			const info = this.infos[i]!;
-			const pos = this.positions[i]!;
+		for (const [i, info] of this.infos.entries()) {
+			const pos = this.positions[i];
+			if (!pos) continue;
 
 			let str = `${info.glyphId}`;
 
@@ -179,11 +183,10 @@ export class GlyphBuffer {
 
 	/** Iterator for glyph info/position pairs */
 	*[Symbol.iterator](): Iterator<{ info: GlyphInfo; position: GlyphPosition }> {
-		for (let i = 0; i < this.infos.length; i++) {
-			yield {
-				info: this.infos[i]!,
-				position: this.positions[i]!,
-			};
+		for (const [i, info] of this.infos.entries()) {
+			const position = this.positions[i];
+			if (!position) continue;
+			yield { info, position };
 		}
 	}
 }

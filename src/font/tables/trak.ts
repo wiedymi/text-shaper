@@ -170,20 +170,40 @@ function getSizeValue(
 
 	if (sizes.length === 0 || values.length === 0) return 0;
 
+	const firstSize = sizes[0];
+	const firstValue = values[0];
+	if (firstSize === undefined || firstValue === undefined) return 0;
+
 	// Find size range
-	if (pointSize <= sizes[0]!) {
-		return values[0]!;
+	if (pointSize <= firstSize) {
+		return firstValue;
 	}
 
-	if (pointSize >= sizes[sizes.length - 1]!) {
-		return values[values.length - 1]!;
+	const lastSize = sizes[sizes.length - 1];
+	const lastValue = values[values.length - 1];
+	if (lastSize === undefined || lastValue === undefined) return 0;
+
+	if (pointSize >= lastSize) {
+		return lastValue;
 	}
 
 	// Interpolate
 	for (let i = 0; i < sizes.length - 1; i++) {
-		if (pointSize >= sizes[i]! && pointSize <= sizes[i + 1]!) {
-			const t = (pointSize - sizes[i]!) / (sizes[i + 1]! - sizes[i]!);
-			return Math.round(values[i]! + t * (values[i + 1]! - values[i]!));
+		const size1 = sizes[i];
+		const size2 = sizes[i + 1];
+		const value1 = values[i];
+		const value2 = values[i + 1];
+		if (
+			size1 === undefined ||
+			size2 === undefined ||
+			value1 === undefined ||
+			value2 === undefined
+		)
+			continue;
+
+		if (pointSize >= size1 && pointSize <= size2) {
+			const t = (pointSize - size1) / (size2 - size1);
+			return Math.round(value1 + t * (value2 - value1));
 		}
 	}
 
@@ -207,7 +227,7 @@ export function applyTracking(
 	if (trackingValue === 0) return;
 
 	// Add tracking to each advance
-	for (let i = 0; i < advances.length; i++) {
-		advances[i] = (advances[i] ?? 0) + trackingValue;
+	for (const [i, advance] of advances.entries()) {
+		advances[i] = (advance ?? 0) + trackingValue;
 	}
 }

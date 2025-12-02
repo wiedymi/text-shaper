@@ -190,7 +190,10 @@ export function getAdvanceHeightDelta(
 	let inner: number;
 
 	if (mapping && glyphId < mapping.mapData.length) {
-		const entry = mapping.mapData[glyphId]!;
+		const entry = mapping.mapData[glyphId];
+		if (!entry) {
+			return 0;
+		}
 		outer = entry.outer;
 		inner = entry.inner;
 	} else {
@@ -215,7 +218,9 @@ export function getTsbDelta(
 
 	if (glyphId >= mapping.mapData.length) return 0;
 
-	const entry = mapping.mapData[glyphId]!;
+	const entry = mapping.mapData[glyphId];
+	if (!entry) return 0;
+
 	return calculateDelta(
 		vvar.itemVariationStore,
 		entry.outer,
@@ -237,7 +242,9 @@ export function getBsbDelta(
 
 	if (glyphId >= mapping.mapData.length) return 0;
 
-	const entry = mapping.mapData[glyphId]!;
+	const entry = mapping.mapData[glyphId];
+	if (!entry) return 0;
+
 	return calculateDelta(
 		vvar.itemVariationStore,
 		entry.outer,
@@ -259,7 +266,9 @@ export function getVorgDelta(
 
 	if (glyphId >= mapping.mapData.length) return 0;
 
-	const entry = mapping.mapData[glyphId]!;
+	const entry = mapping.mapData[glyphId];
+	if (!entry) return 0;
+
 	return calculateDelta(
 		vvar.itemVariationStore,
 		entry.outer,
@@ -289,8 +298,7 @@ function calculateDelta(
 
 	// Calculate total delta
 	let delta = 0;
-	for (let i = 0; i < varData.regionIndexes.length; i++) {
-		const regionIndex = varData.regionIndexes[i]!;
+	for (const [i, regionIndex] of varData.regionIndexes.entries()) {
 		const region = store.variationRegions[regionIndex];
 		if (!region) continue;
 

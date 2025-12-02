@@ -642,9 +642,8 @@ export function parseCff(reader: Reader): CffTable {
 		// FDSelect (for CID fonts)
 		if (topDict.fdSelect !== undefined) {
 			reader.seek(startOffset + topDict.fdSelect);
-			fdSelects.push(
-				parseFDSelect(reader, charStrings[charStrings.length - 1]?.length ?? 0),
-			);
+			const lastCharStrings = charStrings[charStrings.length - 1];
+			fdSelects.push(parseFDSelect(reader, lastCharStrings?.length ?? 0));
 		} else {
 			fdSelects.push({ format: 0, select: () => 0 });
 		}
@@ -679,8 +678,9 @@ function parseIndex(reader: Reader): Uint8Array[] {
 
 	const result: Uint8Array[] = [];
 	for (let i = 0; i < count; i++) {
-		const start = offsets[i]!;
-		const end = offsets[i + 1]!;
+		const start = offsets[i];
+		const end = offsets[i + 1];
+		if (start === undefined || end === undefined) continue;
 		const length = end - start;
 		result.push(reader.bytes(length));
 	}
@@ -783,115 +783,124 @@ function parseTopDict(reader: Reader, strings: string[]): TopDict {
 
 	const getString = (sid: number): string => {
 		if (sid < STANDARD_STRINGS.length) {
-			return STANDARD_STRINGS[sid]!;
+			const str = STANDARD_STRINGS[sid];
+			return str ?? "";
 		}
 		return strings[sid - STANDARD_STRINGS.length] ?? "";
 	};
 
 	for (const [op, operands] of dict) {
+		const op0 = operands[0];
+		const op1 = operands[1];
+		const op2 = operands[2];
+
 		switch (op) {
 			case TopDictOp.version:
-				result.version = getString(operands[0]!);
+				if (op0 !== undefined) result.version = getString(op0);
 				break;
 			case TopDictOp.Notice:
-				result.notice = getString(operands[0]!);
+				if (op0 !== undefined) result.notice = getString(op0);
 				break;
 			case TopDictOp.Copyright:
-				result.copyright = getString(operands[0]!);
+				if (op0 !== undefined) result.copyright = getString(op0);
 				break;
 			case TopDictOp.FullName:
-				result.fullName = getString(operands[0]!);
+				if (op0 !== undefined) result.fullName = getString(op0);
 				break;
 			case TopDictOp.FamilyName:
-				result.familyName = getString(operands[0]!);
+				if (op0 !== undefined) result.familyName = getString(op0);
 				break;
 			case TopDictOp.Weight:
-				result.weight = getString(operands[0]!);
+				if (op0 !== undefined) result.weight = getString(op0);
 				break;
 			case TopDictOp.isFixedPitch:
-				result.isFixedPitch = operands[0] !== 0;
+				result.isFixedPitch = op0 !== 0;
 				break;
 			case TopDictOp.ItalicAngle:
-				result.italicAngle = operands[0];
+				result.italicAngle = op0;
 				break;
 			case TopDictOp.UnderlinePosition:
-				result.underlinePosition = operands[0];
+				result.underlinePosition = op0;
 				break;
 			case TopDictOp.UnderlineThickness:
-				result.underlineThickness = operands[0];
+				result.underlineThickness = op0;
 				break;
 			case TopDictOp.PaintType:
-				result.paintType = operands[0];
+				result.paintType = op0;
 				break;
 			case TopDictOp.CharstringType:
-				result.charstringType = operands[0];
+				result.charstringType = op0;
 				break;
 			case TopDictOp.FontMatrix:
 				result.fontMatrix = operands;
 				break;
 			case TopDictOp.UniqueID:
-				result.uniqueID = operands[0];
+				result.uniqueID = op0;
 				break;
 			case TopDictOp.FontBBox:
 				result.fontBBox = operands;
 				break;
 			case TopDictOp.StrokeWidth:
-				result.strokeWidth = operands[0];
+				result.strokeWidth = op0;
 				break;
 			case TopDictOp.charset:
-				result.charset = operands[0];
+				result.charset = op0;
 				break;
 			case TopDictOp.Encoding:
-				result.encoding = operands[0];
+				result.encoding = op0;
 				break;
 			case TopDictOp.CharStrings:
-				result.charStrings = operands[0];
+				result.charStrings = op0;
 				break;
 			case TopDictOp.Private:
-				result.private = [operands[0]!, operands[1]!];
+				if (op0 !== undefined && op1 !== undefined) {
+					result.private = [op0, op1];
+				}
 				break;
 			case TopDictOp.SyntheticBase:
-				result.syntheticBase = operands[0];
+				result.syntheticBase = op0;
 				break;
 			case TopDictOp.PostScript:
-				result.postScript = getString(operands[0]!);
+				if (op0 !== undefined) result.postScript = getString(op0);
 				break;
 			case TopDictOp.BaseFontName:
-				result.baseFontName = getString(operands[0]!);
+				if (op0 !== undefined) result.baseFontName = getString(op0);
 				break;
 			case TopDictOp.BaseFontBlend:
 				result.baseFontBlend = operands;
 				break;
 			case TopDictOp.ROS:
-				result.ros = {
-					registry: getString(operands[0]!),
-					ordering: getString(operands[1]!),
-					supplement: operands[2]!,
-				};
+				if (op0 !== undefined && op1 !== undefined && op2 !== undefined) {
+					result.ros = {
+						registry: getString(op0),
+						ordering: getString(op1),
+						supplement: op2,
+					};
+				}
 				break;
 			case TopDictOp.CIDFontVersion:
-				result.cidFontVersion = operands[0];
+				result.cidFontVersion = op0;
 				break;
 			case TopDictOp.CIDFontRevision:
-				result.cidFontRevision = operands[0];
+				result.cidFontRevision = op0;
 				break;
 			case TopDictOp.CIDFontType:
-				result.cidFontType = operands[0];
+				result.cidFontType = op0;
 				break;
 			case TopDictOp.CIDCount:
-				result.cidCount = operands[0];
+				result.cidCount = op0;
 				break;
 			case TopDictOp.UIDBase:
-				result.uidBase = operands[0];
+				result.uidBase = op0;
 				break;
 			case TopDictOp.FDArray:
-				result.fdArray = operands[0];
+				result.fdArray = op0;
 				break;
 			case TopDictOp.FDSelect:
-				result.fdSelect = operands[0];
+				result.fdSelect = op0;
 				break;
 			case TopDictOp.FontName:
-				result.fontName = getString(operands[0]!);
+				if (op0 !== undefined) result.fontName = getString(op0);
 				break;
 		}
 	}
@@ -907,6 +916,8 @@ function parsePrivateDict(reader: Reader, _strings: string[]): PrivateDict {
 	const result: PrivateDict = {};
 
 	for (const [op, operands] of dict) {
+		const op0 = operands[0];
+
 		switch (op) {
 			case PrivateDictOp.BlueValues:
 				result.blueValues = deltaToAbsolute(operands);
@@ -921,19 +932,19 @@ function parsePrivateDict(reader: Reader, _strings: string[]): PrivateDict {
 				result.familyOtherBlues = deltaToAbsolute(operands);
 				break;
 			case PrivateDictOp.BlueScale:
-				result.blueScale = operands[0];
+				result.blueScale = op0;
 				break;
 			case PrivateDictOp.BlueShift:
-				result.blueShift = operands[0];
+				result.blueShift = op0;
 				break;
 			case PrivateDictOp.BlueFuzz:
-				result.blueFuzz = operands[0];
+				result.blueFuzz = op0;
 				break;
 			case PrivateDictOp.StdHW:
-				result.stdHW = operands[0];
+				result.stdHW = op0;
 				break;
 			case PrivateDictOp.StdVW:
-				result.stdVW = operands[0];
+				result.stdVW = op0;
 				break;
 			case PrivateDictOp.StemSnapH:
 				result.stemSnapH = deltaToAbsolute(operands);
@@ -942,25 +953,25 @@ function parsePrivateDict(reader: Reader, _strings: string[]): PrivateDict {
 				result.stemSnapV = deltaToAbsolute(operands);
 				break;
 			case PrivateDictOp.ForceBold:
-				result.forceBold = operands[0] !== 0;
+				result.forceBold = op0 !== 0;
 				break;
 			case PrivateDictOp.LanguageGroup:
-				result.languageGroup = operands[0];
+				result.languageGroup = op0;
 				break;
 			case PrivateDictOp.ExpansionFactor:
-				result.expansionFactor = operands[0];
+				result.expansionFactor = op0;
 				break;
 			case PrivateDictOp.initialRandomSeed:
-				result.initialRandomSeed = operands[0];
+				result.initialRandomSeed = op0;
 				break;
 			case PrivateDictOp.Subrs:
-				result.subrs = operands[0];
+				result.subrs = op0;
 				break;
 			case PrivateDictOp.defaultWidthX:
-				result.defaultWidthX = operands[0];
+				result.defaultWidthX = op0;
 				break;
 			case PrivateDictOp.nominalWidthX:
-				result.nominalWidthX = operands[0];
+				result.nominalWidthX = op0;
 				break;
 		}
 	}
@@ -1013,13 +1024,15 @@ function parseFDSelect(reader: Reader, numGlyphs: number): FDSelect {
 				let hi = ranges.length - 1;
 				while (lo < hi) {
 					const mid = Math.ceil((lo + hi) / 2);
-					if (ranges[mid]?.first <= glyphId) {
+					const range = ranges[mid];
+					if (range && range.first <= glyphId) {
 						lo = mid;
 					} else {
 						hi = mid - 1;
 					}
 				}
-				return ranges[lo]?.fd ?? 0;
+				const foundRange = ranges[lo];
+				return foundRange?.fd ?? 0;
 			},
 		};
 	}
@@ -1032,7 +1045,8 @@ function parseFDSelect(reader: Reader, numGlyphs: number): FDSelect {
  */
 export function getCffString(cff: CffTable, sid: number): string {
 	if (sid < STANDARD_STRINGS.length) {
-		return STANDARD_STRINGS[sid]!;
+		const str = STANDARD_STRINGS[sid];
+		return str ?? "";
 	}
 	return cff.strings[sid - STANDARD_STRINGS.length] ?? "";
 }

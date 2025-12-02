@@ -40,8 +40,8 @@ export function contourToPath(contour: Contour): PathCommand[] {
 
 	// Find the first on-curve point to start
 	let startIndex = 0;
-	for (let i = 0; i < contour.length; i++) {
-		if (contour[i]?.onCurve) {
+	for (const [i, point] of contour.entries()) {
+		if (point.onCurve) {
 			startIndex = i;
 			break;
 		}
@@ -53,8 +53,9 @@ export function contourToPath(contour: Contour): PathCommand[] {
 
 	if (allOffCurve) {
 		// Start at midpoint between first and last off-curve points
-		const first = contour[0]!;
-		const last = contour[contour.length - 1]!;
+		const first = contour[0];
+		const last = contour[contour.length - 1];
+		if (!first || !last) return [];
 		startPoint = {
 			x: (first.x + last.x) / 2,
 			y: (first.y + last.y) / 2,
@@ -62,7 +63,9 @@ export function contourToPath(contour: Contour): PathCommand[] {
 		};
 		startIndex = 0;
 	} else {
-		startPoint = contour[startIndex]!;
+		const point = contour[startIndex];
+		if (!point) return [];
+		startPoint = point;
 	}
 
 	commands.push({ type: "M", x: startPoint.x, y: startPoint.y });
@@ -73,7 +76,8 @@ export function contourToPath(contour: Contour): PathCommand[] {
 	let iterations = 0;
 
 	while (iterations < n) {
-		const point = contour[i]!;
+		const point = contour[i];
+		if (!point) break;
 
 		if (point.onCurve) {
 			// Line to on-curve point
@@ -82,7 +86,8 @@ export function contourToPath(contour: Contour): PathCommand[] {
 		} else {
 			// Off-curve point - need to find the end point
 			const nextIndex = (i + 1) % n;
-			const nextPoint = contour[nextIndex]!;
+			const nextPoint = contour[nextIndex];
+			if (!nextPoint) break;
 
 			let endPoint: GlyphPoint;
 			if (nextPoint.onCurve) {
@@ -374,6 +379,8 @@ export function shapedTextToSVG(
 						};
 					case "Z":
 						return { type: "Z" };
+					default:
+						return cmd;
 				}
 			});
 
@@ -412,16 +419,19 @@ export function shapedTextToSVG(
  * Convert GlyphBuffer output to ShapedGlyph array
  */
 export function glyphBufferToShapedGlyphs(buffer: GlyphBuffer): ShapedGlyph[] {
-	return buffer.infos.map((info, i) => {
-		const pos = buffer.positions[i]!;
-		return {
+	const result: ShapedGlyph[] = [];
+	for (const [i, info] of buffer.infos.entries()) {
+		const pos = buffer.positions[i];
+		if (!pos) continue;
+		result.push({
 			glyphId: info.glyphId,
 			xOffset: pos.xOffset,
 			yOffset: pos.yOffset,
 			xAdvance: pos.xAdvance,
 			yAdvance: pos.yAdvance,
-		};
-	});
+		});
+	}
+	return result;
 }
 
 /**
@@ -541,6 +551,8 @@ export function shapedTextToSVGWithVariation(
 						};
 					case "Z":
 						return { type: "Z" };
+					default:
+						return cmd;
 				}
 			});
 

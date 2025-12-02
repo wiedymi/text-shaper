@@ -350,7 +350,8 @@ export function parsePost(reader: Reader): PostTable {
 export function getGlyphName(post: PostTable, glyphId: number): string | null {
 	// Version 1: standard 258 names
 	if (post.version === 1.0) {
-		return glyphId < standardNames.length ? standardNames[glyphId]! : null;
+		const name = standardNames[glyphId];
+		return name !== undefined ? name : null;
 	}
 
 	// Version 2: indexed names

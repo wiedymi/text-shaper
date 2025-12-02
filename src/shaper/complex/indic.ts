@@ -296,44 +296,65 @@ function parseSyllable(infos: GlyphInfo[], start: number): Syllable {
 
 	// Look for Ra + H at the start (potential Reph)
 	if (pos + 1 < n) {
-		const cat1 = getIndicCategory(infos[pos]?.codepoint ?? 0);
-		const cat2 = getIndicCategory(infos[pos + 1]?.codepoint ?? 0);
-		if (cat1 === IndicCategory.Ra && cat2 === IndicCategory.H) {
-			hasReph = true;
-			pos += 2;
+		const info1 = infos[pos];
+		const info2 = infos[pos + 1];
+		if (info1 && info2) {
+			const cat1 = getIndicCategory(info1.codepoint ?? 0);
+			const cat2 = getIndicCategory(info2.codepoint ?? 0);
+			if (cat1 === IndicCategory.Ra && cat2 === IndicCategory.H) {
+				hasReph = true;
+				pos += 2;
+			}
 		}
 	}
 
 	// Find base consonant (last consonant before matras/end)
 	let lastConsonant = -1;
 	while (pos < n) {
-		const cp = infos[pos]?.codepoint ?? 0;
+		const info = infos[pos];
+		if (!info) {
+			pos++;
+			continue;
+		}
+		const cp = info.codepoint ?? 0;
 		const cat = getIndicCategory(cp);
 
 		if (cat === IndicCategory.C || cat === IndicCategory.Ra) {
 			lastConsonant = pos;
 			pos++;
 			// Check for nukta
-			if (
-				pos < n &&
-				getIndicCategory(infos[pos]?.codepoint ?? 0) === IndicCategory.N
-			) {
-				pos++;
+			if (pos < n) {
+				const nextInfo = infos[pos];
+				if (
+					nextInfo &&
+					getIndicCategory(nextInfo.codepoint ?? 0) === IndicCategory.N
+				) {
+					pos++;
+				}
 			}
 			// Check for halant (may continue consonant cluster)
-			if (
-				pos < n &&
-				getIndicCategory(infos[pos]?.codepoint ?? 0) === IndicCategory.H
-			) {
-				pos++;
-				// After halant, might have ZWJ/ZWNJ or another consonant
-				if (pos < n) {
-					const nextCat = getIndicCategory(infos[pos]?.codepoint ?? 0);
-					if (nextCat === IndicCategory.ZWJ || nextCat === IndicCategory.ZWNJ) {
-						pos++;
+			if (pos < n) {
+				const hInfo = infos[pos];
+				if (
+					hInfo &&
+					getIndicCategory(hInfo.codepoint ?? 0) === IndicCategory.H
+				) {
+					pos++;
+					// After halant, might have ZWJ/ZWNJ or another consonant
+					if (pos < n) {
+						const afterH = infos[pos];
+						if (afterH) {
+							const nextCat = getIndicCategory(afterH.codepoint ?? 0);
+							if (
+								nextCat === IndicCategory.ZWJ ||
+								nextCat === IndicCategory.ZWNJ
+							) {
+								pos++;
+							}
+						}
 					}
+					continue; // Look for more consonants
 				}
-				continue; // Look for more consonants
 			}
 			break;
 		} else if (cat === IndicCategory.V) {
@@ -356,7 +377,12 @@ function parseSyllable(infos: GlyphInfo[], start: number): Syllable {
 
 	// Consume matras, anusvara, visarga
 	while (pos < n) {
-		const cp = infos[pos]?.codepoint ?? 0;
+		const info = infos[pos];
+		if (!info) {
+			pos++;
+			continue;
+		}
+		const cp = info.codepoint ?? 0;
 		const cat = getIndicCategory(cp);
 
 		if (
@@ -523,9 +549,7 @@ function getMatraPosition(cp: number): MatraPosition {
 export function setupIndicMasks(infos: GlyphInfo[]): void {
 	const syllables = findSyllables(infos);
 
-	for (let i = 0; i < syllables.length; i++) {
-		const syllable = syllables[i]!;
-
+	for (const [i, syllable] of syllables.entries()) {
 		// Mark syllable boundaries in mask
 		for (let j = syllable.start; j < syllable.end; j++) {
 			const info = infos[j];

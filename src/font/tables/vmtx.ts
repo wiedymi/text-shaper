@@ -62,11 +62,13 @@ export function getVerticalMetrics(
 	glyphId: GlyphId,
 ): { advanceHeight: number; topSideBearing: number } {
 	if (glyphId < vmtx.vMetrics.length) {
-		const metric = vmtx.vMetrics[glyphId]!;
-		return {
-			advanceHeight: metric.advanceHeight,
-			topSideBearing: metric.topSideBearing,
-		};
+		const metric = vmtx.vMetrics[glyphId];
+		if (metric) {
+			return {
+				advanceHeight: metric.advanceHeight,
+				topSideBearing: metric.topSideBearing,
+			};
+		}
 	}
 
 	// Use last advance height, get TSB from array

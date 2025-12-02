@@ -216,8 +216,7 @@ export function getMetricDelta(
 
 	// Calculate total delta
 	let delta = 0;
-	for (let i = 0; i < varData.regionIndexes.length; i++) {
-		const regionIndex = varData.regionIndexes[i]!;
+	for (const [i, regionIndex] of varData.regionIndexes.entries()) {
 		const region = mvar.itemVariationStore.variationRegions[regionIndex];
 		if (!region) continue;
 

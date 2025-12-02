@@ -97,7 +97,11 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 	let i = 0;
 
 	while (i < infos.length) {
-		const info = infos[i]!;
+		const info = infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
 		const cat = getKhmerCategory(info.codepoint);
 
 		if (cat === KhmerCategory.Other) {
@@ -117,7 +121,11 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 		// Process syllable
 		let j = i + 1;
 		while (j < infos.length) {
-			const nextInfo = infos[j]!;
+			const nextInfo = infos[j];
+			if (!nextInfo) {
+				j++;
+				continue;
+			}
 			const nextCat = getKhmerCategory(nextInfo.codepoint);
 
 			if (nextCat === KhmerCategory.Other) break;
@@ -134,8 +142,9 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 
 			// Coeng + consonant = subscript consonant
 			if (nextCat === KhmerCategory.Coeng && j + 1 < infos.length) {
-				const afterCoeng = infos[j + 1]!;
+				const afterCoeng = infos[j + 1];
 				if (
+					afterCoeng &&
 					getKhmerCategory(afterCoeng.codepoint) === KhmerCategory.Consonant
 				) {
 					// Mark for below-base forms
@@ -195,7 +204,12 @@ export function reorderKhmer(infos: GlyphInfo[]): void {
 	let i = 0;
 
 	while (i < infos.length) {
-		const cat = getKhmerCategory(infos[i]?.codepoint);
+		const info = infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
+		const cat = getKhmerCategory(info.codepoint);
 
 		if (cat !== KhmerCategory.Consonant) {
 			i++;
@@ -208,7 +222,9 @@ export function reorderKhmer(infos: GlyphInfo[]): void {
 
 		// Skip coeng sequences
 		while (j < infos.length) {
-			const jCat = getKhmerCategory(infos[j]?.codepoint);
+			const jInfo = infos[j];
+			if (!jInfo) break;
+			const jCat = getKhmerCategory(jInfo.codepoint);
 			if (jCat === KhmerCategory.Coeng && j + 1 < infos.length) {
 				j += 2; // Skip coeng + consonant
 			} else {
@@ -218,14 +234,20 @@ export function reorderKhmer(infos: GlyphInfo[]): void {
 
 		// Check for pre-base vowel
 		if (j < infos.length) {
-			const cp = infos[j]?.codepoint;
-			if (cp >= 0x17c1 && cp <= 0x17c3) {
-				// Move pre-base vowel before base
-				const vowel = infos[j]!;
-				for (let k = j; k > base; k--) {
-					infos[k] = infos[k - 1]!;
+			const jInfo = infos[j];
+			if (jInfo) {
+				const cp = jInfo.codepoint;
+				if (cp >= 0x17c1 && cp <= 0x17c3) {
+					// Move pre-base vowel before base
+					const vowel = jInfo;
+					for (let k = j; k > base; k--) {
+						const prevInfo = infos[k - 1];
+						if (prevInfo) {
+							infos[k] = prevInfo;
+						}
+					}
+					infos[base] = vowel;
 				}
-				infos[base] = vowel;
 			}
 		}
 

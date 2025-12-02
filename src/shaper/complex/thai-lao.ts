@@ -173,11 +173,16 @@ export function reorderThaiLao(infos: GlyphInfo[]): void {
 			// Find the following consonant
 			let j = i + 1;
 			while (j < infos.length) {
-				const nextCat = getThaiLaoCategory(infos[j]?.codepoint ?? 0);
+				const nextInfo = infos[j];
+				if (!nextInfo) {
+					j++;
+					continue;
+				}
+				const nextCat = getThaiLaoCategory(nextInfo.codepoint ?? 0);
 				if (nextCat === ThaiLaoCategory.Consonant) {
 					// Swap vowel and consonant
-					const temp = infos[i]!;
-					infos[i] = infos[j]!;
+					const temp = info;
+					infos[i] = nextInfo;
 					infos[j] = temp;
 					break;
 				}

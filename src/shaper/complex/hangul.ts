@@ -162,8 +162,7 @@ export const HangulFeatureMask = {
  * Setup Hangul masks for feature application
  */
 export function setupHangulMasks(infos: GlyphInfo[]): void {
-	for (let i = 0; i < infos.length; i++) {
-		const info = infos[i]!;
+	for (const info of infos) {
 		const type = getHangulSyllableType(info.codepoint);
 
 		switch (type) {
@@ -192,12 +191,21 @@ export function normalizeHangul(infos: GlyphInfo[]): GlyphInfo[] {
 	let i = 0;
 
 	while (i < infos.length) {
-		const info = infos[i]!;
+		const info = infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
 		const type = getHangulSyllableType(info.codepoint);
 
 		// Try to compose L + V [+ T]
 		if (type === HangulSyllableType.LeadingJamo && i + 1 < infos.length) {
-			const nextInfo = infos[i + 1]!;
+			const nextInfo = infos[i + 1];
+			if (!nextInfo) {
+				result.push(info);
+				i++;
+				continue;
+			}
 			const nextType = getHangulSyllableType(nextInfo.codepoint);
 
 			if (nextType === HangulSyllableType.VowelJamo) {
@@ -206,12 +214,14 @@ export function normalizeHangul(infos: GlyphInfo[]): GlyphInfo[] {
 				let consumed = 2;
 
 				if (i + 2 < infos.length) {
-					const thirdInfo = infos[i + 2]!;
-					const thirdType = getHangulSyllableType(thirdInfo.codepoint);
+					const thirdInfo = infos[i + 2];
+					if (thirdInfo) {
+						const thirdType = getHangulSyllableType(thirdInfo.codepoint);
 
-					if (thirdType === HangulSyllableType.TrailingJamo) {
-						t = thirdInfo.codepoint;
-						consumed = 3;
+						if (thirdType === HangulSyllableType.TrailingJamo) {
+							t = thirdInfo.codepoint;
+							consumed = 3;
+						}
 					}
 				}
 
@@ -231,16 +241,26 @@ export function normalizeHangul(infos: GlyphInfo[]): GlyphInfo[] {
 
 		// Try to compose LV + T
 		if (type === HangulSyllableType.LVSyllable && i + 1 < infos.length) {
-			const nextInfo = infos[i + 1]!;
+			const nextInfo = infos[i + 1];
+			if (!nextInfo) {
+				result.push(info);
+				i++;
+				continue;
+			}
 			const nextType = getHangulSyllableType(nextInfo.codepoint);
 
 			if (nextType === HangulSyllableType.TrailingJamo) {
 				// Decompose LV, add T, recompose
 				const decomposed = decomposeHangul(info.codepoint);
-				if (decomposed.length === 2) {
+				const [firstJamo, secondJamo] = decomposed;
+				if (
+					decomposed.length === 2 &&
+					firstJamo !== undefined &&
+					secondJamo !== undefined
+				) {
 					const composed = composeHangul(
-						decomposed[0]!,
-						decomposed[1]!,
+						firstJamo,
+						secondJamo,
 						nextInfo.codepoint,
 					);
 					if (composed !== null) {

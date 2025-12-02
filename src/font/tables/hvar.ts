@@ -208,8 +208,9 @@ export function calculateRegionScalar(
 	let scalar = 1.0;
 
 	for (let i = 0; i < region.regionAxes.length && i < coords.length; i++) {
-		const axis = region.regionAxes[i]!;
-		const coord = coords[i]!;
+		const axis = region.regionAxes[i];
+		const coord = coords[i];
+		if (axis === undefined || coord === undefined) continue;
 
 		// Outside the region
 		if (coord < axis.startCoord || coord > axis.endCoord) {
@@ -252,9 +253,14 @@ function getDeltaFromMapping(
 	let inner: number;
 
 	if (mapping && glyphId < mapping.mapData.length) {
-		const entry = mapping.mapData[glyphId]!;
-		outer = entry.outer;
-		inner = entry.inner;
+		const entry = mapping.mapData[glyphId];
+		if (!entry) {
+			outer = 0;
+			inner = glyphId;
+		} else {
+			outer = entry.outer;
+			inner = entry.inner;
+		}
 	} else {
 		// Direct mapping: outer = 0, inner = glyphId
 		outer = 0;
@@ -274,8 +280,7 @@ function getDeltaFromMapping(
 
 	// Calculate total delta
 	let delta = 0;
-	for (let i = 0; i < varData.regionIndexes.length; i++) {
-		const regionIndex = varData.regionIndexes[i]!;
+	for (const [i, regionIndex] of varData.regionIndexes.entries()) {
 		const region = hvar.itemVariationStore.variationRegions[regionIndex];
 		if (!region) continue;
 

@@ -243,17 +243,26 @@ function parseUseSyllable(infos: GlyphInfo[], start: number): UseSyllable {
 
 	// Check for Repha (R + H at start)
 	if (pos + 1 < n) {
-		const cat1 = getUseCategory(infos[pos]?.codepoint ?? 0);
-		const cat2 = getUseCategory(infos[pos + 1]?.codepoint ?? 0);
-		if (cat1 === UseCategory.R && cat2 === UseCategory.H) {
-			hasReph = true;
-			pos += 2;
+		const info1 = infos[pos];
+		const info2 = infos[pos + 1];
+		if (info1 && info2) {
+			const cat1 = getUseCategory(info1.codepoint ?? 0);
+			const cat2 = getUseCategory(info2.codepoint ?? 0);
+			if (cat1 === UseCategory.R && cat2 === UseCategory.H) {
+				hasReph = true;
+				pos += 2;
+			}
 		}
 	}
 
 	// Find base character
 	while (pos < n) {
-		const cat = getUseCategory(infos[pos]?.codepoint ?? 0);
+		const info = infos[pos];
+		if (!info) {
+			pos++;
+			continue;
+		}
+		const cat = getUseCategory(info.codepoint ?? 0);
 
 		// Base characters
 		if (
@@ -288,24 +297,32 @@ function parseUseSyllable(infos: GlyphInfo[], start: number): UseSyllable {
 
 	// Consume consonant cluster
 	while (pos < n) {
-		const cat = getUseCategory(infos[pos]?.codepoint ?? 0);
+		const posInfo = infos[pos];
+		if (!posInfo) {
+			pos++;
+			continue;
+		}
+		const cat = getUseCategory(posInfo.codepoint ?? 0);
 
 		// Halant + Consonant continues cluster
 		if (cat === UseCategory.H) {
 			pos++;
 			if (pos < n) {
-				const nextCat = getUseCategory(infos[pos]?.codepoint ?? 0);
-				if (
-					nextCat === UseCategory.B ||
-					nextCat === UseCategory.CS ||
-					nextCat === UseCategory.SUB
-				) {
-					pos++;
-					continue;
-				}
-				// ZWJ/ZWNJ after halant
-				if (nextCat === UseCategory.ZWJ || nextCat === UseCategory.ZWNJ) {
-					pos++;
+				const nextInfo = infos[pos];
+				if (nextInfo) {
+					const nextCat = getUseCategory(nextInfo.codepoint ?? 0);
+					if (
+						nextCat === UseCategory.B ||
+						nextCat === UseCategory.CS ||
+						nextCat === UseCategory.SUB
+					) {
+						pos++;
+						continue;
+					}
+					// ZWJ/ZWNJ after halant
+					if (nextCat === UseCategory.ZWJ || nextCat === UseCategory.ZWNJ) {
+						pos++;
+					}
 				}
 			}
 			continue;
@@ -328,7 +345,12 @@ function parseUseSyllable(infos: GlyphInfo[], start: number): UseSyllable {
 
 	// Consume matras and modifiers
 	while (pos < n) {
-		const cat = getUseCategory(infos[pos]?.codepoint ?? 0);
+		const posInfo = infos[pos];
+		if (!posInfo) {
+			pos++;
+			continue;
+		}
+		const cat = getUseCategory(posInfo.codepoint ?? 0);
 
 		// Vowel signs
 		if (
@@ -405,9 +427,7 @@ function parseUseSyllable(infos: GlyphInfo[], start: number): UseSyllable {
 export function setupUseMasks(infos: GlyphInfo[]): void {
 	const syllables = findUseSyllables(infos);
 
-	for (let i = 0; i < syllables.length; i++) {
-		const syllable = syllables[i]!;
-
+	for (const [i, syllable] of syllables.entries()) {
 		for (let j = syllable.start; j < syllable.end; j++) {
 			const info = infos[j];
 			if (!info) continue;

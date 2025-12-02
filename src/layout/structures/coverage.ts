@@ -37,7 +37,8 @@ class CoverageFormat1 implements Coverage {
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const midVal = this.glyphArray[mid]!;
+			const midVal = this.glyphArray[mid];
+			if (midVal === undefined) continue;
 
 			if (midVal < glyphId) {
 				low = mid + 1;
@@ -78,10 +79,14 @@ class CoverageFormat2 implements Coverage {
 		if (ranges.length === 0) {
 			this._size = 0;
 		} else {
-			const lastRange = ranges[ranges.length - 1]!;
-			this._size =
-				lastRange.startCoverageIndex +
-				(lastRange.endGlyphId - lastRange.startGlyphId + 1);
+			const lastRange = ranges[ranges.length - 1];
+			if (lastRange) {
+				this._size =
+					lastRange.startCoverageIndex +
+					(lastRange.endGlyphId - lastRange.startGlyphId + 1);
+			} else {
+				this._size = 0;
+			}
 		}
 	}
 
@@ -96,7 +101,8 @@ class CoverageFormat2 implements Coverage {
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const range = this.ranges[mid]!;
+			const range = this.ranges[mid];
+			if (!range) continue;
 
 			if (glyphId > range.endGlyphId) {
 				low = mid + 1;

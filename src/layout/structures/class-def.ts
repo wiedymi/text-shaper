@@ -23,7 +23,8 @@ class ClassDefFormat1 implements ClassDef {
 	get(glyphId: GlyphId): number {
 		const index = glyphId - this.startGlyphId;
 		if (index >= 0 && index < this.classValueArray.length) {
-			return this.classValueArray[index]!;
+			const value = this.classValueArray[index];
+			return value ?? 0;
 		}
 		return 0; // Default class
 	}
@@ -61,7 +62,8 @@ class ClassDefFormat2 implements ClassDef {
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const range = this.ranges[mid]!;
+			const range = this.ranges[mid];
+			if (!range) continue;
 
 			if (glyphId > range.endGlyphId) {
 				low = mid + 1;

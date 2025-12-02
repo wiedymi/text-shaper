@@ -106,10 +106,12 @@ function rearrangeGlyphs(
 ): void {
 	if (first >= last || first >= infos.length || last >= infos.length) return;
 
-	const a = infos[first]!;
+	const a = infos[first];
 	const b = infos[first + 1];
 	const c = infos[last - 1];
-	const d = infos[last]!;
+	const d = infos[last];
+
+	if (!a || !d) return;
 
 	switch (verb) {
 		case 1: // Ax => xA
@@ -131,33 +133,49 @@ function rearrangeGlyphs(
 		case 4: // ABx => xAB
 			if (b && c) {
 				const temp = infos.slice(first, first + 2);
-				infos[first] = infos[first + 2]!;
-				infos[first + 1] = temp[0]!;
-				infos[first + 2] = temp[1]!;
+				const [tempFirst, tempSecond] = temp;
+				const thirdItem = infos[first + 2];
+				if (tempFirst && tempSecond && thirdItem) {
+					infos[first] = thirdItem;
+					infos[first + 1] = tempFirst;
+					infos[first + 2] = tempSecond;
+				}
 			}
 			break;
 		case 5: // ABx => xBA
 			if (b && c) {
 				const temp = infos.slice(first, first + 2);
-				infos[first] = infos[first + 2]!;
-				infos[first + 1] = temp[1]!;
-				infos[first + 2] = temp[0]!;
+				const [tempFirst, tempSecond] = temp;
+				const thirdItem = infos[first + 2];
+				if (tempFirst && tempSecond && thirdItem) {
+					infos[first] = thirdItem;
+					infos[first + 1] = tempSecond;
+					infos[first + 2] = tempFirst;
+				}
 			}
 			break;
 		case 6: // xCD => CDx
 			if (c && b) {
 				const temp = infos.slice(last - 1, last + 1);
-				infos[last] = infos[last - 2]!;
-				infos[last - 1] = temp[1]!;
-				infos[last - 2] = temp[0]!;
+				const [tempFirst, tempSecond] = temp;
+				const prevItem = infos[last - 2];
+				if (tempFirst && tempSecond && prevItem) {
+					infos[last] = prevItem;
+					infos[last - 1] = tempSecond;
+					infos[last - 2] = tempFirst;
+				}
 			}
 			break;
 		case 7: // xCD => DCx
 			if (c && b) {
 				const temp = infos.slice(last - 1, last + 1);
-				infos[last] = infos[last - 2]!;
-				infos[last - 1] = temp[0]!;
-				infos[last - 2] = temp[1]!;
+				const [tempFirst, tempSecond] = temp;
+				const prevItem = infos[last - 2];
+				if (tempFirst && tempSecond && prevItem) {
+					infos[last] = prevItem;
+					infos[last - 1] = tempFirst;
+					infos[last - 2] = tempSecond;
+				}
 			}
 			break;
 		case 8: // AxCD => CDxA
@@ -197,8 +215,8 @@ function rearrangeGlyphs(
 				const tempAB = [a, b];
 				infos[first] = c;
 				infos[first + 1] = d;
-				infos[last - 1] = tempAB[0]!;
-				infos[last] = tempAB[1]!;
+				infos[last - 1] = tempAB[0];
+				infos[last] = tempAB[1];
 			}
 			break;
 		case 13: // ABxCD => CDxBA
@@ -206,8 +224,8 @@ function rearrangeGlyphs(
 				const tempAB = [a, b];
 				infos[first] = c;
 				infos[first + 1] = d;
-				infos[last - 1] = tempAB[1]!;
-				infos[last] = tempAB[0]!;
+				infos[last - 1] = tempAB[1];
+				infos[last] = tempAB[0];
 			}
 			break;
 		case 14: // ABxCD => DCxAB
@@ -215,8 +233,8 @@ function rearrangeGlyphs(
 				const tempAB = [a, b];
 				infos[first] = d;
 				infos[first + 1] = c;
-				infos[last - 1] = tempAB[0]!;
-				infos[last] = tempAB[1]!;
+				infos[last - 1] = tempAB[0];
+				infos[last] = tempAB[1];
 			}
 			break;
 		case 15: // ABxCD => DCxBA
@@ -224,8 +242,8 @@ function rearrangeGlyphs(
 				const tempAB = [a, b];
 				infos[first] = d;
 				infos[first + 1] = c;
-				infos[last - 1] = tempAB[1]!;
-				infos[last] = tempAB[0]!;
+				infos[last - 1] = tempAB[1];
+				infos[last] = tempAB[0];
 			}
 			break;
 	}
@@ -267,9 +285,12 @@ export function processContextual(
 		) {
 			const substTable = substitutionTable[entry.markIndex];
 			if (substTable) {
-				const replacement = substTable.get(infos[markIndex]?.glyphId);
-				if (replacement !== undefined) {
-					infos[markIndex]!.glyphId = replacement;
+				const markedInfo = infos[markIndex];
+				if (markedInfo) {
+					const replacement = substTable.get(markedInfo.glyphId);
+					if (replacement !== undefined) {
+						markedInfo.glyphId = replacement;
+					}
 				}
 			}
 		}
@@ -278,9 +299,12 @@ export function processContextual(
 		if (!isEnd && entry.currentIndex !== 0xffff) {
 			const substTable = substitutionTable[entry.currentIndex];
 			if (substTable) {
-				const replacement = substTable.get(infos[i]?.glyphId);
-				if (replacement !== undefined) {
-					infos[i]!.glyphId = replacement;
+				const currentInfo = infos[i];
+				if (currentInfo) {
+					const replacement = substTable.get(currentInfo.glyphId);
+					if (replacement !== undefined) {
+						currentInfo.glyphId = replacement;
+					}
 				}
 			}
 		}
@@ -332,7 +356,9 @@ export function processLigature(
 
 			// Process action chain
 			while (actionIndex < ligatureActions.length) {
-				const action = ligatureActions[actionIndex]!;
+				const action = ligatureActions[actionIndex];
+				if (action === undefined) break;
+
 				const last = (action & 0x80000000) !== 0;
 				const store = (action & 0x40000000) !== 0;
 				const componentOffset = ((action & 0x3fffffff) << 2) >> 2; // Sign extend
@@ -340,11 +366,17 @@ export function processLigature(
 				const stackIdx = stack.pop();
 				if (stackIdx !== undefined && stackIdx < infos.length) {
 					componentIndices.push(stackIdx);
-					const glyphId = infos[stackIdx]?.glyphId;
-					const componentIdx = glyphId + componentOffset;
+					const info = infos[stackIdx];
+					if (info) {
+						const glyphId = info.glyphId;
+						const componentIdx = glyphId + componentOffset;
 
-					if (componentIdx >= 0 && componentIdx < components.length) {
-						ligatureGlyph = components[componentIdx]! + ligatureGlyph;
+						if (componentIdx >= 0 && componentIdx < components.length) {
+							const component = components[componentIdx];
+							if (component !== undefined) {
+								ligatureGlyph = component + ligatureGlyph;
+							}
+						}
 					}
 				}
 
@@ -352,10 +384,16 @@ export function processLigature(
 					// Replace first component with ligature
 					const firstIdx = componentIndices[componentIndices.length - 1];
 					if (firstIdx !== undefined && firstIdx < infos.length) {
-						infos[firstIdx]!.glyphId = ligatures[ligatureGlyph]!;
-						// Mark other components for deletion
-						for (let j = 0; j < componentIndices.length - 1; j++) {
-							deleted.add(componentIndices[j]!);
+						const firstInfo = infos[firstIdx];
+						const ligature = ligatures[ligatureGlyph];
+						if (firstInfo && ligature !== undefined) {
+							firstInfo.glyphId = ligature;
+							// Mark other components for deletion
+							for (const [j, idx] of componentIndices.entries()) {
+								if (j < componentIndices.length - 1) {
+									deleted.add(idx);
+								}
+							}
 						}
 					}
 					ligatureGlyph = 0;
@@ -375,9 +413,9 @@ export function processLigature(
 	}
 
 	// Build result without deleted glyphs
-	for (let i = 0; i < infos.length; i++) {
+	for (const [i, info] of infos.entries()) {
 		if (!deleted.has(i)) {
-			result.push(infos[i]!);
+			result.push(info);
 		}
 	}
 
@@ -466,9 +504,8 @@ export function processInsertion(
 	}
 
 	// Build result with insertions
-	for (let i = 0; i < infos.length; i++) {
+	for (const [i, info] of infos.entries()) {
 		const ins = insertions.get(i);
-		const info = infos[i]!;
 
 		if (ins) {
 			// Insert before

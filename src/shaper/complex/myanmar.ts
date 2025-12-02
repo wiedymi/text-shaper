@@ -142,7 +142,11 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 	let i = 0;
 
 	while (i < infos.length) {
-		const info = infos[i]!;
+		const info = infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
 		const cat = getMyanmarCategory(info.codepoint);
 
 		if (cat === MyanmarCategory.Other) {
@@ -160,7 +164,11 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 
 		let j = i + 1;
 		while (j < infos.length) {
-			const nextInfo = infos[j]!;
+			const nextInfo = infos[j];
+			if (!nextInfo) {
+				j++;
+				continue;
+			}
 			const nextCat = getMyanmarCategory(nextInfo.codepoint);
 
 			if (nextCat === MyanmarCategory.Other) break;
@@ -172,10 +180,11 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 
 				// Check for following consonant (stacking)
 				if (j + 1 < infos.length) {
-					const afterAsat = infos[j + 1]!;
+					const afterAsat = infos[j + 1];
 					if (
+						afterAsat &&
 						getMyanmarCategory(afterAsat.codepoint) ===
-						MyanmarCategory.Consonant
+							MyanmarCategory.Consonant
 					) {
 						afterAsat.mask |= MyanmarFeatureMask.blwf;
 						j += 2;
@@ -237,9 +246,14 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 			// New syllable on consonant without asat
 			if (nextCat === MyanmarCategory.Consonant && !hasAsat) {
 				// Check if previous was asat
-				const prevCat = getMyanmarCategory(infos[j - 1]?.codepoint);
-				if (prevCat !== MyanmarCategory.Asat) {
-					break;
+				if (j > 0) {
+					const prevInfo = infos[j - 1];
+					if (prevInfo) {
+						const prevCat = getMyanmarCategory(prevInfo.codepoint);
+						if (prevCat !== MyanmarCategory.Asat) {
+							break;
+						}
+					}
 				}
 			}
 
@@ -259,7 +273,12 @@ export function reorderMyanmar(infos: GlyphInfo[]): void {
 	let i = 0;
 
 	while (i < infos.length) {
-		const cat = getMyanmarCategory(infos[i]?.codepoint);
+		const info = infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
+		const cat = getMyanmarCategory(info.codepoint);
 
 		if (cat !== MyanmarCategory.Consonant) {
 			i++;
@@ -273,19 +292,23 @@ export function reorderMyanmar(infos: GlyphInfo[]): void {
 		// Collect pre-base elements that follow base
 		let j = i + 1;
 		while (j < infos.length) {
-			const info = infos[j]!;
-			const jCat = getMyanmarCategory(info.codepoint);
+			const jInfo = infos[j];
+			if (!jInfo) {
+				j++;
+				continue;
+			}
+			const jCat = getMyanmarCategory(jInfo.codepoint);
 
 			// Pre-base vowel (ေ)
-			if (info.codepoint === 0x1031) {
-				preBase.push(info);
+			if (jInfo.codepoint === 0x1031) {
+				preBase.push(jInfo);
 				infos.splice(j, 1);
 				continue;
 			}
 
 			// Pre-base medial (ြ ra)
-			if (info.codepoint === 0x103c) {
-				preBase.push(info);
+			if (jInfo.codepoint === 0x103c) {
+				preBase.push(jInfo);
 				infos.splice(j, 1);
 				continue;
 			}

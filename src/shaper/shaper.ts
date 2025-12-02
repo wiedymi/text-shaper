@@ -146,9 +146,9 @@ export function shape(
 
 	// Convert codepoints to initial glyph infos
 	const infos: GlyphInfo[] = [];
-	for (let i = 0; i < buffer.codepoints.length; i++) {
-		const codepoint = buffer.codepoints[i]!;
-		const cluster = buffer.clusters[i]!;
+	for (const [i, codepoint] of buffer.codepoints.entries()) {
+		const cluster = buffer.clusters[i];
+		if (cluster === undefined) continue;
 		const glyphId = font.glyphId(codepoint);
 
 		infos.push({
@@ -402,8 +402,7 @@ function applySingleSubstLookup(
 	buffer: GlyphBuffer,
 	lookup: SingleSubstLookup,
 ): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
+	for (const info of buffer.infos) {
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		const replacement = applySingleSubst(lookup, info.glyphId);
@@ -420,7 +419,11 @@ function applyMultipleSubstLookup(
 ): void {
 	let i = 0;
 	while (i < buffer.infos.length) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) {
 			i++;
 			continue;
@@ -434,13 +437,16 @@ function applyMultipleSubstLookup(
 			const sequence = subtable.sequences[coverageIndex];
 			if (!sequence || sequence.length === 0) continue;
 
+			const [firstGlyph, ...restGlyphs] = sequence;
+			if (firstGlyph === undefined) continue;
+
 			// Replace with sequence
-			info.glyphId = sequence[0]!;
+			info.glyphId = firstGlyph;
 
 			// Insert remaining glyphs
-			for (let j = 1; j < sequence.length; j++) {
+			for (const [j, glyphId] of restGlyphs.entries()) {
 				const newInfo: GlyphInfo = {
-					glyphId: sequence[j]!,
+					glyphId,
 					cluster: info.cluster,
 					mask: info.mask,
 					codepoint: info.codepoint,
@@ -451,7 +457,7 @@ function applyMultipleSubstLookup(
 					xOffset: 0,
 					yOffset: 0,
 				};
-				buffer.insertGlyph(i + j, newInfo, newPos);
+				buffer.insertGlyph(i + j + 1, newInfo, newPos);
 			}
 
 			i += sequence.length;
@@ -470,8 +476,7 @@ function applyAlternateSubstLookup(
 ): void {
 	// Alternate substitution allows selecting from multiple alternates
 	// By default, use the first alternate (index 0)
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
+	for (const info of buffer.infos) {
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -481,8 +486,11 @@ function applyAlternateSubstLookup(
 			const alternateSet = subtable.alternateSets[coverageIndex];
 			if (!alternateSet || alternateSet.length === 0) continue;
 
+			const [firstAlternate] = alternateSet;
+			if (firstAlternate === undefined) continue;
+
 			// Use first alternate by default
-			info.glyphId = alternateSet[0]!;
+			info.glyphId = firstAlternate;
 			break;
 		}
 	}
@@ -495,7 +503,11 @@ function applyLigatureSubstLookup(
 ): void {
 	let i = 0;
 	while (i < buffer.infos.length) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) {
+			i++;
+			continue;
+		}
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) {
 			i++;
 			continue;
@@ -510,7 +522,8 @@ function applyLigatureSubstLookup(
 			j < buffer.infos.length && matchGlyphs.length < 16;
 			j++
 		) {
-			const nextInfo = buffer.infos[j]!;
+			const nextInfo = buffer.infos[j];
+			if (!nextInfo) continue;
 			if (shouldSkipGlyph(font, nextInfo.glyphId, lookup.flag)) continue;
 			matchIndices.push(j);
 			matchGlyphs.push(nextInfo.glyphId);
@@ -526,14 +539,17 @@ function applyLigatureSubstLookup(
 			for (let k = 1; k < result.consumed; k++) {
 				const idx = matchIndices[k];
 				if (idx !== undefined) {
-					info.cluster = Math.min(info.cluster, buffer.infos[idx]?.cluster);
+					const targetInfo = buffer.infos[idx];
+					if (targetInfo) {
+						info.cluster = Math.min(info.cluster, targetInfo.cluster);
+					}
 					indicesToRemove.push(idx);
 				}
 			}
 
 			// Remove in reverse order to maintain indices
-			for (let k = indicesToRemove.length - 1; k >= 0; k--) {
-				buffer.removeRange(indicesToRemove[k]!, indicesToRemove[k]! + 1);
+			for (const idx of indicesToRemove.reverse()) {
+				buffer.removeRange(idx, idx + 1);
 			}
 		}
 
@@ -549,7 +565,8 @@ function applyContextSubstLookup(
 ): void {
 	// Context substitution - matches input sequence and applies nested lookups
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -602,7 +619,8 @@ function applyChainingContextSubstLookup(
 	plan: ShapePlan,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -655,7 +673,8 @@ function applyReverseChainingSingleSubstLookup(
 ): void {
 	// Process in reverse order
 	for (let i = buffer.infos.length - 1; i >= 0; i--) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -1037,14 +1056,17 @@ function applyNestedLookups(
 		const pos = startIndex + record.sequenceIndex;
 		if (pos >= buffer.infos.length) continue;
 
+		const targetInfo = buffer.infos[pos];
+		if (!targetInfo) continue;
+
 		// For single subst, apply directly
 		if (lookupEntry.lookup.type === GsubLookupType.Single) {
 			const replacement = applySingleSubst(
 				lookupEntry.lookup as SingleSubstLookup,
-				buffer.infos[pos]?.glyphId,
+				targetInfo.glyphId,
 			);
 			if (replacement !== null) {
-				buffer.infos[pos]!.glyphId = replacement;
+				targetInfo.glyphId = replacement;
 			}
 		}
 	}
@@ -1053,10 +1075,9 @@ function applyNestedLookups(
 // GPOS application
 
 function initializePositions(face: Face, buffer: GlyphBuffer): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const glyphId = buffer.infos[i]?.glyphId;
+	for (const [i, info] of buffer.infos.entries()) {
 		// Use Face.advanceWidth to include variable font deltas
-		const advance = face.advanceWidth(glyphId);
+		const advance = face.advanceWidth(info.glyphId);
 		buffer.setAdvance(i, advance, 0);
 	}
 }
@@ -1112,9 +1133,9 @@ function applySinglePosLookup(
 	buffer: GlyphBuffer,
 	lookup: SinglePosLookup,
 ): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
-		const pos = buffer.positions[i]!;
+	for (const [i, info] of buffer.infos.entries()) {
+		const pos = buffer.positions[i];
+		if (!pos) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -1142,24 +1163,30 @@ function applyPairPosLookup(
 	lookup: PairPosLookup,
 ): void {
 	for (let i = 0; i < buffer.infos.length - 1; i++) {
-		const info1 = buffer.infos[i]!;
+		const info1 = buffer.infos[i];
+		if (!info1) continue;
 		if (shouldSkipGlyph(font, info1.glyphId, lookup.flag)) continue;
 
 		// Find next non-skipped glyph
 		let j = i + 1;
-		while (
-			j < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[j]?.glyphId, lookup.flag)
-		) {
+		while (j < buffer.infos.length) {
+			const nextInfo = buffer.infos[j];
+			if (nextInfo && !shouldSkipGlyph(font, nextInfo.glyphId, lookup.flag)) {
+				break;
+			}
 			j++;
 		}
 		if (j >= buffer.infos.length) break;
 
-		const info2 = buffer.infos[j]!;
+		const info2 = buffer.infos[j];
+		if (!info2) continue;
+
 		const kern = getKerning(lookup, info1.glyphId, info2.glyphId);
 		if (kern) {
-			buffer.positions[i]!.xAdvance += kern.xAdvance1;
-			buffer.positions[j]!.xAdvance += kern.xAdvance2;
+			const pos1 = buffer.positions[i];
+			const pos2 = buffer.positions[j];
+			if (pos1) pos1.xAdvance += kern.xAdvance1;
+			if (pos2) pos2.xAdvance += kern.xAdvance2;
 		}
 	}
 }
@@ -1171,20 +1198,23 @@ function applyCursivePosLookup(
 ): void {
 	// Cursive attachment - connect exit anchor of one glyph to entry anchor of next
 	for (let i = 0; i < buffer.infos.length - 1; i++) {
-		const info1 = buffer.infos[i]!;
+		const info1 = buffer.infos[i];
+		if (!info1) continue;
 		if (shouldSkipGlyph(font, info1.glyphId, lookup.flag)) continue;
 
 		// Find next non-skipped glyph
 		let j = i + 1;
-		while (
-			j < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[j]?.glyphId, lookup.flag)
-		) {
+		while (j < buffer.infos.length) {
+			const nextInfo = buffer.infos[j];
+			if (nextInfo && !shouldSkipGlyph(font, nextInfo.glyphId, lookup.flag)) {
+				break;
+			}
 			j++;
 		}
 		if (j >= buffer.infos.length) break;
 
-		const info2 = buffer.infos[j]!;
+		const info2 = buffer.infos[j];
+		if (!info2) continue;
 
 		for (const subtable of lookup.subtables) {
 			const exitIndex = subtable.coverage.get(info1.glyphId);
@@ -1202,8 +1232,10 @@ function applyCursivePosLookup(
 			const entryAnchor = entryRecord.entryAnchor;
 
 			// Adjust position of second glyph
-			const pos2 = buffer.positions[j]!;
-			pos2.yOffset = exitAnchor.yCoordinate - entryAnchor.yCoordinate;
+			const pos2 = buffer.positions[j];
+			if (pos2) {
+				pos2.yOffset = exitAnchor.yCoordinate - entryAnchor.yCoordinate;
+			}
 
 			break;
 		}
@@ -1216,7 +1248,8 @@ function applyMarkBasePosLookup(
 	lookup: MarkBasePosLookup,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const markInfo = buffer.infos[i]!;
+		const markInfo = buffer.infos[i];
+		if (!markInfo) continue;
 
 		// Must be a mark glyph
 		if (getGlyphClass(font.gdef, markInfo.glyphId) !== GlyphClass.Mark)
@@ -1225,7 +1258,9 @@ function applyMarkBasePosLookup(
 		// Find preceding base glyph
 		let baseIndex = -1;
 		for (let j = i - 1; j >= 0; j--) {
-			const prevClass = getGlyphClass(font.gdef, buffer.infos[j]?.glyphId);
+			const prevInfo = buffer.infos[j];
+			if (!prevInfo) continue;
+			const prevClass = getGlyphClass(font.gdef, prevInfo.glyphId);
 			if (prevClass === GlyphClass.Base || prevClass === 0) {
 				baseIndex = j;
 				break;
@@ -1240,7 +1275,8 @@ function applyMarkBasePosLookup(
 		}
 
 		if (baseIndex < 0) continue;
-		const baseInfo = buffer.infos[baseIndex]!;
+		const baseInfo = buffer.infos[baseIndex];
+		if (!baseInfo) continue;
 
 		for (const subtable of lookup.subtables) {
 			const markCoverageIndex = subtable.markCoverage.get(markInfo.glyphId);
@@ -1259,8 +1295,9 @@ function applyMarkBasePosLookup(
 			const markAnchor = markRecord.markAnchor;
 
 			// Position mark relative to base
-			const markPos = buffer.positions[i]!;
-			const basePos = buffer.positions[baseIndex]!;
+			const markPos = buffer.positions[i];
+			const basePos = buffer.positions[baseIndex];
+			if (!markPos || !basePos) continue;
 
 			markPos.xOffset =
 				baseAnchor.xCoordinate - markAnchor.xCoordinate + basePos.xOffset;
@@ -1282,7 +1319,8 @@ function applyMarkLigaturePosLookup(
 	lookup: MarkLigaturePosLookup,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const markInfo = buffer.infos[i]!;
+		const markInfo = buffer.infos[i];
+		if (!markInfo) continue;
 
 		if (getGlyphClass(font.gdef, markInfo.glyphId) !== GlyphClass.Mark)
 			continue;
@@ -1292,7 +1330,9 @@ function applyMarkLigaturePosLookup(
 		let componentIndex = 0; // Which component of the ligature
 
 		for (let j = i - 1; j >= 0; j--) {
-			const prevClass = getGlyphClass(font.gdef, buffer.infos[j]?.glyphId);
+			const prevInfo = buffer.infos[j];
+			if (!prevInfo) continue;
+			const prevClass = getGlyphClass(font.gdef, prevInfo.glyphId);
 			if (prevClass === GlyphClass.Ligature) {
 				ligIndex = j;
 				break;
@@ -1305,7 +1345,8 @@ function applyMarkLigaturePosLookup(
 		}
 
 		if (ligIndex < 0) continue;
-		const ligInfo = buffer.infos[ligIndex]!;
+		const ligInfo = buffer.infos[ligIndex];
+		if (!ligInfo) continue;
 
 		for (const subtable of lookup.subtables) {
 			const markCoverageIndex = subtable.markCoverage.get(markInfo.glyphId);
@@ -1330,8 +1371,9 @@ function applyMarkLigaturePosLookup(
 			if (!ligAnchor) continue;
 
 			const markAnchor = markRecord.markAnchor;
-			const markPos = buffer.positions[i]!;
-			const ligPos = buffer.positions[ligIndex]!;
+			const markPos = buffer.positions[i];
+			const ligPos = buffer.positions[ligIndex];
+			if (!markPos || !ligPos) continue;
 
 			markPos.xOffset =
 				ligAnchor.xCoordinate - markAnchor.xCoordinate + ligPos.xOffset;
@@ -1351,25 +1393,27 @@ function applyMarkMarkPosLookup(
 	lookup: MarkMarkPosLookup,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const mark1Info = buffer.infos[i]!;
+		const mark1Info = buffer.infos[i];
+		if (!mark1Info) continue;
 
 		if (getGlyphClass(font.gdef, mark1Info.glyphId) !== GlyphClass.Mark)
 			continue;
 
-		// Find preceding mark (mark2)
+		// Find preceding mark (mark2) - must be immediately preceding
 		let mark2Index = -1;
-		for (let j = i - 1; j >= 0; j--) {
-			const prevClass = getGlyphClass(font.gdef, buffer.infos[j]?.glyphId);
-			if (prevClass === GlyphClass.Mark) {
-				mark2Index = j;
-				break;
+		if (i > 0) {
+			const prevInfo = buffer.infos[i - 1];
+			if (prevInfo) {
+				const prevClass = getGlyphClass(font.gdef, prevInfo.glyphId);
+				if (prevClass === GlyphClass.Mark) {
+					mark2Index = i - 1;
+				}
 			}
-			// Stop at non-mark
-			break;
 		}
 
 		if (mark2Index < 0) continue;
-		const mark2Info = buffer.infos[mark2Index]!;
+		const mark2Info = buffer.infos[mark2Index];
+		if (!mark2Info) continue;
 
 		for (const subtable of lookup.subtables) {
 			const mark1CoverageIndex = subtable.mark1Coverage.get(mark1Info.glyphId);
@@ -1386,8 +1430,9 @@ function applyMarkMarkPosLookup(
 			if (!mark2Anchor) continue;
 
 			const mark1Anchor = mark1Record.markAnchor;
-			const mark1Pos = buffer.positions[i]!;
-			const mark2Pos = buffer.positions[mark2Index]!;
+			const mark1Pos = buffer.positions[i];
+			const mark2Pos = buffer.positions[mark2Index];
+			if (!mark1Pos || !mark2Pos) continue;
 
 			mark1Pos.xOffset =
 				mark2Anchor.xCoordinate - mark1Anchor.xCoordinate + mark2Pos.xOffset;
@@ -1408,7 +1453,8 @@ function applyContextPosLookup(
 	plan: ShapePlan,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -1461,7 +1507,8 @@ function applyChainingContextPosLookup(
 	plan: ShapePlan,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
+		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
 		for (const subtable of lookup.subtables) {
@@ -1971,13 +2018,13 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 			switch (subtable.type) {
 				case MorxSubtableType.NonContextual:
 					// Simple substitution (Type 4)
-					for (let i = 0; i < buffer.infos.length; i++) {
+					for (const info of buffer.infos) {
 						const replacement = applyNonContextual(
 							subtable as MorxNonContextualSubtable,
-							buffer.infos[i]?.glyphId,
+							info.glyphId,
 						);
 						if (replacement !== null) {
-							buffer.infos[i]!.glyphId = replacement;
+							info.glyphId = replacement;
 						}
 					}
 					break;

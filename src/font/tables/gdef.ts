@@ -123,9 +123,9 @@ function parseAttachList(reader: Reader): Map<GlyphId, AttachPoint> {
 
 	// Parse attach points
 	const result = new Map<GlyphId, AttachPoint>();
-	for (let i = 0; i < glyphCount; i++) {
-		const offset = attachPointOffsets[i]!;
-		const glyphId = glyphIds[i]!;
+	for (const [i, offset] of attachPointOffsets.entries()) {
+		const glyphId = glyphIds[i];
+		if (glyphId === undefined) continue;
 
 		const pointReader = reader.sliceFrom(offset);
 		const pointCount = pointReader.uint16();
@@ -168,9 +168,9 @@ function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
 
 	// Parse ligature glyphs
 	const result = new Map<GlyphId, LigatureCaret>();
-	for (let i = 0; i < ligGlyphCount; i++) {
-		const offset = ligGlyphOffsets[i]!;
-		const glyphId = glyphIds[i]!;
+	for (const [i, offset] of ligGlyphOffsets.entries()) {
+		const glyphId = glyphIds[i];
+		if (glyphId === undefined) continue;
 
 		const ligReader = reader.sliceFrom(offset);
 		const caretCount = ligReader.uint16();

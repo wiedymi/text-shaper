@@ -87,8 +87,15 @@ export function parseGvar(reader: Reader, _numGlyphs: number): GvarTable {
 	// Parse glyph variation data
 	const glyphVariationData: GlyphVariationData[] = [];
 	for (let g = 0; g < glyphCount; g++) {
-		const dataStart = glyphVariationDataArrayOffset + offsets[g]!;
-		const dataEnd = glyphVariationDataArrayOffset + offsets[g + 1]!;
+		const startOffset = offsets[g];
+		const endOffset = offsets[g + 1];
+		if (startOffset === undefined || endOffset === undefined) {
+			glyphVariationData.push({ tupleVariationHeaders: [] });
+			continue;
+		}
+
+		const dataStart = glyphVariationDataArrayOffset + startOffset;
+		const dataEnd = glyphVariationDataArrayOffset + endOffset;
 
 		if (dataStart === dataEnd) {
 			// No variation data for this glyph
@@ -211,10 +218,11 @@ function parseGlyphVariationData(
 			numPoints > 0 ? parsePackedDeltas(dataReader, numPoints) : [];
 
 		const deltas: PointDelta[] = [];
-		for (let p = 0; p < numPoints; p++) {
+		for (const [p, xDelta] of xDeltas.entries()) {
+			const yDelta = yDeltas[p];
 			deltas.push({
-				x: xDeltas[p] ?? 0,
-				y: yDeltas[p] ?? 0,
+				x: xDelta ?? 0,
+				y: yDelta ?? 0,
 			});
 		}
 
@@ -304,8 +312,7 @@ export function calculateTupleScalar(
 ): number {
 	let scalar = 1.0;
 
-	for (let i = 0; i < peakTuple.length; i++) {
-		const peak = peakTuple[i]!;
+	for (const [i, peak] of peakTuple.entries()) {
 		const coord = axisCoords[i] ?? 0;
 
 		if (peak === 0 || coord === 0) {
@@ -314,8 +321,9 @@ export function calculateTupleScalar(
 		}
 
 		if (intermediateStart && intermediateEnd) {
-			const start = intermediateStart[i]!;
-			const end = intermediateEnd[i]!;
+			const start = intermediateStart[i];
+			const end = intermediateEnd[i];
+			if (start === undefined || end === undefined) continue;
 
 			if (coord < start || coord > end) {
 				scalar = 0;
@@ -375,15 +383,17 @@ export function getGlyphDelta(
 			const pointIdx = header.pointNumbers.indexOf(pointIndex);
 			if (pointIdx < 0) continue;
 
-			if (header.deltas[pointIdx]) {
-				totalX += header.deltas[pointIdx]?.x * scalar;
-				totalY += header.deltas[pointIdx]?.y * scalar;
+			const delta = header.deltas[pointIdx];
+			if (delta) {
+				totalX += delta.x * scalar;
+				totalY += delta.y * scalar;
 			}
 		} else {
 			// All points
-			if (header.deltas[pointIndex]) {
-				totalX += header.deltas[pointIndex]?.x * scalar;
-				totalY += header.deltas[pointIndex]?.y * scalar;
+			const delta = header.deltas[pointIndex];
+			if (delta) {
+				totalX += delta.x * scalar;
+				totalY += delta.y * scalar;
 			}
 		}
 	}

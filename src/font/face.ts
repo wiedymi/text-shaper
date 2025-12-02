@@ -57,8 +57,7 @@ export class Face {
 		}
 
 		// Normalize coordinates
-		for (let i = 0; i < fvar.axes.length; i++) {
-			const axis = fvar.axes[i]!;
+		for (const [i, axis] of fvar.axes.entries()) {
 			const userValue = this._variations.get(axis.tag) ?? axis.defaultValue;
 			this._coords[i] = normalizeAxisValue(axis, userValue);
 		}

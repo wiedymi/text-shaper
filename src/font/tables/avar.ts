@@ -70,8 +70,9 @@ export function applyAvarMapping(
 
 	// Find the segment containing coord
 	for (let i = 0; i < maps.length - 1; i++) {
-		const map1 = maps[i]!;
-		const map2 = maps[i + 1]!;
+		const map1 = maps[i];
+		const map2 = maps[i + 1];
+		if (!map1 || !map2) continue;
 
 		if (coord >= map1.fromCoordinate && coord <= map2.fromCoordinate) {
 			// Linear interpolation
@@ -83,10 +84,12 @@ export function applyAvarMapping(
 	}
 
 	// Clamp to range
-	if (coord <= maps[0]?.fromCoordinate) {
-		return maps[0]?.toCoordinate;
+	const firstMap = maps[0];
+	const lastMap = maps[maps.length - 1];
+	if (firstMap && coord <= firstMap.fromCoordinate) {
+		return firstMap.toCoordinate;
 	}
-	return maps[maps.length - 1]?.toCoordinate;
+	return lastMap?.toCoordinate ?? coord;
 }
 
 /**
@@ -95,12 +98,12 @@ export function applyAvarMapping(
 export function applyAvar(avar: AvarTable, coords: number[]): number[] {
 	const result: number[] = [];
 
-	for (let i = 0; i < coords.length; i++) {
+	for (const [i, coord] of coords.entries()) {
 		const segmentMap = avar.axisSegmentMaps[i];
 		if (segmentMap) {
-			result.push(applyAvarMapping(segmentMap, coords[i]!));
+			result.push(applyAvarMapping(segmentMap, coord));
 		} else {
-			result.push(coords[i]!);
+			result.push(coord);
 		}
 	}
 

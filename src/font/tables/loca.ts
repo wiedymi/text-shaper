@@ -57,8 +57,12 @@ export function getGlyphLocation(
 		return null;
 	}
 
-	const offset = loca.offsets[glyphId]!;
-	const nextOffset = loca.offsets[glyphId + 1]!;
+	const offset = loca.offsets[glyphId];
+	const nextOffset = loca.offsets[glyphId + 1];
+	if (offset === undefined || nextOffset === undefined) {
+		return null;
+	}
+
 	const length = nextOffset - offset;
 
 	// Zero-length means empty glyph (space, etc.)

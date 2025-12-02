@@ -87,7 +87,10 @@ export function reorderGlyphs(
 	const reordered: GlyphInfo[] = [];
 	for (const idx of indices) {
 		if (idx < infos.length) {
-			reordered.push(infos[idx]!);
+			const info = infos[idx];
+			if (info) {
+				reordered.push(info);
+			}
 		}
 	}
 
@@ -107,13 +110,12 @@ export function getMirror(codepoint: number): number {
  * Apply character mirroring for RTL runs
  */
 export function applyMirroring(infos: GlyphInfo[], levels: Uint8Array): void {
-	for (let i = 0; i < infos.length; i++) {
+	for (const [i, info] of infos.entries()) {
 		const level = levels[i];
 		if (level === undefined) continue;
 
 		// Odd levels are RTL
 		if (level & 1) {
-			const info = infos[i]!;
 			const mirrored = getMirror(info.codepoint);
 			if (mirrored !== info.codepoint) {
 				// Store mirrored codepoint - glyph ID will be remapped later

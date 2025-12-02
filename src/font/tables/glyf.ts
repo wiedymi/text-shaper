@@ -166,7 +166,20 @@ function parseSimpleGlyph(
 	}
 
 	// Total number of points
-	const numPoints = endPtsOfContours[numberOfContours - 1]! + 1;
+	const lastEndPt = endPtsOfContours[numberOfContours - 1];
+	if (lastEndPt === undefined) {
+		return {
+			type: "simple",
+			numberOfContours,
+			xMin,
+			yMin,
+			xMax,
+			yMax,
+			contours: [],
+			instructions: new Uint8Array(0),
+		};
+	}
+	const numPoints = lastEndPt + 1;
 
 	// Read instructions
 	const instructionLength = reader.uint16();
@@ -190,8 +203,7 @@ function parseSimpleGlyph(
 	// Read X coordinates
 	const xCoordinates: number[] = [];
 	let x = 0;
-	for (let i = 0; i < numPoints; i++) {
-		const flag = flags[i]!;
+	for (const [_i, flag] of flags.entries()) {
 		if (flag & PointFlag.XShortVector) {
 			const dx = reader.uint8();
 			x += flag & PointFlag.XIsSameOrPositive ? dx : -dx;
@@ -205,8 +217,7 @@ function parseSimpleGlyph(
 	// Read Y coordinates
 	const yCoordinates: number[] = [];
 	let y = 0;
-	for (let i = 0; i < numPoints; i++) {
-		const flag = flags[i]!;
+	for (const [_i, flag] of flags.entries()) {
 		if (flag & PointFlag.YShortVector) {
 			const dy = reader.uint8();
 			y += flag & PointFlag.YIsSameOrPositive ? dy : -dy;
@@ -220,15 +231,21 @@ function parseSimpleGlyph(
 	// Build contours
 	const contours: Contour[] = [];
 	let pointIndex = 0;
-	for (let c = 0; c < numberOfContours; c++) {
-		const endPt = endPtsOfContours[c]!;
+	for (const endPt of endPtsOfContours) {
 		const contour: Contour = [];
 
 		while (pointIndex <= endPt) {
+			const xCoord = xCoordinates[pointIndex];
+			const yCoord = yCoordinates[pointIndex];
+			const flag = flags[pointIndex];
+			if (xCoord === undefined || yCoord === undefined || flag === undefined) {
+				break;
+			}
+
 			contour.push({
-				x: xCoordinates[pointIndex]!,
-				y: yCoordinates[pointIndex]!,
-				onCurve: (flags[pointIndex]! & PointFlag.OnCurve) !== 0,
+				x: xCoord,
+				y: yCoord,
+				onCurve: (flag & PointFlag.OnCurve) !== 0,
 			});
 			pointIndex++;
 		}
@@ -458,19 +475,22 @@ export function getGlyphDeltas(
 
 		if (header.pointNumbers !== null) {
 			// Sparse point deltas
-			for (let i = 0; i < header.pointNumbers.length; i++) {
-				const pointIndex = header.pointNumbers[i]!;
-				if (pointIndex < numPoints && header.deltas[i]) {
-					deltas[pointIndex]!.x += header.deltas[i]?.x * scalar;
-					deltas[pointIndex]!.y += header.deltas[i]?.y * scalar;
+			for (const [i, pointIndex] of header.pointNumbers.entries()) {
+				const delta = deltas[pointIndex];
+				const headerDelta = header.deltas[i];
+				if (pointIndex < numPoints && delta && headerDelta) {
+					delta.x += headerDelta.x * scalar;
+					delta.y += headerDelta.y * scalar;
 				}
 			}
 		} else {
 			// All points
 			for (let i = 0; i < Math.min(header.deltas.length, numPoints); i++) {
-				if (header.deltas[i]) {
-					deltas[i]!.x += header.deltas[i]?.x * scalar;
-					deltas[i]!.y += header.deltas[i]?.y * scalar;
+				const delta = deltas[i];
+				const headerDelta = header.deltas[i];
+				if (delta && headerDelta) {
+					delta.x += headerDelta.x * scalar;
+					delta.y += headerDelta.y * scalar;
 				}
 			}
 		}

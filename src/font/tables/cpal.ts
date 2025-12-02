@@ -67,10 +67,12 @@ export function parseCpal(reader: Reader): CpalTable {
 	// Build palettes
 	const palettes: ColorPalette[] = [];
 	for (let i = 0; i < numPalettes; i++) {
-		const startIndex = colorRecordIndices[i]!;
+		const startIndex = colorRecordIndices[i];
+		if (startIndex === undefined) continue;
 		const colors: Color[] = [];
 		for (let j = 0; j < numPaletteEntries; j++) {
-			colors.push(colorRecords[startIndex + j]!);
+			const color = colorRecords[startIndex + j];
+			if (color) colors.push(color);
 		}
 		palettes.push({ colors });
 	}

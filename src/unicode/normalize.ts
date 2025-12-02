@@ -814,7 +814,12 @@ function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
 	let i = 0;
 
 	while (i < infos.length) {
-		const current = infos[i]!;
+		const current = infos[i];
+		if (!current) {
+			i++;
+			continue;
+		}
+
 		const currentCcc = getCombiningClass(current.codepoint);
 
 		// If this is a base character (ccc = 0), try to compose with following marks
@@ -825,7 +830,9 @@ function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
 
 			// Look for combining marks that can be composed
 			while (j < infos.length) {
-				const mark = infos[j]!;
+				const mark = infos[j];
+				if (!mark) break;
+
 				const markCcc = getCombiningClass(mark.codepoint);
 
 				// Stop at next base character
@@ -860,7 +867,9 @@ function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
 
 			// Output any marks that weren't composed
 			for (let k = i + 1; k < j; k++) {
-				const mark = infos[k]!;
+				const mark = infos[k];
+				if (!mark) continue;
+
 				const markCcc = getCombiningClass(mark.codepoint);
 				// Only output marks that weren't composed (check if they're still combining marks)
 				// We need to re-check if a composition exists to determine what to output
@@ -901,12 +910,12 @@ export function normalize(
 			const decomposed = decompose(info.codepoint);
 			if (decomposed) {
 				// Replace with decomposed sequence
-				for (let i = 0; i < decomposed.length; i++) {
+				for (const cp of decomposed) {
 					result.push({
 						glyphId: info.glyphId, // Will be remapped later
 						cluster: info.cluster,
 						mask: info.mask,
-						codepoint: decomposed[i]!,
+						codepoint: cp,
 					});
 				}
 			} else {
@@ -927,12 +936,12 @@ export function normalize(
 		for (const info of infos) {
 			const dec = decompose(info.codepoint);
 			if (dec) {
-				for (let i = 0; i < dec.length; i++) {
+				for (const cp of dec) {
 					decomposed.push({
 						glyphId: info.glyphId,
 						cluster: info.cluster,
 						mask: info.mask,
-						codepoint: dec[i]!,
+						codepoint: cp,
 					});
 				}
 			} else {
@@ -954,12 +963,12 @@ export function normalize(
 		for (const info of infos) {
 			const decomposed = decompose(info.codepoint);
 			if (decomposed) {
-				for (let i = 0; i < decomposed.length; i++) {
+				for (const cp of decomposed) {
 					result.push({
 						glyphId: info.glyphId,
 						cluster: info.cluster,
 						mask: info.mask,
-						codepoint: decomposed[i]!,
+						codepoint: cp,
 					});
 				}
 			} else {

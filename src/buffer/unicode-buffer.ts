@@ -30,7 +30,8 @@ export class UnicodeBuffer {
 	addStr(text: string, startCluster = 0): this {
 		let cluster = startCluster;
 		for (const char of text) {
-			const codepoint = char.codePointAt(0)!;
+			const codepoint = char.codePointAt(0);
+			if (codepoint === undefined) continue;
 			this.codepoints.push(codepoint);
 			this.clusters.push(cluster);
 			cluster++;
@@ -90,7 +91,10 @@ export class UnicodeBuffer {
 	setPreContext(text: string): this {
 		this.preContext = [];
 		for (const char of text) {
-			this.preContext.push(char.codePointAt(0)!);
+			const codepoint = char.codePointAt(0);
+			if (codepoint !== undefined) {
+				this.preContext.push(codepoint);
+			}
 		}
 		return this;
 	}
@@ -99,7 +103,10 @@ export class UnicodeBuffer {
 	setPostContext(text: string): this {
 		this.postContext = [];
 		for (const char of text) {
-			this.postContext.push(char.codePointAt(0)!);
+			const codepoint = char.codePointAt(0);
+			if (codepoint !== undefined) {
+				this.postContext.push(codepoint);
+			}
 		}
 		return this;
 	}
@@ -142,7 +149,7 @@ export class UnicodeBuffer {
 	toGlyphInfos(): GlyphInfo[] {
 		return this.codepoints.map((codepoint, i) => ({
 			glyphId: 0, // Will be set during shaping
-			cluster: this.clusters[i]!,
+			cluster: this.clusters[i] ?? 0,
 			mask: 0,
 			codepoint,
 		}));

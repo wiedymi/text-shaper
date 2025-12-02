@@ -218,8 +218,9 @@ function parseIndex(reader: Reader): Uint8Array[] {
 
 	const result: Uint8Array[] = [];
 	for (let i = 0; i < count; i++) {
-		const start = offsets[i]!;
-		const end = offsets[i + 1]!;
+		const start = offsets[i];
+		const end = offsets[i + 1];
+		if (start === undefined || end === undefined) continue;
 		const length = end - start;
 		result.push(reader.bytes(length));
 	}
@@ -317,7 +318,8 @@ function parseReal(reader: Reader): number {
 			if (nibble === 0x0c) {
 				str += "E-";
 			} else {
-				str += nibbleChars[nibble];
+				const char = nibbleChars[nibble];
+				if (char !== undefined) str += char;
 			}
 		}
 	}
@@ -380,6 +382,8 @@ function parseCff2PrivateDict(reader: Reader): Cff2PrivateDict {
 	const result: Cff2PrivateDict = {};
 
 	for (const [op, operands] of dict) {
+		const op0 = operands[0];
+
 		switch (op) {
 			case Cff2PrivateDictOp.BlueValues:
 				result.blueValues = deltaToAbsolute(operands);
@@ -394,19 +398,19 @@ function parseCff2PrivateDict(reader: Reader): Cff2PrivateDict {
 				result.familyOtherBlues = deltaToAbsolute(operands);
 				break;
 			case Cff2PrivateDictOp.BlueScale:
-				result.blueScale = operands[0];
+				result.blueScale = op0;
 				break;
 			case Cff2PrivateDictOp.BlueShift:
-				result.blueShift = operands[0];
+				result.blueShift = op0;
 				break;
 			case Cff2PrivateDictOp.BlueFuzz:
-				result.blueFuzz = operands[0];
+				result.blueFuzz = op0;
 				break;
 			case Cff2PrivateDictOp.StdHW:
-				result.stdHW = operands[0];
+				result.stdHW = op0;
 				break;
 			case Cff2PrivateDictOp.StdVW:
-				result.stdVW = operands[0];
+				result.stdVW = op0;
 				break;
 			case Cff2PrivateDictOp.StemSnapH:
 				result.stemSnapH = deltaToAbsolute(operands);
@@ -415,16 +419,16 @@ function parseCff2PrivateDict(reader: Reader): Cff2PrivateDict {
 				result.stemSnapV = deltaToAbsolute(operands);
 				break;
 			case Cff2PrivateDictOp.LanguageGroup:
-				result.languageGroup = operands[0];
+				result.languageGroup = op0;
 				break;
 			case Cff2PrivateDictOp.ExpansionFactor:
-				result.expansionFactor = operands[0];
+				result.expansionFactor = op0;
 				break;
 			case Cff2PrivateDictOp.Subrs:
-				result.subrs = operands[0];
+				result.subrs = op0;
 				break;
 			case Cff2PrivateDictOp.vsindex:
-				result.vsindex = operands[0];
+				result.vsindex = op0;
 				break;
 			case Cff2PrivateDictOp.blend:
 				result.blend = operands;
@@ -479,13 +483,15 @@ function parseFDSelect(reader: Reader, numGlyphs: number): Cff2FDSelect {
 				let hi = ranges.length - 1;
 				while (lo < hi) {
 					const mid = Math.ceil((lo + hi) / 2);
-					if (ranges[mid]?.first <= glyphId) {
+					const range = ranges[mid];
+					if (range && range.first <= glyphId) {
 						lo = mid;
 					} else {
 						hi = mid - 1;
 					}
 				}
-				return ranges[lo]?.fd ?? 0;
+				const foundRange = ranges[lo];
+				return foundRange?.fd ?? 0;
 			},
 		};
 	} else if (format === 4) {
@@ -508,13 +514,15 @@ function parseFDSelect(reader: Reader, numGlyphs: number): Cff2FDSelect {
 				let hi = ranges.length - 1;
 				while (lo < hi) {
 					const mid = Math.ceil((lo + hi) / 2);
-					if (ranges[mid]?.first <= glyphId) {
+					const range = ranges[mid];
+					if (range && range.first <= glyphId) {
 						lo = mid;
 					} else {
 						hi = mid - 1;
 					}
 				}
-				return ranges[lo]?.fd ?? 0;
+				const foundRange = ranges[lo];
+				return foundRange?.fd ?? 0;
 			},
 		};
 	}
@@ -631,14 +639,14 @@ export function calculateVariationDelta(
 
 	let delta = 0;
 	for (let i = 0; i < itemData.regionIndexCount; i++) {
-		const regionIndex = itemData.regionIndexes[i]!;
+		const regionIndex = itemData.regionIndexes[i];
+		if (regionIndex === undefined) continue;
 		const region = vstore.variationRegionList.regions[regionIndex];
 		if (!region) continue;
 
 		// Calculate scalar for this region
 		let scalar = 1.0;
-		for (let axis = 0; axis < region.axes.length; axis++) {
-			const coords = region.axes[axis]!;
+		for (const [axis, coords] of region.axes.entries()) {
 			const coord = normalizedCoords[axis] ?? 0;
 
 			if (coords.peakCoord === 0) {

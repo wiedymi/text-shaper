@@ -110,8 +110,12 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 			const key = `${record.platformId}-${record.encodingId}`;
 			// Find existing subtable
 			for (const [existingKey, subtable] of subtables) {
-				const [existingOffset] = existingKey.split("@");
-				if (Number.parseInt(existingOffset ?? "0", 10) === record.offset) {
+				const parts = existingKey.split("@");
+				const existingOffset = parts[0];
+				if (
+					existingOffset &&
+					Number.parseInt(existingOffset, 10) === record.offset
+				) {
 					subtables.set(key, subtable);
 					break;
 				}
@@ -238,18 +242,21 @@ function parseCmapFormat4(reader: Reader): CmapFormat4 {
 
 			while (low <= high) {
 				const mid = (low + high) >>> 1;
-				const endCode = endCodes[mid]!;
+				const endCode = endCodes[mid];
+				if (endCode === undefined) break;
 
 				if (codepoint > endCode) {
 					low = mid + 1;
 				} else {
-					const startCode = startCodes[mid]!;
+					const startCode = startCodes[mid];
+					if (startCode === undefined) break;
 					if (codepoint < startCode) {
 						high = mid - 1;
 					} else {
 						// Found segment
-						const idRangeOffset = idRangeOffsets[mid]!;
-						const idDelta = idDeltas[mid]!;
+						const idRangeOffset = idRangeOffsets[mid];
+						const idDelta = idDeltas[mid];
+						if (idRangeOffset === undefined || idDelta === undefined) break;
 
 						if (idRangeOffset === 0) {
 							return (codepoint + idDelta) & 0xffff;
@@ -299,7 +306,8 @@ function parseCmapFormat12(reader: Reader): CmapFormat12 {
 
 			while (low <= high) {
 				const mid = (low + high) >>> 1;
-				const group = groups[mid]!;
+				const group = groups[mid];
+				if (!group) break;
 
 				if (codepoint > group.endCharCode) {
 					low = mid + 1;
@@ -398,7 +406,8 @@ function parseCmapFormat14(reader: Reader): CmapFormat14 {
 
 			while (low <= high) {
 				const mid = (low + high) >>> 1;
-				const rec = varSelectorRecords[mid]!;
+				const rec = varSelectorRecords[mid];
+				if (!rec) break;
 
 				if (variationSelector > rec.varSelector) {
 					low = mid + 1;
@@ -421,7 +430,8 @@ function parseCmapFormat14(reader: Reader): CmapFormat14 {
 
 				while (lo <= hi) {
 					const mid = (lo + hi) >>> 1;
-					const mapping = record.nonDefaultUVS[mid]!;
+					const mapping = record.nonDefaultUVS[mid];
+					if (!mapping) break;
 
 					if (codepoint > mapping.unicodeValue) {
 						lo = mid + 1;

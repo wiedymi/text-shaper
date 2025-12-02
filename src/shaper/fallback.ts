@@ -44,8 +44,9 @@ export function applyFallbackMarkPositioning(
 
 		if (baseIndex < 0) continue;
 
-		const baseInfo = infos[baseIndex]!;
-		const basePos = positions[baseIndex]!;
+		const baseInfo = infos[baseIndex];
+		const basePos = positions[baseIndex];
+		if (!baseInfo || !basePos) continue;
 
 		// Get base glyph metrics
 		const baseAdvance = font.advanceWidth(baseInfo.glyphId);
@@ -196,8 +197,8 @@ export function recategorizeCombiningMarks(
 				const cccB = getCombiningClass(b.codepoint);
 				return cccA - cccB;
 			});
-			for (let k = 0; k < marks.length; k++) {
-				infos[i + k] = marks[k]!;
+			for (const [k, mark] of marks.entries()) {
+				infos[i + k] = mark;
 			}
 		}
 

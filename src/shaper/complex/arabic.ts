@@ -172,7 +172,8 @@ export function analyzeJoining(infos: GlyphInfo[]): JoiningAction[] {
 
 	// Analyze each glyph based on neighbors (skipping transparent)
 	for (let i = 0; i < n; i++) {
-		const type = types[i]!;
+		const type = types[i];
+		if (!type) continue;
 
 		// Skip non-Arabic characters
 		if (
@@ -185,8 +186,9 @@ export function analyzeJoining(infos: GlyphInfo[]): JoiningAction[] {
 		// Find previous non-transparent glyph
 		let prevType: ArabicJoiningType | null = null;
 		for (let j = i - 1; j >= 0; j--) {
-			if (types[j] !== ArabicJoiningType.Transparent) {
-				prevType = types[j]!;
+			const jType = types[j];
+			if (jType && jType !== ArabicJoiningType.Transparent) {
+				prevType = jType;
 				break;
 			}
 		}
@@ -194,8 +196,9 @@ export function analyzeJoining(infos: GlyphInfo[]): JoiningAction[] {
 		// Find next non-transparent glyph
 		let nextType: ArabicJoiningType | null = null;
 		for (let j = i + 1; j < n; j++) {
-			if (types[j] !== ArabicJoiningType.Transparent) {
-				nextType = types[j]!;
+			const jType = types[j];
+			if (jType && jType !== ArabicJoiningType.Transparent) {
+				nextType = jType;
 				break;
 			}
 		}
@@ -275,9 +278,9 @@ export function setupArabicMasks(infos: GlyphInfo[]): void {
 	// - bit 1: fina
 	// - bit 2: medi
 	// - bit 3: init
-	for (let i = 0; i < infos.length; i++) {
-		const action = actions[i]!;
-		const info = infos[i]!;
+	for (const [i, action] of actions.entries()) {
+		const info = infos[i];
+		if (!info) continue;
 
 		// Set mask based on action
 		// The shaper will need to check these masks when applying features

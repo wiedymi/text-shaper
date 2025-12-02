@@ -248,7 +248,7 @@ function parseKerxFormat2(
 	const numCols = rowWidth / 2;
 	const kerningArray = new Int16Array(numRows * numCols);
 
-	for (let i = 0; i < kerningArray.length; i++) {
+	for (const [i, _] of kerningArray.entries()) {
 		kerningArray[i] = arrayReader.int16();
 	}
 
@@ -319,7 +319,9 @@ export function getKerxValue(
 
 				while (lo <= hi) {
 					const mid = (lo + hi) >> 1;
-					const pair = pairs[mid]!;
+					const pair = pairs[mid];
+					if (!pair) break;
+
 					const key = (pair.left << 16) | pair.right;
 					const target = (left << 16) | right;
 
@@ -350,15 +352,16 @@ export function getKerxValue(
 					continue;
 				}
 
-				const leftClass = leftTable.classes[left - leftTable.firstGlyph]!;
-				const rightClass = rightTable.classes[right - rightTable.firstGlyph]!;
+				const leftClass = leftTable.classes[left - leftTable.firstGlyph];
+				const rightClass = rightTable.classes[right - rightTable.firstGlyph];
+				if (leftClass === undefined || rightClass === undefined) continue;
 
 				const numCols = subtable.rowWidth / 2;
 				const index = leftClass * numCols + rightClass;
 
 				if (index < subtable.kerningArray.length) {
-					const value = subtable.kerningArray[index]!;
-					if (value !== 0) return value;
+					const value = subtable.kerningArray[index];
+					if (value !== undefined && value !== 0) return value;
 				}
 				break;
 			}
