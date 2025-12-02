@@ -22,3 +22,7 @@ export type { ClassDef } from "./layout/structures/class-def.ts";
 // Buffers
 export { UnicodeBuffer } from "./buffer/unicode-buffer.ts";
 export { GlyphBuffer } from "./buffer/glyph-buffer.ts";
+
+// Shaper
+export { shape, type ShapeOptions } from "./shaper/shaper.ts";
+export { createShapePlan, type ShapePlan, type ShapeFeature } from "./shaper/shape-plan.ts";

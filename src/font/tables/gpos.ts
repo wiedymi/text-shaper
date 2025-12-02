@@ -11,12 +11,25 @@ import {
 import {
 	type ScriptList,
 	type FeatureList,
-	type LookupHeader,
 	parseScriptList,
 	parseFeatureList,
-	parseLookupHeaders,
 	LookupFlag,
 } from "../../layout/structures/layout-common.ts";
+import {
+	type Anchor,
+	type MarkArray,
+	type CursivePosSubtable,
+	type MarkBasePosSubtable,
+	type MarkLigaturePosSubtable,
+	type MarkMarkPosSubtable,
+	parseAnchor,
+	parseAnchorAt,
+	parseMarkArray,
+	parseCursivePos,
+	parseMarkBasePos,
+	parseMarkLigaturePos,
+	parseMarkMarkPos,
+} from "./gpos-mark.ts";
 
 /** GPOS lookup types */
 export const enum GposLookupType {
@@ -37,7 +50,6 @@ export interface ValueRecord {
 	yPlacement?: int16;
 	xAdvance?: int16;
 	yAdvance?: int16;
-	// Device table offsets (for hinting - not parsed)
 	xPlaDeviceOffset?: uint16;
 	yPlaDeviceOffset?: uint16;
 	xAdvDeviceOffset?: uint16;
@@ -73,9 +85,7 @@ export interface SinglePosSubtable {
 	format: 1 | 2;
 	coverage: Coverage;
 	valueFormat: uint16;
-	/** Format 1: single value for all */
 	value?: ValueRecord;
-	/** Format 2: value per glyph */
 	values?: ValueRecord[];
 }
 
@@ -87,7 +97,6 @@ export interface PairPosLookup extends GposLookup {
 
 export type PairPosSubtable = PairPosFormat1 | PairPosFormat2;
 
-/** Format 1: Specific glyph pairs */
 export interface PairPosFormat1 {
 	format: 1;
 	coverage: Coverage;
@@ -106,7 +115,6 @@ export interface PairValueRecord {
 	value2: ValueRecord;
 }
 
-/** Format 2: Class-based pairs */
 export interface PairPosFormat2 {
 	format: 2;
 	coverage: Coverage;
@@ -128,9 +136,39 @@ export interface Class2Record {
 	value2: ValueRecord;
 }
 
+/** Cursive attachment lookup (Type 3) */
+export interface CursivePosLookup extends GposLookup {
+	type: GposLookupType.Cursive;
+	subtables: CursivePosSubtable[];
+}
+
+/** Mark-to-base attachment lookup (Type 4) */
+export interface MarkBasePosLookup extends GposLookup {
+	type: GposLookupType.MarkToBase;
+	subtables: MarkBasePosSubtable[];
+}
+
+/** Mark-to-ligature attachment lookup (Type 5) */
+export interface MarkLigaturePosLookup extends GposLookup {
+	type: GposLookupType.MarkToLigature;
+	subtables: MarkLigaturePosSubtable[];
+}
+
+/** Mark-to-mark attachment lookup (Type 6) */
+export interface MarkMarkPosLookup extends GposLookup {
+	type: GposLookupType.MarkToMark;
+	subtables: MarkMarkPosSubtable[];
+}
+
 /** Union of all GPOS lookup types */
-export type AnyGposLookup = SinglePosLookup | PairPosLookup;
-// TODO: Add Cursive, MarkToBase, MarkToLigature, MarkToMark, Context, ChainingContext
+export type AnyGposLookup =
+	| SinglePosLookup
+	| PairPosLookup
+	| CursivePosLookup
+	| MarkBasePosLookup
+	| MarkLigaturePosLookup
+	| MarkMarkPosLookup;
+// TODO: Context, ChainingContext
 
 /** GPOS table */
 export interface GposTable {
@@ -140,6 +178,9 @@ export interface GposTable {
 	lookups: AnyGposLookup[];
 }
 
+// Re-export mark types
+export type { Anchor, MarkArray } from "./gpos-mark.ts";
+
 export function parseGpos(reader: Reader): GposTable {
 	const majorVersion = reader.uint16();
 	const minorVersion = reader.uint16();
@@ -148,31 +189,21 @@ export function parseGpos(reader: Reader): GposTable {
 	const featureListOffset = reader.offset16();
 	const lookupListOffset = reader.offset16();
 
-	let _featureVariationsOffset = 0;
 	if (majorVersion === 1 && minorVersion >= 1) {
-		_featureVariationsOffset = reader.offset32();
+		reader.offset32(); // featureVariationsOffset
 	}
 
 	const scriptList = parseScriptList(reader.sliceFrom(scriptListOffset));
 	const featureList = parseFeatureList(reader.sliceFrom(featureListOffset));
 
-	// Parse lookup list
 	const lookupListReader = reader.sliceFrom(lookupListOffset);
-	const lookupHeaders = parseLookupHeaders(lookupListReader);
-
-	const lookupCount = lookupListReader.peek(() => lookupListReader.uint16());
-	const lookupOffsets = lookupListReader.peek(() => {
-		lookupListReader.skip(2);
-		return lookupListReader.uint16Array(lookupCount);
-	});
+	const lookupCount = lookupListReader.uint16();
+	const lookupOffsets = lookupListReader.uint16Array(lookupCount);
 
 	const lookups: AnyGposLookup[] = [];
-	for (let i = 0; i < lookupHeaders.length; i++) {
-		const header = lookupHeaders[i]!;
-		const lookupOffset = lookupOffsets[i]!;
+	for (const lookupOffset of lookupOffsets) {
 		const lookupReader = lookupListReader.sliceFrom(lookupOffset);
-
-		const lookup = parseGposLookup(lookupReader, header);
+		const lookup = parseGposLookup(lookupReader);
 		if (lookup) {
 			lookups.push(lookup);
 		}
@@ -186,27 +217,66 @@ export function parseGpos(reader: Reader): GposTable {
 	};
 }
 
-function parseGposLookup(
-	reader: Reader,
-	header: LookupHeader,
-): AnyGposLookup | null {
-	reader.seek(0);
+function parseGposLookup(reader: Reader): AnyGposLookup | null {
 	const lookupType = reader.uint16();
 	const lookupFlag = reader.uint16();
 	const subtableCount = reader.uint16();
 	const subtableOffsets = Array.from(reader.uint16Array(subtableCount));
 
+	let markFilteringSet: uint16 | undefined;
+	if (lookupFlag & LookupFlag.UseMarkFilteringSet) {
+		markFilteringSet = reader.uint16();
+	}
+
+	const baseProps = { flag: lookupFlag, markFilteringSet };
+
 	switch (lookupType) {
 		case GposLookupType.Single:
-			return parseSinglePosLookup(reader, subtableOffsets, header);
+			return {
+				type: GposLookupType.Single,
+				...baseProps,
+				subtables: parseSinglePos(reader, subtableOffsets),
+			};
 
 		case GposLookupType.Pair:
-			return parsePairPosLookup(reader, subtableOffsets, header);
+			return {
+				type: GposLookupType.Pair,
+				...baseProps,
+				subtables: parsePairPos(reader, subtableOffsets),
+			};
+
+		case GposLookupType.Cursive:
+			return {
+				type: GposLookupType.Cursive,
+				...baseProps,
+				subtables: parseCursivePos(reader, subtableOffsets),
+			};
+
+		case GposLookupType.MarkToBase:
+			return {
+				type: GposLookupType.MarkToBase,
+				...baseProps,
+				subtables: parseMarkBasePos(reader, subtableOffsets),
+			};
+
+		case GposLookupType.MarkToLigature:
+			return {
+				type: GposLookupType.MarkToLigature,
+				...baseProps,
+				subtables: parseMarkLigaturePos(reader, subtableOffsets),
+			};
+
+		case GposLookupType.MarkToMark:
+			return {
+				type: GposLookupType.MarkToMark,
+				...baseProps,
+				subtables: parseMarkMarkPos(reader, subtableOffsets),
+			};
 
 		case GposLookupType.Extension:
-			return parseExtensionLookup(reader, subtableOffsets, header);
+			return parseExtensionLookup(reader, subtableOffsets, baseProps);
 
-		// TODO: Other types
+		// TODO: Context, ChainingContext
 		default:
 			return null;
 	}
@@ -215,120 +285,68 @@ function parseGposLookup(
 function parseValueRecord(reader: Reader, valueFormat: uint16): ValueRecord {
 	const record: ValueRecord = {};
 
-	if (valueFormat & ValueFormat.XPlacement) {
-		record.xPlacement = reader.int16();
-	}
-	if (valueFormat & ValueFormat.YPlacement) {
-		record.yPlacement = reader.int16();
-	}
-	if (valueFormat & ValueFormat.XAdvance) {
-		record.xAdvance = reader.int16();
-	}
-	if (valueFormat & ValueFormat.YAdvance) {
-		record.yAdvance = reader.int16();
-	}
-	if (valueFormat & ValueFormat.XPlaDevice) {
-		record.xPlaDeviceOffset = reader.uint16();
-	}
-	if (valueFormat & ValueFormat.YPlaDevice) {
-		record.yPlaDeviceOffset = reader.uint16();
-	}
-	if (valueFormat & ValueFormat.XAdvDevice) {
-		record.xAdvDeviceOffset = reader.uint16();
-	}
-	if (valueFormat & ValueFormat.YAdvDevice) {
-		record.yAdvDeviceOffset = reader.uint16();
-	}
+	if (valueFormat & ValueFormat.XPlacement) record.xPlacement = reader.int16();
+	if (valueFormat & ValueFormat.YPlacement) record.yPlacement = reader.int16();
+	if (valueFormat & ValueFormat.XAdvance) record.xAdvance = reader.int16();
+	if (valueFormat & ValueFormat.YAdvance) record.yAdvance = reader.int16();
+	if (valueFormat & ValueFormat.XPlaDevice) record.xPlaDeviceOffset = reader.uint16();
+	if (valueFormat & ValueFormat.YPlaDevice) record.yPlaDeviceOffset = reader.uint16();
+	if (valueFormat & ValueFormat.XAdvDevice) record.xAdvDeviceOffset = reader.uint16();
+	if (valueFormat & ValueFormat.YAdvDevice) record.yAdvDeviceOffset = reader.uint16();
 
 	return record;
 }
 
-function valueRecordSize(valueFormat: uint16): number {
-	let size = 0;
-	for (let i = 0; i < 8; i++) {
-		if (valueFormat & (1 << i)) {
-			size += 2;
-		}
-	}
-	return size;
-}
-
-function parseSinglePosLookup(
+function parseSinglePos(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
-): SinglePosLookup {
+): SinglePosSubtable[] {
 	const subtables: SinglePosSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
-		const subtableReader = reader.sliceFrom(offset);
-		const format = subtableReader.uint16();
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
 
 		if (format === 1) {
-			const coverageOffset = subtableReader.offset16();
-			const valueFormat = subtableReader.uint16();
-			const value = parseValueRecord(subtableReader, valueFormat);
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
-
-			subtables.push({
-				format: 1,
-				coverage,
-				valueFormat,
-				value,
-			});
+			const coverageOffset = r.offset16();
+			const valueFormat = r.uint16();
+			const value = parseValueRecord(r, valueFormat);
+			const coverage = parseCoverageAt(r, coverageOffset);
+			subtables.push({ format: 1, coverage, valueFormat, value });
 		} else if (format === 2) {
-			const coverageOffset = subtableReader.offset16();
-			const valueFormat = subtableReader.uint16();
-			const valueCount = subtableReader.uint16();
+			const coverageOffset = r.offset16();
+			const valueFormat = r.uint16();
+			const valueCount = r.uint16();
 			const values: ValueRecord[] = [];
-
 			for (let i = 0; i < valueCount; i++) {
-				values.push(parseValueRecord(subtableReader, valueFormat));
+				values.push(parseValueRecord(r, valueFormat));
 			}
-
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
-
-			subtables.push({
-				format: 2,
-				coverage,
-				valueFormat,
-				values,
-			});
+			const coverage = parseCoverageAt(r, coverageOffset);
+			subtables.push({ format: 2, coverage, valueFormat, values });
 		}
 	}
 
-	return {
-		type: GposLookupType.Single,
-		flag: header.lookupFlag,
-		markFilteringSet: header.markFilteringSet,
-		subtables,
-	};
+	return subtables;
 }
 
-function parsePairPosLookup(
+function parsePairPos(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
-): PairPosLookup {
+): PairPosSubtable[] {
 	const subtables: PairPosSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
-		const subtableReader = reader.sliceFrom(offset);
-		const format = subtableReader.uint16();
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
 
 		if (format === 1) {
-			subtables.push(parsePairPosFormat1(subtableReader));
+			subtables.push(parsePairPosFormat1(r));
 		} else if (format === 2) {
-			subtables.push(parsePairPosFormat2(subtableReader));
+			subtables.push(parsePairPosFormat2(r));
 		}
 	}
 
-	return {
-		type: GposLookupType.Pair,
-		flag: header.lookupFlag,
-		markFilteringSet: header.markFilteringSet,
-		subtables,
-	};
+	return subtables;
 }
 
 function parsePairPosFormat1(reader: Reader): PairPosFormat1 {
@@ -350,20 +368,13 @@ function parsePairPosFormat1(reader: Reader): PairPosFormat1 {
 			const secondGlyph = pairSetReader.uint16();
 			const value1 = parseValueRecord(pairSetReader, valueFormat1);
 			const value2 = parseValueRecord(pairSetReader, valueFormat2);
-
 			pairValueRecords.push({ secondGlyph, value1, value2 });
 		}
 
 		pairSets.push({ pairValueRecords });
 	}
 
-	return {
-		format: 1,
-		coverage,
-		valueFormat1,
-		valueFormat2,
-		pairSets,
-	};
+	return { format: 1, coverage, valueFormat1, valueFormat2, pairSets };
 }
 
 function parsePairPosFormat2(reader: Reader): PairPosFormat2 {
@@ -382,13 +393,11 @@ function parsePairPosFormat2(reader: Reader): PairPosFormat2 {
 	const class1Records: Class1Record[] = [];
 	for (let i = 0; i < class1Count; i++) {
 		const class2Records: Class2Record[] = [];
-
 		for (let j = 0; j < class2Count; j++) {
 			const value1 = parseValueRecord(reader, valueFormat1);
 			const value2 = parseValueRecord(reader, valueFormat2);
 			class2Records.push({ value1, value2 });
 		}
-
 		class1Records.push({ class2Records });
 	}
 
@@ -408,34 +417,86 @@ function parsePairPosFormat2(reader: Reader): PairPosFormat2 {
 function parseExtensionLookup(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
+	baseProps: { flag: uint16; markFilteringSet?: uint16 },
 ): AnyGposLookup | null {
 	if (subtableOffsets.length === 0) return null;
 
-	const extReader = reader.sliceFrom(subtableOffsets[0]!);
-	const format = extReader.uint16();
-	if (format !== 1) return null;
+	const extSubtables: Array<{ type: number; reader: Reader }> = [];
 
-	const extensionLookupType = extReader.uint16();
-	const extensionOffset = extReader.uint32();
+	for (const offset of subtableOffsets) {
+		const extReader = reader.sliceFrom(offset);
+		const format = extReader.uint16();
+		if (format !== 1) continue;
 
-	const actualReader = extReader.sliceFrom(extensionOffset - 8);
-	const newHeader: LookupHeader = {
-		...header,
-		lookupType: extensionLookupType,
-	};
+		const extensionLookupType = extReader.uint16();
+		const extensionOffset = extReader.uint32();
 
-	switch (extensionLookupType) {
-		case GposLookupType.Single:
-			return parseSinglePosLookup(actualReader, [0], newHeader);
-		case GposLookupType.Pair:
-			return parsePairPosLookup(actualReader, [0], newHeader);
+		extSubtables.push({
+			type: extensionLookupType,
+			reader: extReader.sliceFrom(extensionOffset - 8),
+		});
+	}
+
+	if (extSubtables.length === 0) return null;
+
+	const actualType = extSubtables[0]!.type;
+
+	switch (actualType) {
+		case GposLookupType.Single: {
+			const subtables: SinglePosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseSinglePos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.Single, ...baseProps, subtables };
+		}
+
+		case GposLookupType.Pair: {
+			const subtables: PairPosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parsePairPos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.Pair, ...baseProps, subtables };
+		}
+
+		case GposLookupType.Cursive: {
+			const subtables: CursivePosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseCursivePos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.Cursive, ...baseProps, subtables };
+		}
+
+		case GposLookupType.MarkToBase: {
+			const subtables: MarkBasePosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseMarkBasePos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.MarkToBase, ...baseProps, subtables };
+		}
+
+		case GposLookupType.MarkToLigature: {
+			const subtables: MarkLigaturePosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseMarkLigaturePos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.MarkToLigature, ...baseProps, subtables };
+		}
+
+		case GposLookupType.MarkToMark: {
+			const subtables: MarkMarkPosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseMarkMarkPos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.MarkToMark, ...baseProps, subtables };
+		}
+
 		default:
 			return null;
 	}
 }
 
-/** Get kerning value for a glyph pair */
+// Utility functions
+
 export function getKerning(
 	lookup: PairPosLookup,
 	firstGlyph: GlyphId,
@@ -449,7 +510,6 @@ export function getKerning(
 			const pairSet = subtable.pairSets[coverageIndex];
 			if (!pairSet) continue;
 
-			// Binary search would be better, but linear is fine for now
 			for (const record of pairSet.pairValueRecords) {
 				if (record.secondGlyph === secondGlyph) {
 					return {

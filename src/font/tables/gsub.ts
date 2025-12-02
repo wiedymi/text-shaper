@@ -1,8 +1,7 @@
-import type { GlyphId, Tag, uint16 } from "../../types.ts";
+import type { GlyphId, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 import {
 	type Coverage,
-	parseCoverage,
 	parseCoverageAt,
 } from "../../layout/structures/coverage.ts";
 import {
@@ -14,6 +13,13 @@ import {
 	parseLookupHeaders,
 	LookupFlag,
 } from "../../layout/structures/layout-common.ts";
+import {
+	type ContextSubstSubtable,
+	type ChainingContextSubstSubtable,
+	type SequenceLookupRecord,
+	parseContextSubst,
+	parseChainingContextSubst,
+} from "./gsub-contextual.ts";
 
 /** GSUB lookup types */
 export const enum GsubLookupType {
@@ -40,39 +46,11 @@ export interface SingleSubstLookup extends GsubLookup {
 	subtables: SingleSubstSubtable[];
 }
 
-/** Single substitution subtable */
 export interface SingleSubstSubtable {
 	format: 1 | 2;
 	coverage: Coverage;
-	/** Format 1: delta to add to glyph ID */
 	deltaGlyphId?: number;
-	/** Format 2: substitute glyph IDs */
 	substituteGlyphIds?: GlyphId[];
-}
-
-/** Ligature substitution lookup (Type 4) */
-export interface LigatureSubstLookup extends GsubLookup {
-	type: GsubLookupType.Ligature;
-	subtables: LigatureSubstSubtable[];
-}
-
-/** Ligature substitution subtable */
-export interface LigatureSubstSubtable {
-	coverage: Coverage;
-	ligatureSets: LigatureSet[];
-}
-
-/** Set of ligatures starting with a specific first glyph */
-export interface LigatureSet {
-	ligatures: Ligature[];
-}
-
-/** A single ligature rule */
-export interface Ligature {
-	/** Resulting ligature glyph */
-	ligatureGlyph: GlyphId;
-	/** Component glyphs (excluding first, which is in coverage) */
-	componentGlyphIds: GlyphId[];
 }
 
 /** Multiple substitution lookup (Type 2) */
@@ -97,13 +75,60 @@ export interface AlternateSubstSubtable {
 	alternateSets: GlyphId[][];
 }
 
+/** Ligature substitution lookup (Type 4) */
+export interface LigatureSubstLookup extends GsubLookup {
+	type: GsubLookupType.Ligature;
+	subtables: LigatureSubstSubtable[];
+}
+
+export interface LigatureSubstSubtable {
+	coverage: Coverage;
+	ligatureSets: LigatureSet[];
+}
+
+export interface LigatureSet {
+	ligatures: Ligature[];
+}
+
+export interface Ligature {
+	ligatureGlyph: GlyphId;
+	componentGlyphIds: GlyphId[];
+}
+
+/** Context substitution lookup (Type 5) */
+export interface ContextSubstLookup extends GsubLookup {
+	type: GsubLookupType.Context;
+	subtables: ContextSubstSubtable[];
+}
+
+/** Chaining context substitution lookup (Type 6) */
+export interface ChainingContextSubstLookup extends GsubLookup {
+	type: GsubLookupType.ChainingContext;
+	subtables: ChainingContextSubstSubtable[];
+}
+
+/** Reverse chaining single substitution lookup (Type 8) */
+export interface ReverseChainingSingleSubstLookup extends GsubLookup {
+	type: GsubLookupType.ReverseChainingSingle;
+	subtables: ReverseChainingSingleSubstSubtable[];
+}
+
+export interface ReverseChainingSingleSubstSubtable {
+	coverage: Coverage;
+	backtrackCoverages: Coverage[];
+	lookaheadCoverages: Coverage[];
+	substituteGlyphIds: GlyphId[];
+}
+
 /** Union of all GSUB lookup types */
 export type AnyGsubLookup =
 	| SingleSubstLookup
 	| MultipleSubstLookup
 	| AlternateSubstLookup
-	| LigatureSubstLookup;
-// TODO: Add Context, ChainingContext, Extension, ReverseChainingSingle
+	| LigatureSubstLookup
+	| ContextSubstLookup
+	| ChainingContextSubstLookup
+	| ReverseChainingSingleSubstLookup;
 
 /** GSUB table */
 export interface GsubTable {
@@ -113,6 +138,9 @@ export interface GsubTable {
 	lookups: AnyGsubLookup[];
 }
 
+// Re-export for use in shaper
+export type { SequenceLookupRecord } from "./gsub-contextual.ts";
+
 export function parseGsub(reader: Reader): GsubTable {
 	const majorVersion = reader.uint16();
 	const minorVersion = reader.uint16();
@@ -121,33 +149,21 @@ export function parseGsub(reader: Reader): GsubTable {
 	const featureListOffset = reader.offset16();
 	const lookupListOffset = reader.offset16();
 
-	// Version 1.1 has additional feature variations offset
-	let _featureVariationsOffset = 0;
 	if (majorVersion === 1 && minorVersion >= 1) {
-		_featureVariationsOffset = reader.offset32();
+		reader.offset32(); // featureVariationsOffset
 	}
 
 	const scriptList = parseScriptList(reader.sliceFrom(scriptListOffset));
 	const featureList = parseFeatureList(reader.sliceFrom(featureListOffset));
 
-	// Parse lookup list
 	const lookupListReader = reader.sliceFrom(lookupListOffset);
-	const lookupHeaders = parseLookupHeaders(lookupListReader);
+	const lookupCount = lookupListReader.uint16();
+	const lookupOffsets = lookupListReader.uint16Array(lookupCount);
 
-	// Parse each lookup
 	const lookups: AnyGsubLookup[] = [];
-	const lookupCount = lookupListReader.peek(() => lookupListReader.uint16());
-	const lookupOffsets = lookupListReader.peek(() => {
-		lookupListReader.skip(2);
-		return lookupListReader.uint16Array(lookupCount);
-	});
-
-	for (let i = 0; i < lookupHeaders.length; i++) {
-		const header = lookupHeaders[i]!;
-		const lookupOffset = lookupOffsets[i]!;
+	for (const lookupOffset of lookupOffsets) {
 		const lookupReader = lookupListReader.sliceFrom(lookupOffset);
-
-		const lookup = parseGsubLookup(lookupReader, header);
+		const lookup = parseGsubLookup(lookupReader, lookupListReader, lookupOffset);
 		if (lookup) {
 			lookups.push(lookup);
 		}
@@ -163,111 +179,126 @@ export function parseGsub(reader: Reader): GsubTable {
 
 function parseGsubLookup(
 	reader: Reader,
-	header: LookupHeader,
+	lookupListReader: Reader,
+	lookupOffset: number,
 ): AnyGsubLookup | null {
-	// Skip the header we already parsed
-	reader.skip(6 + header.subtableOffsets.length * 2);
-	if (header.lookupFlag & LookupFlag.UseMarkFilteringSet) {
-		reader.skip(2);
-	}
-
-	// Re-read from start for subtables
-	reader.seek(0);
 	const lookupType = reader.uint16();
 	const lookupFlag = reader.uint16();
 	const subtableCount = reader.uint16();
 	const subtableOffsets = Array.from(reader.uint16Array(subtableCount));
 
+	let markFilteringSet: uint16 | undefined;
+	if (lookupFlag & LookupFlag.UseMarkFilteringSet) {
+		markFilteringSet = reader.uint16();
+	}
+
+	const baseProps = { flag: lookupFlag, markFilteringSet };
+
 	switch (lookupType) {
 		case GsubLookupType.Single:
-			return parseSingleSubstLookup(reader, subtableOffsets, header);
+			return {
+				type: GsubLookupType.Single,
+				...baseProps,
+				subtables: parseSingleSubst(reader, subtableOffsets),
+			};
 
 		case GsubLookupType.Multiple:
-			return parseMultipleSubstLookup(reader, subtableOffsets, header);
+			return {
+				type: GsubLookupType.Multiple,
+				...baseProps,
+				subtables: parseMultipleSubst(reader, subtableOffsets),
+			};
 
 		case GsubLookupType.Alternate:
-			return parseAlternateSubstLookup(reader, subtableOffsets, header);
+			return {
+				type: GsubLookupType.Alternate,
+				...baseProps,
+				subtables: parseAlternateSubst(reader, subtableOffsets),
+			};
 
 		case GsubLookupType.Ligature:
-			return parseLigatureSubstLookup(reader, subtableOffsets, header);
+			return {
+				type: GsubLookupType.Ligature,
+				...baseProps,
+				subtables: parseLigatureSubst(reader, subtableOffsets),
+			};
 
-		case GsubLookupType.Extension: {
-			// Extension lookup - parse actual lookup from extension
-			return parseExtensionLookup(reader, subtableOffsets, header);
-		}
+		case GsubLookupType.Context:
+			return {
+				type: GsubLookupType.Context,
+				...baseProps,
+				subtables: parseContextSubst(reader, subtableOffsets),
+			};
 
-		// TODO: Context, ChainingContext, ReverseChainingSingle
+		case GsubLookupType.ChainingContext:
+			return {
+				type: GsubLookupType.ChainingContext,
+				...baseProps,
+				subtables: parseChainingContextSubst(reader, subtableOffsets),
+			};
+
+		case GsubLookupType.Extension:
+			return parseExtensionLookup(reader, subtableOffsets, baseProps);
+
+		case GsubLookupType.ReverseChainingSingle:
+			return {
+				type: GsubLookupType.ReverseChainingSingle,
+				...baseProps,
+				subtables: parseReverseChainingSingleSubst(reader, subtableOffsets),
+			};
+
 		default:
 			return null;
 	}
 }
 
-function parseSingleSubstLookup(
+function parseSingleSubst(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
-): SingleSubstLookup {
+): SingleSubstSubtable[] {
 	const subtables: SingleSubstSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
-		const subtableReader = reader.sliceFrom(offset);
-		const format = subtableReader.uint16();
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
 
 		if (format === 1) {
-			const coverageOffset = subtableReader.offset16();
-			const deltaGlyphId = subtableReader.int16();
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
-
-			subtables.push({
-				format: 1,
-				coverage,
-				deltaGlyphId,
-			});
+			const coverageOffset = r.offset16();
+			const deltaGlyphId = r.int16();
+			const coverage = parseCoverageAt(r, coverageOffset);
+			subtables.push({ format: 1, coverage, deltaGlyphId });
 		} else if (format === 2) {
-			const coverageOffset = subtableReader.offset16();
-			const glyphCount = subtableReader.uint16();
-			const substituteGlyphIds = Array.from(
-				subtableReader.uint16Array(glyphCount),
-			);
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
-
-			subtables.push({
-				format: 2,
-				coverage,
-				substituteGlyphIds,
-			});
+			const coverageOffset = r.offset16();
+			const glyphCount = r.uint16();
+			const substituteGlyphIds = Array.from(r.uint16Array(glyphCount));
+			const coverage = parseCoverageAt(r, coverageOffset);
+			subtables.push({ format: 2, coverage, substituteGlyphIds });
 		}
 	}
 
-	return {
-		type: GsubLookupType.Single,
-		flag: header.lookupFlag,
-		markFilteringSet: header.markFilteringSet,
-		subtables,
-	};
+	return subtables;
 }
 
-function parseMultipleSubstLookup(
+function parseMultipleSubst(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
-): MultipleSubstLookup {
+): MultipleSubstSubtable[] {
 	const subtables: MultipleSubstSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
-		const subtableReader = reader.sliceFrom(offset);
-		const format = subtableReader.uint16();
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
 
 		if (format === 1) {
-			const coverageOffset = subtableReader.offset16();
-			const sequenceCount = subtableReader.uint16();
-			const sequenceOffsets = subtableReader.uint16Array(sequenceCount);
+			const coverageOffset = r.offset16();
+			const sequenceCount = r.uint16();
+			const sequenceOffsets = r.uint16Array(sequenceCount);
 
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
+			const coverage = parseCoverageAt(r, coverageOffset);
 			const sequences: GlyphId[][] = [];
 
 			for (const seqOffset of sequenceOffsets) {
-				const seqReader = subtableReader.sliceFrom(seqOffset);
+				const seqReader = r.sliceFrom(seqOffset);
 				const glyphCount = seqReader.uint16();
 				sequences.push(Array.from(seqReader.uint16Array(glyphCount)));
 			}
@@ -276,35 +307,29 @@ function parseMultipleSubstLookup(
 		}
 	}
 
-	return {
-		type: GsubLookupType.Multiple,
-		flag: header.lookupFlag,
-		markFilteringSet: header.markFilteringSet,
-		subtables,
-	};
+	return subtables;
 }
 
-function parseAlternateSubstLookup(
+function parseAlternateSubst(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
-): AlternateSubstLookup {
+): AlternateSubstSubtable[] {
 	const subtables: AlternateSubstSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
-		const subtableReader = reader.sliceFrom(offset);
-		const format = subtableReader.uint16();
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
 
 		if (format === 1) {
-			const coverageOffset = subtableReader.offset16();
-			const alternateSetCount = subtableReader.uint16();
-			const alternateSetOffsets = subtableReader.uint16Array(alternateSetCount);
+			const coverageOffset = r.offset16();
+			const alternateSetCount = r.uint16();
+			const alternateSetOffsets = r.uint16Array(alternateSetCount);
 
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
+			const coverage = parseCoverageAt(r, coverageOffset);
 			const alternateSets: GlyphId[][] = [];
 
 			for (const altOffset of alternateSetOffsets) {
-				const altReader = subtableReader.sliceFrom(altOffset);
+				const altReader = r.sliceFrom(altOffset);
 				const glyphCount = altReader.uint16();
 				alternateSets.push(Array.from(altReader.uint16Array(glyphCount)));
 			}
@@ -313,35 +338,29 @@ function parseAlternateSubstLookup(
 		}
 	}
 
-	return {
-		type: GsubLookupType.Alternate,
-		flag: header.lookupFlag,
-		markFilteringSet: header.markFilteringSet,
-		subtables,
-	};
+	return subtables;
 }
 
-function parseLigatureSubstLookup(
+function parseLigatureSubst(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
-): LigatureSubstLookup {
+): LigatureSubstSubtable[] {
 	const subtables: LigatureSubstSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
-		const subtableReader = reader.sliceFrom(offset);
-		const format = subtableReader.uint16();
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
 
 		if (format === 1) {
-			const coverageOffset = subtableReader.offset16();
-			const ligatureSetCount = subtableReader.uint16();
-			const ligatureSetOffsets = subtableReader.uint16Array(ligatureSetCount);
+			const coverageOffset = r.offset16();
+			const ligatureSetCount = r.uint16();
+			const ligatureSetOffsets = r.uint16Array(ligatureSetCount);
 
-			const coverage = parseCoverageAt(subtableReader, coverageOffset);
+			const coverage = parseCoverageAt(r, coverageOffset);
 			const ligatureSets: LigatureSet[] = [];
 
 			for (const setOffset of ligatureSetOffsets) {
-				const setReader = subtableReader.sliceFrom(setOffset);
+				const setReader = r.sliceFrom(setOffset);
 				const ligatureCount = setReader.uint16();
 				const ligatureOffsets = setReader.uint16Array(ligatureCount);
 
@@ -350,15 +369,10 @@ function parseLigatureSubstLookup(
 					const ligReader = setReader.sliceFrom(ligOffset);
 					const ligatureGlyph = ligReader.uint16();
 					const componentCount = ligReader.uint16();
-					// Component count includes first glyph, so subtract 1
 					const componentGlyphIds = Array.from(
 						ligReader.uint16Array(componentCount - 1),
 					);
-
-					ligatures.push({
-						ligatureGlyph,
-						componentGlyphIds,
-					});
+					ligatures.push({ ligatureGlyph, componentGlyphIds });
 				}
 
 				ligatureSets.push({ ligatures });
@@ -368,53 +382,149 @@ function parseLigatureSubstLookup(
 		}
 	}
 
-	return {
-		type: GsubLookupType.Ligature,
-		flag: header.lookupFlag,
-		markFilteringSet: header.markFilteringSet,
-		subtables,
-	};
+	return subtables;
+}
+
+function parseReverseChainingSingleSubst(
+	reader: Reader,
+	subtableOffsets: number[],
+): ReverseChainingSingleSubstSubtable[] {
+	const subtables: ReverseChainingSingleSubstSubtable[] = [];
+
+	for (const offset of subtableOffsets) {
+		const r = reader.sliceFrom(offset);
+		const format = r.uint16();
+
+		if (format === 1) {
+			const coverageOffset = r.offset16();
+
+			const backtrackCount = r.uint16();
+			const backtrackCoverageOffsets = r.uint16Array(backtrackCount);
+
+			const lookaheadCount = r.uint16();
+			const lookaheadCoverageOffsets = r.uint16Array(lookaheadCount);
+
+			const glyphCount = r.uint16();
+			const substituteGlyphIds = Array.from(r.uint16Array(glyphCount));
+
+			const coverage = parseCoverageAt(r, coverageOffset);
+
+			const backtrackCoverages: Coverage[] = [];
+			for (const covOffset of backtrackCoverageOffsets) {
+				backtrackCoverages.push(parseCoverageAt(r, covOffset));
+			}
+
+			const lookaheadCoverages: Coverage[] = [];
+			for (const covOffset of lookaheadCoverageOffsets) {
+				lookaheadCoverages.push(parseCoverageAt(r, covOffset));
+			}
+
+			subtables.push({
+				coverage,
+				backtrackCoverages,
+				lookaheadCoverages,
+				substituteGlyphIds,
+			});
+		}
+	}
+
+	return subtables;
 }
 
 function parseExtensionLookup(
 	reader: Reader,
 	subtableOffsets: number[],
-	header: LookupHeader,
+	baseProps: { flag: uint16; markFilteringSet?: uint16 },
 ): AnyGsubLookup | null {
 	if (subtableOffsets.length === 0) return null;
 
-	// Read extension header from first subtable
-	const extReader = reader.sliceFrom(subtableOffsets[0]!);
-	const format = extReader.uint16();
-	if (format !== 1) return null;
+	// Parse all extension subtables
+	const extSubtables: Array<{ type: number; reader: Reader }> = [];
 
-	const extensionLookupType = extReader.uint16();
-	const extensionOffset = extReader.uint32();
+	for (const offset of subtableOffsets) {
+		const extReader = reader.sliceFrom(offset);
+		const format = extReader.uint16();
+		if (format !== 1) continue;
 
-	// Parse the actual lookup
-	const actualReader = extReader.sliceFrom(extensionOffset - 8); // Adjust for header
+		const extensionLookupType = extReader.uint16();
+		const extensionOffset = extReader.uint32();
 
-	const newHeader: LookupHeader = {
-		...header,
-		lookupType: extensionLookupType,
-	};
+		extSubtables.push({
+			type: extensionLookupType,
+			reader: extReader.sliceFrom(extensionOffset - 8),
+		});
+	}
 
-	// Recursively parse
-	switch (extensionLookupType) {
-		case GsubLookupType.Single:
-			return parseSingleSubstLookup(actualReader, [0], newHeader);
-		case GsubLookupType.Multiple:
-			return parseMultipleSubstLookup(actualReader, [0], newHeader);
-		case GsubLookupType.Alternate:
-			return parseAlternateSubstLookup(actualReader, [0], newHeader);
-		case GsubLookupType.Ligature:
-			return parseLigatureSubstLookup(actualReader, [0], newHeader);
+	if (extSubtables.length === 0) return null;
+
+	const actualType = extSubtables[0]!.type;
+	const actualOffsets = extSubtables.map((_, i) => 0); // All at offset 0 of their readers
+
+	// Create a combined reader for all subtables
+	switch (actualType) {
+		case GsubLookupType.Single: {
+			const subtables: SingleSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseSingleSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.Single, ...baseProps, subtables };
+		}
+
+		case GsubLookupType.Multiple: {
+			const subtables: MultipleSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseMultipleSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.Multiple, ...baseProps, subtables };
+		}
+
+		case GsubLookupType.Alternate: {
+			const subtables: AlternateSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseAlternateSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.Alternate, ...baseProps, subtables };
+		}
+
+		case GsubLookupType.Ligature: {
+			const subtables: LigatureSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseLigatureSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.Ligature, ...baseProps, subtables };
+		}
+
+		case GsubLookupType.Context: {
+			const subtables: ContextSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseContextSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.Context, ...baseProps, subtables };
+		}
+
+		case GsubLookupType.ChainingContext: {
+			const subtables: ChainingContextSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseChainingContextSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.ChainingContext, ...baseProps, subtables };
+		}
+
+		case GsubLookupType.ReverseChainingSingle: {
+			const subtables: ReverseChainingSingleSubstSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseReverseChainingSingleSubst(ext.reader, [0]));
+			}
+			return { type: GsubLookupType.ReverseChainingSingle, ...baseProps, subtables };
+		}
+
 		default:
 			return null;
 	}
 }
 
-/** Apply single substitution to a glyph */
+// Utility functions for applying lookups
+
 export function applySingleSubst(
 	lookup: SingleSubstLookup,
 	glyphId: GlyphId,
@@ -435,7 +545,6 @@ export function applySingleSubst(
 	return null;
 }
 
-/** Apply ligature substitution - returns ligature glyph and number of consumed glyphs */
 export function applyLigatureSubst(
 	lookup: LigatureSubstLookup,
 	glyphIds: GlyphId[],
@@ -451,14 +560,11 @@ export function applyLigatureSubst(
 		const ligatureSet = subtable.ligatureSets[coverageIndex];
 		if (!ligatureSet) continue;
 
-		// Try each ligature in the set (longer matches first in proper fonts)
 		for (const ligature of ligatureSet.ligatures) {
 			const componentCount = ligature.componentGlyphIds.length;
 
-			// Check if we have enough glyphs
 			if (startIndex + 1 + componentCount > glyphIds.length) continue;
 
-			// Check if components match
 			let matches = true;
 			for (let i = 0; i < componentCount; i++) {
 				if (glyphIds[startIndex + 1 + i] !== ligature.componentGlyphIds[i]) {

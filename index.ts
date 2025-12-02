@@ -1,5 +1,4 @@
-import { Font, UnicodeBuffer, GlyphBuffer, Direction, tagToString } from "./src/index.ts";
-import { GsubLookupType } from "./src/font/tables/gsub.ts";
+import { Font, UnicodeBuffer, shape, tagToString, Direction } from "./src/index.ts";
 import { GposLookupType, getKerning } from "./src/font/tables/gpos.ts";
 
 async function main() {
@@ -29,12 +28,16 @@ async function main() {
 		console.log(`Lookups: ${gsub.lookups.length}`);
 
 		// Count lookup types
+		const gsubTypeNames: Record<number, string> = {
+			1: "Single", 2: "Multiple", 3: "Alternate", 4: "Ligature",
+			5: "Context", 6: "ChainingContext", 7: "Extension", 8: "ReverseChainingSingle"
+		};
 		const typeCounts = new Map<number, number>();
 		for (const lookup of gsub.lookups) {
 			typeCounts.set(lookup.type, (typeCounts.get(lookup.type) ?? 0) + 1);
 		}
 		for (const [type, count] of typeCounts) {
-			console.log(`  Type ${type} (${GsubLookupType[type]}): ${count}`);
+			console.log(`  Type ${type} (${gsubTypeNames[type] ?? "Unknown"}): ${count}`);
 		}
 	}
 
@@ -47,12 +50,16 @@ async function main() {
 		console.log(`Lookups: ${gpos.lookups.length}`);
 
 		// Count lookup types
+		const gposTypeNames: Record<number, string> = {
+			1: "Single", 2: "Pair", 3: "Cursive", 4: "MarkToBase",
+			5: "MarkToLigature", 6: "MarkToMark", 7: "Context", 8: "ChainingContext", 9: "Extension"
+		};
 		const gposTypeCounts = new Map<number, number>();
 		for (const lookup of gpos.lookups) {
 			gposTypeCounts.set(lookup.type, (gposTypeCounts.get(lookup.type) ?? 0) + 1);
 		}
 		for (const [type, count] of gposTypeCounts) {
-			console.log(`  Type ${type} (${GposLookupType[type]}): ${count}`);
+			console.log(`  Type ${type} (${gposTypeNames[type] ?? "Unknown"}): ${count}`);
 		}
 
 		// Test kerning
@@ -70,13 +77,75 @@ async function main() {
 		}
 	}
 
-	// Test cmap
-	console.log(`\n=== Cmap Test ===`);
-	const text = "AVffi";
-	for (const char of text) {
-		const glyphId = font.glyphIdForChar(char);
-		const advance = font.advanceWidth(glyphId);
-		console.log(`'${char}' -> glyph ${glyphId}, advance ${advance}`);
+	// Test shaping
+	console.log(`\n=== Text Shaping Test ===`);
+	const testStrings = ["AVffi", "WAVE", "office"];
+
+	for (const text of testStrings) {
+		console.log(`\nShaping: "${text}"`);
+		const buffer = new UnicodeBuffer();
+		buffer.addStr(text);
+
+		const result = shape(font, buffer, { script: "latn" });
+
+		console.log(`  Input codepoints: ${buffer.codepoints.length}`);
+		console.log(`  Output glyphs: ${result.infos.length}`);
+
+		let totalAdvance = 0;
+		for (let i = 0; i < result.infos.length; i++) {
+			const info = result.infos[i]!;
+			const pos = result.positions[i]!;
+			console.log(`    [${i}] glyph=${info.glyphId} cluster=${info.cluster} xAdv=${pos.xAdvance} xOff=${pos.xOffset}`);
+			totalAdvance += pos.xAdvance;
+		}
+		console.log(`  Total advance: ${totalAdvance}`);
+	}
+
+	// Test with kerning visible
+	console.log(`\n=== Kerning Comparison ===`);
+	const avBuffer = new UnicodeBuffer();
+	avBuffer.addStr("AV");
+	const avResult = shape(font, avBuffer, { script: "latn" });
+
+	const aBuffer = new UnicodeBuffer();
+	aBuffer.addStr("A");
+	const aResult = shape(font, aBuffer, { script: "latn" });
+
+	const vBuffer = new UnicodeBuffer();
+	vBuffer.addStr("V");
+	const vResult = shape(font, vBuffer, { script: "latn" });
+
+	const aAdvance = aResult.positions[0]?.xAdvance ?? 0;
+	const vAdvance = vResult.positions[0]?.xAdvance ?? 0;
+	const avTotalAdvance = (avResult.positions[0]?.xAdvance ?? 0) + (avResult.positions[1]?.xAdvance ?? 0);
+
+	console.log(`  A alone: ${aAdvance}`);
+	console.log(`  V alone: ${vAdvance}`);
+	console.log(`  A+V separate: ${aAdvance + vAdvance}`);
+	console.log(`  AV shaped together: ${avTotalAdvance}`);
+	console.log(`  Kerning effect: ${avTotalAdvance - (aAdvance + vAdvance)}`);
+
+	// Test Arabic shaping
+	console.log(`\n=== Arabic Shaping Test ===`);
+	const arabicText = "مرحبا"; // "marhaba" - hello
+	console.log(`Text: ${arabicText}`);
+
+	const arabicBuffer = new UnicodeBuffer();
+	arabicBuffer.addStr(arabicText);
+	arabicBuffer.setScript("arab");
+	arabicBuffer.setDirection(Direction.RTL);
+
+	console.log(`Input codepoints: ${arabicBuffer.codepoints.map(cp => `U+${cp.toString(16).padStart(4, "0")}`).join(" ")}`);
+
+	const arabicResult = shape(font, arabicBuffer, { script: "arab", direction: "rtl" });
+
+	console.log(`Output glyphs: ${arabicResult.infos.length}`);
+	for (let i = 0; i < arabicResult.infos.length; i++) {
+		const info = arabicResult.infos[i]!;
+		const pos = arabicResult.positions[i]!;
+		const maskBits = info.mask & 0xf;
+		const form = maskBits === 1 ? "isol" : maskBits === 2 ? "fina" : maskBits === 4 ? "medi" : maskBits === 8 ? "init" : "none";
+		console.log(`  [${i}] glyph=${info.glyphId} cluster=${info.cluster} form=${form} xAdv=${pos.xAdvance}`);
 	}
 }
 
