@@ -1,4 +1,4 @@
-import { Font, UnicodeBuffer, shape, tagToString, Direction } from "./src/index.ts";
+import { Font, UnicodeBuffer, shape, tagToString, Direction, getEmbeddings, detectDirection, getMirror } from "./src/index.ts";
 import { GposLookupType, getKerning } from "./src/font/tables/gpos.ts";
 
 async function main() {
@@ -146,6 +146,32 @@ async function main() {
 		const maskBits = info.mask & 0xf;
 		const form = maskBits === 1 ? "isol" : maskBits === 2 ? "fina" : maskBits === 4 ? "medi" : maskBits === 8 ? "init" : "none";
 		console.log(`  [${i}] glyph=${info.glyphId} cluster=${info.cluster} form=${form} xAdv=${pos.xAdvance}`);
+	}
+
+	// Test BiDi
+	console.log("\n=== BiDi Test ===");
+
+	// Mixed LTR/RTL text
+	const mixedText = "Hello مرحبا World";
+	console.log(`Mixed text: "${mixedText}"`);
+
+	const detected = detectDirection(mixedText);
+	console.log(`Detected direction: ${detected === Direction.RTL ? "RTL" : "LTR"}`);
+
+	const { levels, paragraphs } = getEmbeddings(mixedText, Direction.LTR);
+	console.log(`Embedding levels: [${Array.from(levels).join(", ")}]`);
+	console.log(`Paragraphs: ${paragraphs.length}`);
+	for (const p of paragraphs) {
+		console.log(`  start=${p.start} end=${p.end} level=${p.level}`);
+	}
+
+	// Test mirroring
+	console.log("\nMirroring test:");
+	const brackets = ["(", ")", "[", "]", "{", "}"];
+	for (const b of brackets) {
+		const cp = b.codePointAt(0)!;
+		const mirrored = getMirror(cp);
+		console.log(`  '${b}' (U+${cp.toString(16).padStart(4, "0")}) -> '${String.fromCodePoint(mirrored)}' (U+${mirrored.toString(16).padStart(4, "0")})`);
 	}
 }
 

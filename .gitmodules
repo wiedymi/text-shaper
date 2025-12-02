@@ -4,3 +4,6 @@
 [submodule "reference/rustybuzz"]
 	path = reference/rustybuzz
 	url = https://github.com/harfbuzz/rustybuzz.git
+[submodule "reference/bidi-js"]
+	path = reference/bidi-js
+	url = https://github.com/lojjic/bidi-js.git

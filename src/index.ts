@@ -62,6 +62,23 @@ export { applyFallbackMarkPositioning, applyFallbackKerning } from "./shaper/fal
 // Unicode utilities
 export { getCombiningClass, reorderMarks, decompose, normalize, NormalizationMode } from "./unicode/normalize.ts";
 
+// BiDi processing (UAX #9)
+export {
+	getEmbeddings,
+	getVisualOrder,
+	reorderGlyphs,
+	getMirror,
+	applyMirroring,
+	processBidi,
+	detectDirection,
+	isRTL,
+	isLTR,
+	getCharType,
+	BidiType,
+	type BidiResult,
+	type BidiParagraph,
+} from "./unicode/bidi.ts";
+
 // AAT state machine
 export {
 	processRearrangement,
