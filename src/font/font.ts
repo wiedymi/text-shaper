@@ -3,6 +3,12 @@ import { Tags, tagToString } from "../types.ts";
 import { Reader } from "./binary/reader.ts";
 import { type AvarTable, parseAvar } from "./tables/avar.ts";
 import { type BaseTable, parseBase } from "./tables/base.ts";
+import {
+	type CbdtTable,
+	type CblcTable,
+	parseCbdt,
+	parseCblc,
+} from "./tables/cbdt.ts";
 import { type CffTable, parseCff } from "./tables/cff.ts";
 import { type Cff2Table, parseCff2 } from "./tables/cff2.ts";
 import { type CmapTable, getGlyphId, parseCmap } from "./tables/cmap.ts";
@@ -43,14 +49,18 @@ import { type MvarTable, parseMvar } from "./tables/mvar.ts";
 import { type NameTable, parseName } from "./tables/name.ts";
 import { type Os2Table, parseOs2 } from "./tables/os2.ts";
 import { type PostTable, parsePost } from "./tables/post.ts";
+import { parseSbix, type SbixTable } from "./tables/sbix.ts";
 import {
 	type FontDirectory,
 	isTrueType,
 	parseFontDirectory,
 } from "./tables/sfnt.ts";
+import { parseStat, type StatTable } from "./tables/stat.ts";
+import { parseSvg, type SvgTable } from "./tables/svg.ts";
 import { parseTrak, type TrakTable } from "./tables/trak.ts";
 import { parseVhea, type VheaTable } from "./tables/vhea.ts";
 import { parseVmtx, type VmtxTable } from "./tables/vmtx.ts";
+import { parseVorg, type VorgTable } from "./tables/vorg.ts";
 import { parseVvar, type VvarTable } from "./tables/vvar.ts";
 
 /** Font loading options */
@@ -100,6 +110,12 @@ export class Font {
 	private _math: MathTable | null | undefined = undefined;
 	private _loca: LocaTable | null | undefined = undefined;
 	private _glyf: GlyfTable | null | undefined = undefined;
+	private _svg: SvgTable | null | undefined = undefined;
+	private _vorg: VorgTable | null | undefined = undefined;
+	private _sbix: SbixTable | null | undefined = undefined;
+	private _stat: StatTable | null | undefined = undefined;
+	private _cbdt: CbdtTable | null | undefined = undefined;
+	private _cblc: CblcTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -434,6 +450,54 @@ export class Font {
 		return this._glyf;
 	}
 
+	get svg(): SvgTable | null {
+		if (this._svg === undefined) {
+			const reader = this.getTableReader(Tags.SVG);
+			this._svg = reader ? parseSvg(reader) : null;
+		}
+		return this._svg;
+	}
+
+	get vorg(): VorgTable | null {
+		if (this._vorg === undefined) {
+			const reader = this.getTableReader(Tags.VORG);
+			this._vorg = reader ? parseVorg(reader) : null;
+		}
+		return this._vorg;
+	}
+
+	get sbix(): SbixTable | null {
+		if (this._sbix === undefined) {
+			const reader = this.getTableReader(Tags.sbix);
+			this._sbix = reader ? parseSbix(reader, this.numGlyphs) : null;
+		}
+		return this._sbix;
+	}
+
+	get stat(): StatTable | null {
+		if (this._stat === undefined) {
+			const reader = this.getTableReader(Tags.STAT);
+			this._stat = reader ? parseStat(reader) : null;
+		}
+		return this._stat;
+	}
+
+	get cblc(): CblcTable | null {
+		if (this._cblc === undefined) {
+			const reader = this.getTableReader(Tags.CBLC);
+			this._cblc = reader ? parseCblc(reader) : null;
+		}
+		return this._cblc;
+	}
+
+	get cbdt(): CbdtTable | null {
+		if (this._cbdt === undefined) {
+			const reader = this.getTableReader(Tags.CBDT);
+			this._cbdt = reader ? parseCbdt(reader) : null;
+		}
+		return this._cbdt;
+	}
+
 	// Convenience properties
 
 	/** Number of glyphs in the font */
@@ -488,7 +552,12 @@ export class Font {
 
 	/** Is this a color font? */
 	get isColorFont(): boolean {
-		return this.hasTable(Tags.COLR) || this.hasTable(Tags.SVG);
+		return (
+			this.hasTable(Tags.COLR) ||
+			this.hasTable(Tags.SVG) ||
+			this.hasTable(Tags.sbix) ||
+			this.hasTable(Tags.CBDT)
+		);
 	}
 
 	// Glyph operations

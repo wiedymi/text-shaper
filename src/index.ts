@@ -16,6 +16,28 @@ export { createFace, Face } from "./font/face.ts";
 export { Font, type FontLoadOptions } from "./font/font.ts";
 export type { AvarTable, AxisSegmentMap } from "./font/tables/avar.ts";
 export { applyAvar, applyAvarMapping } from "./font/tables/avar.ts";
+// CBDT/CBLC (Google color bitmap) tables
+export type {
+	BitmapGlyph,
+	BitmapSize,
+	CbdtTable,
+	CblcTable,
+	GlyphBitmapMetrics,
+	IndexSubTable,
+	SbitLineMetrics,
+} from "./font/tables/cbdt.ts";
+export {
+	CbdtImageFormat,
+	getBitmapGlyph,
+	getColorBitmapSizes,
+	hasColorBitmap,
+} from "./font/tables/cbdt.ts";
+// CFF charstring execution
+export {
+	executeCff2CharString,
+	executeCffCharString,
+	getCffGlyphWidth,
+} from "./font/tables/cff-charstring.ts";
 export type { CmapTable } from "./font/tables/cmap.ts";
 // Variable font tables
 export type {
@@ -59,15 +81,109 @@ export type { MaxpTable } from "./font/tables/maxp.ts";
 // AAT tables
 export type { MorxChain, MorxSubtable, MorxTable } from "./font/tables/morx.ts";
 export { applyNonContextual, MorxSubtableType } from "./font/tables/morx.ts";
+export type { MvarTable, MvarValueRecord } from "./font/tables/mvar.ts";
+export {
+	getCapHeightDelta,
+	getHAscenderDelta,
+	getHDescenderDelta,
+	getMetricDelta,
+	getXHeightDelta,
+	MvarTags,
+} from "./font/tables/mvar.ts";
+// SBIX (Apple bitmap) table
+export type { SbixGlyph, SbixStrike, SbixTable } from "./font/tables/sbix.ts";
+export {
+	getAvailablePpemSizes,
+	getGlyphBitmap as getSbixGlyphBitmap,
+	getStrikeForPpem,
+	hasGlyphBitmap,
+	resolveDupeGlyph,
+	SbixGraphicType,
+} from "./font/tables/sbix.ts";
+// STAT (Style Attributes) table
+export type {
+	AxisRecord,
+	AxisValue,
+	AxisValueFormat1,
+	AxisValueFormat2,
+	AxisValueFormat3,
+	AxisValueFormat4,
+	StatTable,
+} from "./font/tables/stat.ts";
+export {
+	AxisValueFlags,
+	findAxisValueByNameId,
+	getAxisIndex,
+	getAxisRecord,
+	getAxisValueNumber,
+	getAxisValuesForAxis,
+	isElidableAxisValue,
+	isOlderSiblingFont,
+	matchAxisValue,
+} from "./font/tables/stat.ts";
+// SVG table for color fonts
+export type { SvgDocumentRecord, SvgTable } from "./font/tables/svg.ts";
+export {
+	getSvgDocument,
+	getSvgGlyphIds,
+	hasSvgGlyph,
+} from "./font/tables/svg.ts";
 export type { TrackData, TrakTable } from "./font/tables/trak.ts";
 export { applyTracking, getTrackingValue } from "./font/tables/trak.ts";
 // Vertical metrics tables
 export type { VheaTable } from "./font/tables/vhea.ts";
 export type { VerticalMetric, VmtxTable } from "./font/tables/vmtx.ts";
 export { getVerticalMetrics } from "./font/tables/vmtx.ts";
+export type { VertOriginYMetric, VorgTable } from "./font/tables/vorg.ts";
+export { getVertOriginY, hasVertOriginY } from "./font/tables/vorg.ts";
+export type { VvarTable } from "./font/tables/vvar.ts";
+export {
+	getAdvanceHeightDelta,
+	getBsbDelta,
+	getTsbDelta,
+	getVorgDelta,
+} from "./font/tables/vvar.ts";
+// Justification
+export type {
+	JustifyAdjustment,
+	JustifyOptions,
+	JustifyResult,
+	LineBreakResult,
+} from "./layout/justify.ts";
+export {
+	breakIntoLines,
+	calculateLineWidth,
+	JustifyMode,
+	justify,
+	justifyParagraph,
+} from "./layout/justify.ts";
 export type { ClassDef } from "./layout/structures/class-def.ts";
 // Layout structures
 export type { Coverage } from "./layout/structures/coverage.ts";
+// Device tables
+export type {
+	DeviceOrVariationIndex,
+	DeviceTable,
+	VariationIndexTable,
+} from "./layout/structures/device.ts";
+export {
+	applyDeviceAdjustment,
+	getDeviceDelta,
+	isVariationIndexTable,
+} from "./layout/structures/device.ts";
+// Feature variations
+export type {
+	Condition,
+	ConditionSet,
+	FeatureVariationRecord,
+	FeatureVariations,
+} from "./layout/structures/feature-variations.ts";
+export {
+	applyFeatureVariations,
+	evaluateConditionSet,
+	findMatchingFeatureVariation,
+	getSubstitutedLookups,
+} from "./layout/structures/feature-variations.ts";
 // Rendering utilities
 export type { GlyphPath, PathCommand, ShapedGlyph } from "./render/path.ts";
 export {
@@ -90,6 +206,55 @@ export {
 	applyFallbackKerning,
 	applyFallbackMarkPositioning,
 } from "./shaper/fallback.ts";
+// Feature helpers
+export {
+	allSmallCaps,
+	capitalSpacing,
+	capsToSmallCaps,
+	caseSensitiveForms,
+	characterVariant,
+	characterVariants,
+	combineFeatures,
+	contextualAlternates,
+	discretionaryLigatures,
+	feature,
+	features,
+	fractions,
+	fullWidthForms,
+	halfWidthForms,
+	historicalLigatures,
+	jis78Forms,
+	jis83Forms,
+	jis90Forms,
+	jis2004Forms,
+	kerning,
+	liningFigures,
+	oldstyleFigures,
+	ordinals,
+	petiteCaps,
+	proportionalFigures,
+	proportionalWidthForms,
+	quarterWidthForms,
+	ruby,
+	scientificInferiors,
+	simplifiedForms,
+	slashedZero,
+	smallCaps,
+	standardLigatures,
+	stylisticAlternates,
+	stylisticSet,
+	stylisticSets,
+	subscript,
+	superscript,
+	swash,
+	tabularFigures,
+	thirdWidthForms,
+	traditionalForms,
+	verticalAlternatesRotation,
+	verticalForms,
+	verticalKanaAlternates,
+	verticalLayoutFeatures,
+} from "./shaper/features.ts";
 export {
 	createShapePlan,
 	getOrCreateShapePlan,

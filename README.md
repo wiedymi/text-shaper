@@ -1,15 +1,161 @@
-# typeshaper
+# TypeShaper
 
-To install dependencies:
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-vivy--company-ea4aaa)](https://github.com/sponsors/vivy-company)
+
+Pure TypeScript text shaping engine. A port of [rustybuzz](https://github.com/RazrFalcon/rustybuzz)/[HarfBuzz](https://github.com/harfbuzz/harfbuzz) for the browser and Node.js.
+
+## Features
+
+- **OpenType Layout**: Full GSUB (substitution) and GPOS (positioning) support
+- **Complex Scripts**: Arabic, Indic, USE (Universal Shaping Engine) shapers
+- **Variable Fonts**: fvar, gvar, avar, HVAR, VVAR, MVAR tables
+- **AAT Support**: morx, kerx, trak tables for Apple fonts
+- **Color Fonts**: SVG, sbix, CBDT/CBLC tables
+- **BiDi**: UAX #9 bidirectional text algorithm
+- **Zero Dependencies**: Pure TypeScript, works in browser and Node.js
+
+## Installation
 
 ```bash
-bun install
+npm install typeshaper
+# or
+bun add typeshaper
 ```
 
-To run:
+## Usage
 
-```bash
-bun run index.ts
+```typescript
+import { Font, shape, UnicodeBuffer } from "typeshaper";
+
+// Load a font
+const fontData = await Bun.file("path/to/font.ttf").arrayBuffer();
+const font = new Font(fontData);
+
+// Create a buffer with text
+const buffer = new UnicodeBuffer();
+buffer.addString("Hello, World!");
+
+// Shape the text
+const glyphBuffer = shape(font, buffer);
+
+// Access shaped glyphs
+for (let i = 0; i < glyphBuffer.length; i++) {
+  const info = glyphBuffer.info[i];
+  const pos = glyphBuffer.pos[i];
+  console.log(`Glyph ${info.glyphId}: advance=${pos.xAdvance}, offset=(${pos.xOffset}, ${pos.yOffset})`);
+}
 ```
 
-This project was created using `bun init` in bun v1.3.2. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+### With Features
+
+```typescript
+import { Font, shape, UnicodeBuffer, feature, features } from "typeshaper";
+
+const glyphBuffer = shape(font, buffer, {
+  features: features(
+    feature("smcp", 1),  // Small caps
+    feature("liga", 1),  // Ligatures
+    feature("kern", 1),  // Kerning
+  ),
+});
+```
+
+### Variable Fonts
+
+```typescript
+import { Font, shape, UnicodeBuffer, tag } from "typeshaper";
+
+const glyphBuffer = shape(font, buffer, {
+  variations: [
+    { tag: tag("wght"), value: 700 },  // Bold
+    { tag: tag("wdth"), value: 75 },   // Condensed
+  ],
+});
+```
+
+### Rendering to SVG
+
+```typescript
+import { Font, shape, UnicodeBuffer, shapedTextToSVG } from "typeshaper";
+
+const buffer = new UnicodeBuffer();
+buffer.addString("Hello");
+
+const glyphBuffer = shape(font, buffer);
+const svg = shapedTextToSVG(font, glyphBuffer, { fontSize: 48 });
+```
+
+## API
+
+### Core Classes
+
+- `Font` - Load and parse OpenType/TrueType fonts
+- `Face` - Font face with variation coordinates applied
+- `UnicodeBuffer` - Input buffer for text to shape
+- `GlyphBuffer` - Output buffer containing shaped glyphs
+
+### Shaping
+
+- `shape(font, buffer, options?)` - Shape text in a buffer
+- `createShapePlan(font, options)` - Create a reusable shape plan
+
+### Rendering
+
+- `getGlyphPath(font, glyphId)` - Get glyph outline as path commands
+- `shapedTextToSVG(font, buffer, options)` - Render shaped text to SVG
+- `renderShapedText(ctx, font, buffer, options)` - Render to Canvas 2D context
+
+### Feature Helpers
+
+```typescript
+// Ligatures
+standardLigatures()      // liga
+discretionaryLigatures() // dlig
+contextualAlternates()   // calt
+
+// Caps
+smallCaps()              // smcp
+capsToSmallCaps()        // c2sc
+allSmallCaps()           // smcp + c2sc
+
+// Figures
+oldstyleFigures()        // onum
+liningFigures()          // lnum
+tabularFigures()         // tnum
+proportionalFigures()    // pnum
+
+// Stylistic
+stylisticSet(n)          // ss01-ss20
+characterVariant(n)      // cv01-cv99
+swash()                  // swsh
+
+// And many more...
+```
+
+## Supported Tables
+
+### Required
+head, hhea, hmtx, maxp, cmap, loca, glyf, name, OS/2, post
+
+### OpenType Layout
+GDEF, GSUB, GPOS, BASE
+
+### CFF
+CFF, CFF2
+
+### Variable Fonts
+fvar, gvar, avar, HVAR, VVAR, MVAR, STAT
+
+### AAT (Apple)
+morx, kerx, kern, trak
+
+### Color
+COLR, CPAL, SVG, sbix, CBDT, CBLC
+
+### Vertical
+vhea, vmtx, VORG
+
+## License
+
+[MIT](LICENSE)

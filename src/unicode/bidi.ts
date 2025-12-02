@@ -1,17 +1,15 @@
 /**
  * Bidirectional text processing (UAX #9)
- * Wraps bidi-js for integration with the shaper
  */
 
+import type { GlyphInfo } from "../types.ts";
+import { Direction } from "../types.ts";
 import {
 	getBidiCharType,
 	getEmbeddingLevels,
 	getMirroredCharacter,
 	getReorderedIndices,
-} from "../../reference/bidi-js/src/index.js";
-
-import type { GlyphInfo } from "../types.ts";
-import { Direction } from "../types.ts";
+} from "./bidi/index.ts";
 
 /**
  * Result of BiDi processing
@@ -59,11 +57,11 @@ export function getEmbeddings(
  */
 export function getVisualOrder(
 	text: string,
-	levels: Uint8Array,
+	result: BidiResult,
 	start: number = 0,
 	end: number = text.length,
 ): number[] {
-	return Array.from(getReorderedIndices(text, levels, start, end));
+	return Array.from(getReorderedIndices(text, result, start, end));
 }
 
 /**
@@ -71,17 +69,13 @@ export function getVisualOrder(
  */
 export function reorderGlyphs(
 	infos: GlyphInfo[],
-	levels: Uint8Array,
+	result: BidiResult,
 ): GlyphInfo[] {
 	if (infos.length === 0) return infos;
 
 	// Get reordered indices
-	const indices = getReorderedIndices(
-		"x".repeat(infos.length), // Dummy string, we just need indices
-		levels,
-		0,
-		infos.length,
-	);
+	const dummyString = "x".repeat(infos.length);
+	const indices = getReorderedIndices(dummyString, result, 0, infos.length);
 
 	// Reorder glyphs according to visual order
 	const reordered: GlyphInfo[] = [];
@@ -206,13 +200,13 @@ export function processBidi(
 	const text = infos.map((i) => String.fromCodePoint(i.codepoint)).join("");
 
 	// Get embedding levels
-	const { levels } = getEmbeddings(text, baseDirection);
+	const result = getEmbeddings(text, baseDirection);
 
 	// Apply character mirroring
-	applyMirroring(infos, levels);
+	applyMirroring(infos, result.levels);
 
 	// Reorder glyphs for visual order
-	const reordered = reorderGlyphs(infos, levels);
+	const reordered = reorderGlyphs(infos, result);
 
-	return { infos: reordered, levels };
+	return { infos: reordered, levels: result.levels };
 }

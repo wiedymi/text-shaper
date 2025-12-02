@@ -167,10 +167,17 @@ export const Tags = {
 	COLR: tag("COLR"),
 	CPAL: tag("CPAL"),
 	SVG: tag("SVG "),
+	sbix: tag("sbix"),
+	CBDT: tag("CBDT"),
+	CBLC: tag("CBLC"),
+
+	// Style Attributes
+	STAT: tag("STAT"),
 
 	// Vertical
 	vhea: tag("vhea"),
 	vmtx: tag("vmtx"),
+	VORG: tag("VORG"),
 } as const;
 
 // Feature tags

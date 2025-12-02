@@ -1,4 +1,3 @@
-import type { Tag } from "../types.ts";
 import { tag } from "../types.ts";
 import type { ShapeFeature } from "./shape-plan.ts";
 
@@ -10,7 +9,10 @@ import type { ShapeFeature } from "./shape-plan.ts";
 /**
  * Create a ShapeFeature for a stylistic set (ss01-ss20)
  */
-export function stylisticSet(setNumber: number, enabled: boolean = true): ShapeFeature {
+export function stylisticSet(
+	setNumber: number,
+	enabled: boolean = true,
+): ShapeFeature {
 	if (setNumber < 1 || setNumber > 20) {
 		throw new Error(`Stylistic set number must be 1-20, got ${setNumber}`);
 	}
@@ -21,16 +23,24 @@ export function stylisticSet(setNumber: number, enabled: boolean = true): ShapeF
 /**
  * Create ShapeFeatures for multiple stylistic sets
  */
-export function stylisticSets(setNumbers: number[], enabled: boolean = true): ShapeFeature[] {
+export function stylisticSets(
+	setNumbers: number[],
+	enabled: boolean = true,
+): ShapeFeature[] {
 	return setNumbers.map((n) => stylisticSet(n, enabled));
 }
 
 /**
  * Create a ShapeFeature for a character variant (cv01-cv99)
  */
-export function characterVariant(variantNumber: number, enabled: boolean = true): ShapeFeature {
+export function characterVariant(
+	variantNumber: number,
+	enabled: boolean = true,
+): ShapeFeature {
 	if (variantNumber < 1 || variantNumber > 99) {
-		throw new Error(`Character variant number must be 1-99, got ${variantNumber}`);
+		throw new Error(
+			`Character variant number must be 1-99, got ${variantNumber}`,
+		);
 	}
 	const tagStr = `cv${variantNumber.toString().padStart(2, "0")}`;
 	return { tag: tag(tagStr), enabled };
@@ -39,7 +49,10 @@ export function characterVariant(variantNumber: number, enabled: boolean = true)
 /**
  * Create ShapeFeatures for multiple character variants
  */
-export function characterVariants(variantNumbers: number[], enabled: boolean = true): ShapeFeature[] {
+export function characterVariants(
+	variantNumbers: number[],
+	enabled: boolean = true,
+): ShapeFeature[] {
 	return variantNumbers.map((n) => characterVariant(n, enabled));
 }
 
@@ -214,7 +227,9 @@ export function verticalForms(enabled: boolean = true): ShapeFeature {
 /**
  * Vertical alternates and rotation (vrt2) - for vertical text layout
  */
-export function verticalAlternatesRotation(enabled: boolean = true): ShapeFeature {
+export function verticalAlternatesRotation(
+	enabled: boolean = true,
+): ShapeFeature {
 	return { tag: tag("vrt2"), enabled };
 }
 
@@ -228,7 +243,9 @@ export function verticalKanaAlternates(enabled: boolean = true): ShapeFeature {
 /**
  * All vertical layout features
  */
-export function verticalLayoutFeatures(enabled: boolean = true): ShapeFeature[] {
+export function verticalLayoutFeatures(
+	enabled: boolean = true,
+): ShapeFeature[] {
 	return [
 		verticalForms(enabled),
 		verticalAlternatesRotation(enabled),
@@ -330,14 +347,19 @@ export function feature(tagStr: string, enabled: boolean = true): ShapeFeature {
 /**
  * Create multiple features from tag strings
  */
-export function features(tagStrs: string[], enabled: boolean = true): ShapeFeature[] {
+export function features(
+	tagStrs: string[],
+	enabled: boolean = true,
+): ShapeFeature[] {
 	return tagStrs.map((t) => feature(t, enabled));
 }
 
 /**
  * Combine multiple feature sets
  */
-export function combineFeatures(...featureSets: (ShapeFeature | ShapeFeature[])[]): ShapeFeature[] {
+export function combineFeatures(
+	...featureSets: (ShapeFeature | ShapeFeature[])[]
+): ShapeFeature[] {
 	const result: ShapeFeature[] = [];
 	for (const set of featureSets) {
 		if (Array.isArray(set)) {
