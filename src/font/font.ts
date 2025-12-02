@@ -55,6 +55,7 @@ import {
 	isTrueType,
 	parseFontDirectory,
 } from "./tables/sfnt.ts";
+import { parseFeat, type FeatTable } from "./tables/feat.ts";
 import { parseStat, type StatTable } from "./tables/stat.ts";
 import { parseSvg, type SvgTable } from "./tables/svg.ts";
 import { parseTrak, type TrakTable } from "./tables/trak.ts";
@@ -116,6 +117,7 @@ export class Font {
 	private _stat: StatTable | null | undefined = undefined;
 	private _cbdt: CbdtTable | null | undefined = undefined;
 	private _cblc: CblcTable | null | undefined = undefined;
+	private _feat: FeatTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -496,6 +498,14 @@ export class Font {
 			this._cbdt = reader ? parseCbdt(reader) : null;
 		}
 		return this._cbdt;
+	}
+
+	get feat(): FeatTable | null {
+		if (this._feat === undefined) {
+			const reader = this.getTableReader(Tags.feat);
+			this._feat = reader ? parseFeat(reader) : null;
+		}
+		return this._feat;
 	}
 
 	// Convenience properties

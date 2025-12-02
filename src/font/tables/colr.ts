@@ -279,8 +279,37 @@ export interface ClipBox {
 
 export interface ItemVariationStore {
 	format: number;
-	axisCount: number;
+	variationRegionListOffset: number;
 	itemVariationDataCount: number;
+	itemVariationDataOffsets: number[];
+	variationRegions: VariationRegion[];
+	itemVariationData: ItemVariationData[];
+}
+
+export interface VariationRegion {
+	regionAxes: RegionAxisCoordinates[];
+}
+
+export interface RegionAxisCoordinates {
+	startCoord: number;
+	peakCoord: number;
+	endCoord: number;
+}
+
+export interface ItemVariationData {
+	itemCount: number;
+	wordDeltaCount: number;
+	regionIndexCount: number;
+	regionIndexes: number[];
+	deltaSets: number[][];
+}
+
+export interface VarColorLine extends ColorLine {
+	varIndexBase?: number;
+}
+
+export interface VarColorStop extends ColorStop {
+	varIndexBase?: number;
 }
 
 /**
@@ -333,8 +362,8 @@ export function parseColr(reader: Reader): ColrTable {
 		const baseGlyphListOffset = reader.uint32();
 		const layerListOffset = reader.uint32();
 		const clipListOffset = reader.uint32();
-		const _varIdxMapOffset = reader.uint32();
-		const _itemVariationStoreOffset = reader.uint32();
+		const varIdxMapOffset = reader.uint32();
+		const itemVariationStoreOffset = reader.uint32();
 
 		// Parse base glyph paint records
 		if (baseGlyphListOffset !== 0) {
@@ -379,6 +408,18 @@ export function parseColr(reader: Reader): ColrTable {
 		if (clipListOffset !== 0) {
 			reader.seek(startOffset + clipListOffset);
 			result.clipList = parseClipList(reader, startOffset);
+		}
+
+		// Parse DeltaSetIndexMap (for variable fonts)
+		if (varIdxMapOffset !== 0) {
+			reader.seek(startOffset + varIdxMapOffset);
+			result.varIdxMap = parseDeltaSetIndexMap(reader);
+		}
+
+		// Parse ItemVariationStore (for variable fonts)
+		if (itemVariationStoreOffset !== 0) {
+			reader.seek(startOffset + itemVariationStoreOffset);
+			result.itemVariationStore = parseItemVariationStore(reader);
 		}
 	}
 
@@ -786,4 +827,220 @@ export function hasColorGlyph(colr: ColrTable, glyphId: GlyphId): boolean {
 		getColorLayers(colr, glyphId) !== null ||
 		getColorPaint(colr, glyphId) !== null
 	);
+}
+
+/**
+ * Parse DeltaSetIndexMap (used by variable fonts)
+ */
+function parseDeltaSetIndexMap(reader: Reader): number[] {
+	const format = reader.uint8();
+	const entryFormat = reader.uint8();
+	const mapCount = format === 0 ? reader.uint16() : reader.uint32();
+
+	const innerBits = (entryFormat & 0x0f) + 1;
+	const outerBits = ((entryFormat >> 4) & 0x0f) + 1;
+	const entrySize = Math.ceil((innerBits + outerBits) / 8);
+
+	const result: number[] = [];
+	for (let i = 0; i < mapCount; i++) {
+		let entry = 0;
+		for (let b = 0; b < entrySize; b++) {
+			entry = (entry << 8) | reader.uint8();
+		}
+		// Pack outer and inner indices into a single number
+		// Format: (outer << 16) | inner
+		const innerMask = (1 << innerBits) - 1;
+		const inner = entry & innerMask;
+		const outer = entry >> innerBits;
+		result.push((outer << 16) | inner);
+	}
+
+	return result;
+}
+
+/**
+ * Parse ItemVariationStore (used by variable fonts)
+ */
+function parseItemVariationStore(reader: Reader): ItemVariationStore {
+	const storeOffset = reader.offset;
+	const format = reader.uint16();
+	const variationRegionListOffset = reader.uint32();
+	const itemVariationDataCount = reader.uint16();
+
+	const itemVariationDataOffsets: number[] = [];
+	for (let i = 0; i < itemVariationDataCount; i++) {
+		itemVariationDataOffsets.push(reader.uint32());
+	}
+
+	// Parse variation region list
+	reader.seek(storeOffset + variationRegionListOffset);
+	const axisCount = reader.uint16();
+	const regionCount = reader.uint16();
+
+	const variationRegions: VariationRegion[] = [];
+	for (let i = 0; i < regionCount; i++) {
+		const regionAxes: RegionAxisCoordinates[] = [];
+		for (let j = 0; j < axisCount; j++) {
+			regionAxes.push({
+				startCoord: reader.f2dot14(),
+				peakCoord: reader.f2dot14(),
+				endCoord: reader.f2dot14(),
+			});
+		}
+		variationRegions.push({ regionAxes });
+	}
+
+	// Parse item variation data subtables
+	const itemVariationData: ItemVariationData[] = [];
+	for (const offset of itemVariationDataOffsets) {
+		reader.seek(storeOffset + offset);
+		const itemCount = reader.uint16();
+		const wordDeltaCount = reader.uint16();
+		const regionIndexCount = reader.uint16();
+
+		const regionIndexes: number[] = [];
+		for (let i = 0; i < regionIndexCount; i++) {
+			regionIndexes.push(reader.uint16());
+		}
+
+		// Parse delta sets
+		const longWords = (wordDeltaCount & 0x8000) !== 0;
+		const wordCount = wordDeltaCount & 0x7fff;
+
+		const deltaSets: number[][] = [];
+		for (let i = 0; i < itemCount; i++) {
+			const deltas: number[] = [];
+			for (let j = 0; j < regionIndexCount; j++) {
+				if (j < wordCount) {
+					deltas.push(longWords ? reader.int32() : reader.int16());
+				} else {
+					deltas.push(longWords ? reader.int16() : reader.int8());
+				}
+			}
+			deltaSets.push(deltas);
+		}
+
+		itemVariationData.push({
+			itemCount,
+			wordDeltaCount,
+			regionIndexCount,
+			regionIndexes,
+			deltaSets,
+		});
+	}
+
+	return {
+		format,
+		variationRegionListOffset,
+		itemVariationDataCount,
+		itemVariationDataOffsets,
+		variationRegions,
+		itemVariationData,
+	};
+}
+
+/**
+ * Get clip box for a glyph
+ */
+export function getClipBox(
+	colr: ColrTable,
+	glyphId: GlyphId,
+): ClipBox | null {
+	if (!colr.clipList) return null;
+
+	for (const record of colr.clipList) {
+		if (glyphId >= record.startGlyphId && glyphId <= record.endGlyphId) {
+			return record.clipBox;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Calculate variation delta for a paint value
+ */
+export function getColorVariationDelta(
+	colr: ColrTable,
+	varIndex: number,
+	coords: number[],
+): number {
+	if (!colr.itemVariationStore || !colr.varIdxMap) return 0;
+
+	// Get outer/inner indices from varIdxMap
+	const mappedIndex = colr.varIdxMap[varIndex];
+	if (mappedIndex === undefined) return 0;
+
+	const outer = mappedIndex >> 16;
+	const inner = mappedIndex & 0xffff;
+
+	const store = colr.itemVariationStore;
+	const data = store.itemVariationData[outer];
+	if (!data) return 0;
+
+	const deltas = data.deltaSets[inner];
+	if (!deltas) return 0;
+
+	// Calculate scalar for each region and sum deltas
+	let result = 0;
+	for (let i = 0; i < data.regionIndexCount; i++) {
+		const regionIndex = data.regionIndexes[i]!;
+		const region = store.variationRegions[regionIndex];
+		if (!region) continue;
+
+		// Calculate scalar for this region
+		let scalar = 1.0;
+		for (let j = 0; j < region.regionAxes.length && j < coords.length; j++) {
+			const axis = region.regionAxes[j]!;
+			const coord = coords[j]!;
+			scalar *= calculateAxisScalar(coord, axis.startCoord, axis.peakCoord, axis.endCoord);
+			if (scalar === 0) break;
+		}
+
+		result += deltas[i]! * scalar;
+	}
+
+	return result;
+}
+
+/**
+ * Calculate scalar contribution for a single axis
+ */
+function calculateAxisScalar(
+	coord: number,
+	start: number,
+	peak: number,
+	end: number,
+): number {
+	// If peak is 0, no contribution
+	if (peak === 0) return 1.0;
+
+	// If coord exactly at peak, full contribution
+	if (coord === peak) return 1.0;
+
+	// If coord outside range, no contribution
+	if (coord < start || coord > end) return 0.0;
+
+	// Interpolate
+	if (coord < peak) {
+		if (start === peak) return 1.0;
+		return (coord - start) / (peak - start);
+	} else {
+		if (peak === end) return 1.0;
+		return (end - coord) / (end - peak);
+	}
+}
+
+/**
+ * Check if COLR table is version 1
+ */
+export function isColrV1(colr: ColrTable): boolean {
+	return colr.version >= 1 && colr.baseGlyphPaintRecords !== undefined;
+}
+
+/**
+ * Get the paint layer at a specific index from the layer list
+ */
+export function getLayerPaint(colr: ColrTable, index: number): Paint | null {
+	return colr.layerList?.[index] ?? null;
 }

@@ -6,7 +6,11 @@ import {
 	findScript,
 	getFeature,
 } from "../layout/structures/layout-common.ts";
-import type { Tag } from "../types.ts";
+import {
+	type FeatureVariations,
+	findMatchingFeatureVariation,
+} from "../layout/structures/feature-variations.ts";
+import type { Tag, uint16 } from "../types.ts";
 import { tag, tagToString } from "../types.ts";
 
 /** Shape plan cache for reusing computed plans */
@@ -57,12 +61,14 @@ function getCacheKey(
 	language: string | null,
 	direction: "ltr" | "rtl",
 	userFeatures: ShapeFeature[],
+	axisCoords: number[] | null,
 ): string {
 	const featuresKey = userFeatures
 		.map((f) => `${tagToString(f.tag)}:${f.enabled ? "1" : "0"}`)
 		.sort()
 		.join(",");
-	return `${script}|${language || ""}|${direction}|${featuresKey}`;
+	const coordsKey = axisCoords ? axisCoords.map(c => c.toFixed(4)).join(",") : "";
+	return `${script}|${language || ""}|${direction}|${featuresKey}|${coordsKey}`;
 }
 
 /** Get or create a cached shape plan */
@@ -72,8 +78,9 @@ export function getOrCreateShapePlan(
 	language: string | null,
 	direction: "ltr" | "rtl",
 	userFeatures: ShapeFeature[] = [],
+	axisCoords: number[] | null = null,
 ): ShapePlan {
-	const cacheKey = getCacheKey(script, language, direction, userFeatures);
+	const cacheKey = getCacheKey(script, language, direction, userFeatures, axisCoords);
 
 	// Get or create font's cache map
 	let fontCache = shapePlanCache.get(font);
@@ -95,6 +102,7 @@ export function getOrCreateShapePlan(
 		language,
 		direction,
 		userFeatures,
+		axisCoords,
 	);
 
 	// Evict if cache is too large
@@ -116,9 +124,10 @@ export function createShapePlan(
 	language: string | null,
 	direction: "ltr" | "rtl",
 	userFeatures: ShapeFeature[] = [],
+	axisCoords: number[] | null = null,
 ): ShapePlan {
 	// Use caching by default
-	return getOrCreateShapePlan(font, script, language, direction, userFeatures);
+	return getOrCreateShapePlan(font, script, language, direction, userFeatures, axisCoords);
 }
 
 /** Create a shape plan without caching */
@@ -128,6 +137,7 @@ function createShapePlanInternal(
 	language: string | null,
 	direction: "ltr" | "rtl",
 	userFeatures: ShapeFeature[] = [],
+	axisCoords: number[] | null = null,
 ): ShapePlan {
 	const scriptTag = tag(script.padEnd(4, " "));
 	const languageTag = language ? tag(language.padEnd(4, " ")) : null;
@@ -152,20 +162,22 @@ function createShapePlanInternal(
 		}
 	}
 
-	// Collect GSUB lookups
+	// Collect GSUB lookups (with feature variations support)
 	const gsubLookups = collectLookups(
 		font.gsub,
 		scriptTag,
 		languageTag,
 		enabledFeatures,
+		axisCoords,
 	);
 
-	// Collect GPOS lookups
+	// Collect GPOS lookups (with feature variations support)
 	const gposLookups = collectLookups(
 		font.gpos,
 		scriptTag,
 		languageTag,
 		enabledFeatures,
+		axisCoords,
 	);
 
 	return {
@@ -182,6 +194,7 @@ function collectLookups<T extends { lookups: unknown[] }>(
 	scriptTag: Tag,
 	languageTag: Tag | null,
 	enabledFeatures: Set<Tag>,
+	axisCoords: number[] | null,
 ): Array<{ index: number; lookup: unknown }> {
 	if (!table) return [];
 
@@ -204,11 +217,28 @@ function collectLookups<T extends { lookups: unknown[] }>(
 	const langSys = findLangSys(script, languageTag);
 	if (!langSys) return [];
 
+	// Get feature variations substitutions if applicable
+	const featureVariations = (gsub as { featureVariations?: FeatureVariations }).featureVariations;
+	const matchingVariation = featureVariations && axisCoords
+		? findMatchingFeatureVariation(featureVariations, axisCoords)
+		: null;
+
+	// Build a map of feature indices to their substituted lookup lists
+	const featureSubstitutions = new Map<uint16, uint16[]>();
+	if (matchingVariation) {
+		for (const subst of matchingVariation.featureTableSubstitution.substitutions) {
+			featureSubstitutions.set(subst.featureIndex, subst.alternateFeature.lookupListIndices);
+		}
+	}
+
 	// Add required feature
 	if (langSys.requiredFeatureIndex !== 0xffff) {
 		const feature = getFeature(gsub.featureList, langSys.requiredFeatureIndex);
 		if (feature) {
-			for (const lookupIndex of feature.feature.lookupListIndices) {
+			// Check if this feature has a substitution
+			const substitutedLookups = featureSubstitutions.get(langSys.requiredFeatureIndex);
+			const lookups = substitutedLookups ?? feature.feature.lookupListIndices;
+			for (const lookupIndex of lookups) {
 				lookupIndices.add(lookupIndex);
 			}
 		}
@@ -220,7 +250,10 @@ function collectLookups<T extends { lookups: unknown[] }>(
 		if (!featureRecord) continue;
 
 		if (enabledFeatures.has(featureRecord.featureTag)) {
-			for (const lookupIndex of featureRecord.feature.lookupListIndices) {
+			// Check if this feature has a substitution
+			const substitutedLookups = featureSubstitutions.get(featureIndex);
+			const lookups = substitutedLookups ?? featureRecord.feature.lookupListIndices;
+			for (const lookupIndex of lookups) {
 				lookupIndices.add(lookupIndex);
 			}
 		}

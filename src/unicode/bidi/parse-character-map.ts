@@ -19,9 +19,13 @@ export function parseCharacterMap(
 			}
 		} else {
 			prevPair = entry;
-			const [aStr, bStr] = entry.split(">");
-			const a = String.fromCodePoint((lastCode += parseInt(aStr!, radix)));
-			const b = String.fromCodePoint((lastCode += parseInt(bStr!, radix)));
+			const parts = entry.split(">");
+			const aStr = parts[0] ?? "";
+			const bStr = parts[1] ?? "";
+			lastCode += parseInt(aStr, radix);
+			const a = String.fromCodePoint(lastCode);
+			lastCode += parseInt(bStr, radix);
+			const b = String.fromCodePoint(lastCode);
 			map.set(a, b);
 			if (reverseMap) {
 				reverseMap.set(b, a);

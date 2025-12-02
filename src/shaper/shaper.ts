@@ -137,7 +137,9 @@ export function shape(
 	const direction = options.direction ?? "ltr";
 	const features = options.features ?? [];
 
-	const plan = createShapePlan(font, script, language, direction, features);
+	// Get axis coordinates from face for feature variations
+	const axisCoords = face.normalizedCoords.length > 0 ? face.normalizedCoords : null;
+	const plan = createShapePlan(font, script, language, direction, features, axisCoords);
 
 	const glyphBuffer = new GlyphBuffer();
 	glyphBuffer.direction = buffer.direction;

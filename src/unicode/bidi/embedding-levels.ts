@@ -19,32 +19,65 @@ import {
 } from "./char-types.ts";
 
 // Local type aliases
-const TYPE_L = TYPES.L!;
-const TYPE_R = TYPES.R!;
-const TYPE_EN = TYPES.EN!;
-const TYPE_ES = TYPES.ES!;
-const TYPE_ET = TYPES.ET!;
-const TYPE_AN = TYPES.AN!;
-const TYPE_CS = TYPES.CS!;
-const TYPE_B = TYPES.B!;
-const TYPE_S = TYPES.S!;
-const TYPE_ON = TYPES.ON!;
-const TYPE_BN = TYPES.BN!;
-const TYPE_NSM = TYPES.NSM!;
-const TYPE_AL = TYPES.AL!;
-const TYPE_LRO = TYPES.LRO!;
-const TYPE_RLO = TYPES.RLO!;
-const TYPE_LRE = TYPES.LRE!;
-const TYPE_RLE = TYPES.RLE!;
-const TYPE_PDF = TYPES.PDF!;
-const TYPE_LRI = TYPES.LRI!;
-const TYPE_RLI = TYPES.RLI!;
-const TYPE_FSI = TYPES.FSI!;
-const TYPE_PDI = TYPES.PDI!;
+const TYPE_L = TYPES.L ?? 1;
+const TYPE_R = TYPES.R ?? 2;
+const TYPE_EN = TYPES.EN ?? 4;
+const TYPE_ES = TYPES.ES ?? 8;
+const TYPE_ET = TYPES.ET ?? 16;
+const TYPE_AN = TYPES.AN ?? 32;
+const TYPE_CS = TYPES.CS ?? 64;
+const TYPE_B = TYPES.B ?? 128;
+const TYPE_S = TYPES.S ?? 256;
+const TYPE_ON = TYPES.ON ?? 512;
+const TYPE_BN = TYPES.BN ?? 1024;
+const TYPE_NSM = TYPES.NSM ?? 2048;
+const TYPE_AL = TYPES.AL ?? 4096;
+const TYPE_LRO = TYPES.LRO ?? 8192;
+const TYPE_RLO = TYPES.RLO ?? 16384;
+const TYPE_LRE = TYPES.LRE ?? 32768;
+const TYPE_RLE = TYPES.RLE ?? 65536;
+const TYPE_PDF = TYPES.PDF ?? 131072;
+const TYPE_LRI = TYPES.LRI ?? 262144;
+const TYPE_RLI = TYPES.RLI ?? 524288;
+const TYPE_FSI = TYPES.FSI ?? 1048576;
+const TYPE_PDI = TYPES.PDI ?? 2097152;
 
 export interface EmbeddingLevelsResult {
 	paragraphs: Array<{ start: number; end: number; level: number }>;
 	levels: Uint8Array;
+}
+
+interface StatusStackEntry {
+	_level: number;
+	_override: number;
+	_isolate: number;
+	_isolInitIndex?: number;
+}
+
+interface LevelRun {
+	_start: number;
+	_end: number;
+	_level: number;
+	_startsWithPDI: boolean;
+	_endsWithIsolInit: boolean;
+}
+
+interface IsolatingRunSeq {
+	_seqIndices: number[];
+	_sosType: number;
+	_eosType: number;
+}
+
+function getCharType(charTypes: Uint32Array, i: number): number {
+	return charTypes[i] ?? 0;
+}
+
+function getSeqIndex(seqIndices: number[], i: number): number {
+	return seqIndices[i] ?? 0;
+}
+
+function getCharAt(s: string, i: number): string {
+	return s[i] ?? "";
 }
 
 /**
@@ -61,42 +94,39 @@ export function getEmbeddingLevels(
 	// Start by mapping all characters to their unicode type, as a bitmask integer
 	const charTypes = new Uint32Array(string.length);
 	for (let i = 0; i < string.length; i++) {
-		charTypes[i] = getBidiCharType(string[i]!);
+		charTypes[i] = getBidiCharType(getCharAt(string, i));
 	}
 
-	const charTypeCounts = new Map<number, number>(); // will be cleared at start of each paragraph
+	const charTypeCounts = new Map<number, number>();
 
 	function changeCharType(i: number, type: number): void {
-		const oldType = charTypes[i]!;
+		const oldType = getCharType(charTypes, i);
 		charTypes[i] = type;
-		charTypeCounts.set(oldType, charTypeCounts.get(oldType)! - 1);
+		charTypeCounts.set(oldType, (charTypeCounts.get(oldType) ?? 0) - 1);
 		if (oldType & NEUTRAL_ISOLATE_TYPES) {
 			charTypeCounts.set(
 				NEUTRAL_ISOLATE_TYPES,
-				charTypeCounts.get(NEUTRAL_ISOLATE_TYPES)! - 1,
+				(charTypeCounts.get(NEUTRAL_ISOLATE_TYPES) ?? 0) - 1,
 			);
 		}
-		charTypeCounts.set(type, (charTypeCounts.get(type) || 0) + 1);
+		charTypeCounts.set(type, (charTypeCounts.get(type) ?? 0) + 1);
 		if (type & NEUTRAL_ISOLATE_TYPES) {
 			charTypeCounts.set(
 				NEUTRAL_ISOLATE_TYPES,
-				(charTypeCounts.get(NEUTRAL_ISOLATE_TYPES) || 0) + 1,
+				(charTypeCounts.get(NEUTRAL_ISOLATE_TYPES) ?? 0) + 1,
 			);
 		}
 	}
 
 	const embedLevels = new Uint8Array(string.length);
-	const isolationPairs = new Map<number, number>(); // init->pdi and pdi->init
+	const isolationPairs = new Map<number, number>();
 
-	// === 3.3.1 The Paragraph Level ===
-	// 3.3.1 P1: Split the text into paragraphs
 	const paragraphs: Array<{ start: number; end: number; level: number }> = [];
 	let paragraph: { start: number; end: number; level: number } | null = null;
 
 	function determineAutoEmbedLevel(start: number, isFSI: boolean): number {
-		// 3.3.1 P2 - P3
 		for (let i = start; i < string.length; i++) {
-			const charType = charTypes[i]!;
+			const charType = getCharType(charTypes, i);
 			if (charType & (TYPE_R | TYPE_AL)) {
 				return 1;
 			}
@@ -112,10 +142,9 @@ export function getEmbeddingLevels(
 	}
 
 	function indexOfMatchingPDI(isolateStart: number): number {
-		// 3.1.2 BD9
 		let isolationLevel = 1;
 		for (let i = isolateStart + 1; i < string.length; i++) {
-			const charType = charTypes[i]!;
+			const charType = getCharType(charTypes, i);
 			if (charType & TYPE_B) {
 				break;
 			}
@@ -135,7 +164,6 @@ export function getEmbeddingLevels(
 			paragraph = {
 				start: i,
 				end: string.length - 1,
-				// 3.3.1 P2-P3: Determine the paragraph level
 				level:
 					baseDirection === "rtl"
 						? 1
@@ -145,7 +173,7 @@ export function getEmbeddingLevels(
 			};
 			paragraphs.push(paragraph);
 		}
-		if (charTypes[i]! & TYPE_B) {
+		if (getCharType(charTypes, i) & TYPE_B) {
 			paragraph.end = i;
 			paragraph = null;
 		}
@@ -163,46 +191,40 @@ export function getEmbeddingLevels(
 	const nextEven = (n: number): number => n + (n & 1 ? 1 : 2);
 	const nextOdd = (n: number): number => n + (n & 1 ? 2 : 1);
 
-	// Everything from here on will operate per paragraph.
 	for (let paraIdx = 0; paraIdx < paragraphs.length; paraIdx++) {
-		paragraph = paragraphs[paraIdx]!;
-		const statusStack: Array<{
-			_level: number;
-			_override: number;
-			_isolate: number;
-			_isolInitIndex?: number;
-		}> = [
+		const para = paragraphs[paraIdx];
+		if (!para) continue;
+		paragraph = para;
+
+		const statusStack: StatusStackEntry[] = [
 			{
 				_level: paragraph.level,
-				_override: 0, // 0=neutral, 1=L, 2=R
-				_isolate: 0, // bool
+				_override: 0,
+				_isolate: 0,
 			},
 		];
-		let stackTop: (typeof statusStack)[0];
+
 		let overflowIsolateCount = 0;
 		let overflowEmbeddingCount = 0;
 		let validIsolateCount = 0;
 		charTypeCounts.clear();
 
-		// === 3.3.2 Explicit Levels and Directions ===
 		for (let i = paragraph.start; i <= paragraph.end; i++) {
-			let charType = charTypes[i]!;
-			stackTop = statusStack[statusStack.length - 1]!;
+			let charType = getCharType(charTypes, i);
+			let stackTop = statusStack[statusStack.length - 1];
+			if (!stackTop) continue;
 
-			// Set initial counts
-			charTypeCounts.set(charType, (charTypeCounts.get(charType) || 0) + 1);
+			charTypeCounts.set(charType, (charTypeCounts.get(charType) ?? 0) + 1);
 			if (charType & NEUTRAL_ISOLATE_TYPES) {
 				charTypeCounts.set(
 					NEUTRAL_ISOLATE_TYPES,
-					(charTypeCounts.get(NEUTRAL_ISOLATE_TYPES) || 0) + 1,
+					(charTypeCounts.get(NEUTRAL_ISOLATE_TYPES) ?? 0) + 1,
 				);
 			}
 
-			// Explicit Embeddings: 3.3.2 X2 - X3
 			if (charType & FORMATTING_TYPES) {
-				// prefilter all formatters
 				if (charType & (TYPE_RLE | TYPE_LRE)) {
-					embedLevels[i] = stackTop._level; // 5.2
+					embedLevels[i] = stackTop._level;
 					const level = (charType === TYPE_RLE ? nextOdd : nextEven)(
 						stackTop._level,
 					);
@@ -219,11 +241,8 @@ export function getEmbeddingLevels(
 					} else if (!overflowIsolateCount) {
 						overflowEmbeddingCount++;
 					}
-				}
-
-				// Explicit Overrides: 3.3.2 X4 - X5
-				else if (charType & (TYPE_RLO | TYPE_LRO)) {
-					embedLevels[i] = stackTop._level; // 5.2
+				} else if (charType & (TYPE_RLO | TYPE_LRO)) {
+					embedLevels[i] = stackTop._level;
 					const level = (charType === TYPE_RLO ? nextOdd : nextEven)(
 						stackTop._level,
 					);
@@ -240,11 +259,7 @@ export function getEmbeddingLevels(
 					} else if (!overflowIsolateCount) {
 						overflowEmbeddingCount++;
 					}
-				}
-
-				// Isolates: 3.3.2 X5a - X5c
-				else if (charType & ISOLATE_INIT_TYPES) {
-					// X5c - FSI becomes either RLI or LRI
+				} else if (charType & ISOLATE_INIT_TYPES) {
 					if (charType & TYPE_FSI) {
 						charType =
 							determineAutoEmbedLevel(i + 1, true) === 1 ? TYPE_RLI : TYPE_LRI;
@@ -272,20 +287,18 @@ export function getEmbeddingLevels(
 					} else {
 						overflowIsolateCount++;
 					}
-				}
-
-				// Terminating Isolates: 3.3.2 X6a
-				else if (charType & TYPE_PDI) {
+				} else if (charType & TYPE_PDI) {
 					if (overflowIsolateCount > 0) {
 						overflowIsolateCount--;
 					} else if (validIsolateCount > 0) {
 						overflowEmbeddingCount = 0;
-						while (!statusStack[statusStack.length - 1]?._isolate) {
+						while (statusStack.length > 0) {
+							const top = statusStack[statusStack.length - 1];
+							if (top?._isolate) break;
 							statusStack.pop();
 						}
-						// Add to isolation pairs bidirectional mapping:
-						const isolInitIndex =
-							statusStack[statusStack.length - 1]?._isolInitIndex;
+						const top = statusStack[statusStack.length - 1];
+						const isolInitIndex = top?._isolInitIndex;
 						if (isolInitIndex != null) {
 							isolationPairs.set(isolInitIndex, i);
 							isolationPairs.set(i, isolInitIndex);
@@ -293,62 +306,40 @@ export function getEmbeddingLevels(
 						statusStack.pop();
 						validIsolateCount--;
 					}
-					stackTop = statusStack[statusStack.length - 1]!;
+					stackTop = statusStack[statusStack.length - 1];
+					if (!stackTop) continue;
 					embedLevels[i] = stackTop._level;
 					if (stackTop._override) {
 						changeCharType(i, stackTop._override);
 					}
-				}
-
-				// Terminating Embeddings and Overrides: 3.3.2 X7
-				else if (charType & TYPE_PDF) {
+				} else if (charType & TYPE_PDF) {
 					if (overflowIsolateCount === 0) {
 						if (overflowEmbeddingCount > 0) {
 							overflowEmbeddingCount--;
 						} else if (!stackTop._isolate && statusStack.length > 1) {
 							statusStack.pop();
-							stackTop = statusStack[statusStack.length - 1]!;
+							stackTop = statusStack[statusStack.length - 1];
+							if (!stackTop) continue;
 						}
 					}
-					embedLevels[i] = stackTop._level; // 5.2
-				}
-
-				// End of Paragraph: 3.3.2 X8
-				else if (charType & TYPE_B) {
+					embedLevels[i] = stackTop._level;
+				} else if (charType & TYPE_B) {
 					embedLevels[i] = paragraph.level;
 				}
-			}
-
-			// Non-formatting characters: 3.3.2 X6
-			else {
+			} else {
 				embedLevels[i] = stackTop._level;
-				// NOTE: This exclusion of BN seems to go against what section 5.2 says, but is required for test passage
 				if (stackTop._override && charType !== TYPE_BN) {
 					changeCharType(i, stackTop._override);
 				}
 			}
 		}
 
-		// === 3.3.3 Preparations for Implicit Processing ===
-
-		// Remove all RLE, LRE, RLO, LRO, PDF, and BN characters: 3.3.3 X9
-		// Note: Due to section 5.2, we won't remove them, but we'll use the BN_LIKE_TYPES bitset to
-		// easily ignore them all from here on out.
-
-		// 3.3.3 X10
-		// Compute the set of isolating run sequences as specified by BD13
-		const levelRuns: Array<{
-			_start: number;
-			_end: number;
-			_level: number;
-			_startsWithPDI: boolean;
-			_endsWithIsolInit: boolean;
-		}> = [];
-		let currentRun: (typeof levelRuns)[0] | null = null;
+		const levelRuns: LevelRun[] = [];
+		let currentRun: LevelRun | null = null;
 		for (let i = paragraph.start; i <= paragraph.end; i++) {
-			const charType = charTypes[i]!;
+			const charType = getCharType(charTypes, i);
 			if (!(charType & BN_LIKE_TYPES)) {
-				const lvl = embedLevels[i]!;
+				const lvl = embedLevels[i] ?? 0;
 				const isIsolInit = !!(charType & ISOLATE_INIT_TYPES);
 				const isPDI = charType === TYPE_PDI;
 				if (currentRun && lvl === currentRun._level) {
@@ -367,57 +358,57 @@ export function getEmbeddingLevels(
 			}
 		}
 
-		const isolatingRunSeqs: Array<{
-			_seqIndices: number[];
-			_sosType: number;
-			_eosType: number;
-		}> = [];
+		const isolatingRunSeqs: IsolatingRunSeq[] = [];
 
 		for (let runIdx = 0; runIdx < levelRuns.length; runIdx++) {
-			const run = levelRuns[runIdx]!;
+			const run = levelRuns[runIdx];
+			if (!run) continue;
 			if (
 				!run._startsWithPDI ||
 				(run._startsWithPDI && !isolationPairs.has(run._start))
 			) {
-				const seqRuns = [(currentRun = run)];
-				for (
-					let pdiIndex: number | undefined;
-					currentRun?._endsWithIsolInit &&
-					(pdiIndex = isolationPairs.get(currentRun._end)) != null;
-				) {
+				currentRun = run;
+				const seqRuns: LevelRun[] = [run];
+
+				while (currentRun?._endsWithIsolInit) {
+					const pdiIndex = isolationPairs.get(currentRun._end);
+					if (pdiIndex == null) break;
+					let found = false;
 					for (let i = runIdx + 1; i < levelRuns.length; i++) {
-						if (levelRuns[i]?._start === pdiIndex) {
-							seqRuns.push((currentRun = levelRuns[i]!));
+						const nextRun = levelRuns[i];
+						if (nextRun?._start === pdiIndex) {
+							currentRun = nextRun;
+							seqRuns.push(nextRun);
+							found = true;
 							break;
 						}
 					}
+					if (!found) break;
 				}
-				// build flat list of indices across all runs:
+
 				const seqIndices: number[] = [];
-				for (let i = 0; i < seqRuns.length; i++) {
-					const run = seqRuns[i]!;
-					for (let j = run._start; j <= run._end; j++) {
+				for (const seqRun of seqRuns) {
+					for (let j = seqRun._start; j <= seqRun._end; j++) {
 						seqIndices.push(j);
 					}
 				}
-				// determine the sos/eos types:
-				const firstLevel = embedLevels[seqIndices[0]!]!;
+
+				const firstIdx = seqIndices[0] ?? 0;
+				const firstLevel = embedLevels[firstIdx] ?? 0;
 				let prevLevel = paragraph.level;
-				for (let i = seqIndices[0]! - 1; i >= 0; i--) {
-					if (!(charTypes[i]! & BN_LIKE_TYPES)) {
-						// 5.2
-						prevLevel = embedLevels[i]!;
+				for (let i = firstIdx - 1; i >= 0; i--) {
+					if (!(getCharType(charTypes, i) & BN_LIKE_TYPES)) {
+						prevLevel = embedLevels[i] ?? 0;
 						break;
 					}
 				}
-				const lastIndex = seqIndices[seqIndices.length - 1]!;
-				const lastLevel = embedLevels[lastIndex]!;
+				const lastIndex = seqIndices[seqIndices.length - 1] ?? 0;
+				const lastLevel = embedLevels[lastIndex] ?? 0;
 				let nextLevel = paragraph.level;
-				if (!(charTypes[lastIndex]! & ISOLATE_INIT_TYPES)) {
+				if (!(getCharType(charTypes, lastIndex) & ISOLATE_INIT_TYPES)) {
 					for (let i = lastIndex + 1; i <= paragraph.end; i++) {
-						if (!(charTypes[i]! & BN_LIKE_TYPES)) {
-							// 5.2
-							nextLevel = embedLevels[i]!;
+						if (!(getCharType(charTypes, i) & BN_LIKE_TYPES)) {
+							nextLevel = embedLevels[i] ?? 0;
 							break;
 						}
 					}
@@ -430,34 +421,26 @@ export function getEmbeddingLevels(
 			}
 		}
 
-		// The next steps are done per isolating run sequence
-		for (let seqIdx = 0; seqIdx < isolatingRunSeqs.length; seqIdx++) {
+		for (const seq of isolatingRunSeqs) {
 			const {
 				_seqIndices: seqIndices,
 				_sosType: sosType,
 				_eosType: eosType,
-			} = isolatingRunSeqs[seqIdx]!;
-			/**
-			 * All the level runs in an isolating run sequence have the same embedding level.
-			 *
-			 * DO NOT change any `embedLevels[i]` within the current scope.
-			 */
-			const embedDirection = embedLevels[seqIndices[0]!]! & 1 ? TYPE_R : TYPE_L;
+			} = seq;
+			const firstSeqIdx = seqIndices[0] ?? 0;
+			const embedDirection =
+				(embedLevels[firstSeqIdx] ?? 0) & 1 ? TYPE_R : TYPE_L;
 
-			// === 3.3.4 Resolving Weak Types ===
-
-			// W1 + 5.2. Search backward from each NSM to the first character in the isolating run sequence whose
-			// bidirectional type is not BN, and set the NSM to ON if it is an isolate initiator or PDI, and to its
-			// type otherwise. If the NSM is the first non-BN character, change the NSM to the type of sos.
+			// W1
 			if (charTypeCounts.get(TYPE_NSM)) {
 				for (let si = 0; si < seqIndices.length; si++) {
-					const i = seqIndices[si]!;
-					if (charTypes[i]! & TYPE_NSM) {
+					const i = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, i) & TYPE_NSM) {
 						let prevType = sosType;
 						for (let sj = si - 1; sj >= 0; sj--) {
-							if (!(charTypes[seqIndices[sj]!]! & BN_LIKE_TYPES)) {
-								// 5.2 scan back to first non-BN
-								prevType = charTypes[seqIndices[sj]!]!;
+							const sjIdx = getSeqIndex(seqIndices, sj);
+							if (!(getCharType(charTypes, sjIdx) & BN_LIKE_TYPES)) {
+								prevType = getCharType(charTypes, sjIdx);
 								break;
 							}
 						}
@@ -469,15 +452,16 @@ export function getEmbeddingLevels(
 				}
 			}
 
-			// W2. Search backward from each instance of a European number until the first strong type (R, L, AL, or sos)
-			// is found. If an AL is found, change the type of the European number to Arabic number.
+			// W2
 			if (charTypeCounts.get(TYPE_EN)) {
 				for (let si = 0; si < seqIndices.length; si++) {
-					const i = seqIndices[si]!;
-					if (charTypes[i]! & TYPE_EN) {
+					const i = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, i) & TYPE_EN) {
 						for (let sj = si - 1; sj >= -1; sj--) {
 							const prevCharType =
-								sj === -1 ? sosType : charTypes[seqIndices[sj]!]!;
+								sj === -1
+									? sosType
+									: getCharType(charTypes, getSeqIndex(seqIndices, sj));
 							if (prevCharType & STRONG_TYPES) {
 								if (prevCharType === TYPE_AL) {
 									changeCharType(i, TYPE_AN);
@@ -489,41 +473,34 @@ export function getEmbeddingLevels(
 				}
 			}
 
-			// W3. Change all ALs to R
+			// W3
 			if (charTypeCounts.get(TYPE_AL)) {
 				for (let si = 0; si < seqIndices.length; si++) {
-					const i = seqIndices[si]!;
-					if (charTypes[i]! & TYPE_AL) {
+					const i = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, i) & TYPE_AL) {
 						changeCharType(i, TYPE_R);
 					}
 				}
 			}
 
-			// W4. A single European separator between two European numbers changes to a European number. A single common
-			// separator between two numbers of the same type changes to that type.
+			// W4
 			if (charTypeCounts.get(TYPE_ES) || charTypeCounts.get(TYPE_CS)) {
 				for (let si = 1; si < seqIndices.length - 1; si++) {
-					const i = seqIndices[si]!;
-					if (charTypes[i]! & (TYPE_ES | TYPE_CS)) {
+					const i = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, i) & (TYPE_ES | TYPE_CS)) {
 						let prevType = 0;
 						let nextType = 0;
 						for (let sj = si - 1; sj >= 0; sj--) {
-							prevType = charTypes[seqIndices[sj]!]!;
-							if (!(prevType & BN_LIKE_TYPES)) {
-								// 5.2
-								break;
-							}
+							prevType = getCharType(charTypes, getSeqIndex(seqIndices, sj));
+							if (!(prevType & BN_LIKE_TYPES)) break;
 						}
 						for (let sj = si + 1; sj < seqIndices.length; sj++) {
-							nextType = charTypes[seqIndices[sj]!]!;
-							if (!(nextType & BN_LIKE_TYPES)) {
-								// 5.2
-								break;
-							}
+							nextType = getCharType(charTypes, getSeqIndex(seqIndices, sj));
+							if (!(nextType & BN_LIKE_TYPES)) break;
 						}
 						if (
 							prevType === nextType &&
-							(charTypes[i] === TYPE_ES
+							(getCharType(charTypes, i) === TYPE_ES
 								? prevType === TYPE_EN
 								: prevType & (TYPE_EN | TYPE_AN))
 						) {
@@ -533,74 +510,64 @@ export function getEmbeddingLevels(
 				}
 			}
 
-			// W5. A sequence of European terminators adjacent to European numbers changes to all European numbers.
+			// W5
 			if (charTypeCounts.get(TYPE_EN)) {
 				for (let si = 0; si < seqIndices.length; si++) {
-					const i = seqIndices[si]!;
-					if (charTypes[i]! & TYPE_EN) {
-						for (
-							let sj = si - 1;
-							sj >= 0 &&
-							charTypes[seqIndices[sj]!]! & (TYPE_ET | BN_LIKE_TYPES);
-							sj--
-						) {
-							changeCharType(seqIndices[sj]!, TYPE_EN);
+					const i = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, i) & TYPE_EN) {
+						for (let sj = si - 1; sj >= 0; sj--) {
+							const sjIdx = getSeqIndex(seqIndices, sj);
+							if (!(getCharType(charTypes, sjIdx) & (TYPE_ET | BN_LIKE_TYPES)))
+								break;
+							changeCharType(sjIdx, TYPE_EN);
 						}
-						for (
-							si++;
-							si < seqIndices.length &&
-							charTypes[seqIndices[si]!]! & (TYPE_ET | BN_LIKE_TYPES | TYPE_EN);
-							si++
-						) {
-							if (charTypes[seqIndices[si]!] !== TYPE_EN) {
-								changeCharType(seqIndices[si]!, TYPE_EN);
+						for (si++; si < seqIndices.length; si++) {
+							const siIdx = getSeqIndex(seqIndices, si);
+							if (
+								!(
+									getCharType(charTypes, siIdx) &
+									(TYPE_ET | BN_LIKE_TYPES | TYPE_EN)
+								)
+							)
+								break;
+							if (getCharType(charTypes, siIdx) !== TYPE_EN) {
+								changeCharType(siIdx, TYPE_EN);
 							}
 						}
 					}
 				}
 			}
 
-			// W6. Otherwise, separators and terminators change to Other Neutral.
+			// W6
 			if (
 				charTypeCounts.get(TYPE_ET) ||
 				charTypeCounts.get(TYPE_ES) ||
 				charTypeCounts.get(TYPE_CS)
 			) {
 				for (let si = 0; si < seqIndices.length; si++) {
-					const i = seqIndices[si]!;
-					if (charTypes[i]! & (TYPE_ET | TYPE_ES | TYPE_CS)) {
+					const i = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, i) & (TYPE_ET | TYPE_ES | TYPE_CS)) {
 						changeCharType(i, TYPE_ON);
-						// 5.2 transform adjacent BNs too:
-						for (
-							let sj = si - 1;
-							sj >= 0 && charTypes[seqIndices[sj]!]! & BN_LIKE_TYPES;
-							sj--
-						) {
-							changeCharType(seqIndices[sj]!, TYPE_ON);
+						for (let sj = si - 1; sj >= 0; sj--) {
+							const sjIdx = getSeqIndex(seqIndices, sj);
+							if (!(getCharType(charTypes, sjIdx) & BN_LIKE_TYPES)) break;
+							changeCharType(sjIdx, TYPE_ON);
 						}
-						for (
-							let sj = si + 1;
-							sj < seqIndices.length &&
-							charTypes[seqIndices[sj]!]! & BN_LIKE_TYPES;
-							sj++
-						) {
-							changeCharType(seqIndices[sj]!, TYPE_ON);
+						for (let sj = si + 1; sj < seqIndices.length; sj++) {
+							const sjIdx = getSeqIndex(seqIndices, sj);
+							if (!(getCharType(charTypes, sjIdx) & BN_LIKE_TYPES)) break;
+							changeCharType(sjIdx, TYPE_ON);
 						}
 					}
 				}
 			}
 
-			// W7. Search backward from each instance of a European number until the first strong type (R, L, or sos)
-			// is found. If an L is found, then change the type of the European number to L.
-			// NOTE: implemented in single forward pass for efficiency
+			// W7
 			if (charTypeCounts.get(TYPE_EN)) {
-				for (
-					let si = 0, prevStrongType = sosType;
-					si < seqIndices.length;
-					si++
-				) {
-					const i = seqIndices[si]!;
-					const type = charTypes[i]!;
+				let prevStrongType = sosType;
+				for (let si = 0; si < seqIndices.length; si++) {
+					const i = getSeqIndex(seqIndices, si);
+					const type = getCharType(charTypes, i);
 					if (type & TYPE_EN) {
 						if (prevStrongType === TYPE_L) {
 							changeCharType(i, TYPE_L);
@@ -611,125 +578,106 @@ export function getEmbeddingLevels(
 				}
 			}
 
-			// === 3.3.5 Resolving Neutral and Isolate Formatting Types ===
-
+			// N0-N2
 			if (charTypeCounts.get(NEUTRAL_ISOLATE_TYPES)) {
-				// N0. Process bracket pairs in an isolating run sequence sequentially in the logical order of the text
-				// positions of the opening paired brackets using the logic given below. Within this scope, bidirectional
-				// types EN and AN are treated as R.
 				const R_TYPES_FOR_N_STEPS = TYPE_R | TYPE_EN | TYPE_AN;
 				const STRONG_TYPES_FOR_N_STEPS = R_TYPES_FOR_N_STEPS | TYPE_L;
 
-				// * Identify the bracket pairs in the current isolating run sequence according to BD16.
 				const bracketPairs: Array<[number, number]> = [];
-				{
-					const openerStack: Array<{ char: string; seqIndex: number }> = [];
-					for (let si = 0; si < seqIndices.length; si++) {
-						// NOTE: for any potential bracket character we also test that it still carries a NI
-						// type, as that may have been changed earlier. This doesn't seem to be explicitly
-						// called out in the spec, but is required for passage of certain tests.
-						if (charTypes[seqIndices[si]!]! & NEUTRAL_ISOLATE_TYPES) {
-							const char = string[seqIndices[si]!]!;
-							let oppositeBracket: string | null;
-							// Opening bracket
-							if (openingToClosingBracket(char) !== null) {
-								if (openerStack.length < 63) {
-									openerStack.push({ char, seqIndex: si });
-								} else {
-									break;
-								}
+				const openerStack: Array<{ char: string; seqIndex: number }> = [];
+
+				for (let si = 0; si < seqIndices.length; si++) {
+					const siIdx = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, siIdx) & NEUTRAL_ISOLATE_TYPES) {
+						const char = getCharAt(string, siIdx);
+						const closingBracket = openingToClosingBracket(char);
+						if (closingBracket !== null) {
+							if (openerStack.length < 63) {
+								openerStack.push({ char, seqIndex: si });
+							} else {
+								break;
 							}
-							// Closing bracket
-							else if (
-								(oppositeBracket = closingToOpeningBracket(char)) !== null
-							) {
+						} else {
+							const oppositeBracket = closingToOpeningBracket(char);
+							if (oppositeBracket !== null) {
 								for (
 									let stackIdx = openerStack.length - 1;
 									stackIdx >= 0;
 									stackIdx--
 								) {
-									const stackChar = openerStack[stackIdx]?.char;
+									const opener = openerStack[stackIdx];
+									if (!opener) continue;
+									const stackChar = opener.char;
+									const canonicalChar = getCanonicalBracket(char);
+									const canonicalStack = getCanonicalBracket(stackChar);
 									if (
 										stackChar === oppositeBracket ||
-										stackChar ===
-											closingToOpeningBracket(getCanonicalBracket(char)!) ||
-										openingToClosingBracket(getCanonicalBracket(stackChar)!) ===
-											char
+										(canonicalChar &&
+											stackChar === closingToOpeningBracket(canonicalChar)) ||
+										(canonicalStack &&
+											openingToClosingBracket(canonicalStack) === char)
 									) {
-										bracketPairs.push([openerStack[stackIdx]?.seqIndex, si]);
-										openerStack.length = stackIdx; // pop the matching bracket and all following
+										bracketPairs.push([opener.seqIndex, si]);
+										openerStack.length = stackIdx;
 										break;
 									}
 								}
 							}
 						}
 					}
-					bracketPairs.sort((a, b) => a[0] - b[0]);
 				}
+				bracketPairs.sort((a, b) => a[0] - b[0]);
 
-				// * For each bracket-pair element in the list of pairs of text positions
-				for (let pairIdx = 0; pairIdx < bracketPairs.length; pairIdx++) {
-					const [openSeqIdx, closeSeqIdx] = bracketPairs[pairIdx]!;
-					// a. Inspect the bidirectional types of the characters enclosed within the bracket pair.
-					// b. If any strong type (either L or R) matching the embedding direction is found, set the type for both
-					// brackets in the pair to match the embedding direction.
+				for (const pair of bracketPairs) {
+					const [openSeqIdx, closeSeqIdx] = pair;
 					let foundStrongType = false;
 					let useStrongType = 0;
+
 					for (let si = openSeqIdx + 1; si < closeSeqIdx; si++) {
-						const i = seqIndices[si]!;
-						if (charTypes[i]! & STRONG_TYPES_FOR_N_STEPS) {
+						const i = getSeqIndex(seqIndices, si);
+						const ct = getCharType(charTypes, i);
+						if (ct & STRONG_TYPES_FOR_N_STEPS) {
 							foundStrongType = true;
-							const lr = charTypes[i]! & R_TYPES_FOR_N_STEPS ? TYPE_R : TYPE_L;
+							const lr = ct & R_TYPES_FOR_N_STEPS ? TYPE_R : TYPE_L;
 							if (lr === embedDirection) {
 								useStrongType = lr;
 								break;
 							}
 						}
 					}
-					// c. Otherwise, if there is a strong type it must be opposite the embedding direction. Therefore, test
-					// for an established context with a preceding strong type by checking backwards before the opening paired
-					// bracket until the first strong type (L, R, or sos) is found.
-					//    1. If the preceding strong type is also opposite the embedding direction, context is established, so
-					//    set the type for both brackets in the pair to that direction.
-					//    2. Otherwise set the type for both brackets in the pair to the embedding direction.
+
 					if (foundStrongType && !useStrongType) {
 						useStrongType = sosType;
 						for (let si = openSeqIdx - 1; si >= 0; si--) {
-							const i = seqIndices[si]!;
-							if (charTypes[i]! & STRONG_TYPES_FOR_N_STEPS) {
-								const lr =
-									charTypes[i]! & R_TYPES_FOR_N_STEPS ? TYPE_R : TYPE_L;
-								if (lr !== embedDirection) {
-									useStrongType = lr;
-								} else {
-									useStrongType = embedDirection;
-								}
+							const i = getSeqIndex(seqIndices, si);
+							const ct = getCharType(charTypes, i);
+							if (ct & STRONG_TYPES_FOR_N_STEPS) {
+								const lr = ct & R_TYPES_FOR_N_STEPS ? TYPE_R : TYPE_L;
+								useStrongType = lr !== embedDirection ? lr : embedDirection;
 								break;
 							}
 						}
 					}
+
 					if (useStrongType) {
-						charTypes[seqIndices[openSeqIdx]!] = charTypes[
-							seqIndices[closeSeqIdx]!
-						] = useStrongType;
-						// * Any number of characters that had original bidirectional character type NSM prior to the application
-						// of W1 that immediately follow a paired bracket which changed to L or R under N0 should change to match
-						// the type of their preceding bracket.
+						charTypes[getSeqIndex(seqIndices, openSeqIdx)] = useStrongType;
+						charTypes[getSeqIndex(seqIndices, closeSeqIdx)] = useStrongType;
+
 						if (useStrongType !== embedDirection) {
 							for (let si = openSeqIdx + 1; si < seqIndices.length; si++) {
-								if (!(charTypes[seqIndices[si]!]! & BN_LIKE_TYPES)) {
-									if (getBidiCharType(string[seqIndices[si]!]!) & TYPE_NSM) {
-										charTypes[seqIndices[si]!] = useStrongType;
+								const siIdx = getSeqIndex(seqIndices, si);
+								if (!(getCharType(charTypes, siIdx) & BN_LIKE_TYPES)) {
+									if (getBidiCharType(getCharAt(string, siIdx)) & TYPE_NSM) {
+										charTypes[siIdx] = useStrongType;
 									}
 									break;
 								}
 							}
-						}
-						if (useStrongType !== embedDirection) {
 							for (let si = closeSeqIdx + 1; si < seqIndices.length; si++) {
-								if (!(charTypes[seqIndices[si]!]! & BN_LIKE_TYPES)) {
-									if (getBidiCharType(string[seqIndices[si]!]!) & TYPE_NSM) {
-										charTypes[seqIndices[si]!] = useStrongType;
+								const siIdx = getSeqIndex(seqIndices, si);
+								if (!(getCharType(charTypes, siIdx) & BN_LIKE_TYPES)) {
+									if (getBidiCharType(getCharAt(string, siIdx)) & TYPE_NSM) {
+										charTypes[siIdx] = useStrongType;
 									}
 									break;
 								}
@@ -738,42 +686,46 @@ export function getEmbeddingLevels(
 					}
 				}
 
-				// N1. A sequence of NIs takes the direction of the surrounding strong text if the text on both sides has the
-				// same direction.
-				// N2. Any remaining NIs take the embedding direction.
+				// N1/N2
 				for (let si = 0; si < seqIndices.length; si++) {
-					if (charTypes[seqIndices[si]!]! & NEUTRAL_ISOLATE_TYPES) {
+					const siIdx = getSeqIndex(seqIndices, si);
+					if (getCharType(charTypes, siIdx) & NEUTRAL_ISOLATE_TYPES) {
 						let niRunStart = si;
 						let niRunEnd = si;
 						let prevType = sosType;
+
 						for (let si2 = si - 1; si2 >= 0; si2--) {
-							if (charTypes[seqIndices[si2]!]! & BN_LIKE_TYPES) {
-								niRunStart = si2; // 5.2 treat BNs adjacent to NIs as NIs
+							const si2Idx = getSeqIndex(seqIndices, si2);
+							if (getCharType(charTypes, si2Idx) & BN_LIKE_TYPES) {
+								niRunStart = si2;
 							} else {
 								prevType =
-									charTypes[seqIndices[si2]!]! & R_TYPES_FOR_N_STEPS
+									getCharType(charTypes, si2Idx) & R_TYPES_FOR_N_STEPS
 										? TYPE_R
 										: TYPE_L;
 								break;
 							}
 						}
+
 						let nextType = eosType;
 						for (let si2 = si + 1; si2 < seqIndices.length; si2++) {
+							const si2Idx = getSeqIndex(seqIndices, si2);
 							if (
-								charTypes[seqIndices[si2]!]! &
+								getCharType(charTypes, si2Idx) &
 								(NEUTRAL_ISOLATE_TYPES | BN_LIKE_TYPES)
 							) {
 								niRunEnd = si2;
 							} else {
 								nextType =
-									charTypes[seqIndices[si2]!]! & R_TYPES_FOR_N_STEPS
+									getCharType(charTypes, si2Idx) & R_TYPES_FOR_N_STEPS
 										? TYPE_R
 										: TYPE_L;
 								break;
 							}
 						}
+
 						for (let sj = niRunStart; sj <= niRunEnd; sj++) {
-							charTypes[seqIndices[sj]!] =
+							charTypes[getSeqIndex(seqIndices, sj)] =
 								prevType === nextType ? prevType : embedDirection;
 						}
 						si = niRunEnd;
@@ -782,20 +734,16 @@ export function getEmbeddingLevels(
 			}
 		}
 
-		// === 3.3.6 Resolving Implicit Levels ===
-
+		// Resolving Implicit Levels
 		for (let i = paragraph.start; i <= paragraph.end; i++) {
-			const level = embedLevels[i]!;
-			const type = charTypes[i]!;
-			// I2. For all characters with an odd (right-to-left) embedding level, those of type L, EN or AN go up one level.
+			const level = embedLevels[i] ?? 0;
+			const type = getCharType(charTypes, i);
+
 			if (level & 1) {
 				if (type & (TYPE_L | TYPE_EN | TYPE_AN)) {
 					embedLevels[i]++;
 				}
-			}
-			// I1. For all characters with an even (left-to-right) embedding level, those of type R go up one level
-			// and those of type AN or EN go up two levels.
-			else {
+			} else {
 				if (type & TYPE_R) {
 					embedLevels[i]++;
 				} else if (type & (TYPE_AN | TYPE_EN)) {
@@ -803,22 +751,18 @@ export function getEmbeddingLevels(
 				}
 			}
 
-			// 5.2: Resolve any LRE, RLE, LRO, RLO, PDF, or BN to the level of the preceding character if there is one,
-			// and otherwise to the base level.
 			if (type & BN_LIKE_TYPES) {
-				embedLevels[i] = i === 0 ? paragraph.level : embedLevels[i - 1]!;
+				embedLevels[i] =
+					i === 0 ? paragraph.level : (embedLevels[i - 1] ?? paragraph.level);
 			}
 
-			// 3.4 L1.1-4: Reset the embedding level of segment/paragraph separators, and any sequence of whitespace or
-			// isolate formatting characters preceding them or the end of the paragraph, to the paragraph level.
-			// NOTE: this will also need to be applied to each individual line ending after line wrapping occurs.
 			if (
 				i === paragraph.end ||
-				getBidiCharType(string[i]!) & (TYPE_S | TYPE_B)
+				getBidiCharType(getCharAt(string, i)) & (TYPE_S | TYPE_B)
 			) {
 				for (
 					let j = i;
-					j >= 0 && getBidiCharType(string[j]!) & TRAILING_TYPES;
+					j >= 0 && getBidiCharType(getCharAt(string, j)) & TRAILING_TYPES;
 					j--
 				) {
 					embedLevels[j] = paragraph.level;
@@ -827,8 +771,6 @@ export function getEmbeddingLevels(
 		}
 	}
 
-	// DONE! The resolved levels can then be used, after line wrapping, to flip runs of characters
-	// according to section 3.4 Reordering Resolved Levels
 	return {
 		levels: embedLevels,
 		paragraphs,

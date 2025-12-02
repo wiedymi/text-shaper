@@ -81,6 +81,38 @@ export type { MaxpTable } from "./font/tables/maxp.ts";
 // AAT tables
 export type { MorxChain, MorxSubtable, MorxTable } from "./font/tables/morx.ts";
 export { applyNonContextual, MorxSubtableType } from "./font/tables/morx.ts";
+// AAT feat table
+export type {
+	FeatTable,
+	FeatureRecord,
+	FeatureSetting,
+} from "./font/tables/feat.ts";
+export {
+	aatToOpenTypeTag,
+	CaseSensitiveLayoutSetting,
+	CharacterShapeSetting,
+	ContextualAlternativesSetting,
+	DiacriticsSetting,
+	FeatureFlags,
+	FeatureType,
+	FractionsSetting,
+	getAllFeatures,
+	getDefaultSetting,
+	getFeature,
+	getSettingByValue,
+	hasSettingValue,
+	isExclusiveFeature,
+	LigatureSetting,
+	LowerCaseSetting,
+	NumberCaseSetting,
+	NumberSpacingSetting,
+	openTypeTagToAat,
+	parseFeat,
+	SmartSwashSetting,
+	StylisticAlternativesSetting,
+	UpperCaseSetting,
+	VerticalPositionSetting,
+} from "./font/tables/feat.ts";
 export type { MvarTable, MvarValueRecord } from "./font/tables/mvar.ts";
 export {
 	getCapHeightDelta,
@@ -121,6 +153,53 @@ export {
 	isOlderSiblingFont,
 	matchAxisValue,
 } from "./font/tables/stat.ts";
+// COLR/CPAL color tables
+export type {
+	Affine2x3,
+	BaseGlyphPaintRecord,
+	BaseGlyphRecord,
+	ClipBox,
+	ClipRecord,
+	ColorLine,
+	ColorStop,
+	ColrTable,
+	ItemVariationData,
+	ItemVariationStore,
+	LayerRecord,
+	Paint,
+	PaintColrGlyph,
+	PaintColrLayers,
+	PaintComposite,
+	PaintGlyph,
+	PaintLinearGradient,
+	PaintRadialGradient,
+	PaintRotate,
+	PaintScale,
+	PaintSkew,
+	PaintSolid,
+	PaintSweepGradient,
+	PaintTransform,
+	PaintTranslate,
+	RegionAxisCoordinates,
+	VarColorLine,
+	VarColorStop,
+	VariationRegion,
+} from "./font/tables/colr.ts";
+export {
+	CompositeMode,
+	Extend,
+	getClipBox,
+	getColorLayers,
+	getColorPaint,
+	getColorVariationDelta,
+	getLayerPaint,
+	hasColorGlyph,
+	isColrV1,
+	PaintFormat,
+	parseColr,
+} from "./font/tables/colr.ts";
+export type { Color, ColorPalette, CpalTable } from "./font/tables/cpal.ts";
+export { colorToHex, colorToRgba, getColor, PaletteType, parseCpal } from "./font/tables/cpal.ts";
 // SVG table for color fonts
 export type { SvgDocumentRecord, SvgTable } from "./font/tables/svg.ts";
 export {
@@ -288,3 +367,44 @@ export {
 	normalize,
 	reorderMarks,
 } from "./unicode/normalize.ts";
+// Line breaking (UAX #14)
+export type { LineBreakAnalysis } from "./unicode/line-break.ts";
+export {
+	BreakAction,
+	BreakOpportunity,
+	LineBreakClass,
+	analyzeLineBreaks,
+	analyzeLineBreaksForGlyphs,
+	analyzeLineBreaksFromCodepoints,
+	canBreakAt,
+	findNextBreak,
+	getAllBreakOpportunities,
+	getLineBreakClass,
+	mustBreakAt,
+} from "./unicode/line-break.ts";
+// Text segmentation (UAX #29)
+export type { GraphemeBoundaries, WordBoundaries } from "./unicode/segmentation.ts";
+export {
+	GraphemeBreakProperty,
+	WordBreakProperty,
+	countGraphemes,
+	findGraphemeBoundaries,
+	findWordBoundaries,
+	getGraphemeBreakProperty,
+	getWordBreakProperty,
+	splitGraphemes,
+	splitWords,
+} from "./unicode/segmentation.ts";
+// Script detection
+export type { ScriptRun } from "./unicode/script.ts";
+export {
+	Script,
+	detectScript,
+	getScript,
+	getScriptDirection,
+	getScriptRuns,
+	getScriptTag,
+	getScripts,
+	isComplexScript,
+	isScript,
+} from "./unicode/script.ts";

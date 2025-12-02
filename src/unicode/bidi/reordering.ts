@@ -18,13 +18,13 @@ export function getReorderSegments(
 	end?: number,
 ): Array<[number, number]> {
 	const strLen = string.length;
-	start = Math.max(0, start == null ? 0 : +start);
-	end = Math.min(strLen - 1, end == null ? strLen - 1 : +end);
+	const startPos = Math.max(0, start == null ? 0 : +start);
+	const endPos = Math.min(strLen - 1, end == null ? strLen - 1 : +end);
 
 	const segments: Array<[number, number]> = [];
-	embeddingLevelsResult.paragraphs.forEach((paragraph) => {
-		const lineStart = Math.max(start!, paragraph.start);
-		const lineEnd = Math.min(end!, paragraph.end);
+	for (const paragraph of embeddingLevelsResult.paragraphs) {
+		const lineStart = Math.max(startPos, paragraph.start);
+		const lineEnd = Math.min(endPos, paragraph.end);
 		if (lineStart < lineEnd) {
 			// Local slice for mutation
 			const lineLevels = embeddingLevelsResult.levels.slice(
@@ -34,11 +34,10 @@ export function getReorderSegments(
 
 			// 3.4 L1.4: Reset any sequence of whitespace characters and/or isolate formatting characters at the
 			// end of the line to the paragraph level.
-			for (
-				let i = lineEnd;
-				i >= lineStart && getBidiCharType(string[i]!) & TRAILING_TYPES;
-				i--
-			) {
+			for (let i = lineEnd; i >= lineStart; i--) {
+				const char = string[i];
+				if (char === undefined) break;
+				if (!(getBidiCharType(char) & TRAILING_TYPES)) break;
 				lineLevels[i - lineStart] = paragraph.level;
 			}
 
@@ -47,15 +46,18 @@ export function getReorderSegments(
 			let maxLevel = paragraph.level;
 			let minOddLevel = Infinity;
 			for (let i = 0; i < lineLevels.length; i++) {
-				const level = lineLevels[i]!;
+				const level = lineLevels[i] ?? 0;
 				if (level > maxLevel) maxLevel = level;
 				if (level < minOddLevel) minOddLevel = level | 1;
 			}
 			for (let lvl = maxLevel; lvl >= minOddLevel; lvl--) {
 				for (let i = 0; i < lineLevels.length; i++) {
-					if (lineLevels[i]! >= lvl) {
+					const level = lineLevels[i] ?? 0;
+					if (level >= lvl) {
 						const segStart = i;
-						while (i + 1 < lineLevels.length && lineLevels[i + 1]! >= lvl) {
+						while (i + 1 < lineLevels.length) {
+							const nextLevel = lineLevels[i + 1] ?? 0;
+							if (nextLevel < lvl) break;
 							i++;
 						}
 						if (i > segStart) {
@@ -65,7 +67,7 @@ export function getReorderSegments(
 				}
 			}
 		}
-	});
+	}
 	return segments;
 }
 
@@ -80,12 +82,17 @@ export function getReorderedString(
 ): string {
 	const indices = getReorderedIndices(string, embedLevelsResult, start, end);
 	const chars = [...string];
-	indices.forEach((charIndex, i) => {
-		chars[i] =
-			(embedLevelsResult.levels[charIndex]! & 1
-				? getMirroredCharacter(string[charIndex]!)
-				: null) || string[charIndex]!;
-	});
+	for (let i = 0; i < indices.length; i++) {
+		const charIndex = indices[i] ?? 0;
+		const level = embedLevelsResult.levels[charIndex] ?? 0;
+		const originalChar = string[charIndex] ?? "";
+		if (level & 1) {
+			const mirrored = getMirroredCharacter(originalChar);
+			chars[i] = mirrored ?? originalChar;
+		} else {
+			chars[i] = originalChar;
+		}
+	}
 	return chars.join("");
 }
 
@@ -105,11 +112,14 @@ export function getReorderedIndices(
 		indices[i] = i;
 	}
 	// Reverse each segment in order
-	segments.forEach(([start, end]) => {
-		const slice = indices.slice(start, end + 1);
+	for (const [segStart, segEnd] of segments) {
+		const slice = indices.slice(segStart, segEnd + 1);
 		for (let i = slice.length; i--; ) {
-			indices[end - i] = slice[i]!;
+			const val = slice[i];
+			if (val !== undefined) {
+				indices[segEnd - i] = val;
+			}
 		}
-	});
+	}
 	return indices;
 }

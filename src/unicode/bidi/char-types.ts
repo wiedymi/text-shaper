@@ -12,30 +12,44 @@ TYPES_TO_NAMES[1] = "L";
 
 Object.keys(DATA).forEach((type, i) => {
 	TYPES[type] = 1 << (i + 1);
-	TYPES_TO_NAMES[TYPES[type]!] = type;
+	const typeVal = TYPES[type];
+	if (typeVal !== undefined) {
+		TYPES_TO_NAMES[typeVal] = type;
+	}
 });
 
 Object.freeze(TYPES);
 
-export const ISOLATE_INIT_TYPES = TYPES.LRI! | TYPES.RLI! | TYPES.FSI!;
-export const STRONG_TYPES = TYPES.L! | TYPES.R! | TYPES.AL!;
+// Helper to get type value with fallback
+function getType(name: string): number {
+	return TYPES[name] ?? 0;
+}
+
+export const ISOLATE_INIT_TYPES =
+	getType("LRI") | getType("RLI") | getType("FSI");
+export const STRONG_TYPES = getType("L") | getType("R") | getType("AL");
 export const NEUTRAL_ISOLATE_TYPES =
-	TYPES.B! |
-	TYPES.S! |
-	TYPES.WS! |
-	TYPES.ON! |
-	TYPES.FSI! |
-	TYPES.LRI! |
-	TYPES.RLI! |
-	TYPES.PDI!;
+	getType("B") |
+	getType("S") |
+	getType("WS") |
+	getType("ON") |
+	getType("FSI") |
+	getType("LRI") |
+	getType("RLI") |
+	getType("PDI");
 export const BN_LIKE_TYPES =
-	TYPES.BN! | TYPES.RLE! | TYPES.LRE! | TYPES.RLO! | TYPES.LRO! | TYPES.PDF!;
+	getType("BN") |
+	getType("RLE") |
+	getType("LRE") |
+	getType("RLO") |
+	getType("LRO") |
+	getType("PDF");
 export const TRAILING_TYPES =
-	TYPES.S! |
-	TYPES.WS! |
-	TYPES.B! |
+	getType("S") |
+	getType("WS") |
+	getType("B") |
 	ISOLATE_INIT_TYPES |
-	TYPES.PDI! |
+	getType("PDI") |
 	BN_LIKE_TYPES;
 
 let map: Map<number, number> | null = null;
@@ -49,7 +63,7 @@ function parseData(): void {
 				const segments = DATA[type as keyof typeof DATA];
 				let temp = "";
 				let start = 0;
-				let end: number;
+				let end = 0;
 				let state = false;
 				for (let i = 0; i <= segments.length + 1; i += 1) {
 					const char = segments[i];
@@ -71,8 +85,9 @@ function parseData(): void {
 						state = false;
 						temp = "";
 						lastCode = end;
+						const typeVal = getType(type);
 						for (let j = start; j < end + 1; j += 1) {
-							map.set(j, TYPES[type]!);
+							map.set(j, typeVal);
 						}
 					}
 				}
@@ -86,12 +101,14 @@ function parseData(): void {
  */
 export function getBidiCharType(char: string): number {
 	parseData();
-	return map?.get(char.codePointAt(0)!) || TYPES.L!;
+	const codepoint = char.codePointAt(0);
+	if (codepoint === undefined) return getType("L");
+	return map?.get(codepoint) ?? getType("L");
 }
 
 /**
  * Get the name of a bidi character type
  */
 export function getBidiCharTypeName(char: string): string {
-	return TYPES_TO_NAMES[getBidiCharType(char)]!;
+	return TYPES_TO_NAMES[getBidiCharType(char)] ?? "L";
 }
