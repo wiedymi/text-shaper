@@ -49,6 +49,8 @@ import { setupIndicMasks, isIndic } from "./complex/indic.ts";
 import { setupUseMasks, usesUSE } from "./complex/use.ts";
 import { setupHebrewMasks } from "./complex/hebrew.ts";
 import { setupThaiLaoMasks, reorderThaiLao, isThai, isLao } from "./complex/thai-lao.ts";
+import { applyFallbackMarkPositioning, applyFallbackKerning } from "./fallback.ts";
+import { applyNonContextual, type MorxNonContextualSubtable, MorxSubtableType } from "../font/tables/morx.ts";
 
 export interface ShapeOptions {
 	script?: string;
@@ -103,8 +105,21 @@ export function shape(
 	// Initialize positions
 	initializePositions(font, glyphBuffer);
 
-	// Apply GPOS
-	applyGpos(font, glyphBuffer, plan);
+	// Apply GPOS or fallback positioning
+	const hasGpos = font.gpos !== null && plan.gposLookups.length > 0;
+	if (hasGpos) {
+		applyGpos(font, glyphBuffer, plan);
+	} else {
+		// Fallback kerning using kern table
+		applyFallbackKerning(font, glyphBuffer.infos, glyphBuffer.positions);
+		// Fallback mark positioning using combining classes
+		applyFallbackMarkPositioning(font, glyphBuffer.infos, glyphBuffer.positions);
+	}
+
+	// Apply AAT morx substitutions if no GSUB
+	if (!font.gsub && font.morx) {
+		applyMorx(font, glyphBuffer);
+	}
 
 	// Reverse for RTL
 	if (direction === "rtl") {
@@ -1144,4 +1159,35 @@ function shouldSkipGlyph(font: Font, glyphId: GlyphId, lookupFlag: number): bool
 	}
 
 	return false;
+}
+
+// AAT morx substitution
+
+function applyMorx(font: Font, buffer: GlyphBuffer): void {
+	const morx = font.morx;
+	if (!morx) return;
+
+	for (const chain of morx.chains) {
+		for (const subtable of chain.subtables) {
+			// Apply if subFeatureFlags match (default: all enabled)
+			if ((chain.defaultFlags & subtable.subFeatureFlags) === 0) continue;
+
+			switch (subtable.type) {
+				case MorxSubtableType.NonContextual:
+					// Simple substitution
+					for (let i = 0; i < buffer.infos.length; i++) {
+						const replacement = applyNonContextual(
+							subtable as MorxNonContextualSubtable,
+							buffer.infos[i]!.glyphId,
+						);
+						if (replacement !== null) {
+							buffer.infos[i]!.glyphId = replacement;
+						}
+					}
+					break;
+				// Contextual and Ligature subtables require state machine processing
+				// which is more complex and needs a full implementation
+			}
+		}
+	}
 }

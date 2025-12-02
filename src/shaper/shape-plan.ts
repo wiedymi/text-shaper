@@ -9,6 +9,12 @@ import {
 	getFeature,
 } from "../layout/structures/layout-common.ts";
 
+/** Shape plan cache for reusing computed plans */
+const shapePlanCache = new WeakMap<Font, Map<string, ShapePlan>>();
+
+/** Maximum cache size per font */
+const MAX_CACHE_SIZE = 64;
+
 /** Feature with optional value */
 export interface ShapeFeature {
 	tag: Tag;
@@ -45,8 +51,72 @@ const DEFAULT_GPOS_FEATURES = [
 	"mkmk", // Mark-to-mark positioning
 ];
 
+/** Generate cache key for shape plan */
+function getCacheKey(
+	script: string,
+	language: string | null,
+	direction: "ltr" | "rtl",
+	userFeatures: ShapeFeature[],
+): string {
+	const featuresKey = userFeatures
+		.map(f => `${tagToString(f.tag)}:${f.enabled ? "1" : "0"}`)
+		.sort()
+		.join(",");
+	return `${script}|${language || ""}|${direction}|${featuresKey}`;
+}
+
+/** Get or create a cached shape plan */
+export function getOrCreateShapePlan(
+	font: Font,
+	script: string,
+	language: string | null,
+	direction: "ltr" | "rtl",
+	userFeatures: ShapeFeature[] = [],
+): ShapePlan {
+	const cacheKey = getCacheKey(script, language, direction, userFeatures);
+
+	// Get or create font's cache map
+	let fontCache = shapePlanCache.get(font);
+	if (!fontCache) {
+		fontCache = new Map();
+		shapePlanCache.set(font, fontCache);
+	}
+
+	// Check cache
+	const cached = fontCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+
+	// Create new plan
+	const plan = createShapePlanInternal(font, script, language, direction, userFeatures);
+
+	// Evict if cache is too large
+	if (fontCache.size >= MAX_CACHE_SIZE) {
+		const firstKey = fontCache.keys().next().value;
+		if (firstKey !== undefined) {
+			fontCache.delete(firstKey);
+		}
+	}
+
+	fontCache.set(cacheKey, plan);
+	return plan;
+}
+
 /** Create a shape plan for the given font and settings */
 export function createShapePlan(
+	font: Font,
+	script: string,
+	language: string | null,
+	direction: "ltr" | "rtl",
+	userFeatures: ShapeFeature[] = [],
+): ShapePlan {
+	// Use caching by default
+	return getOrCreateShapePlan(font, script, language, direction, userFeatures);
+}
+
+/** Create a shape plan without caching */
+function createShapePlanInternal(
 	font: Font,
 	script: string,
 	language: string | null,

@@ -15,6 +15,16 @@ import { type FontDirectory, parseFontDirectory, isTrueType } from "./tables/sfn
 import { type GdefTable, parseGdef } from "./tables/gdef.ts";
 import { type GsubTable, parseGsub } from "./tables/gsub.ts";
 import { type GposTable, parseGpos } from "./tables/gpos.ts";
+import { type KernTable, parseKern } from "./tables/kern.ts";
+import { type FvarTable, parseFvar } from "./tables/fvar.ts";
+import { type HvarTable, parseHvar } from "./tables/hvar.ts";
+import { type VheaTable, parseVhea } from "./tables/vhea.ts";
+import { type VmtxTable, parseVmtx, getVerticalMetrics } from "./tables/vmtx.ts";
+import { type MorxTable, parseMorx } from "./tables/morx.ts";
+import { type GvarTable, parseGvar } from "./tables/gvar.ts";
+import { type AvarTable, parseAvar } from "./tables/avar.ts";
+import { type KerxTable, parseKerx } from "./tables/kerx.ts";
+import { type TrakTable, parseTrak } from "./tables/trak.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -39,6 +49,16 @@ export class Font {
 	private _gdef: GdefTable | null | undefined = undefined;
 	private _gsub: GsubTable | null | undefined = undefined;
 	private _gpos: GposTable | null | undefined = undefined;
+	private _kern: KernTable | null | undefined = undefined;
+	private _fvar: FvarTable | null | undefined = undefined;
+	private _hvar: HvarTable | null | undefined = undefined;
+	private _vhea: VheaTable | null | undefined = undefined;
+	private _vmtx: VmtxTable | null | undefined = undefined;
+	private _morx: MorxTable | null | undefined = undefined;
+	private _gvar: GvarTable | null | undefined = undefined;
+	private _avar: AvarTable | null | undefined = undefined;
+	private _kerx: KerxTable | null | undefined = undefined;
+	private _trak: TrakTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -156,6 +176,96 @@ export class Font {
 			this._gpos = reader ? parseGpos(reader) : null;
 		}
 		return this._gpos;
+	}
+
+	get kern(): KernTable | null {
+		if (this._kern === undefined) {
+			const reader = this.getTableReader(Tags.kern);
+			this._kern = reader ? parseKern(reader) : null;
+		}
+		return this._kern;
+	}
+
+	get fvar(): FvarTable | null {
+		if (this._fvar === undefined) {
+			const reader = this.getTableReader(Tags.fvar);
+			this._fvar = reader ? parseFvar(reader) : null;
+		}
+		return this._fvar;
+	}
+
+	get hvar(): HvarTable | null {
+		if (this._hvar === undefined) {
+			const reader = this.getTableReader(Tags.HVAR);
+			this._hvar = reader ? parseHvar(reader) : null;
+		}
+		return this._hvar;
+	}
+
+	get vhea(): VheaTable | null {
+		if (this._vhea === undefined) {
+			const reader = this.getTableReader(Tags.vhea);
+			this._vhea = reader ? parseVhea(reader) : null;
+		}
+		return this._vhea;
+	}
+
+	get vmtx(): VmtxTable | null {
+		if (this._vmtx === undefined) {
+			const vhea = this.vhea;
+			if (!vhea) {
+				this._vmtx = null;
+			} else {
+				const reader = this.getTableReader(Tags.vmtx);
+				this._vmtx = reader ? parseVmtx(reader, vhea.numberOfVMetrics, this.numGlyphs) : null;
+			}
+		}
+		return this._vmtx;
+	}
+
+	get morx(): MorxTable | null {
+		if (this._morx === undefined) {
+			const reader = this.getTableReader(Tags.morx);
+			this._morx = reader ? parseMorx(reader) : null;
+		}
+		return this._morx;
+	}
+
+	get gvar(): GvarTable | null {
+		if (this._gvar === undefined) {
+			const reader = this.getTableReader(Tags.gvar);
+			this._gvar = reader ? parseGvar(reader, this.numGlyphs) : null;
+		}
+		return this._gvar;
+	}
+
+	get avar(): AvarTable | null {
+		if (this._avar === undefined) {
+			const fvar = this.fvar;
+			if (!fvar) {
+				this._avar = null;
+			} else {
+				const reader = this.getTableReader(Tags.avar);
+				this._avar = reader ? parseAvar(reader, fvar.axes.length) : null;
+			}
+		}
+		return this._avar;
+	}
+
+	get kerx(): KerxTable | null {
+		if (this._kerx === undefined) {
+			const reader = this.getTableReader(Tags.kerx);
+			this._kerx = reader ? parseKerx(reader) : null;
+		}
+		return this._kerx;
+	}
+
+	get trak(): TrakTable | null {
+		if (this._trak === undefined) {
+			const reader = this.getTableReader(Tags.trak);
+			this._trak = reader ? parseTrak(reader) : null;
+		}
+		return this._trak;
 	}
 
 	// Convenience properties
