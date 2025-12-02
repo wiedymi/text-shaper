@@ -234,15 +234,14 @@ export function calculateRegionScalar(
 }
 
 /**
- * Get advance width delta for a glyph at given variation coordinates
+ * Get delta for a glyph from HVAR using a specific mapping
  */
-export function getAdvanceWidthDelta(
+function getDeltaFromMapping(
 	hvar: HvarTable,
 	glyphId: GlyphId,
 	coords: number[],
+	mapping: DeltaSetIndexMap | null,
 ): number {
-	const mapping = hvar.advanceWidthMapping;
-
 	// Get outer/inner index
 	let outer: number;
 	let inner: number;
@@ -281,4 +280,43 @@ export function getAdvanceWidthDelta(
 	}
 
 	return Math.round(delta);
+}
+
+/**
+ * Get advance width delta for a glyph at given variation coordinates
+ */
+export function getAdvanceWidthDelta(
+	hvar: HvarTable,
+	glyphId: GlyphId,
+	coords: number[],
+): number {
+	return getDeltaFromMapping(hvar, glyphId, coords, hvar.advanceWidthMapping);
+}
+
+/**
+ * Get left side bearing delta for a glyph at given variation coordinates
+ */
+export function getLsbDelta(
+	hvar: HvarTable,
+	glyphId: GlyphId,
+	coords: number[],
+): number {
+	if (!hvar.lsbMapping) {
+		return 0; // No LSB variations in this font
+	}
+	return getDeltaFromMapping(hvar, glyphId, coords, hvar.lsbMapping);
+}
+
+/**
+ * Get right side bearing delta for a glyph at given variation coordinates
+ */
+export function getRsbDelta(
+	hvar: HvarTable,
+	glyphId: GlyphId,
+	coords: number[],
+): number {
+	if (!hvar.rsbMapping) {
+		return 0; // No RSB variations in this font
+	}
+	return getDeltaFromMapping(hvar, glyphId, coords, hvar.rsbMapping);
 }

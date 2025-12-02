@@ -225,8 +225,8 @@ function parseMorxSubtable(reader: Reader): MorxSubtable | null {
 	let subtable: MorxSubtable | null = null;
 
 	switch (type) {
-		case MorxSubtableType.NonContextual:
-			subtable = parseNonContextualSubtable(reader, coverage, subFeatureFlags);
+		case MorxSubtableType.Rearrangement:
+			subtable = parseRearrangementSubtable(reader, coverage, subFeatureFlags);
 			break;
 		case MorxSubtableType.Contextual:
 			subtable = parseContextualSubtable(reader, coverage, subFeatureFlags);
@@ -234,7 +234,12 @@ function parseMorxSubtable(reader: Reader): MorxSubtable | null {
 		case MorxSubtableType.Ligature:
 			subtable = parseLigatureSubtable(reader, coverage, subFeatureFlags);
 			break;
-		// TODO: Other subtable types
+		case MorxSubtableType.NonContextual:
+			subtable = parseNonContextualSubtable(reader, coverage, subFeatureFlags);
+			break;
+		case MorxSubtableType.Insertion:
+			subtable = parseInsertionSubtable(reader, coverage, subFeatureFlags);
+			break;
 	}
 
 	// Skip to end of subtable
@@ -323,6 +328,125 @@ function parseLigatureSubtable(
 		ligatureActions: [],
 		components: [],
 		ligatures: [],
+	};
+}
+
+function parseRearrangementSubtable(
+	reader: Reader,
+	coverage: MorxCoverage,
+	subFeatureFlags: uint32,
+): MorxRearrangementSubtable {
+	const stateTableOffset = reader.position;
+	const nClasses = reader.uint32();
+	const classTableOffset = reader.offset32();
+	const stateArrayOffset = reader.offset32();
+	const entryTableOffset = reader.offset32();
+
+	// Parse class table
+	const classTable = parseClassTable(reader.sliceFrom(stateTableOffset + classTableOffset));
+
+	// Parse state array
+	const stateArrayReader = reader.sliceFrom(stateTableOffset + stateArrayOffset);
+	const entryReader = reader.sliceFrom(stateTableOffset + entryTableOffset);
+
+	// Parse entries (each entry is 4 bytes: newState uint16, flags uint16)
+	const entries: RearrangementEntry[] = [];
+	const entryCount = 256; // Reasonable max
+	for (let i = 0; i < entryCount; i++) {
+		entries.push({
+			newState: entryReader.uint16(),
+			flags: entryReader.uint16(),
+		});
+	}
+
+	// Build state array
+	const stateArray: RearrangementEntry[][] = [];
+	const stateCount = Math.min(256, Math.ceil((entryTableOffset - stateArrayOffset) / (nClasses * 2)));
+	for (let s = 0; s < stateCount; s++) {
+		const row: RearrangementEntry[] = [];
+		for (let c = 0; c < nClasses; c++) {
+			const entryIndex = stateArrayReader.uint16();
+			row.push(entries[entryIndex] ?? { newState: 0, flags: 0 });
+		}
+		stateArray.push(row);
+	}
+
+	return {
+		type: MorxSubtableType.Rearrangement,
+		coverage,
+		subFeatureFlags,
+		stateTable: {
+			nClasses,
+			classTable,
+			stateArray,
+		},
+	};
+}
+
+function parseInsertionSubtable(
+	reader: Reader,
+	coverage: MorxCoverage,
+	subFeatureFlags: uint32,
+): MorxInsertionSubtable {
+	const stateTableOffset = reader.position;
+	const nClasses = reader.uint32();
+	const classTableOffset = reader.offset32();
+	const stateArrayOffset = reader.offset32();
+	const entryTableOffset = reader.offset32();
+	const insertionActionOffset = reader.offset32();
+
+	// Parse class table
+	const classTable = parseClassTable(reader.sliceFrom(stateTableOffset + classTableOffset));
+
+	// Parse insertion glyphs array
+	const insertionReader = reader.sliceFrom(stateTableOffset + insertionActionOffset);
+	const insertionGlyphs: GlyphId[] = [];
+	// Read a reasonable number of insertion glyphs
+	const maxInsertionGlyphs = 1024;
+	for (let i = 0; i < maxInsertionGlyphs; i++) {
+		try {
+			insertionGlyphs.push(insertionReader.uint16());
+		} catch {
+			break;
+		}
+	}
+
+	// Parse entries
+	const entryReader = reader.sliceFrom(stateTableOffset + entryTableOffset);
+	const entries: InsertionEntry[] = [];
+	const entryCount = 256;
+	for (let i = 0; i < entryCount; i++) {
+		entries.push({
+			newState: entryReader.uint16(),
+			flags: entryReader.uint16(),
+			currentInsertIndex: entryReader.uint16(),
+			markedInsertIndex: entryReader.uint16(),
+		});
+	}
+
+	// Build state array
+	const stateArrayReader = reader.sliceFrom(stateTableOffset + stateArrayOffset);
+	const stateArray: InsertionEntry[][] = [];
+	const stateCount = Math.min(256, Math.ceil((entryTableOffset - stateArrayOffset) / (nClasses * 2)));
+	for (let s = 0; s < stateCount; s++) {
+		const row: InsertionEntry[] = [];
+		for (let c = 0; c < nClasses; c++) {
+			const entryIndex = stateArrayReader.uint16();
+			row.push(entries[entryIndex] ?? { newState: 0, flags: 0, currentInsertIndex: 0xFFFF, markedInsertIndex: 0xFFFF });
+		}
+		stateArray.push(row);
+	}
+
+	return {
+		type: MorxSubtableType.Insertion,
+		coverage,
+		subFeatureFlags,
+		stateTable: {
+			nClasses,
+			classTable,
+			stateArray,
+		},
+		insertionGlyphs,
 	};
 }
 

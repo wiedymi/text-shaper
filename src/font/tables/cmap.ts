@@ -50,10 +50,18 @@ interface CmapFormat12 extends CmapSubtableBase {
 	}>;
 }
 
+/** Variation selector record */
+interface VariationSelectorRecord {
+	varSelector: number;
+	defaultUVS: Array<{ startUnicodeValue: number; additionalCount: number }> | null;
+	nonDefaultUVS: Array<{ unicodeValue: number; glyphId: GlyphId }> | null;
+}
+
 /** Format 14: Unicode Variation Sequences */
 interface CmapFormat14 extends CmapSubtableBase {
 	format: 14;
-	lookupVariation(codepoint: number, variationSelector: number): GlyphId | undefined;
+	varSelectorRecords: VariationSelectorRecord[];
+	lookupVariation(codepoint: number, variationSelector: number): GlyphId | undefined | "default";
 }
 
 export type CmapSubtable = CmapFormat0 | CmapFormat4 | CmapFormat12 | CmapFormat14;
@@ -299,28 +307,130 @@ function parseCmapFormat12(reader: Reader): CmapFormat12 {
 }
 
 function parseCmapFormat14(reader: Reader): CmapFormat14 {
+	const subtableStart = reader.offset - 2; // Account for format already read
 	const _length = reader.uint32();
 	const numVarSelectorRecords = reader.uint32();
 
-	// For now, just parse structure but don't implement variation lookup
-	// This would require more complex parsing of default/non-default UVS tables
+	// First pass: read all variation selector records
+	const rawRecords: Array<{
+		varSelector: number;
+		defaultUVSOffset: number;
+		nonDefaultUVSOffset: number;
+	}> = [];
+
 	for (let i = 0; i < numVarSelectorRecords; i++) {
-		reader.uint24(); // varSelector
-		reader.uint32(); // defaultUVSOffset
-		reader.uint32(); // nonDefaultUVSOffset
+		rawRecords.push({
+			varSelector: reader.uint24(),
+			defaultUVSOffset: reader.uint32(),
+			nonDefaultUVSOffset: reader.uint32(),
+		});
+	}
+
+	// Second pass: parse the UVS tables
+	const varSelectorRecords: VariationSelectorRecord[] = [];
+
+	for (const raw of rawRecords) {
+		let defaultUVS: VariationSelectorRecord["defaultUVS"] = null;
+		let nonDefaultUVS: VariationSelectorRecord["nonDefaultUVS"] = null;
+
+		// Parse default UVS table (ranges where default glyph is used)
+		if (raw.defaultUVSOffset !== 0) {
+			const uvsReader = reader.sliceFrom(subtableStart + raw.defaultUVSOffset);
+			const numUnicodeValueRanges = uvsReader.uint32();
+			defaultUVS = [];
+
+			for (let j = 0; j < numUnicodeValueRanges; j++) {
+				defaultUVS.push({
+					startUnicodeValue: uvsReader.uint24(),
+					additionalCount: uvsReader.uint8(),
+				});
+			}
+		}
+
+		// Parse non-default UVS table (specific glyph mappings)
+		if (raw.nonDefaultUVSOffset !== 0) {
+			const uvsReader = reader.sliceFrom(subtableStart + raw.nonDefaultUVSOffset);
+			const numUVSMappings = uvsReader.uint32();
+			nonDefaultUVS = [];
+
+			for (let j = 0; j < numUVSMappings; j++) {
+				nonDefaultUVS.push({
+					unicodeValue: uvsReader.uint24(),
+					glyphId: uvsReader.uint16(),
+				});
+			}
+		}
+
+		varSelectorRecords.push({
+			varSelector: raw.varSelector,
+			defaultUVS,
+			nonDefaultUVS,
+		});
 	}
 
 	return {
 		format: 14,
+		varSelectorRecords,
 		lookup(_codepoint: number): GlyphId | undefined {
 			// Format 14 is only for variation selectors
 			return undefined;
 		},
 		lookupVariation(
-			_codepoint: number,
-			_variationSelector: number,
-		): GlyphId | undefined {
-			// TODO: Implement variation sequence lookup
+			codepoint: number,
+			variationSelector: number,
+		): GlyphId | undefined | "default" {
+			// Binary search for the variation selector
+			let low = 0;
+			let high = varSelectorRecords.length - 1;
+			let record: VariationSelectorRecord | null = null;
+
+			while (low <= high) {
+				const mid = (low + high) >>> 1;
+				const rec = varSelectorRecords[mid]!;
+
+				if (variationSelector > rec.varSelector) {
+					low = mid + 1;
+				} else if (variationSelector < rec.varSelector) {
+					high = mid - 1;
+				} else {
+					record = rec;
+					break;
+				}
+			}
+
+			if (!record) {
+				return undefined;
+			}
+
+			// Check non-default UVS first (specific glyph mappings)
+			if (record.nonDefaultUVS) {
+				let lo = 0;
+				let hi = record.nonDefaultUVS.length - 1;
+
+				while (lo <= hi) {
+					const mid = (lo + hi) >>> 1;
+					const mapping = record.nonDefaultUVS[mid]!;
+
+					if (codepoint > mapping.unicodeValue) {
+						lo = mid + 1;
+					} else if (codepoint < mapping.unicodeValue) {
+						hi = mid - 1;
+					} else {
+						return mapping.glyphId;
+					}
+				}
+			}
+
+			// Check default UVS (use default glyph for base codepoint)
+			if (record.defaultUVS) {
+				for (const range of record.defaultUVS) {
+					const end = range.startUnicodeValue + range.additionalCount;
+					if (codepoint >= range.startUnicodeValue && codepoint <= end) {
+						return "default"; // Signal to use the default glyph
+					}
+				}
+			}
+
 			return undefined;
 		},
 	};
@@ -329,4 +439,42 @@ function parseCmapFormat14(reader: Reader): CmapFormat14 {
 /** Get glyph ID for a codepoint using the best subtable */
 export function getGlyphId(cmap: CmapTable, codepoint: number): GlyphId {
 	return cmap.bestSubtable?.lookup(codepoint) ?? 0;
+}
+
+/** Get glyph ID for a variation sequence (base + variation selector) */
+export function getVariationGlyphId(
+	cmap: CmapTable,
+	codepoint: number,
+	variationSelector: number,
+): GlyphId | undefined {
+	// Find Format 14 subtable
+	const format14 = Array.from(cmap.subtables.values()).find(
+		(s): s is CmapFormat14 => s.format === 14
+	);
+
+	if (!format14) {
+		return undefined;
+	}
+
+	const result = format14.lookupVariation(codepoint, variationSelector);
+
+	if (result === "default") {
+		// Use the default glyph for this codepoint
+		return getGlyphId(cmap, codepoint);
+	}
+
+	return result;
+}
+
+/** Check if a codepoint is a variation selector */
+export function isVariationSelector(codepoint: number): boolean {
+	// Variation Selectors block (VS1-VS16)
+	if (codepoint >= 0xFE00 && codepoint <= 0xFE0F) {
+		return true;
+	}
+	// Variation Selectors Supplement (VS17-VS256)
+	if (codepoint >= 0xE0100 && codepoint <= 0xE01EF) {
+		return true;
+	}
+	return false;
 }

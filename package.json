@@ -1,6 +1,6 @@
 {
   "name": "typeshaper",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target browser --minify --sourcemap=linked",

@@ -384,6 +384,290 @@ export function decompose(cp: number): number[] | null {
 }
 
 /**
+ * Common composition mappings (subset of Unicode canonical composition)
+ * Maps (base, combining) pairs to composed character
+ */
+const COMPOSITIONS: Map<number, Map<number, number>> = new Map([
+	// Latin A compositions
+	[0x0041, new Map([
+		[0x0300, 0x00c0], // A + grave = À
+		[0x0301, 0x00c1], // A + acute = Á
+		[0x0302, 0x00c2], // A + circumflex = Â
+		[0x0303, 0x00c3], // A + tilde = Ã
+		[0x0308, 0x00c4], // A + diaeresis = Ä
+		[0x030a, 0x00c5], // A + ring = Å
+		[0x0328, 0x0104], // A + ogonek = Ą
+		[0x030c, 0x01cd], // A + caron = Ǎ
+		[0x0304, 0x0100], // A + macron = Ā
+		[0x0306, 0x0102], // A + breve = Ă
+	])],
+	// Latin C compositions
+	[0x0043, new Map([
+		[0x0327, 0x00c7], // C + cedilla = Ç
+		[0x0301, 0x0106], // C + acute = Ć
+		[0x0302, 0x0108], // C + circumflex = Ĉ
+		[0x030c, 0x010c], // C + caron = Č
+		[0x0307, 0x010a], // C + dot above = Ċ
+	])],
+	// Latin E compositions
+	[0x0045, new Map([
+		[0x0300, 0x00c8], // E + grave = È
+		[0x0301, 0x00c9], // E + acute = É
+		[0x0302, 0x00ca], // E + circumflex = Ê
+		[0x0308, 0x00cb], // E + diaeresis = Ë
+		[0x0328, 0x0118], // E + ogonek = Ę
+		[0x030c, 0x011a], // E + caron = Ě
+		[0x0304, 0x0112], // E + macron = Ē
+		[0x0306, 0x0114], // E + breve = Ĕ
+		[0x0307, 0x0116], // E + dot above = Ė
+	])],
+	// Latin I compositions
+	[0x0049, new Map([
+		[0x0300, 0x00cc], // I + grave = Ì
+		[0x0301, 0x00cd], // I + acute = Í
+		[0x0302, 0x00ce], // I + circumflex = Î
+		[0x0308, 0x00cf], // I + diaeresis = Ï
+		[0x0303, 0x0128], // I + tilde = Ĩ
+		[0x0304, 0x012a], // I + macron = Ī
+		[0x0306, 0x012c], // I + breve = Ĭ
+		[0x0328, 0x012e], // I + ogonek = Į
+		[0x0307, 0x0130], // I + dot above = İ
+	])],
+	// Latin N compositions
+	[0x004e, new Map([
+		[0x0303, 0x00d1], // N + tilde = Ñ
+		[0x0301, 0x0143], // N + acute = Ń
+		[0x0327, 0x0145], // N + cedilla = Ņ
+		[0x030c, 0x0147], // N + caron = Ň
+	])],
+	// Latin O compositions
+	[0x004f, new Map([
+		[0x0300, 0x00d2], // O + grave = Ò
+		[0x0301, 0x00d3], // O + acute = Ó
+		[0x0302, 0x00d4], // O + circumflex = Ô
+		[0x0303, 0x00d5], // O + tilde = Õ
+		[0x0308, 0x00d6], // O + diaeresis = Ö
+		[0x0304, 0x014c], // O + macron = Ō
+		[0x0306, 0x014e], // O + breve = Ŏ
+		[0x030b, 0x0150], // O + double acute = Ő
+		[0x0328, 0x01ea], // O + ogonek = Ǫ
+	])],
+	// Latin U compositions
+	[0x0055, new Map([
+		[0x0300, 0x00d9], // U + grave = Ù
+		[0x0301, 0x00da], // U + acute = Ú
+		[0x0302, 0x00db], // U + circumflex = Û
+		[0x0308, 0x00dc], // U + diaeresis = Ü
+		[0x0303, 0x0168], // U + tilde = Ũ
+		[0x0304, 0x016a], // U + macron = Ū
+		[0x0306, 0x016c], // U + breve = Ŭ
+		[0x030a, 0x016e], // U + ring = Ů
+		[0x030b, 0x0170], // U + double acute = Ű
+		[0x0328, 0x0172], // U + ogonek = Ų
+		[0x030c, 0x01d3], // U + caron = Ǔ
+	])],
+	// Latin Y compositions
+	[0x0059, new Map([
+		[0x0301, 0x00dd], // Y + acute = Ý
+		[0x0302, 0x0176], // Y + circumflex = Ŷ
+		[0x0308, 0x0178], // Y + diaeresis = Ÿ
+	])],
+	// Lowercase a compositions
+	[0x0061, new Map([
+		[0x0300, 0x00e0], // a + grave = à
+		[0x0301, 0x00e1], // a + acute = á
+		[0x0302, 0x00e2], // a + circumflex = â
+		[0x0303, 0x00e3], // a + tilde = ã
+		[0x0308, 0x00e4], // a + diaeresis = ä
+		[0x030a, 0x00e5], // a + ring = å
+		[0x0328, 0x0105], // a + ogonek = ą
+		[0x030c, 0x01ce], // a + caron = ǎ
+		[0x0304, 0x0101], // a + macron = ā
+		[0x0306, 0x0103], // a + breve = ă
+	])],
+	// Lowercase c compositions
+	[0x0063, new Map([
+		[0x0327, 0x00e7], // c + cedilla = ç
+		[0x0301, 0x0107], // c + acute = ć
+		[0x0302, 0x0109], // c + circumflex = ĉ
+		[0x030c, 0x010d], // c + caron = č
+		[0x0307, 0x010b], // c + dot above = ċ
+	])],
+	// Lowercase e compositions
+	[0x0065, new Map([
+		[0x0300, 0x00e8], // e + grave = è
+		[0x0301, 0x00e9], // e + acute = é
+		[0x0302, 0x00ea], // e + circumflex = ê
+		[0x0308, 0x00eb], // e + diaeresis = ë
+		[0x0328, 0x0119], // e + ogonek = ę
+		[0x030c, 0x011b], // e + caron = ě
+		[0x0304, 0x0113], // e + macron = ē
+		[0x0306, 0x0115], // e + breve = ĕ
+		[0x0307, 0x0117], // e + dot above = ė
+	])],
+	// Lowercase i compositions
+	[0x0069, new Map([
+		[0x0300, 0x00ec], // i + grave = ì
+		[0x0301, 0x00ed], // i + acute = í
+		[0x0302, 0x00ee], // i + circumflex = î
+		[0x0308, 0x00ef], // i + diaeresis = ï
+		[0x0303, 0x0129], // i + tilde = ĩ
+		[0x0304, 0x012b], // i + macron = ī
+		[0x0306, 0x012d], // i + breve = ĭ
+		[0x0328, 0x012f], // i + ogonek = į
+	])],
+	// Lowercase n compositions
+	[0x006e, new Map([
+		[0x0303, 0x00f1], // n + tilde = ñ
+		[0x0301, 0x0144], // n + acute = ń
+		[0x0327, 0x0146], // n + cedilla = ņ
+		[0x030c, 0x0148], // n + caron = ň
+	])],
+	// Lowercase o compositions
+	[0x006f, new Map([
+		[0x0300, 0x00f2], // o + grave = ò
+		[0x0301, 0x00f3], // o + acute = ó
+		[0x0302, 0x00f4], // o + circumflex = ô
+		[0x0303, 0x00f5], // o + tilde = õ
+		[0x0308, 0x00f6], // o + diaeresis = ö
+		[0x0304, 0x014d], // o + macron = ō
+		[0x0306, 0x014f], // o + breve = ŏ
+		[0x030b, 0x0151], // o + double acute = ő
+		[0x0328, 0x01eb], // o + ogonek = ǫ
+	])],
+	// Lowercase u compositions
+	[0x0075, new Map([
+		[0x0300, 0x00f9], // u + grave = ù
+		[0x0301, 0x00fa], // u + acute = ú
+		[0x0302, 0x00fb], // u + circumflex = û
+		[0x0308, 0x00fc], // u + diaeresis = ü
+		[0x0303, 0x0169], // u + tilde = ũ
+		[0x0304, 0x016b], // u + macron = ū
+		[0x0306, 0x016d], // u + breve = ŭ
+		[0x030a, 0x016f], // u + ring = ů
+		[0x030b, 0x0171], // u + double acute = ű
+		[0x0328, 0x0173], // u + ogonek = ų
+		[0x030c, 0x01d4], // u + caron = ǔ
+	])],
+	// Lowercase y compositions
+	[0x0079, new Map([
+		[0x0301, 0x00fd], // y + acute = ý
+		[0x0308, 0x00ff], // y + diaeresis = ÿ
+		[0x0302, 0x0177], // y + circumflex = ŷ
+	])],
+	// Other common compositions
+	[0x0053, new Map([ // S
+		[0x0301, 0x015a], // S + acute = Ś
+		[0x0302, 0x015c], // S + circumflex = Ŝ
+		[0x0327, 0x015e], // S + cedilla = Ş
+		[0x030c, 0x0160], // S + caron = Š
+	])],
+	[0x0073, new Map([ // s
+		[0x0301, 0x015b], // s + acute = ś
+		[0x0302, 0x015d], // s + circumflex = ŝ
+		[0x0327, 0x015f], // s + cedilla = ş
+		[0x030c, 0x0161], // s + caron = š
+	])],
+	[0x005a, new Map([ // Z
+		[0x0301, 0x0179], // Z + acute = Ź
+		[0x0307, 0x017b], // Z + dot above = Ż
+		[0x030c, 0x017d], // Z + caron = Ž
+	])],
+	[0x007a, new Map([ // z
+		[0x0301, 0x017a], // z + acute = ź
+		[0x0307, 0x017c], // z + dot above = ż
+		[0x030c, 0x017e], // z + caron = ž
+	])],
+]);
+
+/**
+ * Try to compose a base character with a combining mark
+ * Returns the composed character or null if no composition exists
+ */
+export function tryCompose(base: number, combining: number): number | null {
+	const baseCompositions = COMPOSITIONS.get(base);
+	if (!baseCompositions) return null;
+	return baseCompositions.get(combining) ?? null;
+}
+
+/**
+ * Compose combining marks with their bases where possible (NFC-like)
+ */
+function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
+	if (infos.length === 0) return infos;
+
+	const result: GlyphInfo[] = [];
+	let i = 0;
+
+	while (i < infos.length) {
+		const current = infos[i]!;
+		const currentCcc = getCombiningClass(current.codepoint);
+
+		// If this is a base character (ccc = 0), try to compose with following marks
+		if (currentCcc === 0) {
+			let composedCp = current.codepoint;
+			let lastCcc = 0;
+			let j = i + 1;
+
+			// Look for combining marks that can be composed
+			while (j < infos.length) {
+				const mark = infos[j]!;
+				const markCcc = getCombiningClass(mark.codepoint);
+
+				// Stop at next base character
+				if (markCcc === 0) break;
+
+				// Can only compose if:
+				// 1. Mark has higher ccc than last composed mark (or last was base)
+				// 2. Composition exists for the pair
+				if (markCcc > lastCcc || lastCcc === 0) {
+					const composed = tryCompose(composedCp, mark.codepoint);
+					if (composed !== null) {
+						composedCp = composed;
+						// Mark this position as consumed (will skip)
+						j++;
+						continue;
+					}
+				}
+
+				// Mark wasn't composed, stop looking for compositions
+				// but continue with remaining marks
+				lastCcc = markCcc;
+				j++;
+			}
+
+			// Output the (possibly composed) base
+			result.push({
+				glyphId: current.glyphId,
+				cluster: current.cluster,
+				mask: current.mask,
+				codepoint: composedCp,
+			});
+
+			// Output any marks that weren't composed
+			for (let k = i + 1; k < j; k++) {
+				const mark = infos[k]!;
+				const markCcc = getCombiningClass(mark.codepoint);
+				// Only output marks that weren't composed (check if they're still combining marks)
+				// We need to re-check if a composition exists to determine what to output
+				const compositionExists = tryCompose(composedCp, mark.codepoint) !== null;
+				if (!compositionExists && markCcc !== 0) {
+					result.push(mark);
+				}
+			}
+
+			i = j;
+		} else {
+			// Standalone combining mark (no base), just copy it
+			result.push(current);
+			i++;
+		}
+	}
+
+	return result;
+}
+
+/**
  * Apply normalization to glyph infos
  */
 export function normalize(infos: GlyphInfo[], mode: NormalizationMode): GlyphInfo[] {
@@ -391,8 +675,8 @@ export function normalize(infos: GlyphInfo[], mode: NormalizationMode): GlyphInf
 		return infos;
 	}
 
-	if (mode === NormalizationMode.Decompose || mode === NormalizationMode.Auto) {
-		// Decompose precomposed characters
+	if (mode === NormalizationMode.Decompose) {
+		// Decompose precomposed characters (NFD-like)
 		const result: GlyphInfo[] = [];
 
 		for (const info of infos) {
@@ -415,6 +699,57 @@ export function normalize(infos: GlyphInfo[], mode: NormalizationMode): GlyphInf
 		// Reorder combining marks
 		reorderMarks(result);
 
+		return result;
+	}
+
+	if (mode === NormalizationMode.Compose) {
+		// First decompose, reorder, then compose (NFC-like)
+		// Step 1: Decompose
+		const decomposed: GlyphInfo[] = [];
+		for (const info of infos) {
+			const dec = decompose(info.codepoint);
+			if (dec) {
+				for (let i = 0; i < dec.length; i++) {
+					decomposed.push({
+						glyphId: info.glyphId,
+						cluster: info.cluster,
+						mask: info.mask,
+						codepoint: dec[i]!,
+					});
+				}
+			} else {
+				decomposed.push(info);
+			}
+		}
+
+		// Step 2: Reorder combining marks
+		reorderMarks(decomposed);
+
+		// Step 3: Compose
+		return composeMarks(decomposed);
+	}
+
+	if (mode === NormalizationMode.Auto) {
+		// Auto mode: use decomposition by default (better for shaping)
+		const result: GlyphInfo[] = [];
+
+		for (const info of infos) {
+			const decomposed = decompose(info.codepoint);
+			if (decomposed) {
+				for (let i = 0; i < decomposed.length; i++) {
+					result.push({
+						glyphId: info.glyphId,
+						cluster: info.cluster,
+						mask: info.mask,
+						codepoint: decomposed[i]!,
+					});
+				}
+			} else {
+				result.push(info);
+			}
+		}
+
+		reorderMarks(result);
 		return result;
 	}
 

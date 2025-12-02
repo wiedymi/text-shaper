@@ -31,6 +31,9 @@ import { type ColrTable, parseColr } from "./tables/colr.ts";
 import { type CpalTable, parseCpal } from "./tables/cpal.ts";
 import { type VvarTable, parseVvar } from "./tables/vvar.ts";
 import { type MvarTable, parseMvar } from "./tables/mvar.ts";
+import { type Os2Table, parseOs2 } from "./tables/os2.ts";
+import { type NameTable, parseName } from "./tables/name.ts";
+import { type PostTable, parsePost } from "./tables/post.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -71,6 +74,9 @@ export class Font {
 	private _cpal: CpalTable | null | undefined = undefined;
 	private _vvar: VvarTable | null | undefined = undefined;
 	private _mvar: MvarTable | null | undefined = undefined;
+	private _os2: Os2Table | null | undefined = undefined;
+	private _name: NameTable | null | undefined = undefined;
+	private _post: PostTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -326,6 +332,30 @@ export class Font {
 			this._mvar = reader ? parseMvar(reader) : null;
 		}
 		return this._mvar;
+	}
+
+	get os2(): Os2Table | null {
+		if (this._os2 === undefined) {
+			const reader = this.getTableReader(Tags.OS2);
+			this._os2 = reader ? parseOs2(reader) : null;
+		}
+		return this._os2;
+	}
+
+	get name(): NameTable | null {
+		if (this._name === undefined) {
+			const reader = this.getTableReader(Tags.name);
+			this._name = reader ? parseName(reader) : null;
+		}
+		return this._name;
+	}
+
+	get post(): PostTable | null {
+		if (this._post === undefined) {
+			const reader = this.getTableReader(Tags.post);
+			this._post = reader ? parsePost(reader) : null;
+		}
+		return this._post;
 	}
 
 	// Convenience properties

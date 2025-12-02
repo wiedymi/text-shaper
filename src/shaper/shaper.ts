@@ -17,6 +17,7 @@ import {
 	type LigatureSubstLookup,
 	type ContextSubstLookup,
 	type ChainingContextSubstLookup,
+	type ExtensionSubstLookup,
 	type ReverseChainingSingleSubstLookup,
 	type AnyGsubLookup,
 	applySingleSubst,
@@ -43,6 +44,17 @@ import {
 	type AnyGposLookup,
 	getKerning,
 } from "../font/tables/gpos.ts";
+import type {
+	ContextPosLookup,
+	ChainingContextPosLookup,
+	ContextPosFormat1,
+	ContextPosFormat2,
+	ContextPosFormat3,
+	ChainingContextPosFormat1,
+	ChainingContextPosFormat2,
+	ChainingContextPosFormat3,
+	PosLookupRecord,
+} from "../font/tables/gpos-contextual.ts";
 import { getGlyphClass } from "../font/tables/gdef.ts";
 import { LookupFlag, getMarkAttachmentType } from "../layout/structures/layout-common.ts";
 import { setupArabicMasks } from "./complex/arabic.ts";
@@ -325,7 +337,8 @@ function applyGsubLookup(
 			applyMultipleSubstLookup(font, buffer, lookup);
 			break;
 		case GsubLookupType.Alternate:
-			// Alternate requires user selection - skip for automatic shaping
+			// Alternate requires user selection - use first alternate as default
+			applyAlternateSubstLookup(font, buffer, lookup);
 			break;
 		case GsubLookupType.Ligature:
 			applyLigatureSubstLookup(font, buffer, lookup);
@@ -335,6 +348,10 @@ function applyGsubLookup(
 			break;
 		case GsubLookupType.ChainingContext:
 			applyChainingContextSubstLookup(font, buffer, lookup, plan);
+			break;
+		case GsubLookupType.Extension:
+			// Extension wraps another lookup type - unwrap and apply
+			applyExtensionGsubLookup(font, buffer, lookup, plan);
 			break;
 		case GsubLookupType.ReverseChainingSingle:
 			applyReverseChainingSingleSubstLookup(font, buffer, lookup);
@@ -405,6 +422,31 @@ function applyMultipleSubstLookup(
 		}
 
 		if (!applied) i++;
+	}
+}
+
+function applyAlternateSubstLookup(
+	font: Font,
+	buffer: GlyphBuffer,
+	lookup: AlternateSubstLookup,
+): void {
+	// Alternate substitution allows selecting from multiple alternates
+	// By default, use the first alternate (index 0)
+	for (let i = 0; i < buffer.infos.length; i++) {
+		const info = buffer.infos[i]!;
+		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+
+		for (const subtable of lookup.subtables) {
+			const coverageIndex = subtable.coverage.get(info.glyphId);
+			if (coverageIndex === null) continue;
+
+			const alternateSet = subtable.alternateSets[coverageIndex];
+			if (!alternateSet || alternateSet.length === 0) continue;
+
+			// Use first alternate by default
+			info.glyphId = alternateSet[0]!;
+			break;
+		}
 	}
 }
 
@@ -594,6 +636,21 @@ function applyReverseChainingSingleSubstLookup(
 				info.glyphId = substitute;
 			}
 			break;
+		}
+	}
+}
+
+function applyExtensionGsubLookup(
+	font: Font,
+	buffer: GlyphBuffer,
+	lookup: ExtensionSubstLookup,
+	plan: ShapePlan,
+): void {
+	// Extension lookups wrap another lookup type to allow larger offsets
+	// Unwrap and apply the inner lookup
+	for (const subtable of lookup.subtables) {
+		if (subtable.extensionLookup) {
+			applyGsubLookup(font, buffer, subtable.extensionLookup, plan);
 		}
 	}
 }
@@ -841,7 +898,7 @@ function initializePositions(face: Face, buffer: GlyphBuffer): void {
 
 function applyGpos(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 	for (const { lookup } of plan.gposLookups) {
-		applyGposLookup(font, buffer, lookup);
+		applyGposLookup(font, buffer, lookup, plan);
 	}
 }
 
@@ -849,6 +906,7 @@ function applyGposLookup(
 	font: Font,
 	buffer: GlyphBuffer,
 	lookup: AnyGposLookup,
+	plan: ShapePlan,
 ): void {
 	switch (lookup.type) {
 		case GposLookupType.Single:
@@ -869,6 +927,13 @@ function applyGposLookup(
 		case GposLookupType.MarkToMark:
 			applyMarkMarkPosLookup(font, buffer, lookup);
 			break;
+		case GposLookupType.Context:
+			applyContextPosLookup(font, buffer, lookup as ContextPosLookup, plan);
+			break;
+		case GposLookupType.ChainingContext:
+			applyChainingContextPosLookup(font, buffer, lookup as ChainingContextPosLookup, plan);
+			break;
+		// Extension (type 9) is unwrapped during parsing - no runtime case needed
 	}
 }
 
@@ -1140,6 +1205,316 @@ function applyMarkMarkPosLookup(
 
 			break;
 		}
+	}
+}
+
+// GPOS Context positioning
+
+function applyContextPosLookup(
+	font: Font,
+	buffer: GlyphBuffer,
+	lookup: ContextPosLookup,
+	plan: ShapePlan,
+): void {
+	for (let i = 0; i < buffer.infos.length; i++) {
+		const info = buffer.infos[i]!;
+		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+
+		for (const subtable of lookup.subtables) {
+			let matched = false;
+			let lookupRecords: PosLookupRecord[] = [];
+
+			if (subtable.format === 1) {
+				const result = matchContextPosFormat1(font, buffer, i, subtable, lookup.flag);
+				if (result) {
+					matched = true;
+					lookupRecords = result;
+				}
+			} else if (subtable.format === 2) {
+				const result = matchContextPosFormat2(font, buffer, i, subtable, lookup.flag);
+				if (result) {
+					matched = true;
+					lookupRecords = result;
+				}
+			} else if (subtable.format === 3) {
+				if (matchContextPosFormat3(font, buffer, i, subtable, lookup.flag)) {
+					matched = true;
+					lookupRecords = subtable.lookupRecords;
+				}
+			}
+
+			if (matched) {
+				applyNestedPosLookups(font, buffer, i, lookupRecords, plan);
+				break;
+			}
+		}
+	}
+}
+
+function applyChainingContextPosLookup(
+	font: Font,
+	buffer: GlyphBuffer,
+	lookup: ChainingContextPosLookup,
+	plan: ShapePlan,
+): void {
+	for (let i = 0; i < buffer.infos.length; i++) {
+		const info = buffer.infos[i]!;
+		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+
+		for (const subtable of lookup.subtables) {
+			let matched = false;
+			let lookupRecords: PosLookupRecord[] = [];
+
+			if (subtable.format === 1) {
+				const result = matchChainingContextPosFormat1(font, buffer, i, subtable, lookup.flag);
+				if (result) {
+					matched = true;
+					lookupRecords = result;
+				}
+			} else if (subtable.format === 2) {
+				const result = matchChainingContextPosFormat2(font, buffer, i, subtable, lookup.flag);
+				if (result) {
+					matched = true;
+					lookupRecords = result;
+				}
+			} else if (subtable.format === 3) {
+				if (matchChainingContextPosFormat3(font, buffer, i, subtable, lookup.flag)) {
+					matched = true;
+					lookupRecords = subtable.lookupRecords;
+				}
+			}
+
+			if (matched) {
+				applyNestedPosLookups(font, buffer, i, lookupRecords, plan);
+				break;
+			}
+		}
+	}
+}
+
+/** Match Context Pos Format 1 - glyph-based rules */
+function matchContextPosFormat1(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	subtable: ContextPosFormat1,
+	lookupFlag: number,
+): PosLookupRecord[] | null {
+	const firstGlyph = buffer.infos[startIndex]!.glyphId;
+	const coverageIndex = subtable.coverage.get(firstGlyph);
+	if (coverageIndex === null) return null;
+
+	const ruleSet = subtable.ruleSets[coverageIndex];
+	if (!ruleSet) return null;
+
+	for (const rule of ruleSet) {
+		if (matchGlyphSequence(font, buffer, startIndex + 1, rule.inputSequence, lookupFlag)) {
+			return rule.lookupRecords;
+		}
+	}
+	return null;
+}
+
+/** Match Context Pos Format 2 - class-based rules */
+function matchContextPosFormat2(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	subtable: ContextPosFormat2,
+	lookupFlag: number,
+): PosLookupRecord[] | null {
+	const firstGlyph = buffer.infos[startIndex]!.glyphId;
+	const coverageIndex = subtable.coverage.get(firstGlyph);
+	if (coverageIndex === null) return null;
+
+	const firstClass = subtable.classDef.get(firstGlyph);
+	const classRuleSet = subtable.classRuleSets[firstClass];
+	if (!classRuleSet) return null;
+
+	for (const rule of classRuleSet) {
+		if (matchClassSequence(font, buffer, startIndex + 1, rule.inputClasses, subtable.classDef, lookupFlag)) {
+			return rule.lookupRecords;
+		}
+	}
+	return null;
+}
+
+/** Match Context Pos Format 3 - coverage-based */
+function matchContextPosFormat3(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	subtable: ContextPosFormat3,
+	lookupFlag: number,
+): boolean {
+	let pos = startIndex;
+	for (const coverage of subtable.coverages) {
+		while (pos < buffer.infos.length && shouldSkipGlyph(font, buffer.infos[pos]!.glyphId, lookupFlag)) {
+			pos++;
+		}
+		if (pos >= buffer.infos.length) return false;
+		if (coverage.get(buffer.infos[pos]!.glyphId) === null) return false;
+		pos++;
+	}
+	return true;
+}
+
+/** Match Chaining Context Pos Format 1 - glyph-based rules */
+function matchChainingContextPosFormat1(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	subtable: ChainingContextPosFormat1,
+	lookupFlag: number,
+): PosLookupRecord[] | null {
+	const firstGlyph = buffer.infos[startIndex]!.glyphId;
+	const coverageIndex = subtable.coverage.get(firstGlyph);
+	if (coverageIndex === null) return null;
+
+	const chainRuleSet = subtable.chainRuleSets[coverageIndex];
+	if (!chainRuleSet) return null;
+
+	for (const rule of chainRuleSet) {
+		// Check backtrack (reversed order, before startIndex)
+		if (!matchGlyphSequenceBackward(font, buffer, startIndex - 1, rule.backtrackSequence, lookupFlag)) {
+			continue;
+		}
+
+		// Check input (excluding first glyph which is in coverage)
+		if (!matchGlyphSequence(font, buffer, startIndex + 1, rule.inputSequence, lookupFlag)) {
+			continue;
+		}
+
+		// Find where input sequence ends
+		let inputEnd = startIndex + 1;
+		for (let i = 0; i < rule.inputSequence.length; i++) {
+			while (inputEnd < buffer.infos.length && shouldSkipGlyph(font, buffer.infos[inputEnd]!.glyphId, lookupFlag)) {
+				inputEnd++;
+			}
+			inputEnd++;
+		}
+
+		// Check lookahead
+		if (!matchGlyphSequence(font, buffer, inputEnd, rule.lookaheadSequence, lookupFlag)) {
+			continue;
+		}
+
+		return rule.lookupRecords;
+	}
+	return null;
+}
+
+/** Match Chaining Context Pos Format 2 - class-based rules */
+function matchChainingContextPosFormat2(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	subtable: ChainingContextPosFormat2,
+	lookupFlag: number,
+): PosLookupRecord[] | null {
+	const firstGlyph = buffer.infos[startIndex]!.glyphId;
+	const coverageIndex = subtable.coverage.get(firstGlyph);
+	if (coverageIndex === null) return null;
+
+	const firstClass = subtable.inputClassDef.get(firstGlyph);
+	const chainClassRuleSet = subtable.chainClassRuleSets[firstClass];
+	if (!chainClassRuleSet) return null;
+
+	for (const rule of chainClassRuleSet) {
+		// Check backtrack classes (reversed order)
+		if (!matchClassSequenceBackward(font, buffer, startIndex - 1, rule.backtrackClasses, subtable.backtrackClassDef, lookupFlag)) {
+			continue;
+		}
+
+		// Check input classes (excluding first)
+		if (!matchClassSequence(font, buffer, startIndex + 1, rule.inputClasses, subtable.inputClassDef, lookupFlag)) {
+			continue;
+		}
+
+		// Find where input ends
+		let inputEnd = startIndex + 1;
+		for (let i = 0; i < rule.inputClasses.length; i++) {
+			while (inputEnd < buffer.infos.length && shouldSkipGlyph(font, buffer.infos[inputEnd]!.glyphId, lookupFlag)) {
+				inputEnd++;
+			}
+			inputEnd++;
+		}
+
+		// Check lookahead classes
+		if (!matchClassSequence(font, buffer, inputEnd, rule.lookaheadClasses, subtable.lookaheadClassDef, lookupFlag)) {
+			continue;
+		}
+
+		return rule.lookupRecords;
+	}
+	return null;
+}
+
+/** Match Chaining Context Pos Format 3 - coverage-based */
+function matchChainingContextPosFormat3(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	subtable: ChainingContextPosFormat3,
+	lookupFlag: number,
+): boolean {
+	// Check backtrack (in reverse order, before startIndex)
+	let backtrackPos = startIndex - 1;
+	for (const coverage of subtable.backtrackCoverages) {
+		while (backtrackPos >= 0 && shouldSkipGlyph(font, buffer.infos[backtrackPos]!.glyphId, lookupFlag)) {
+			backtrackPos--;
+		}
+		if (backtrackPos < 0) return false;
+		if (coverage.get(buffer.infos[backtrackPos]!.glyphId) === null) return false;
+		backtrackPos--;
+	}
+
+	// Check input sequence
+	let inputPos = startIndex;
+	for (const coverage of subtable.inputCoverages) {
+		while (inputPos < buffer.infos.length && shouldSkipGlyph(font, buffer.infos[inputPos]!.glyphId, lookupFlag)) {
+			inputPos++;
+		}
+		if (inputPos >= buffer.infos.length) return false;
+		if (coverage.get(buffer.infos[inputPos]!.glyphId) === null) return false;
+		inputPos++;
+	}
+
+	// Check lookahead
+	let lookaheadPos = inputPos;
+	for (const coverage of subtable.lookaheadCoverages) {
+		while (lookaheadPos < buffer.infos.length && shouldSkipGlyph(font, buffer.infos[lookaheadPos]!.glyphId, lookupFlag)) {
+			lookaheadPos++;
+		}
+		if (lookaheadPos >= buffer.infos.length) return false;
+		if (coverage.get(buffer.infos[lookaheadPos]!.glyphId) === null) return false;
+		lookaheadPos++;
+	}
+
+	return true;
+}
+
+/** Apply nested positioning lookups at specific positions */
+function applyNestedPosLookups(
+	font: Font,
+	buffer: GlyphBuffer,
+	startIndex: number,
+	lookupRecords: PosLookupRecord[],
+	plan: ShapePlan,
+): void {
+	// Sort by sequence index descending to apply from end to start
+	const sorted = [...lookupRecords].sort((a, b) => b.sequenceIndex - a.sequenceIndex);
+
+	for (const record of sorted) {
+		const lookupEntry = plan.gposLookups.find(l => l.index === record.lookupListIndex);
+		if (!lookupEntry) continue;
+
+		// Apply at the specific position
+		const pos = startIndex + record.sequenceIndex;
+		if (pos >= buffer.infos.length) continue;
+
+		// Apply the lookup directly
+		applyGposLookup(font, buffer, lookupEntry.lookup, plan);
 	}
 }
 

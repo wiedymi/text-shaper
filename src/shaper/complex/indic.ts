@@ -343,6 +343,135 @@ function parseSyllable(infos: GlyphInfo[], start: number): Syllable {
 }
 
 /**
+ * Indic feature masks for OpenType features
+ */
+export const IndicFeatureMask = {
+	nukt: 0x0001, // Nukta forms
+	akhn: 0x0002, // Akhand forms
+	rphf: 0x0004, // Reph forms
+	rkrf: 0x0008, // Rakaar forms
+	pref: 0x0010, // Pre-base forms
+	blwf: 0x0020, // Below-base forms
+	abvf: 0x0040, // Above-base forms
+	half: 0x0080, // Half forms
+	pstf: 0x0100, // Post-base forms
+	vatu: 0x0200, // Vattu variants
+	cjct: 0x0400, // Conjunct forms
+	init: 0x0800, // Initial forms
+	pres: 0x1000, // Pre-base substitutions
+	abvs: 0x2000, // Above-base substitutions
+	blws: 0x4000, // Below-base substitutions
+	psts: 0x8000, // Post-base substitutions
+} as const;
+
+/**
+ * Matra position in syllable
+ */
+export const enum MatraPosition {
+	PreBase = 0,
+	AboveBase = 1,
+	BelowBase = 2,
+	PostBase = 3,
+}
+
+/**
+ * Get matra position based on codepoint
+ */
+function getMatraPosition(cp: number): MatraPosition {
+	// Devanagari
+	if (cp >= 0x0900 && cp <= 0x097f) {
+		// Pre-base: ि (093F)
+		if (cp === 0x093f) return MatraPosition.PreBase;
+		// Above-base: ॅ ॆ े ै (0945-0948)
+		if (cp >= 0x0945 && cp <= 0x0948) return MatraPosition.AboveBase;
+		// Below-base: ु ू ृ ॄ (0941-0944)
+		if (cp >= 0x0941 && cp <= 0x0944) return MatraPosition.BelowBase;
+		// Post-base: everything else
+		return MatraPosition.PostBase;
+	}
+
+	// Bengali
+	if (cp >= 0x0980 && cp <= 0x09ff) {
+		// Pre-base: ি (09BF)
+		if (cp === 0x09bf) return MatraPosition.PreBase;
+		// Pre-base split vowels: ে ৈ (09C7-09C8) - left part
+		if (cp === 0x09c7 || cp === 0x09c8) return MatraPosition.PreBase;
+		// Below-base: ু ূ ৃ ৄ (09C1-09C4)
+		if (cp >= 0x09c1 && cp <= 0x09c4) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Tamil
+	if (cp >= 0x0b80 && cp <= 0x0bff) {
+		// Pre-base: ெ ே ை (0BC6-0BC8)
+		if (cp >= 0x0bc6 && cp <= 0x0bc8) return MatraPosition.PreBase;
+		// Above-base: none
+		// Below-base: ு ூ (0BC1-0BC2)
+		if (cp === 0x0bc1 || cp === 0x0bc2) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Telugu
+	if (cp >= 0x0c00 && cp <= 0x0c7f) {
+		// Above-base: ి ీ ె ే ై (0C3E-0C40, 0C46-0C48)
+		if ((cp >= 0x0c3e && cp <= 0x0c40) || (cp >= 0x0c46 && cp <= 0x0c48)) {
+			return MatraPosition.AboveBase;
+		}
+		// Below-base: ు ూ ృ ౄ (0C41-0C44)
+		if (cp >= 0x0c41 && cp <= 0x0c44) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Kannada
+	if (cp >= 0x0c80 && cp <= 0x0cff) {
+		// Above-base: similar to Telugu
+		if ((cp >= 0x0cbe && cp <= 0x0cc0) || (cp >= 0x0cc6 && cp <= 0x0cc8)) {
+			return MatraPosition.AboveBase;
+		}
+		if (cp >= 0x0cc1 && cp <= 0x0cc4) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Malayalam
+	if (cp >= 0x0d00 && cp <= 0x0d7f) {
+		// Pre-base: െ േ ൈ (0D46-0D48)
+		if (cp >= 0x0d46 && cp <= 0x0d48) return MatraPosition.PreBase;
+		// Below-base: ു ൂ ൃ (0D41-0D43)
+		if (cp >= 0x0d41 && cp <= 0x0d43) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Gurmukhi
+	if (cp >= 0x0a00 && cp <= 0x0a7f) {
+		// Pre-base: ਿ (0A3F)
+		if (cp === 0x0a3f) return MatraPosition.PreBase;
+		// Below-base: ੁ ੂ (0A41-0A42)
+		if (cp === 0x0a41 || cp === 0x0a42) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Gujarati
+	if (cp >= 0x0a80 && cp <= 0x0aff) {
+		// Pre-base: િ (0ABF)
+		if (cp === 0x0abf) return MatraPosition.PreBase;
+		// Below-base: ુ ૂ ૃ ૄ (0AC1-0AC4)
+		if (cp >= 0x0ac1 && cp <= 0x0ac4) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	// Oriya
+	if (cp >= 0x0b00 && cp <= 0x0b7f) {
+		// Pre-base: ି (0B3F)
+		if (cp === 0x0b3f) return MatraPosition.PreBase;
+		// Below-base: ୁ ୂ ୃ (0B41-0B43)
+		if (cp >= 0x0b41 && cp <= 0x0b43) return MatraPosition.BelowBase;
+		return MatraPosition.PostBase;
+	}
+
+	return MatraPosition.PostBase;
+}
+
+/**
  * Set up masks and syllable indices for Indic shaping
  */
 export function setupIndicMasks(infos: GlyphInfo[]): void {
@@ -358,20 +487,155 @@ export function setupIndicMasks(infos: GlyphInfo[]): void {
 				// Store syllable index in upper bits
 				info.mask = (info.mask & 0x0000ffff) | ((i & 0xffff) << 16);
 
-				// Set feature masks based on position
 				const cat = getIndicCategory(info.codepoint);
+
+				// Nukta - always apply nukt feature
+				if (cat === IndicCategory.N) {
+					info.mask |= IndicFeatureMask.nukt;
+				}
+
+				// Halant handling
 				if (cat === IndicCategory.H) {
-					// Halant - enable blwf, half, pstf features
-					info.mask |= 0x1;
+					// Check position relative to base
+					if (j < syllable.baseConsonant) {
+						// Pre-base halant - half forms
+						info.mask |= IndicFeatureMask.half;
+					} else if (j > syllable.baseConsonant) {
+						// Post-base halant - below/post forms
+						info.mask |= IndicFeatureMask.blwf | IndicFeatureMask.pstf;
+					}
 				}
-				if (j === syllable.baseConsonant) {
-					// Base consonant marker
-					info.mask |= 0x2;
+
+				// Consonant handling
+				if (cat === IndicCategory.C || cat === IndicCategory.Ra) {
+					if (j < syllable.baseConsonant) {
+						// Pre-base consonant
+						info.mask |= IndicFeatureMask.half | IndicFeatureMask.cjct;
+					} else if (j > syllable.baseConsonant) {
+						// Post-base consonant
+						info.mask |= IndicFeatureMask.blwf | IndicFeatureMask.pstf | IndicFeatureMask.vatu;
+					}
 				}
+
+				// Reph handling
 				if (syllable.hasReph && j < syllable.start + 2) {
-					// Part of reph
-					info.mask |= 0x4;
+					info.mask |= IndicFeatureMask.rphf;
 				}
+
+				// Matra handling
+				if (cat === IndicCategory.M) {
+					const matraPos = getMatraPosition(info.codepoint);
+					switch (matraPos) {
+						case MatraPosition.PreBase:
+							info.mask |= IndicFeatureMask.pref | IndicFeatureMask.pres;
+							break;
+						case MatraPosition.AboveBase:
+							info.mask |= IndicFeatureMask.abvf | IndicFeatureMask.abvs;
+							break;
+						case MatraPosition.BelowBase:
+							info.mask |= IndicFeatureMask.blwf | IndicFeatureMask.blws;
+							break;
+						case MatraPosition.PostBase:
+							info.mask |= IndicFeatureMask.pstf | IndicFeatureMask.psts;
+							break;
+					}
+				}
+
+				// Syllable modifiers (anusvara, visarga)
+				if (cat === IndicCategory.SM) {
+					info.mask |= IndicFeatureMask.abvs | IndicFeatureMask.psts;
+				}
+			}
+		}
+	}
+}
+
+/**
+ * Reorder glyphs within a syllable for correct visual display
+ * This handles:
+ * - Moving pre-base matras before the base consonant
+ * - Moving reph to its final position
+ */
+export function reorderIndic(infos: GlyphInfo[]): void {
+	const syllables = findSyllables(infos);
+
+	for (const syllable of syllables) {
+		reorderSyllable(infos, syllable);
+	}
+}
+
+/**
+ * Reorder a single syllable
+ */
+function reorderSyllable(infos: GlyphInfo[], syllable: Syllable): void {
+	const { start, end, baseConsonant, hasReph } = syllable;
+
+	// Collect pre-base matras that need to move
+	const preBaseMatras: { index: number; info: GlyphInfo }[] = [];
+
+	for (let i = baseConsonant + 1; i < end; i++) {
+		const info = infos[i];
+		if (!info) continue;
+
+		const cat = getIndicCategory(info.codepoint);
+		if (cat === IndicCategory.M) {
+			const matraPos = getMatraPosition(info.codepoint);
+			if (matraPos === MatraPosition.PreBase) {
+				preBaseMatras.push({ index: i, info });
+			}
+		}
+	}
+
+	// Move pre-base matras before the base (or before reph if present)
+	if (preBaseMatras.length > 0) {
+		// Sort by original index descending to process from right to left
+		preBaseMatras.sort((a, b) => b.index - a.index);
+
+		for (const { index, info } of preBaseMatras) {
+			// Remove from current position
+			infos.splice(index, 1);
+
+			// Insert before base (accounting for reph)
+			const insertPos = hasReph ? start + 2 : start;
+			infos.splice(insertPos, 0, info);
+		}
+	}
+
+	// Handle reph movement (Ra + Halant at start moves to end of syllable)
+	// Note: In many scripts, reph moves to after the matra
+	// This is a simplified implementation - full implementation would check
+	// script-specific rules
+	if (hasReph && end > start + 2) {
+		// Reph is at positions start and start+1 (Ra + Halant)
+		// Move to end of syllable, before final consonant markers
+		const rephRa = infos[start];
+		const rephH = infos[start + 1];
+
+		if (rephRa && rephH) {
+			// Find insertion point: after matras, before syllable modifiers
+			let rephTarget = end - 1;
+
+			// Adjust for any syllable modifiers at the end
+			while (rephTarget > baseConsonant) {
+				const targetInfo = infos[rephTarget];
+				if (!targetInfo) break;
+
+				const cat = getIndicCategory(targetInfo.codepoint);
+				if (cat === IndicCategory.SM || cat === IndicCategory.A) {
+					rephTarget--;
+				} else {
+					break;
+				}
+			}
+
+			// Only move if target is different from current position
+			if (rephTarget > start + 1) {
+				// Remove Ra + Halant from start
+				infos.splice(start, 2);
+
+				// Insert at new position (adjusted for removal)
+				const adjustedTarget = rephTarget - 2;
+				infos.splice(adjustedTarget + 1, 0, rephRa, rephH);
 			}
 		}
 	}

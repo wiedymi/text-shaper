@@ -30,6 +30,14 @@ import {
 	parseMarkLigaturePos,
 	parseMarkMarkPos,
 } from "./gpos-mark.ts";
+import {
+	type ContextPosLookup,
+	type ContextPosSubtable,
+	type ChainingContextPosLookup,
+	type ChainingContextPosSubtable,
+	parseContextPos,
+	parseChainingContextPos,
+} from "./gpos-contextual.ts";
 
 /** GPOS lookup types */
 export const enum GposLookupType {
@@ -167,8 +175,9 @@ export type AnyGposLookup =
 	| CursivePosLookup
 	| MarkBasePosLookup
 	| MarkLigaturePosLookup
-	| MarkMarkPosLookup;
-// TODO: Context, ChainingContext
+	| MarkMarkPosLookup
+	| ContextPosLookup
+	| ChainingContextPosLookup;
 
 /** GPOS table */
 export interface GposTable {
@@ -273,10 +282,23 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 				subtables: parseMarkMarkPos(reader, subtableOffsets),
 			};
 
+		case GposLookupType.Context:
+			return {
+				type: GposLookupType.Context,
+				...baseProps,
+				subtables: parseContextPos(reader, subtableOffsets),
+			};
+
+		case GposLookupType.ChainingContext:
+			return {
+				type: GposLookupType.ChainingContext,
+				...baseProps,
+				subtables: parseChainingContextPos(reader, subtableOffsets),
+			};
+
 		case GposLookupType.Extension:
 			return parseExtensionLookup(reader, subtableOffsets, baseProps);
 
-		// TODO: Context, ChainingContext
 		default:
 			return null;
 	}
@@ -488,6 +510,22 @@ function parseExtensionLookup(
 				subtables.push(...parseMarkMarkPos(ext.reader, [0]));
 			}
 			return { type: GposLookupType.MarkToMark, ...baseProps, subtables };
+		}
+
+		case GposLookupType.Context: {
+			const subtables: ContextPosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseContextPos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.Context, ...baseProps, subtables };
+		}
+
+		case GposLookupType.ChainingContext: {
+			const subtables: ChainingContextPosSubtable[] = [];
+			for (const ext of extSubtables) {
+				subtables.push(...parseChainingContextPos(ext.reader, [0]));
+			}
+			return { type: GposLookupType.ChainingContext, ...baseProps, subtables };
 		}
 
 		default:

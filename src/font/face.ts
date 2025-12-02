@@ -3,7 +3,7 @@ import { tag } from "../types.ts";
 import type { Font } from "./font.ts";
 import { normalizeAxisValue, getAxisIndex, type VariationAxis } from "./tables/fvar.ts";
 import { applyAvar } from "./tables/avar.ts";
-import { getAdvanceWidthDelta } from "./tables/hvar.ts";
+import { getAdvanceWidthDelta, getLsbDelta } from "./tables/hvar.ts";
 
 /**
  * A Face represents a specific instance of a variable font.
@@ -122,11 +122,18 @@ export class Face {
 	}
 
 	/**
-	 * Get left side bearing for a glyph
+	 * Get left side bearing for a glyph, including variation deltas
 	 */
 	leftSideBearing(glyphId: GlyphId): number {
-		// TODO: Apply HVAR lsb delta if available
-		return this.font.leftSideBearing(glyphId);
+		let lsb = this.font.leftSideBearing(glyphId);
+
+		// Apply HVAR LSB delta if variable
+		if (this._coords.length > 0 && this.font.hvar) {
+			const delta = getLsbDelta(this.font.hvar, glyphId, this._coords);
+			lsb += delta;
+		}
+
+		return lsb;
 	}
 
 	// Delegate common properties to font
