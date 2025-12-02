@@ -142,6 +142,7 @@ export const Tags = {
 	GPOS: tag("GPOS"),
 	BASE: tag("BASE"),
 	JSTF: tag("JSTF"),
+	MATH: tag("MATH"),
 
 	// CFF
 	CFF: tag("CFF "),

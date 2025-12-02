@@ -34,6 +34,9 @@ import { type MvarTable, parseMvar } from "./tables/mvar.ts";
 import { type Os2Table, parseOs2 } from "./tables/os2.ts";
 import { type NameTable, parseName } from "./tables/name.ts";
 import { type PostTable, parsePost } from "./tables/post.ts";
+import { type BaseTable, parseBase } from "./tables/base.ts";
+import { type JstfTable, parseJstf } from "./tables/jstf.ts";
+import { type MathTable, parseMath } from "./tables/math.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -77,6 +80,9 @@ export class Font {
 	private _os2: Os2Table | null | undefined = undefined;
 	private _name: NameTable | null | undefined = undefined;
 	private _post: PostTable | null | undefined = undefined;
+	private _base: BaseTable | null | undefined = undefined;
+	private _jstf: JstfTable | null | undefined = undefined;
+	private _math: MathTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -356,6 +362,30 @@ export class Font {
 			this._post = reader ? parsePost(reader) : null;
 		}
 		return this._post;
+	}
+
+	get base(): BaseTable | null {
+		if (this._base === undefined) {
+			const reader = this.getTableReader(Tags.BASE);
+			this._base = reader ? parseBase(reader) : null;
+		}
+		return this._base;
+	}
+
+	get jstf(): JstfTable | null {
+		if (this._jstf === undefined) {
+			const reader = this.getTableReader(Tags.JSTF);
+			this._jstf = reader ? parseJstf(reader) : null;
+		}
+		return this._jstf;
+	}
+
+	get math(): MathTable | null {
+		if (this._math === undefined) {
+			const reader = this.getTableReader(Tags.MATH);
+			this._math = reader ? parseMath(reader) : null;
+		}
+		return this._math;
 	}
 
 	// Convenience properties

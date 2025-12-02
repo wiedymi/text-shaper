@@ -16,6 +16,10 @@ import {
 	LookupFlag,
 } from "../../layout/structures/layout-common.ts";
 import {
+	type DeviceOrVariationIndex,
+	parseDeviceAt,
+} from "../../layout/structures/device.ts";
+import {
 	type Anchor,
 	type MarkArray,
 	type CursivePosSubtable,
@@ -58,10 +62,10 @@ export interface ValueRecord {
 	yPlacement?: int16;
 	xAdvance?: int16;
 	yAdvance?: int16;
-	xPlaDeviceOffset?: uint16;
-	yPlaDeviceOffset?: uint16;
-	xAdvDeviceOffset?: uint16;
-	yAdvDeviceOffset?: uint16;
+	xPlaDevice?: DeviceOrVariationIndex;
+	yPlaDevice?: DeviceOrVariationIndex;
+	xAdvDevice?: DeviceOrVariationIndex;
+	yAdvDevice?: DeviceOrVariationIndex;
 }
 
 /** Value format flags */
@@ -304,17 +308,36 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 	}
 }
 
-function parseValueRecord(reader: Reader, valueFormat: uint16): ValueRecord {
+function parseValueRecord(
+	reader: Reader,
+	valueFormat: uint16,
+	subtableReader?: Reader,
+): ValueRecord {
 	const record: ValueRecord = {};
 
 	if (valueFormat & ValueFormat.XPlacement) record.xPlacement = reader.int16();
 	if (valueFormat & ValueFormat.YPlacement) record.yPlacement = reader.int16();
 	if (valueFormat & ValueFormat.XAdvance) record.xAdvance = reader.int16();
 	if (valueFormat & ValueFormat.YAdvance) record.yAdvance = reader.int16();
-	if (valueFormat & ValueFormat.XPlaDevice) record.xPlaDeviceOffset = reader.uint16();
-	if (valueFormat & ValueFormat.YPlaDevice) record.yPlaDeviceOffset = reader.uint16();
-	if (valueFormat & ValueFormat.XAdvDevice) record.xAdvDeviceOffset = reader.uint16();
-	if (valueFormat & ValueFormat.YAdvDevice) record.yAdvDeviceOffset = reader.uint16();
+
+	// Parse Device tables if we have a subtable reader to resolve offsets
+	const deviceReader = subtableReader ?? reader;
+	if (valueFormat & ValueFormat.XPlaDevice) {
+		const offset = reader.uint16();
+		if (offset !== 0) record.xPlaDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+	}
+	if (valueFormat & ValueFormat.YPlaDevice) {
+		const offset = reader.uint16();
+		if (offset !== 0) record.yPlaDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+	}
+	if (valueFormat & ValueFormat.XAdvDevice) {
+		const offset = reader.uint16();
+		if (offset !== 0) record.xAdvDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+	}
+	if (valueFormat & ValueFormat.YAdvDevice) {
+		const offset = reader.uint16();
+		if (offset !== 0) record.yAdvDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+	}
 
 	return record;
 }
@@ -326,14 +349,15 @@ function parseSinglePos(
 	const subtables: SinglePosSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
+		const subtableReader = reader.sliceFrom(offset);
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
 		if (format === 1) {
 			const coverageOffset = r.offset16();
 			const valueFormat = r.uint16();
-			const value = parseValueRecord(r, valueFormat);
-			const coverage = parseCoverageAt(r, coverageOffset);
+			const value = parseValueRecord(r, valueFormat, subtableReader);
+			const coverage = parseCoverageAt(subtableReader, coverageOffset);
 			subtables.push({ format: 1, coverage, valueFormat, value });
 		} else if (format === 2) {
 			const coverageOffset = r.offset16();
@@ -341,9 +365,9 @@ function parseSinglePos(
 			const valueCount = r.uint16();
 			const values: ValueRecord[] = [];
 			for (let i = 0; i < valueCount; i++) {
-				values.push(parseValueRecord(r, valueFormat));
+				values.push(parseValueRecord(r, valueFormat, subtableReader));
 			}
-			const coverage = parseCoverageAt(r, coverageOffset);
+			const coverage = parseCoverageAt(subtableReader, coverageOffset);
 			subtables.push({ format: 2, coverage, valueFormat, values });
 		}
 	}
@@ -358,38 +382,40 @@ function parsePairPos(
 	const subtables: PairPosSubtable[] = [];
 
 	for (const offset of subtableOffsets) {
+		const subtableReader = reader.sliceFrom(offset);
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
 		if (format === 1) {
-			subtables.push(parsePairPosFormat1(r));
+			subtables.push(parsePairPosFormat1(r, subtableReader));
 		} else if (format === 2) {
-			subtables.push(parsePairPosFormat2(r));
+			subtables.push(parsePairPosFormat2(r, subtableReader));
 		}
 	}
 
 	return subtables;
 }
 
-function parsePairPosFormat1(reader: Reader): PairPosFormat1 {
+function parsePairPosFormat1(reader: Reader, subtableReader: Reader): PairPosFormat1 {
 	const coverageOffset = reader.offset16();
 	const valueFormat1 = reader.uint16();
 	const valueFormat2 = reader.uint16();
 	const pairSetCount = reader.uint16();
 	const pairSetOffsets = reader.uint16Array(pairSetCount);
 
-	const coverage = parseCoverageAt(reader, coverageOffset);
+	const coverage = parseCoverageAt(subtableReader, coverageOffset);
 	const pairSets: PairSet[] = [];
 
 	for (const pairSetOffset of pairSetOffsets) {
-		const pairSetReader = reader.sliceFrom(pairSetOffset);
-		const pairValueCount = pairSetReader.uint16();
+		const pairSetReader = subtableReader.sliceFrom(pairSetOffset);
+		const r = subtableReader.sliceFrom(pairSetOffset);
+		const pairValueCount = r.uint16();
 		const pairValueRecords: PairValueRecord[] = [];
 
 		for (let i = 0; i < pairValueCount; i++) {
-			const secondGlyph = pairSetReader.uint16();
-			const value1 = parseValueRecord(pairSetReader, valueFormat1);
-			const value2 = parseValueRecord(pairSetReader, valueFormat2);
+			const secondGlyph = r.uint16();
+			const value1 = parseValueRecord(r, valueFormat1, pairSetReader);
+			const value2 = parseValueRecord(r, valueFormat2, pairSetReader);
 			pairValueRecords.push({ secondGlyph, value1, value2 });
 		}
 
@@ -399,7 +425,7 @@ function parsePairPosFormat1(reader: Reader): PairPosFormat1 {
 	return { format: 1, coverage, valueFormat1, valueFormat2, pairSets };
 }
 
-function parsePairPosFormat2(reader: Reader): PairPosFormat2 {
+function parsePairPosFormat2(reader: Reader, subtableReader: Reader): PairPosFormat2 {
 	const coverageOffset = reader.offset16();
 	const valueFormat1 = reader.uint16();
 	const valueFormat2 = reader.uint16();
@@ -408,16 +434,16 @@ function parsePairPosFormat2(reader: Reader): PairPosFormat2 {
 	const class1Count = reader.uint16();
 	const class2Count = reader.uint16();
 
-	const coverage = parseCoverageAt(reader, coverageOffset);
-	const classDef1 = parseClassDefAt(reader, classDef1Offset);
-	const classDef2 = parseClassDefAt(reader, classDef2Offset);
+	const coverage = parseCoverageAt(subtableReader, coverageOffset);
+	const classDef1 = parseClassDefAt(subtableReader, classDef1Offset);
+	const classDef2 = parseClassDefAt(subtableReader, classDef2Offset);
 
 	const class1Records: Class1Record[] = [];
 	for (let i = 0; i < class1Count; i++) {
 		const class2Records: Class2Record[] = [];
 		for (let j = 0; j < class2Count; j++) {
-			const value1 = parseValueRecord(reader, valueFormat1);
-			const value2 = parseValueRecord(reader, valueFormat2);
+			const value1 = parseValueRecord(reader, valueFormat1, subtableReader);
+			const value2 = parseValueRecord(reader, valueFormat2, subtableReader);
 			class2Records.push({ value1, value2 });
 		}
 		class1Records.push({ class2Records });
