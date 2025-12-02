@@ -16,6 +16,7 @@ export const enum NormalizationMode {
 
 /**
  * Canonical Combining Class (ccc) for combining marks
+ * Based on Unicode 15.0
  */
 export function getCombiningClass(cp: number): number {
 	// Common combining classes
@@ -38,24 +39,165 @@ export function getCombiningClass(cp: number): number {
 	// Arabic combining marks (064B-065F, 0670)
 	if (cp >= 0x064b && cp <= 0x065f) return getArabicCcc(cp);
 	if (cp === 0x0670) return 35;
+	// Extended Arabic marks
+	if (cp >= 0x0610 && cp <= 0x061a) return 230;
+	if (cp >= 0x06d6 && cp <= 0x06dc) return 230;
+	if (cp >= 0x06df && cp <= 0x06e4) return 230;
+	if (cp >= 0x06e7 && cp <= 0x06e8) return 230;
+	if (cp >= 0x06ea && cp <= 0x06ed) return 220;
+	if (cp === 0x08d4) return 230;
+	if (cp >= 0x08e3 && cp <= 0x08ff) return 220;
 
 	// Devanagari nukta and signs
 	if (cp === 0x093c) return 7; // Nukta
 	if (cp === 0x094d) return 9; // Virama
 	if (cp >= 0x0951 && cp <= 0x0954) return 230; // Accent marks
+	if (cp === 0x0955) return 0;
+	if (cp >= 0x0956 && cp <= 0x0957) return 0;
 
 	// Bengali nukta and virama
 	if (cp === 0x09bc) return 7;
 	if (cp === 0x09cd) return 9;
+	if (cp === 0x09fe) return 230;
+
+	// Gurmukhi
+	if (cp === 0x0a3c) return 7; // Nukta
+	if (cp === 0x0a4d) return 9; // Virama
+
+	// Gujarati
+	if (cp === 0x0abc) return 7; // Nukta
+	if (cp === 0x0acd) return 9; // Virama
+
+	// Oriya
+	if (cp === 0x0b3c) return 7; // Nukta
+	if (cp === 0x0b4d) return 9; // Virama
+
+	// Tamil
+	if (cp === 0x0bcd) return 9; // Virama
+
+	// Telugu
+	if (cp === 0x0c4d) return 9; // Virama
+	if (cp === 0x0c55) return 84;
+	if (cp === 0x0c56) return 91;
+
+	// Kannada
+	if (cp === 0x0cbc) return 7; // Nukta
+	if (cp === 0x0ccd) return 9; // Virama
+
+	// Malayalam
+	if (cp === 0x0d4d) return 9; // Virama
+
+	// Sinhala
+	if (cp === 0x0dca) return 9; // Virama
 
 	// Thai/Lao vowels and tone marks
 	if (cp >= 0x0e31 && cp <= 0x0e3a) return 0; // Positioned, not reordered
-	if (cp >= 0x0e47 && cp <= 0x0e4e) return 0;
+	if (cp >= 0x0e47 && cp <= 0x0e4e) return getThaiCcc(cp);
+	if (cp >= 0x0eb1 && cp <= 0x0ebc) return 0;
+	if (cp >= 0x0ec8 && cp <= 0x0ecd) return getThaiCcc(cp);
+
+	// Tibetan
+	if (cp >= 0x0f18 && cp <= 0x0f19) return 220;
+	if (cp === 0x0f35) return 220;
+	if (cp === 0x0f37) return 220;
+	if (cp === 0x0f39) return 216;
+	if (cp >= 0x0f71 && cp <= 0x0f7e) return getTibetanCcc(cp);
+	if (cp >= 0x0f80 && cp <= 0x0f84) return getTibetanCcc(cp);
+	if (cp >= 0x0f86 && cp <= 0x0f87) return 230;
+
+	// Myanmar
+	if (cp === 0x1037) return 7; // Nukta
+	if (cp === 0x1039) return 9; // Virama
+	if (cp === 0x103a) return 9;
+
+	// Hangul Jamo (combining)
+	if (cp >= 0x302a && cp <= 0x302f) return getHangulCcc(cp);
+	if (cp >= 0x3099 && cp <= 0x309a) return 8; // Kana voicing
 
 	// General combining marks (0300-036F)
 	if (cp >= 0x0300 && cp <= 0x036f) return getLatinCcc(cp);
 
+	// Combining Diacritical Marks Extended (1AB0-1AFF)
+	if (cp >= 0x1ab0 && cp <= 0x1aff) return getCdmeClass(cp);
+
+	// Combining Diacritical Marks Supplement (1DC0-1DFF)
+	if (cp >= 0x1dc0 && cp <= 0x1dff) return getCdmsClass(cp);
+
+	// Combining Half Marks (FE20-FE2F)
+	if (cp >= 0xfe20 && cp <= 0xfe2f) return 230;
+
 	return 0;
+}
+
+function getThaiCcc(cp: number): number {
+	// Thai tone marks and vowel signs above
+	if (cp >= 0x0e48 && cp <= 0x0e4b) return 107; // Tone marks
+	if (cp === 0x0e4c) return 0; // Thanthakhat
+	if (cp === 0x0e4d) return 0; // Nikhahit
+	if (cp === 0x0e4e) return 0; // Yamakkan
+	// Lao tone marks
+	if (cp >= 0x0ec8 && cp <= 0x0ecb) return 122;
+	return 0;
+}
+
+function getTibetanCcc(cp: number): number {
+	if (cp === 0x0f71) return 129;
+	if (cp === 0x0f72) return 130;
+	if (cp === 0x0f73) return 0; // Composed
+	if (cp === 0x0f74) return 132;
+	if (cp === 0x0f75) return 0; // Composed
+	if (cp === 0x0f76) return 0; // Composed
+	if (cp === 0x0f77) return 0; // Composed
+	if (cp === 0x0f78) return 0; // Composed
+	if (cp === 0x0f79) return 0; // Composed
+	if (cp === 0x0f7a) return 130;
+	if (cp === 0x0f7b) return 130;
+	if (cp === 0x0f7c) return 130;
+	if (cp === 0x0f7d) return 130;
+	if (cp === 0x0f7e) return 0;
+	if (cp === 0x0f80) return 130;
+	if (cp === 0x0f81) return 0; // Composed
+	if (cp === 0x0f82) return 230;
+	if (cp === 0x0f83) return 230;
+	if (cp === 0x0f84) return 9;
+	return 0;
+}
+
+function getHangulCcc(cp: number): number {
+	if (cp === 0x302a) return 218;
+	if (cp === 0x302b) return 228;
+	if (cp === 0x302c) return 232;
+	if (cp === 0x302d) return 222;
+	if (cp === 0x302e) return 224;
+	if (cp === 0x302f) return 224;
+	return 0;
+}
+
+function getCdmeClass(cp: number): number {
+	// Combining Diacritical Marks Extended
+	if (cp >= 0x1ab0 && cp <= 0x1abe) return 230;
+	if (cp === 0x1abf) return 220;
+	if (cp === 0x1ac0) return 220;
+	return 230;
+}
+
+function getCdmsClass(cp: number): number {
+	// Combining Diacritical Marks Supplement
+	if (cp >= 0x1dc0 && cp <= 0x1dc1) return 230;
+	if (cp === 0x1dc2) return 220;
+	if (cp >= 0x1dc3 && cp <= 0x1dca) return 230;
+	if (cp === 0x1dcb) return 230;
+	if (cp === 0x1dcc) return 230;
+	if (cp === 0x1dcd) return 234;
+	if (cp === 0x1dce) return 214;
+	if (cp === 0x1dcf) return 220;
+	if (cp === 0x1dd0) return 202;
+	if (cp >= 0x1dd1 && cp <= 0x1df5) return 230;
+	if (cp >= 0x1df6 && cp <= 0x1df8) return 232;
+	if (cp === 0x1df9) return 220;
+	if (cp === 0x1dfa) return 218;
+	if (cp >= 0x1dfb && cp <= 0x1dff) return 230;
+	return 230;
 }
 
 function getHebrewCcc(cp: number): number {

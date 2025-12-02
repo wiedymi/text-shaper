@@ -3,6 +3,7 @@ export * from "./types.ts";
 
 // Font parsing
 export { Font, type FontLoadOptions } from "./font/font.ts";
+export { Face, createFace } from "./font/face.ts";
 export { Reader } from "./font/binary/reader.ts";
 
 // Required tables
@@ -53,7 +54,7 @@ export { UnicodeBuffer } from "./buffer/unicode-buffer.ts";
 export { GlyphBuffer } from "./buffer/glyph-buffer.ts";
 
 // Shaper
-export { shape, type ShapeOptions } from "./shaper/shaper.ts";
+export { shape, type ShapeOptions, type FontLike } from "./shaper/shaper.ts";
 export { createShapePlan, getOrCreateShapePlan, type ShapePlan, type ShapeFeature } from "./shaper/shape-plan.ts";
 
 // Fallback positioning

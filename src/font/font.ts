@@ -25,6 +25,12 @@ import { type GvarTable, parseGvar } from "./tables/gvar.ts";
 import { type AvarTable, parseAvar } from "./tables/avar.ts";
 import { type KerxTable, parseKerx } from "./tables/kerx.ts";
 import { type TrakTable, parseTrak } from "./tables/trak.ts";
+import { type CffTable, parseCff } from "./tables/cff.ts";
+import { type Cff2Table, parseCff2 } from "./tables/cff2.ts";
+import { type ColrTable, parseColr } from "./tables/colr.ts";
+import { type CpalTable, parseCpal } from "./tables/cpal.ts";
+import { type VvarTable, parseVvar } from "./tables/vvar.ts";
+import { type MvarTable, parseMvar } from "./tables/mvar.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -59,6 +65,12 @@ export class Font {
 	private _avar: AvarTable | null | undefined = undefined;
 	private _kerx: KerxTable | null | undefined = undefined;
 	private _trak: TrakTable | null | undefined = undefined;
+	private _cff: CffTable | null | undefined = undefined;
+	private _cff2: Cff2Table | null | undefined = undefined;
+	private _colr: ColrTable | null | undefined = undefined;
+	private _cpal: CpalTable | null | undefined = undefined;
+	private _vvar: VvarTable | null | undefined = undefined;
+	private _mvar: MvarTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -268,6 +280,54 @@ export class Font {
 		return this._trak;
 	}
 
+	get cff(): CffTable | null {
+		if (this._cff === undefined) {
+			const reader = this.getTableReader(Tags.CFF);
+			this._cff = reader ? parseCff(reader) : null;
+		}
+		return this._cff;
+	}
+
+	get cff2(): Cff2Table | null {
+		if (this._cff2 === undefined) {
+			const reader = this.getTableReader(Tags.CFF2);
+			this._cff2 = reader ? parseCff2(reader) : null;
+		}
+		return this._cff2;
+	}
+
+	get colr(): ColrTable | null {
+		if (this._colr === undefined) {
+			const reader = this.getTableReader(Tags.COLR);
+			this._colr = reader ? parseColr(reader) : null;
+		}
+		return this._colr;
+	}
+
+	get cpal(): CpalTable | null {
+		if (this._cpal === undefined) {
+			const reader = this.getTableReader(Tags.CPAL);
+			this._cpal = reader ? parseCpal(reader) : null;
+		}
+		return this._cpal;
+	}
+
+	get vvar(): VvarTable | null {
+		if (this._vvar === undefined) {
+			const reader = this.getTableReader(Tags.VVAR);
+			this._vvar = reader ? parseVvar(reader) : null;
+		}
+		return this._vvar;
+	}
+
+	get mvar(): MvarTable | null {
+		if (this._mvar === undefined) {
+			const reader = this.getTableReader(Tags.MVAR);
+			this._mvar = reader ? parseMvar(reader) : null;
+		}
+		return this._mvar;
+	}
+
 	// Convenience properties
 
 	/** Number of glyphs in the font */
@@ -318,6 +378,11 @@ export class Font {
 	/** Has AAT layout tables? */
 	get hasAATLayout(): boolean {
 		return this.hasTable(Tags.morx) || this.hasTable(Tags.kerx);
+	}
+
+	/** Is this a color font? */
+	get isColorFont(): boolean {
+		return this.hasTable(Tags.COLR) || this.hasTable(Tags.SVG);
 	}
 
 	// Glyph operations

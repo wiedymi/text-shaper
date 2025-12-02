@@ -153,6 +153,7 @@ export const Tags = {
 	avar: tag("avar"),
 	HVAR: tag("HVAR"),
 	VVAR: tag("VVAR"),
+	MVAR: tag("MVAR"),
 
 	// AAT
 	morx: tag("morx"),

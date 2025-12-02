@@ -1,0 +1,3 @@
+[test]
+# Only run tests from src folder (exclude reference submodules)
+root = "./src"

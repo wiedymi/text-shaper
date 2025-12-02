@@ -1,6 +1,7 @@
 import type { GlyphId, GlyphInfo, GlyphPosition } from "../types.ts";
 import { GlyphClass } from "../types.ts";
 import type { Font } from "../font/font.ts";
+import { Face } from "../font/face.ts";
 import type { UnicodeBuffer } from "../buffer/unicode-buffer.ts";
 import { GlyphBuffer } from "../buffer/glyph-buffer.ts";
 import {
@@ -49,8 +50,25 @@ import { setupIndicMasks, isIndic } from "./complex/indic.ts";
 import { setupUseMasks, usesUSE } from "./complex/use.ts";
 import { setupHebrewMasks } from "./complex/hebrew.ts";
 import { setupThaiLaoMasks, reorderThaiLao, isThai, isLao } from "./complex/thai-lao.ts";
+import { setupHangulMasks, normalizeHangul, isKorean } from "./complex/hangul.ts";
+import { setupKhmerMasks, reorderKhmer, isKhmer } from "./complex/khmer.ts";
+import { setupMyanmarMasks, reorderMyanmar, isMyanmar } from "./complex/myanmar.ts";
 import { applyFallbackMarkPositioning, applyFallbackKerning } from "./fallback.ts";
-import { applyNonContextual, type MorxNonContextualSubtable, MorxSubtableType } from "../font/tables/morx.ts";
+import {
+	applyNonContextual,
+	type MorxNonContextualSubtable,
+	type MorxContextualSubtable,
+	type MorxLigatureSubtable,
+	type MorxRearrangementSubtable,
+	type MorxInsertionSubtable,
+	MorxSubtableType,
+} from "../font/tables/morx.ts";
+import {
+	processRearrangement,
+	processContextual,
+	processLigature,
+	processInsertion,
+} from "../aat/state-machine.ts";
 
 export interface ShapeOptions {
 	script?: string;
@@ -59,14 +77,31 @@ export interface ShapeOptions {
 	features?: ShapeFeature[];
 }
 
+/** Font or Face - accepted by shape function */
+export type FontLike = Font | Face;
+
+/** Get the underlying Font from a FontLike */
+function getFont(fontLike: FontLike): Font {
+	return fontLike instanceof Face ? fontLike.font : fontLike;
+}
+
+/** Get Face (create if needed) */
+function getFace(fontLike: FontLike): Face {
+	return fontLike instanceof Face ? fontLike : new Face(fontLike);
+}
+
 /**
  * Shape text using OpenType features.
+ * Accepts Font or Face (for variable fonts).
  */
 export function shape(
-	font: Font,
+	fontLike: FontLike,
 	buffer: UnicodeBuffer,
 	options: ShapeOptions = {},
 ): GlyphBuffer {
+	const font = getFont(fontLike);
+	const face = getFace(fontLike);
+
 	const script = options.script ?? buffer.script ?? "latn";
 	const language = options.language ?? buffer.language ?? null;
 	const direction = options.direction ?? "ltr";
@@ -102,8 +137,8 @@ export function shape(
 	// Apply GSUB
 	applyGsub(font, glyphBuffer, plan);
 
-	// Initialize positions
-	initializePositions(font, glyphBuffer);
+	// Initialize positions (using Face for variable font metrics)
+	initializePositions(face, glyphBuffer);
 
 	// Apply GPOS or fallback positioning
 	const hasGpos = font.gpos !== null && plan.gposLookups.length > 0;
@@ -144,6 +179,17 @@ function preShape(buffer: GlyphBuffer, script: string): void {
 		return;
 	}
 
+	// Hangul (Korean)
+	if (script === "hang" || script === "kore") {
+		// Normalize Jamo sequences into precomposed syllables
+		const normalized = normalizeHangul(buffer.infos);
+		if (normalized.length !== buffer.infos.length) {
+			buffer.initFromInfos(normalized);
+		}
+		setupHangulMasks(buffer.infos);
+		return;
+	}
+
 	// Indic scripts (syllable-based)
 	if (script === "deva" || script === "beng" || script === "guru" ||
 		script === "gujr" || script === "orya" || script === "taml" ||
@@ -156,6 +202,20 @@ function preShape(buffer: GlyphBuffer, script: string): void {
 	if (script === "thai" || script === "lao ") {
 		setupThaiLaoMasks(buffer.infos);
 		reorderThaiLao(buffer.infos);
+		return;
+	}
+
+	// Khmer (subscript consonants, pre-base vowels)
+	if (script === "khmr") {
+		setupKhmerMasks(buffer.infos);
+		reorderKhmer(buffer.infos);
+		return;
+	}
+
+	// Myanmar (medials, pre-base vowels, stacking)
+	if (script === "mymr") {
+		setupMyanmarMasks(buffer.infos);
+		reorderMyanmar(buffer.infos);
 		return;
 	}
 
@@ -195,6 +255,18 @@ function detectAndApplyComplexShaping(infos: GlyphInfo[]): void {
 			return;
 		}
 
+		// Korean/Hangul
+		if (isKorean(cp)) {
+			const normalized = normalizeHangul(infos);
+			if (normalized.length !== infos.length) {
+				// Replace infos in place
+				infos.length = 0;
+				infos.push(...normalized);
+			}
+			setupHangulMasks(infos);
+			return;
+		}
+
 		// Devanagari and other Indic
 		if (isIndic(cp)) {
 			setupIndicMasks(infos);
@@ -212,6 +284,20 @@ function detectAndApplyComplexShaping(infos: GlyphInfo[]): void {
 		if (isLao(cp)) {
 			setupThaiLaoMasks(infos);
 			reorderThaiLao(infos);
+			return;
+		}
+
+		// Khmer
+		if (isKhmer(cp)) {
+			setupKhmerMasks(infos);
+			reorderKhmer(infos);
+			return;
+		}
+
+		// Myanmar
+		if (isMyanmar(cp)) {
+			setupMyanmarMasks(infos);
+			reorderMyanmar(infos);
 			return;
 		}
 	}
@@ -744,10 +830,11 @@ function applyNestedLookups(
 
 // GPOS application
 
-function initializePositions(font: Font, buffer: GlyphBuffer): void {
+function initializePositions(face: Face, buffer: GlyphBuffer): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const glyphId = buffer.infos[i]!.glyphId;
-		const advance = font.advanceWidth(glyphId);
+		// Use Face.advanceWidth to include variable font deltas
+		const advance = face.advanceWidth(glyphId);
 		buffer.setAdvance(i, advance, 0);
 	}
 }
@@ -1174,7 +1261,7 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 
 			switch (subtable.type) {
 				case MorxSubtableType.NonContextual:
-					// Simple substitution
+					// Simple substitution (Type 4)
 					for (let i = 0; i < buffer.infos.length; i++) {
 						const replacement = applyNonContextual(
 							subtable as MorxNonContextualSubtable,
@@ -1185,8 +1272,48 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 						}
 					}
 					break;
-				// Contextual and Ligature subtables require state machine processing
-				// which is more complex and needs a full implementation
+
+				case MorxSubtableType.Rearrangement:
+					// Rearrangement (Type 0) - reorder glyphs
+					processRearrangement(
+						subtable as MorxRearrangementSubtable,
+						buffer.infos,
+					);
+					break;
+
+				case MorxSubtableType.Contextual:
+					// Contextual substitution (Type 1)
+					processContextual(
+						subtable as MorxContextualSubtable,
+						buffer.infos,
+					);
+					break;
+
+				case MorxSubtableType.Ligature: {
+					// Ligature (Type 2)
+					const newInfos = processLigature(
+						subtable as MorxLigatureSubtable,
+						buffer.infos,
+					);
+					// Update buffer with new infos (may be shorter due to ligatures)
+					if (newInfos.length !== buffer.infos.length) {
+						buffer.initFromInfos(newInfos);
+					}
+					break;
+				}
+
+				case MorxSubtableType.Insertion: {
+					// Insertion (Type 5)
+					const newInfos = processInsertion(
+						subtable as MorxInsertionSubtable,
+						buffer.infos,
+					);
+					// Update buffer with new infos (may be longer due to insertions)
+					if (newInfos.length !== buffer.infos.length) {
+						buffer.initFromInfos(newInfos);
+					}
+					break;
+				}
 			}
 		}
 	}
