@@ -126,15 +126,39 @@ function parseJstfPriority(reader: Reader, offset: number): JstfPriorityRecord {
 	const extensionJstfMaxOffset = priReader.uint16();
 
 	return {
-		shrinkageEnableGsub: parseJstfModList(reader, offset + shrinkageEnableGsubOffset),
-		shrinkageDisableGsub: parseJstfModList(reader, offset + shrinkageDisableGsubOffset),
-		shrinkageEnableGpos: parseJstfModList(reader, offset + shrinkageEnableGposOffset),
-		shrinkageDisableGpos: parseJstfModList(reader, offset + shrinkageDisableGposOffset),
+		shrinkageEnableGsub: parseJstfModList(
+			reader,
+			offset + shrinkageEnableGsubOffset,
+		),
+		shrinkageDisableGsub: parseJstfModList(
+			reader,
+			offset + shrinkageDisableGsubOffset,
+		),
+		shrinkageEnableGpos: parseJstfModList(
+			reader,
+			offset + shrinkageEnableGposOffset,
+		),
+		shrinkageDisableGpos: parseJstfModList(
+			reader,
+			offset + shrinkageDisableGposOffset,
+		),
 		shrinkageJstfMax: parseJstfMax(reader, offset + shrinkageJstfMaxOffset),
-		extensionEnableGsub: parseJstfModList(reader, offset + extensionEnableGsubOffset),
-		extensionDisableGsub: parseJstfModList(reader, offset + extensionDisableGsubOffset),
-		extensionEnableGpos: parseJstfModList(reader, offset + extensionEnableGposOffset),
-		extensionDisableGpos: parseJstfModList(reader, offset + extensionDisableGposOffset),
+		extensionEnableGsub: parseJstfModList(
+			reader,
+			offset + extensionEnableGsubOffset,
+		),
+		extensionDisableGsub: parseJstfModList(
+			reader,
+			offset + extensionDisableGsubOffset,
+		),
+		extensionEnableGpos: parseJstfModList(
+			reader,
+			offset + extensionEnableGposOffset,
+		),
+		extensionDisableGpos: parseJstfModList(
+			reader,
+			offset + extensionDisableGposOffset,
+		),
 		extensionJstfMax: parseJstfMax(reader, offset + extensionJstfMaxOffset),
 	};
 }
@@ -156,7 +180,10 @@ function parseJstfLangSys(reader: Reader, offset: number): JstfLangSys {
 	return { priorities };
 }
 
-function parseJstfScript(reader: Reader, offset: number): Omit<JstfScriptRecord, "scriptTag"> {
+function parseJstfScript(
+	reader: Reader,
+	offset: number,
+): Omit<JstfScriptRecord, "scriptTag"> {
 	const scriptReader = reader.sliceFrom(offset);
 	const extenderGlyphOffset = scriptReader.uint16();
 	const defJstfLangSysOffset = scriptReader.uint16();
@@ -181,9 +208,10 @@ function parseJstfScript(reader: Reader, offset: number): Omit<JstfScriptRecord,
 	}
 
 	// Parse default lang sys
-	const defaultLangSys = defJstfLangSysOffset !== 0
-		? parseJstfLangSys(reader, offset + defJstfLangSysOffset)
-		: null;
+	const defaultLangSys =
+		defJstfLangSysOffset !== 0
+			? parseJstfLangSys(reader, offset + defJstfLangSysOffset)
+			: null;
 
 	// Parse language-specific systems
 	const langSysRecords = new Map<number, JstfLangSys>();
@@ -222,7 +250,10 @@ export function parseJstf(reader: Reader): JstfTable {
 }
 
 /** Get extender glyphs for a script (e.g., Kashida for Arabic) */
-export function getExtenderGlyphs(jstf: JstfTable, scriptTag: number): uint16[] {
+export function getExtenderGlyphs(
+	jstf: JstfTable,
+	scriptTag: number,
+): uint16[] {
 	const script = jstf.scripts.find((s) => s.scriptTag === scriptTag);
 	return script?.extenderGlyphs ?? [];
 }
@@ -247,9 +278,7 @@ export function getJstfPriorities(
 }
 
 /** Get lookup modifications for shrinkage at a given priority level */
-export function getShrinkageMods(
-	priority: JstfPriorityRecord,
-): {
+export function getShrinkageMods(priority: JstfPriorityRecord): {
 	enableGsub: uint16[];
 	disableGsub: uint16[];
 	enableGpos: uint16[];
@@ -266,9 +295,7 @@ export function getShrinkageMods(
 }
 
 /** Get lookup modifications for extension at a given priority level */
-export function getExtensionMods(
-	priority: JstfPriorityRecord,
-): {
+export function getExtensionMods(priority: JstfPriorityRecord): {
 	enableGsub: uint16[];
 	disableGsub: uint16[];
 	enableGpos: uint16[];

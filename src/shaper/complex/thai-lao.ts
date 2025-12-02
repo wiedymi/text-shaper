@@ -3,7 +3,7 @@ import type { GlyphInfo } from "../../types.ts";
 /**
  * Thai/Lao character categories
  */
-export const enum ThaiLaoCategory {
+export enum ThaiLaoCategory {
 	Other = 0,
 	Consonant = 1,
 	LeadingVowel = 2, // Vowels that appear before consonant
@@ -123,7 +123,7 @@ export function setupThaiLaoMasks(infos: GlyphInfo[]): void {
 	// Each cluster starts with a consonant
 
 	let clusterIndex = 0;
-	let consonantIndex = -1;
+	let _consonantIndex = -1;
 
 	for (let i = 0; i < infos.length; i++) {
 		const info = infos[i];
@@ -134,7 +134,7 @@ export function setupThaiLaoMasks(infos: GlyphInfo[]): void {
 		// Consonants start new clusters
 		if (cat === ThaiLaoCategory.Consonant) {
 			clusterIndex++;
-			consonantIndex = i;
+			_consonantIndex = i;
 		}
 
 		// Store cluster info in mask

@@ -97,7 +97,12 @@ export function parseName(reader: Reader): NameTable {
 	// Decode strings
 	for (const rd of recordData) {
 		const strReader = reader.sliceFrom(stringOffset + rd.offset);
-		const value = decodeNameString(strReader, rd.length, rd.platformId, rd.encodingId);
+		const value = decodeNameString(
+			strReader,
+			rd.length,
+			rd.platformId,
+			rd.encodingId,
+		);
 
 		if (value !== null) {
 			records.push({
@@ -121,8 +126,11 @@ function decodeNameString(
 	encodingId: number,
 ): string | null {
 	// Unicode platform or Windows platform with Unicode encoding
-	if (platformId === PlatformId.Unicode ||
-		(platformId === PlatformId.Windows && (encodingId === 1 || encodingId === 10))) {
+	if (
+		platformId === PlatformId.Unicode ||
+		(platformId === PlatformId.Windows &&
+			(encodingId === 1 || encodingId === 10))
+	) {
 		// UTF-16BE
 		const chars: string[] = [];
 		for (let i = 0; i < length; i += 2) {
@@ -147,7 +155,11 @@ function decodeNameString(
 }
 
 /** Get a specific name by ID, preferring Windows Unicode */
-export function getNameById(table: NameTable, nameId: number, languageId?: number): string | null {
+export function getNameById(
+	table: NameTable,
+	nameId: number,
+	languageId?: number,
+): string | null {
 	// Prefer Windows Unicode (platform 3, encoding 1)
 	for (const record of table.records) {
 		if (record.nameId !== nameId) continue;
@@ -182,14 +194,18 @@ export function getNameById(table: NameTable, nameId: number, languageId?: numbe
 /** Get font family name */
 export function getFontFamily(table: NameTable): string | null {
 	// Prefer typographic family (16) over basic family (1)
-	return getNameById(table, NameId.TypographicFamily) ??
-		getNameById(table, NameId.FontFamily);
+	return (
+		getNameById(table, NameId.TypographicFamily) ??
+		getNameById(table, NameId.FontFamily)
+	);
 }
 
 /** Get font subfamily (style) */
 export function getFontSubfamily(table: NameTable): string | null {
-	return getNameById(table, NameId.TypographicSubfamily) ??
-		getNameById(table, NameId.FontSubfamily);
+	return (
+		getNameById(table, NameId.TypographicSubfamily) ??
+		getNameById(table, NameId.FontSubfamily)
+	);
 }
 
 /** Get full font name */

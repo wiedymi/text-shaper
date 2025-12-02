@@ -1,10 +1,10 @@
 import type { GlyphId, uint16, uint32 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 import {
-	type ItemVariationStore,
-	type DeltaSetIndexMap,
-	type VariationRegion,
 	calculateRegionScalar,
+	type DeltaSetIndexMap,
+	type ItemVariationStore,
+	type VariationRegion,
 } from "./hvar.ts";
 
 /**
@@ -34,24 +34,30 @@ export function parseVvar(reader: Reader): VvarTable {
 	const vOrgMappingOffset = reader.offset32();
 
 	// Parse item variation store
-	const itemVariationStore = parseItemVariationStore(reader.sliceFrom(itemVariationStoreOffset));
+	const itemVariationStore = parseItemVariationStore(
+		reader.sliceFrom(itemVariationStoreOffset),
+	);
 
 	// Parse mappings
-	const advanceHeightMapping = advanceHeightMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(advanceHeightMappingOffset))
-		: null;
+	const advanceHeightMapping =
+		advanceHeightMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(advanceHeightMappingOffset))
+			: null;
 
-	const tsbMapping = tsbMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(tsbMappingOffset))
-		: null;
+	const tsbMapping =
+		tsbMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(tsbMappingOffset))
+			: null;
 
-	const bsbMapping = bsbMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(bsbMappingOffset))
-		: null;
+	const bsbMapping =
+		bsbMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(bsbMappingOffset))
+			: null;
 
-	const vOrgMapping = vOrgMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(vOrgMappingOffset))
-		: null;
+	const vOrgMapping =
+		vOrgMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(vOrgMappingOffset))
+			: null;
 
 	return {
 		majorVersion,
@@ -81,7 +87,11 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 
 	const variationRegions: VariationRegion[] = [];
 	for (let i = 0; i < regionCount; i++) {
-		const regionAxes: { startCoord: number; peakCoord: number; endCoord: number }[] = [];
+		const regionAxes: {
+			startCoord: number;
+			peakCoord: number;
+			endCoord: number;
+		}[] = [];
 		for (let j = 0; j < axisCount; j++) {
 			regionAxes.push({
 				startCoord: regionReader.f2dot14(),
@@ -93,7 +103,11 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 	}
 
 	// Parse item variation data
-	const itemVariationData: { itemCount: uint16; regionIndexes: uint16[]; deltaSets: number[][] }[] = [];
+	const itemVariationData: {
+		itemCount: uint16;
+		regionIndexes: uint16[];
+		deltaSets: number[][];
+	}[] = [];
 	for (const offset of itemVariationDataOffsets) {
 		const dataReader = reader.sliceFrom(offset);
 		const itemCount = dataReader.uint16();
@@ -202,7 +216,12 @@ export function getTsbDelta(
 	if (glyphId >= mapping.mapData.length) return 0;
 
 	const entry = mapping.mapData[glyphId]!;
-	return calculateDelta(vvar.itemVariationStore, entry.outer, entry.inner, coords);
+	return calculateDelta(
+		vvar.itemVariationStore,
+		entry.outer,
+		entry.inner,
+		coords,
+	);
 }
 
 /**
@@ -219,7 +238,12 @@ export function getBsbDelta(
 	if (glyphId >= mapping.mapData.length) return 0;
 
 	const entry = mapping.mapData[glyphId]!;
-	return calculateDelta(vvar.itemVariationStore, entry.outer, entry.inner, coords);
+	return calculateDelta(
+		vvar.itemVariationStore,
+		entry.outer,
+		entry.inner,
+		coords,
+	);
 }
 
 /**
@@ -236,7 +260,12 @@ export function getVorgDelta(
 	if (glyphId >= mapping.mapData.length) return 0;
 
 	const entry = mapping.mapData[glyphId]!;
-	return calculateDelta(vvar.itemVariationStore, entry.outer, entry.inner, coords);
+	return calculateDelta(
+		vvar.itemVariationStore,
+		entry.outer,
+		entry.inner,
+		coords,
+	);
 }
 
 /**

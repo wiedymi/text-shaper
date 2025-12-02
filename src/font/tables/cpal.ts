@@ -1,4 +1,4 @@
-import { Reader } from "../binary/reader.ts";
+import type { Reader } from "../binary/reader.ts";
 
 /**
  * CPAL (Color Palette) table parser
@@ -20,16 +20,16 @@ export interface ColorPalette {
 }
 
 export interface Color {
-	blue: number;   // 0-255
-	green: number;  // 0-255
-	red: number;    // 0-255
-	alpha: number;  // 0-255
+	blue: number; // 0-255
+	green: number; // 0-255
+	red: number; // 0-255
+	alpha: number; // 0-255
 }
 
 /**
  * Palette type flags
  */
-export const enum PaletteType {
+export enum PaletteType {
 	UsableWithLightBackground = 0x0001,
 	UsableWithDarkBackground = 0x0002,
 }
@@ -127,7 +127,11 @@ export function parseCpal(reader: Reader): CpalTable {
 /**
  * Get color from palette
  */
-export function getColor(cpal: CpalTable, paletteIndex: number, colorIndex: number): Color | null {
+export function getColor(
+	cpal: CpalTable,
+	paletteIndex: number,
+	colorIndex: number,
+): Color | null {
 	const palette = cpal.palettes[paletteIndex];
 	if (!palette) return null;
 	return palette.colors[colorIndex] ?? null;

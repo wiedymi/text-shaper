@@ -2,7 +2,7 @@ import type { GlyphId, uint16, uint32 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /** Platform IDs */
-export const enum PlatformId {
+export enum PlatformId {
 	Unicode = 0,
 	Macintosh = 1,
 	ISO = 2, // deprecated
@@ -53,7 +53,10 @@ interface CmapFormat12 extends CmapSubtableBase {
 /** Variation selector record */
 interface VariationSelectorRecord {
 	varSelector: number;
-	defaultUVS: Array<{ startUnicodeValue: number; additionalCount: number }> | null;
+	defaultUVS: Array<{
+		startUnicodeValue: number;
+		additionalCount: number;
+	}> | null;
 	nonDefaultUVS: Array<{ unicodeValue: number; glyphId: GlyphId }> | null;
 }
 
@@ -61,10 +64,17 @@ interface VariationSelectorRecord {
 interface CmapFormat14 extends CmapSubtableBase {
 	format: 14;
 	varSelectorRecords: VariationSelectorRecord[];
-	lookupVariation(codepoint: number, variationSelector: number): GlyphId | undefined | "default";
+	lookupVariation(
+		codepoint: number,
+		variationSelector: number,
+	): GlyphId | undefined | "default";
 }
 
-export type CmapSubtable = CmapFormat0 | CmapFormat4 | CmapFormat12 | CmapFormat14;
+export type CmapSubtable =
+	| CmapFormat0
+	| CmapFormat4
+	| CmapFormat12
+	| CmapFormat14;
 
 /** Character to glyph index mapping table */
 export interface CmapTable {
@@ -77,7 +87,7 @@ export interface CmapTable {
 }
 
 export function parseCmap(reader: Reader, tableLength: number): CmapTable {
-	const tableStart = reader.offset;
+	const _tableStart = reader.offset;
 	const version = reader.uint16();
 	const numTables = reader.uint16();
 
@@ -101,7 +111,7 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 			// Find existing subtable
 			for (const [existingKey, subtable] of subtables) {
 				const [existingOffset] = existingKey.split("@");
-				if (Number.parseInt(existingOffset ?? "0") === record.offset) {
+				if (Number.parseInt(existingOffset ?? "0", 10) === record.offset) {
 					subtables.set(key, subtable);
 					break;
 				}
@@ -203,7 +213,7 @@ function parseCmapFormat4(reader: Reader): CmapFormat4 {
 	const idDeltas = reader.int16Array(segCount);
 
 	// Save position before idRangeOffsets for glyph ID calculation
-	const idRangeOffsetPos = reader.offset;
+	const _idRangeOffsetPos = reader.offset;
 	const idRangeOffsets = reader.uint16Array(segCount);
 
 	// Read remaining glyph IDs
@@ -349,7 +359,9 @@ function parseCmapFormat14(reader: Reader): CmapFormat14 {
 
 		// Parse non-default UVS table (specific glyph mappings)
 		if (raw.nonDefaultUVSOffset !== 0) {
-			const uvsReader = reader.sliceFrom(subtableStart + raw.nonDefaultUVSOffset);
+			const uvsReader = reader.sliceFrom(
+				subtableStart + raw.nonDefaultUVSOffset,
+			);
 			const numUVSMappings = uvsReader.uint32();
 			nonDefaultUVS = [];
 
@@ -449,7 +461,7 @@ export function getVariationGlyphId(
 ): GlyphId | undefined {
 	// Find Format 14 subtable
 	const format14 = Array.from(cmap.subtables.values()).find(
-		(s): s is CmapFormat14 => s.format === 14
+		(s): s is CmapFormat14 => s.format === 14,
 	);
 
 	if (!format14) {
@@ -469,11 +481,11 @@ export function getVariationGlyphId(
 /** Check if a codepoint is a variation selector */
 export function isVariationSelector(codepoint: number): boolean {
 	// Variation Selectors block (VS1-VS16)
-	if (codepoint >= 0xFE00 && codepoint <= 0xFE0F) {
+	if (codepoint >= 0xfe00 && codepoint <= 0xfe0f) {
 		return true;
 	}
 	// Variation Selectors Supplement (VS17-VS256)
-	if (codepoint >= 0xE0100 && codepoint <= 0xE01EF) {
+	if (codepoint >= 0xe0100 && codepoint <= 0xe01ef) {
 		return true;
 	}
 	return false;

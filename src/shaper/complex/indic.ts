@@ -3,7 +3,7 @@ import type { GlyphInfo } from "../../types.ts";
 /**
  * Indic syllable categories based on Unicode and OpenType spec
  */
-export const enum IndicCategory {
+export enum IndicCategory {
 	X = 0, // Other/Unknown
 	C = 1, // Consonant
 	V = 2, // Independent vowel
@@ -28,7 +28,7 @@ export const enum IndicCategory {
 /**
  * Indic syllabic position
  */
-export const enum IndicPosition {
+export enum IndicPosition {
 	Start = 0,
 	RaToBecomeReph = 1,
 	PreM = 2,
@@ -148,8 +148,12 @@ export function getIndicCategory(cp: number): IndicCategory {
 	// Devanagari (0900-097F)
 	if (isDevanagari(cp)) {
 		// Vowel signs (matras)
-		if ((cp >= 0x093a && cp <= 0x093b) || (cp >= 0x093e && cp <= 0x094c) ||
-			(cp >= 0x094e && cp <= 0x094f) || (cp >= 0x0955 && cp <= 0x0957)) {
+		if (
+			(cp >= 0x093a && cp <= 0x093b) ||
+			(cp >= 0x093e && cp <= 0x094c) ||
+			(cp >= 0x094e && cp <= 0x094f) ||
+			(cp >= 0x0955 && cp <= 0x0957)
+		) {
 			return IndicCategory.M;
 		}
 		// Virama
@@ -161,14 +165,25 @@ export function getIndicCategory(cp: number): IndicCategory {
 		// Vedic marks
 		if (cp >= 0x0951 && cp <= 0x0954) return IndicCategory.A;
 		// Independent vowels
-		if ((cp >= 0x0904 && cp <= 0x0914) || cp === 0x0960 || cp === 0x0961 ||
-			cp === 0x0972 || (cp >= 0x0976 && cp <= 0x0977)) {
+		if (
+			(cp >= 0x0904 && cp <= 0x0914) ||
+			cp === 0x0960 ||
+			cp === 0x0961 ||
+			cp === 0x0972 ||
+			(cp >= 0x0976 && cp <= 0x0977)
+		) {
 			return IndicCategory.V;
 		}
 		// Consonants
-		if ((cp >= 0x0915 && cp <= 0x0939) || (cp >= 0x0958 && cp <= 0x095f) ||
-			cp === 0x0978 || cp === 0x0979 || cp === 0x097a ||
-			(cp >= 0x097b && cp <= 0x097c) || (cp >= 0x097e && cp <= 0x097f)) {
+		if (
+			(cp >= 0x0915 && cp <= 0x0939) ||
+			(cp >= 0x0958 && cp <= 0x095f) ||
+			cp === 0x0978 ||
+			cp === 0x0979 ||
+			cp === 0x097a ||
+			(cp >= 0x097b && cp <= 0x097c) ||
+			(cp >= 0x097e && cp <= 0x097f)
+		) {
 			// Ra for repha
 			if (cp === 0x0930) return IndicCategory.Ra;
 			return IndicCategory.C;
@@ -180,20 +195,34 @@ export function getIndicCategory(cp: number): IndicCategory {
 
 	// Bengali (0980-09FF)
 	if (isBengali(cp)) {
-		if ((cp >= 0x09be && cp <= 0x09c4) || (cp >= 0x09c7 && cp <= 0x09c8) ||
-			(cp >= 0x09cb && cp <= 0x09cc) || cp === 0x09d7) {
+		if (
+			(cp >= 0x09be && cp <= 0x09c4) ||
+			(cp >= 0x09c7 && cp <= 0x09c8) ||
+			(cp >= 0x09cb && cp <= 0x09cc) ||
+			cp === 0x09d7
+		) {
 			return IndicCategory.M;
 		}
 		if (cp === 0x09cd) return IndicCategory.H;
 		if (cp === 0x09bc) return IndicCategory.N;
 		if (cp >= 0x0981 && cp <= 0x0983) return IndicCategory.SM;
-		if ((cp >= 0x0985 && cp <= 0x098c) || (cp >= 0x098f && cp <= 0x0990) ||
-			(cp >= 0x0993 && cp <= 0x0994) || cp === 0x09e0 || cp === 0x09e1) {
+		if (
+			(cp >= 0x0985 && cp <= 0x098c) ||
+			(cp >= 0x098f && cp <= 0x0990) ||
+			(cp >= 0x0993 && cp <= 0x0994) ||
+			cp === 0x09e0 ||
+			cp === 0x09e1
+		) {
 			return IndicCategory.V;
 		}
-		if ((cp >= 0x0995 && cp <= 0x09a8) || (cp >= 0x09aa && cp <= 0x09b0) ||
-			cp === 0x09b2 || (cp >= 0x09b6 && cp <= 0x09b9) ||
-			(cp >= 0x09dc && cp <= 0x09dd) || (cp >= 0x09df && cp <= 0x09e1)) {
+		if (
+			(cp >= 0x0995 && cp <= 0x09a8) ||
+			(cp >= 0x09aa && cp <= 0x09b0) ||
+			cp === 0x09b2 ||
+			(cp >= 0x09b6 && cp <= 0x09b9) ||
+			(cp >= 0x09dc && cp <= 0x09dd) ||
+			(cp >= 0x09df && cp <= 0x09e1)
+		) {
 			if (cp === 0x09b0) return IndicCategory.Ra;
 			return IndicCategory.C;
 		}
@@ -202,8 +231,15 @@ export function getIndicCategory(cp: number): IndicCategory {
 
 	// Other Indic scripts - simplified handling
 	// Tamil, Telugu, Kannada, Malayalam, Gurmukhi, Gujarati, Oriya
-	if (isGurmukhi(cp) || isGujarati(cp) || isOriya(cp) ||
-		isTamil(cp) || isTelugu(cp) || isKannada(cp) || isMalayalam(cp)) {
+	if (
+		isGurmukhi(cp) ||
+		isGujarati(cp) ||
+		isOriya(cp) ||
+		isTamil(cp) ||
+		isTelugu(cp) ||
+		isKannada(cp) ||
+		isMalayalam(cp)
+	) {
 		const offset = cp & 0x7f; // Position within the block
 		// Common patterns for Indic scripts
 		if (offset >= 0x01 && offset <= 0x03) return IndicCategory.SM; // Anusvara etc
@@ -278,11 +314,17 @@ function parseSyllable(infos: GlyphInfo[], start: number): Syllable {
 			lastConsonant = pos;
 			pos++;
 			// Check for nukta
-			if (pos < n && getIndicCategory(infos[pos]?.codepoint ?? 0) === IndicCategory.N) {
+			if (
+				pos < n &&
+				getIndicCategory(infos[pos]?.codepoint ?? 0) === IndicCategory.N
+			) {
 				pos++;
 			}
 			// Check for halant (may continue consonant cluster)
-			if (pos < n && getIndicCategory(infos[pos]?.codepoint ?? 0) === IndicCategory.H) {
+			if (
+				pos < n &&
+				getIndicCategory(infos[pos]?.codepoint ?? 0) === IndicCategory.H
+			) {
 				pos++;
 				// After halant, might have ZWJ/ZWNJ or another consonant
 				if (pos < n) {
@@ -317,8 +359,12 @@ function parseSyllable(infos: GlyphInfo[], start: number): Syllable {
 		const cp = infos[pos]?.codepoint ?? 0;
 		const cat = getIndicCategory(cp);
 
-		if (cat === IndicCategory.M || cat === IndicCategory.SM ||
-			cat === IndicCategory.A || cat === IndicCategory.N) {
+		if (
+			cat === IndicCategory.M ||
+			cat === IndicCategory.SM ||
+			cat === IndicCategory.A ||
+			cat === IndicCategory.N
+		) {
 			pos++;
 		} else if (cat === IndicCategory.H) {
 			// Halant at end (final form)
@@ -367,7 +413,7 @@ export const IndicFeatureMask = {
 /**
  * Matra position in syllable
  */
-export const enum MatraPosition {
+export enum MatraPosition {
 	PreBase = 0,
 	AboveBase = 1,
 	BelowBase = 2,
@@ -513,7 +559,10 @@ export function setupIndicMasks(infos: GlyphInfo[]): void {
 						info.mask |= IndicFeatureMask.half | IndicFeatureMask.cjct;
 					} else if (j > syllable.baseConsonant) {
 						// Post-base consonant
-						info.mask |= IndicFeatureMask.blwf | IndicFeatureMask.pstf | IndicFeatureMask.vatu;
+						info.mask |=
+							IndicFeatureMask.blwf |
+							IndicFeatureMask.pstf |
+							IndicFeatureMask.vatu;
 					}
 				}
 

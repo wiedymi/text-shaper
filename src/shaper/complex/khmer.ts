@@ -14,17 +14,17 @@ const KHMER_SYMBOLS_END = 0x19ff;
 /**
  * Khmer character categories
  */
-export const enum KhmerCategory {
+export enum KhmerCategory {
 	Other = 0,
 	Consonant = 1,
 	IndependentVowel = 2,
 	DependentVowel = 3,
-	Coeng = 4,       // Subscript sign (្)
-	Register = 5,     // Register shifters
-	Robat = 6,       // Consonant shifter (៌)
+	Coeng = 4, // Subscript sign (្)
+	Register = 5, // Register shifters
+	Robat = 6, // Consonant shifter (៌)
 	Sign = 7,
-	Anusvara = 8,    // Nikahit (ំ)
-	Visarga = 9,     // Reahmuk (ះ)
+	Anusvara = 8, // Nikahit (ំ)
+	Visarga = 9, // Reahmuk (ះ)
 }
 
 /**
@@ -84,8 +84,10 @@ export const KhmerFeatureMask = {
  * Check if codepoint is Khmer
  */
 export function isKhmer(cp: number): boolean {
-	return (cp >= KHMER_START && cp <= KHMER_END) ||
-	       (cp >= KHMER_SYMBOLS_START && cp <= KHMER_SYMBOLS_END);
+	return (
+		(cp >= KHMER_START && cp <= KHMER_END) ||
+		(cp >= KHMER_SYMBOLS_START && cp <= KHMER_SYMBOLS_END)
+	);
 }
 
 /**
@@ -104,12 +106,12 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 		}
 
 		// Find syllable extent
-		const syllableStart = i;
-		let base = -1;
+		const _syllableStart = i;
+		let _base = -1;
 
 		// Find base consonant
 		if (cat === KhmerCategory.Consonant) {
-			base = i;
+			_base = i;
 		}
 
 		// Process syllable
@@ -122,7 +124,10 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 			if (nextCat === KhmerCategory.Consonant) {
 				// Check if followed by coeng
 				const prevInfo = infos[j - 1];
-				if (prevInfo && getKhmerCategory(prevInfo.codepoint) !== KhmerCategory.Coeng) {
+				if (
+					prevInfo &&
+					getKhmerCategory(prevInfo.codepoint) !== KhmerCategory.Coeng
+				) {
 					break;
 				}
 			}
@@ -130,7 +135,9 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 			// Coeng + consonant = subscript consonant
 			if (nextCat === KhmerCategory.Coeng && j + 1 < infos.length) {
 				const afterCoeng = infos[j + 1]!;
-				if (getKhmerCategory(afterCoeng.codepoint) === KhmerCategory.Consonant) {
+				if (
+					getKhmerCategory(afterCoeng.codepoint) === KhmerCategory.Consonant
+				) {
 					// Mark for below-base forms
 					nextInfo.mask |= KhmerFeatureMask.blwf;
 					afterCoeng.mask |= KhmerFeatureMask.blwf;
@@ -150,8 +157,11 @@ export function setupKhmerMasks(infos: GlyphInfo[]): void {
 					nextInfo.mask |= KhmerFeatureMask.abvf;
 				}
 				// Below-base vowels
-				else if (nextInfo.codepoint === 0x17bb || nextInfo.codepoint === 0x17bc ||
-				         nextInfo.codepoint === 0x17bd) {
+				else if (
+					nextInfo.codepoint === 0x17bb ||
+					nextInfo.codepoint === 0x17bc ||
+					nextInfo.codepoint === 0x17bd
+				) {
 					nextInfo.mask |= KhmerFeatureMask.blwf;
 				}
 				// Post-base vowels
@@ -185,7 +195,7 @@ export function reorderKhmer(infos: GlyphInfo[]): void {
 	let i = 0;
 
 	while (i < infos.length) {
-		const cat = getKhmerCategory(infos[i]!.codepoint);
+		const cat = getKhmerCategory(infos[i]?.codepoint);
 
 		if (cat !== KhmerCategory.Consonant) {
 			i++;
@@ -198,7 +208,7 @@ export function reorderKhmer(infos: GlyphInfo[]): void {
 
 		// Skip coeng sequences
 		while (j < infos.length) {
-			const jCat = getKhmerCategory(infos[j]!.codepoint);
+			const jCat = getKhmerCategory(infos[j]?.codepoint);
 			if (jCat === KhmerCategory.Coeng && j + 1 < infos.length) {
 				j += 2; // Skip coeng + consonant
 			} else {
@@ -208,7 +218,7 @@ export function reorderKhmer(infos: GlyphInfo[]): void {
 
 		// Check for pre-base vowel
 		if (j < infos.length) {
-			const cp = infos[j]!.codepoint;
+			const cp = infos[j]?.codepoint;
 			if (cp >= 0x17c1 && cp <= 0x17c3) {
 				// Move pre-base vowel before base
 				const vowel = infos[j]!;

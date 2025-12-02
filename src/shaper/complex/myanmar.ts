@@ -16,15 +16,15 @@ const MYANMAR_EXT_B_END = 0xa9ff;
 /**
  * Myanmar character categories
  */
-export const enum MyanmarCategory {
+export enum MyanmarCategory {
 	Other = 0,
 	Consonant = 1,
 	IndependentVowel = 2,
 	DependentVowel = 3,
 	Medial = 4,
-	Asat = 5,        // Killer (္)
-	Anusvara = 6,    // Dot below
-	Visarga = 7,     // Visarga
+	Asat = 5, // Killer (္)
+	Anusvara = 6, // Dot below
+	Visarga = 7, // Visarga
 	Sign = 8,
 	Number = 9,
 	Placeholder = 10, // Placeholder for visible virama
@@ -128,9 +128,11 @@ export const MyanmarFeatureMask = {
  * Check if codepoint is Myanmar
  */
 export function isMyanmar(cp: number): boolean {
-	return (cp >= MYANMAR_START && cp <= MYANMAR_END) ||
-	       (cp >= MYANMAR_EXT_A_START && cp <= MYANMAR_EXT_A_END) ||
-	       (cp >= MYANMAR_EXT_B_START && cp <= MYANMAR_EXT_B_END);
+	return (
+		(cp >= MYANMAR_START && cp <= MYANMAR_END) ||
+		(cp >= MYANMAR_EXT_A_START && cp <= MYANMAR_EXT_A_END) ||
+		(cp >= MYANMAR_EXT_B_START && cp <= MYANMAR_EXT_B_END)
+	);
 }
 
 /**
@@ -149,11 +151,11 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 		}
 
 		// Find syllable extent
-		let base = -1;
+		let _base = -1;
 		let hasAsat = false;
 
 		if (cat === MyanmarCategory.Consonant) {
-			base = i;
+			_base = i;
 		}
 
 		let j = i + 1;
@@ -171,7 +173,10 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 				// Check for following consonant (stacking)
 				if (j + 1 < infos.length) {
 					const afterAsat = infos[j + 1]!;
-					if (getMyanmarCategory(afterAsat.codepoint) === MyanmarCategory.Consonant) {
+					if (
+						getMyanmarCategory(afterAsat.codepoint) ===
+						MyanmarCategory.Consonant
+					) {
 						afterAsat.mask |= MyanmarFeatureMask.blwf;
 						j += 2;
 						continue;
@@ -222,14 +227,17 @@ export function setupMyanmarMasks(infos: GlyphInfo[]): void {
 			}
 
 			// Signs above
-			if (nextCat === MyanmarCategory.Anusvara || nextCat === MyanmarCategory.Sign) {
+			if (
+				nextCat === MyanmarCategory.Anusvara ||
+				nextCat === MyanmarCategory.Sign
+			) {
 				nextInfo.mask |= MyanmarFeatureMask.abvs;
 			}
 
 			// New syllable on consonant without asat
 			if (nextCat === MyanmarCategory.Consonant && !hasAsat) {
 				// Check if previous was asat
-				const prevCat = getMyanmarCategory(infos[j - 1]!.codepoint);
+				const prevCat = getMyanmarCategory(infos[j - 1]?.codepoint);
 				if (prevCat !== MyanmarCategory.Asat) {
 					break;
 				}
@@ -251,7 +259,7 @@ export function reorderMyanmar(infos: GlyphInfo[]): void {
 	let i = 0;
 
 	while (i < infos.length) {
-		const cat = getMyanmarCategory(infos[i]!.codepoint);
+		const cat = getMyanmarCategory(infos[i]?.codepoint);
 
 		if (cat !== MyanmarCategory.Consonant) {
 			i++;
@@ -283,7 +291,10 @@ export function reorderMyanmar(infos: GlyphInfo[]): void {
 			}
 
 			// Stop at next syllable
-			if (jCat === MyanmarCategory.Consonant || jCat === MyanmarCategory.Other) {
+			if (
+				jCat === MyanmarCategory.Consonant ||
+				jCat === MyanmarCategory.Other
+			) {
 				break;
 			}
 

@@ -1,5 +1,5 @@
-import type { int16, uint16 } from "../../types.ts";
 import type { Reader } from "../../font/binary/reader.ts";
+import type { int16, uint16 } from "../../types.ts";
 
 /**
  * Device table - pixel-level adjustments for different PPEM sizes
@@ -31,7 +31,10 @@ export function isVariationIndexTable(
 }
 
 /** Parse Device or VariationIndex table at offset */
-export function parseDeviceAt(reader: Reader, offset: number): DeviceOrVariationIndex | null {
+export function parseDeviceAt(
+	reader: Reader,
+	offset: number,
+): DeviceOrVariationIndex | null {
 	if (offset === 0) return null;
 	return parseDevice(reader.sliceFrom(offset));
 }
@@ -59,13 +62,17 @@ export function parseDevice(reader: Reader): DeviceOrVariationIndex {
 		const mask = (1 << bitsPerValue) - 1;
 		const signBit = 1 << (bitsPerValue - 1);
 
-		let wordCount = Math.ceil(count / valuesPerWord);
+		const wordCount = Math.ceil(count / valuesPerWord);
 		let valueIndex = 0;
 
 		for (let w = 0; w < wordCount; w++) {
 			const word = reader.uint16();
 
-			for (let v = 0; v < valuesPerWord && valueIndex < count; v++, valueIndex++) {
+			for (
+				let v = 0;
+				v < valuesPerWord && valueIndex < count;
+				v++, valueIndex++
+			) {
 				const shift = 16 - bitsPerValue * (v + 1);
 				let delta = (word >> shift) & mask;
 
@@ -139,10 +146,23 @@ export interface ResolvedValueRecord {
 export function applyDeviceAdjustments(
 	record: ResolvedValueRecord,
 	ppem: number,
-): { xPlacement: number; yPlacement: number; xAdvance: number; yAdvance: number } {
+): {
+	xPlacement: number;
+	yPlacement: number;
+	xAdvance: number;
+	yAdvance: number;
+} {
 	return {
-		xPlacement: applyDeviceAdjustment(record.xPlaDevice, record.xPlacement, ppem),
-		yPlacement: applyDeviceAdjustment(record.yPlaDevice, record.yPlacement, ppem),
+		xPlacement: applyDeviceAdjustment(
+			record.xPlaDevice,
+			record.xPlacement,
+			ppem,
+		),
+		yPlacement: applyDeviceAdjustment(
+			record.yPlaDevice,
+			record.yPlacement,
+			ppem,
+		),
 		xAdvance: applyDeviceAdjustment(record.xAdvDevice, record.xAdvance, ppem),
 		yAdvance: applyDeviceAdjustment(record.yAdvDevice, record.yAdvance, ppem),
 	};

@@ -1,14 +1,14 @@
 import type {
 	F2Dot14,
 	Fixed,
+	int16,
+	int32,
 	Offset16,
 	Offset32,
 	Tag,
-	int16,
-	int32,
+	uint8,
 	uint16,
 	uint32,
-	uint8,
 } from "../../types.ts";
 
 /**
@@ -69,7 +69,11 @@ export class Reader {
 
 	/** Create a sub-reader from current position */
 	sliceFrom(offset: number): Reader {
-		return new Reader(this.data, this.start + offset, this.end - this.start - offset);
+		return new Reader(
+			this.data,
+			this.start + offset,
+			this.end - this.start - offset,
+		);
 	}
 
 	/** Peek at a value without advancing position */

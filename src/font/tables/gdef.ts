@@ -1,11 +1,10 @@
+import {
+	type ClassDef,
+	parseClassDefAt,
+} from "../../layout/structures/class-def.ts";
 import type { GlyphId, uint16 } from "../../types.ts";
 import { GlyphClass } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
-import {
-	type ClassDef,
-	EMPTY_CLASS_DEF,
-	parseClassDefAt,
-} from "../../layout/structures/class-def.ts";
 
 /** Attach point for a glyph */
 export interface AttachPoint {
@@ -78,7 +77,9 @@ export function parseGdef(reader: Reader): GdefTable {
 	// Parse mark glyph sets (version 1.2+)
 	let markGlyphSets: MarkGlyphSets | null = null;
 	if (markGlyphSetsDefOffset !== 0) {
-		markGlyphSets = parseMarkGlyphSets(reader.sliceFrom(markGlyphSetsDefOffset));
+		markGlyphSets = parseMarkGlyphSets(
+			reader.sliceFrom(markGlyphSetsDefOffset),
+		);
 	}
 
 	return {
@@ -199,7 +200,7 @@ function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
 }
 
 function parseMarkGlyphSets(reader: Reader): MarkGlyphSets {
-	const format = reader.uint16();
+	const _format = reader.uint16();
 	const markSetCount = reader.uint16();
 
 	// Read coverage offsets
@@ -240,7 +241,10 @@ function parseMarkGlyphSets(reader: Reader): MarkGlyphSets {
 }
 
 /** Get glyph class from GDEF */
-export function getGlyphClass(gdef: GdefTable | null, glyphId: GlyphId): GlyphClass | 0 {
+export function getGlyphClass(
+	gdef: GdefTable | null,
+	glyphId: GlyphId,
+): GlyphClass | 0 {
 	if (!gdef) return 0;
 	const cls = gdef.glyphClassDef.get(glyphId);
 	return cls as GlyphClass | 0;

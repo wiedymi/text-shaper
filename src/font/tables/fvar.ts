@@ -1,6 +1,6 @@
-import type { Tag, Fixed } from "../../types.ts";
-import type { Reader } from "../binary/reader.ts";
+import type { Fixed, Tag } from "../../types.ts";
 import { tagToString } from "../../types.ts";
+import type { Reader } from "../binary/reader.ts";
 
 /**
  * Font Variations table (fvar)
@@ -79,7 +79,7 @@ export function parseFvar(reader: Reader): FvarTable {
 	reader.seek(axesArrayOffset);
 
 	for (let i = 0; i < axisCount; i++) {
-		const axisStart = reader.position;
+		const axisStart = reader.offset;
 		const tag = reader.uint32();
 		const minValue = reader.fixed();
 		const defaultValue = reader.fixed();
@@ -105,7 +105,7 @@ export function parseFvar(reader: Reader): FvarTable {
 	const hasPostScriptNameId = instanceSize >= 4 + axisCount * 4 + 2;
 
 	for (let i = 0; i < instanceCount; i++) {
-		const instanceStart = reader.position;
+		const instanceStart = reader.offset;
 		const subfamilyNameId = reader.uint16();
 		const flags = reader.uint16();
 
@@ -141,10 +141,7 @@ export function parseFvar(reader: Reader): FvarTable {
 /**
  * Normalize axis value to range [-1, 1]
  */
-export function normalizeAxisValue(
-	axis: VariationAxis,
-	value: number,
-): number {
+export function normalizeAxisValue(axis: VariationAxis, value: number): number {
 	if (value < axis.defaultValue) {
 		if (value < axis.minValue) value = axis.minValue;
 		if (axis.defaultValue === axis.minValue) return 0;
@@ -161,14 +158,14 @@ export function normalizeAxisValue(
  * Get axis by tag
  */
 export function getAxis(fvar: FvarTable, axisTag: Tag): VariationAxis | null {
-	return fvar.axes.find(a => a.tag === axisTag) ?? null;
+	return fvar.axes.find((a) => a.tag === axisTag) ?? null;
 }
 
 /**
  * Get axis index by tag
  */
 export function getAxisIndex(fvar: FvarTable, axisTag: Tag): number {
-	return fvar.axes.findIndex(a => a.tag === axisTag);
+	return fvar.axes.findIndex((a) => a.tag === axisTag);
 }
 
 /**

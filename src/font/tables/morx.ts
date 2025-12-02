@@ -32,7 +32,7 @@ export interface MorxFeature {
 /**
  * Subtable types
  */
-export const enum MorxSubtableType {
+export enum MorxSubtableType {
 	Rearrangement = 0,
 	Contextual = 1,
 	Ligature = 2,
@@ -182,7 +182,7 @@ export function parseMorx(reader: Reader): MorxTable {
 
 function parseMorxChain(reader: Reader): MorxChain {
 	const defaultFlags = reader.uint32();
-	const chainLength = reader.uint32();
+	const _chainLength = reader.uint32();
 	const nFeatureEntries = reader.uint32();
 	const nSubtables = reader.uint32();
 
@@ -219,7 +219,7 @@ function parseMorxSubtable(reader: Reader): MorxSubtable | null {
 		logical: (coverageBits & 0x10000000) !== 0,
 	};
 
-	const subtableStart = reader.position;
+	const subtableStart = reader.offset;
 	const subtableEnd = subtableStart + length - 12;
 
 	let subtable: MorxSubtable | null = null;
@@ -268,15 +268,17 @@ function parseContextualSubtable(
 	coverage: MorxCoverage,
 	subFeatureFlags: uint32,
 ): MorxContextualSubtable {
-	const stateTableOffset = reader.position;
+	const stateTableOffset = reader.offset;
 	const nClasses = reader.uint32();
 	const classTableOffset = reader.offset32();
-	const stateArrayOffset = reader.offset32();
-	const entryTableOffset = reader.offset32();
-	const substitutionTableOffset = reader.offset32();
+	const _stateArrayOffset = reader.offset32();
+	const _entryTableOffset = reader.offset32();
+	const _substitutionTableOffset = reader.offset32();
 
 	// Parse class table
-	const classTable = parseClassTable(reader.sliceFrom(stateTableOffset + classTableOffset));
+	const classTable = parseClassTable(
+		reader.sliceFrom(stateTableOffset + classTableOffset),
+	);
 
 	// Parse state array and entries (simplified)
 	const stateTable: StateTable<ContextualEntry> = {
@@ -301,17 +303,19 @@ function parseLigatureSubtable(
 	coverage: MorxCoverage,
 	subFeatureFlags: uint32,
 ): MorxLigatureSubtable {
-	const stateTableOffset = reader.position;
+	const stateTableOffset = reader.offset;
 	const nClasses = reader.uint32();
 	const classTableOffset = reader.offset32();
-	const stateArrayOffset = reader.offset32();
-	const entryTableOffset = reader.offset32();
-	const ligatureActionsOffset = reader.offset32();
-	const componentsOffset = reader.offset32();
-	const ligaturesOffset = reader.offset32();
+	const _stateArrayOffset = reader.offset32();
+	const _entryTableOffset = reader.offset32();
+	const _ligatureActionsOffset = reader.offset32();
+	const _componentsOffset = reader.offset32();
+	const _ligaturesOffset = reader.offset32();
 
 	// Parse class table
-	const classTable = parseClassTable(reader.sliceFrom(stateTableOffset + classTableOffset));
+	const classTable = parseClassTable(
+		reader.sliceFrom(stateTableOffset + classTableOffset),
+	);
 
 	// State table (simplified)
 	const stateTable: StateTable<LigatureEntry> = {
@@ -336,17 +340,21 @@ function parseRearrangementSubtable(
 	coverage: MorxCoverage,
 	subFeatureFlags: uint32,
 ): MorxRearrangementSubtable {
-	const stateTableOffset = reader.position;
+	const stateTableOffset = reader.offset;
 	const nClasses = reader.uint32();
 	const classTableOffset = reader.offset32();
 	const stateArrayOffset = reader.offset32();
 	const entryTableOffset = reader.offset32();
 
 	// Parse class table
-	const classTable = parseClassTable(reader.sliceFrom(stateTableOffset + classTableOffset));
+	const classTable = parseClassTable(
+		reader.sliceFrom(stateTableOffset + classTableOffset),
+	);
 
 	// Parse state array
-	const stateArrayReader = reader.sliceFrom(stateTableOffset + stateArrayOffset);
+	const stateArrayReader = reader.sliceFrom(
+		stateTableOffset + stateArrayOffset,
+	);
 	const entryReader = reader.sliceFrom(stateTableOffset + entryTableOffset);
 
 	// Parse entries (each entry is 4 bytes: newState uint16, flags uint16)
@@ -361,7 +369,10 @@ function parseRearrangementSubtable(
 
 	// Build state array
 	const stateArray: RearrangementEntry[][] = [];
-	const stateCount = Math.min(256, Math.ceil((entryTableOffset - stateArrayOffset) / (nClasses * 2)));
+	const stateCount = Math.min(
+		256,
+		Math.ceil((entryTableOffset - stateArrayOffset) / (nClasses * 2)),
+	);
 	for (let s = 0; s < stateCount; s++) {
 		const row: RearrangementEntry[] = [];
 		for (let c = 0; c < nClasses; c++) {
@@ -388,7 +399,7 @@ function parseInsertionSubtable(
 	coverage: MorxCoverage,
 	subFeatureFlags: uint32,
 ): MorxInsertionSubtable {
-	const stateTableOffset = reader.position;
+	const stateTableOffset = reader.offset;
 	const nClasses = reader.uint32();
 	const classTableOffset = reader.offset32();
 	const stateArrayOffset = reader.offset32();
@@ -396,10 +407,14 @@ function parseInsertionSubtable(
 	const insertionActionOffset = reader.offset32();
 
 	// Parse class table
-	const classTable = parseClassTable(reader.sliceFrom(stateTableOffset + classTableOffset));
+	const classTable = parseClassTable(
+		reader.sliceFrom(stateTableOffset + classTableOffset),
+	);
 
 	// Parse insertion glyphs array
-	const insertionReader = reader.sliceFrom(stateTableOffset + insertionActionOffset);
+	const insertionReader = reader.sliceFrom(
+		stateTableOffset + insertionActionOffset,
+	);
 	const insertionGlyphs: GlyphId[] = [];
 	// Read a reasonable number of insertion glyphs
 	const maxInsertionGlyphs = 1024;
@@ -425,14 +440,26 @@ function parseInsertionSubtable(
 	}
 
 	// Build state array
-	const stateArrayReader = reader.sliceFrom(stateTableOffset + stateArrayOffset);
+	const stateArrayReader = reader.sliceFrom(
+		stateTableOffset + stateArrayOffset,
+	);
 	const stateArray: InsertionEntry[][] = [];
-	const stateCount = Math.min(256, Math.ceil((entryTableOffset - stateArrayOffset) / (nClasses * 2)));
+	const stateCount = Math.min(
+		256,
+		Math.ceil((entryTableOffset - stateArrayOffset) / (nClasses * 2)),
+	);
 	for (let s = 0; s < stateCount; s++) {
 		const row: InsertionEntry[] = [];
 		for (let c = 0; c < nClasses; c++) {
 			const entryIndex = stateArrayReader.uint16();
-			row.push(entries[entryIndex] ?? { newState: 0, flags: 0, currentInsertIndex: 0xFFFF, markedInsertIndex: 0xFFFF });
+			row.push(
+				entries[entryIndex] ?? {
+					newState: 0,
+					flags: 0,
+					currentInsertIndex: 0xffff,
+					markedInsertIndex: 0xffff,
+				},
+			);
 		}
 		stateArray.push(row);
 	}
@@ -462,7 +489,7 @@ function parseLookupTable(reader: Reader): LookupTable {
 		}
 		case 2: {
 			// Segment single
-			const unitSize = reader.uint16();
+			const _unitSize = reader.uint16();
 			const nUnits = reader.uint16();
 			reader.skip(6); // searchRange, entrySelector, rangeShift
 
@@ -479,14 +506,14 @@ function parseLookupTable(reader: Reader): LookupTable {
 		}
 		case 4: {
 			// Segment array
-			const unitSize = reader.uint16();
+			const _unitSize = reader.uint16();
 			const nUnits = reader.uint16();
 			reader.skip(6);
 
 			for (let i = 0; i < nUnits; i++) {
-				const lastGlyph = reader.uint16();
-				const firstGlyph = reader.uint16();
-				const valueOffset = reader.uint16();
+				const _lastGlyph = reader.uint16();
+				const _firstGlyph = reader.uint16();
+				const _valueOffset = reader.uint16();
 
 				// Values would be read from valueOffset
 				// Simplified: skip for now
@@ -495,7 +522,7 @@ function parseLookupTable(reader: Reader): LookupTable {
 		}
 		case 6: {
 			// Single table
-			const unitSize = reader.uint16();
+			const _unitSize = reader.uint16();
 			const nUnits = reader.uint16();
 			reader.skip(6);
 
@@ -530,7 +557,7 @@ function parseClassTable(reader: Reader): ClassTable {
 
 	if (format === 2) {
 		// Binary search segments
-		const unitSize = reader.uint16();
+		const _unitSize = reader.uint16();
 		const nUnits = reader.uint16();
 		reader.skip(6);
 
@@ -544,9 +571,9 @@ function parseClassTable(reader: Reader): ClassTable {
 		}
 
 		// Build class array (simplified, might be large)
-		const maxGlyph = Math.max(...segments.map(s => s.last), 0);
+		const maxGlyph = Math.max(...segments.map((s) => s.last), 0);
 		for (let g = 0; g <= maxGlyph; g++) {
-			const seg = segments.find(s => g >= s.first && g <= s.last);
+			const seg = segments.find((s) => g >= s.first && g <= s.last);
 			classArray[g] = seg?.classValue ?? 1; // Class 1 = out of bounds
 		}
 	}

@@ -4,7 +4,7 @@ import type { GlyphInfo } from "../../types.ts";
  * Universal Shaping Engine (USE) categories
  * Based on Unicode USE specification
  */
-export const enum UseCategory {
+export enum UseCategory {
 	O = 0, // Other
 	B = 1, // Base
 	CGJ = 2, // Combining Grapheme Joiner
@@ -186,30 +186,394 @@ export function getUseCategory(cp: number): UseCategory {
 	return UseCategory.O;
 }
 
+/** USE feature masks */
+export const UseFeatureMask = {
+	rphf: 0x0001, // Reph forms
+	pref: 0x0002, // Pre-base forms
+	blwf: 0x0004, // Below-base forms
+	abvf: 0x0008, // Above-base forms
+	pstf: 0x0010, // Post-base forms
+	half: 0x0020, // Half forms
+	cjct: 0x0040, // Conjunct forms
+	vatu: 0x0080, // Vattu variants
+	pres: 0x0100, // Pre-base substitutions
+	abvs: 0x0200, // Above-base substitutions
+	blws: 0x0400, // Below-base substitutions
+	psts: 0x0800, // Post-base substitutions
+	haln: 0x1000, // Halant forms
+} as const;
+
+/**
+ * USE syllable structure
+ */
+interface UseSyllable {
+	start: number;
+	end: number;
+	base: number;
+	hasReph: boolean;
+}
+
+/**
+ * Find syllable boundaries in USE text
+ */
+function findUseSyllables(infos: GlyphInfo[]): UseSyllable[] {
+	const syllables: UseSyllable[] = [];
+	const n = infos.length;
+	if (n === 0) return syllables;
+
+	let start = 0;
+
+	while (start < n) {
+		const syllable = parseUseSyllable(infos, start);
+		syllables.push(syllable);
+		start = syllable.end;
+	}
+
+	return syllables;
+}
+
+/**
+ * Parse a single USE syllable
+ */
+function parseUseSyllable(infos: GlyphInfo[], start: number): UseSyllable {
+	const n = infos.length;
+	let pos = start;
+	let base = -1;
+	let hasReph = false;
+
+	// Check for Repha (R + H at start)
+	if (pos + 1 < n) {
+		const cat1 = getUseCategory(infos[pos]?.codepoint ?? 0);
+		const cat2 = getUseCategory(infos[pos + 1]?.codepoint ?? 0);
+		if (cat1 === UseCategory.R && cat2 === UseCategory.H) {
+			hasReph = true;
+			pos += 2;
+		}
+	}
+
+	// Find base character
+	while (pos < n) {
+		const cat = getUseCategory(infos[pos]?.codepoint ?? 0);
+
+		// Base characters
+		if (
+			cat === UseCategory.B ||
+			cat === UseCategory.IND ||
+			cat === UseCategory.GB ||
+			cat === UseCategory.V
+		) {
+			base = pos;
+			pos++;
+			break;
+		}
+
+		// Non-base starters - continue looking
+		if (
+			cat === UseCategory.VMPre ||
+			cat === UseCategory.VPre ||
+			cat === UseCategory.MPre
+		) {
+			pos++;
+			continue;
+		}
+
+		// End of valid cluster start
+		if (base === -1) {
+			pos++;
+		}
+		break;
+	}
+
+	if (base === -1) base = start;
+
+	// Consume consonant cluster
+	while (pos < n) {
+		const cat = getUseCategory(infos[pos]?.codepoint ?? 0);
+
+		// Halant + Consonant continues cluster
+		if (cat === UseCategory.H) {
+			pos++;
+			if (pos < n) {
+				const nextCat = getUseCategory(infos[pos]?.codepoint ?? 0);
+				if (
+					nextCat === UseCategory.B ||
+					nextCat === UseCategory.CS ||
+					nextCat === UseCategory.SUB
+				) {
+					pos++;
+					continue;
+				}
+				// ZWJ/ZWNJ after halant
+				if (nextCat === UseCategory.ZWJ || nextCat === UseCategory.ZWNJ) {
+					pos++;
+				}
+			}
+			continue;
+		}
+
+		// Subjoined consonants
+		if (cat === UseCategory.SUB || cat === UseCategory.CS) {
+			pos++;
+			continue;
+		}
+
+		// Nukta
+		if (cat === UseCategory.N || cat === UseCategory.HN) {
+			pos++;
+			continue;
+		}
+
+		break;
+	}
+
+	// Consume matras and modifiers
+	while (pos < n) {
+		const cat = getUseCategory(infos[pos]?.codepoint ?? 0);
+
+		// Vowel signs
+		if (
+			cat === UseCategory.VAbv ||
+			cat === UseCategory.VBlw ||
+			cat === UseCategory.VPre ||
+			cat === UseCategory.VPst ||
+			cat === UseCategory.VD
+		) {
+			pos++;
+			continue;
+		}
+
+		// Medials
+		if (
+			cat === UseCategory.MAbv ||
+			cat === UseCategory.MBlw ||
+			cat === UseCategory.MPre ||
+			cat === UseCategory.MPst
+		) {
+			pos++;
+			continue;
+		}
+
+		// Vowel modifiers
+		if (
+			cat === UseCategory.VMAbv ||
+			cat === UseCategory.VMBlw ||
+			cat === UseCategory.VMPre ||
+			cat === UseCategory.VMPst
+		) {
+			pos++;
+			continue;
+		}
+
+		// Syllable modifiers
+		if (cat === UseCategory.SMAbv || cat === UseCategory.SMBlw) {
+			pos++;
+			continue;
+		}
+
+		// Finals
+		if (
+			cat === UseCategory.FAbv ||
+			cat === UseCategory.FBlw ||
+			cat === UseCategory.FPst ||
+			cat === UseCategory.F ||
+			cat === UseCategory.FM
+		) {
+			pos++;
+			continue;
+		}
+
+		// CGJ, VS
+		if (cat === UseCategory.CGJ || cat === UseCategory.VS) {
+			pos++;
+			continue;
+		}
+
+		break;
+	}
+
+	// Ensure we advance at least one position
+	if (pos === start) {
+		pos = start + 1;
+	}
+
+	return { start, end: pos, base, hasReph };
+}
+
 /**
  * Set up masks for USE shaping
  */
 export function setupUseMasks(infos: GlyphInfo[]): void {
-	// Mark cluster boundaries based on base characters
-	let clusterStart = 0;
-	let clusterIndex = 0;
+	const syllables = findUseSyllables(infos);
 
-	for (let i = 0; i < infos.length; i++) {
+	for (let i = 0; i < syllables.length; i++) {
+		const syllable = syllables[i]!;
+
+		for (let j = syllable.start; j < syllable.end; j++) {
+			const info = infos[j];
+			if (!info) continue;
+
+			// Store syllable index in upper mask bits
+			info.mask = (info.mask & 0x0000ffff) | ((i & 0xffff) << 16);
+
+			const cat = getUseCategory(info.codepoint);
+
+			// Reph handling
+			if (syllable.hasReph && j < syllable.start + 2) {
+				info.mask |= UseFeatureMask.rphf;
+			}
+
+			// Pre-base handling
+			if (j < syllable.base) {
+				if (
+					cat === UseCategory.B ||
+					cat === UseCategory.CS ||
+					cat === UseCategory.SUB
+				) {
+					info.mask |= UseFeatureMask.half | UseFeatureMask.cjct;
+				}
+			}
+
+			// Post-base handling
+			if (j > syllable.base) {
+				if (
+					cat === UseCategory.B ||
+					cat === UseCategory.CS ||
+					cat === UseCategory.SUB
+				) {
+					info.mask |=
+						UseFeatureMask.blwf | UseFeatureMask.pstf | UseFeatureMask.vatu;
+				}
+			}
+
+			// Halant
+			if (cat === UseCategory.H || cat === UseCategory.HN) {
+				if (j < syllable.base) {
+					info.mask |= UseFeatureMask.half;
+				} else {
+					info.mask |= UseFeatureMask.haln;
+				}
+			}
+
+			// Vowel signs
+			if (cat === UseCategory.VPre) {
+				info.mask |= UseFeatureMask.pref | UseFeatureMask.pres;
+			} else if (cat === UseCategory.VAbv) {
+				info.mask |= UseFeatureMask.abvf | UseFeatureMask.abvs;
+			} else if (cat === UseCategory.VBlw) {
+				info.mask |= UseFeatureMask.blwf | UseFeatureMask.blws;
+			} else if (cat === UseCategory.VPst || cat === UseCategory.VD) {
+				info.mask |= UseFeatureMask.pstf | UseFeatureMask.psts;
+			}
+
+			// Medials
+			if (cat === UseCategory.MAbv) {
+				info.mask |= UseFeatureMask.abvs;
+			} else if (cat === UseCategory.MBlw) {
+				info.mask |= UseFeatureMask.blws;
+			} else if (cat === UseCategory.MPre) {
+				info.mask |= UseFeatureMask.pres;
+			} else if (cat === UseCategory.MPst) {
+				info.mask |= UseFeatureMask.psts;
+			}
+
+			// Syllable modifiers
+			if (cat === UseCategory.SMAbv) {
+				info.mask |= UseFeatureMask.abvs;
+			} else if (cat === UseCategory.SMBlw) {
+				info.mask |= UseFeatureMask.blws;
+			}
+
+			// Finals
+			if (cat === UseCategory.FAbv) {
+				info.mask |= UseFeatureMask.abvs;
+			} else if (cat === UseCategory.FBlw) {
+				info.mask |= UseFeatureMask.blws;
+			} else if (
+				cat === UseCategory.FPst ||
+				cat === UseCategory.F ||
+				cat === UseCategory.FM
+			) {
+				info.mask |= UseFeatureMask.psts;
+			}
+		}
+	}
+}
+
+/**
+ * Reorder USE syllables (pre-base vowels, reph)
+ */
+export function reorderUSE(infos: GlyphInfo[]): void {
+	const syllables = findUseSyllables(infos);
+
+	for (const syllable of syllables) {
+		reorderUseSyllable(infos, syllable);
+	}
+}
+
+/**
+ * Reorder a single USE syllable
+ */
+function reorderUseSyllable(infos: GlyphInfo[], syllable: UseSyllable): void {
+	const { start, end, base, hasReph } = syllable;
+
+	// Collect pre-base vowels that need to move
+	const preBaseVowels: { index: number; info: GlyphInfo }[] = [];
+
+	for (let i = base + 1; i < end; i++) {
 		const info = infos[i];
 		if (!info) continue;
 
 		const cat = getUseCategory(info.codepoint);
-
-		// Start new cluster at base/independent vowel
-		if (cat === UseCategory.B || cat === UseCategory.IND ||
-			cat === UseCategory.GB || cat === UseCategory.S) {
-			if (i > clusterStart) {
-				clusterIndex++;
-			}
-			clusterStart = i;
+		if (cat === UseCategory.VPre || cat === UseCategory.MPre) {
+			preBaseVowels.push({ index: i, info });
 		}
+	}
 
-		// Store cluster index in upper mask bits
-		info.mask = (info.mask & 0x0000ffff) | ((clusterIndex & 0xffff) << 16);
+	// Move pre-base vowels before the base
+	if (preBaseVowels.length > 0) {
+		preBaseVowels.sort((a, b) => b.index - a.index);
+
+		for (const { index, info } of preBaseVowels) {
+			infos.splice(index, 1);
+			const insertPos = hasReph ? start + 2 : start;
+			infos.splice(insertPos, 0, info);
+		}
+	}
+
+	// Move reph to end (if present)
+	if (hasReph && end > start + 2) {
+		const rephStart = infos[start];
+		const rephH = infos[start + 1];
+
+		if (rephStart && rephH) {
+			// Find target position: after matras, before finals
+			let rephTarget = end - 1;
+
+			while (rephTarget > base) {
+				const targetInfo = infos[rephTarget];
+				if (!targetInfo) break;
+
+				const cat = getUseCategory(targetInfo.codepoint);
+				if (
+					cat === UseCategory.SMAbv ||
+					cat === UseCategory.SMBlw ||
+					cat === UseCategory.FAbv ||
+					cat === UseCategory.FBlw ||
+					cat === UseCategory.FPst ||
+					cat === UseCategory.F ||
+					cat === UseCategory.FM
+				) {
+					rephTarget--;
+				} else {
+					break;
+				}
+			}
+
+			if (rephTarget > start + 1) {
+				infos.splice(start, 2);
+				const adjustedTarget = rephTarget - 2;
+				infos.splice(adjustedTarget + 1, 0, rephStart, rephH);
+			}
+		}
 	}
 }

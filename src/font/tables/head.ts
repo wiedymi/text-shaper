@@ -1,4 +1,4 @@
-import type { FWord, Fixed, uint16, uint32, int16 } from "../../types.ts";
+import type { Fixed, FWord, int16, uint16, uint32 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 const HEAD_MAGIC_NUMBER = 0x5f0f3cf5;

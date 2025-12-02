@@ -219,7 +219,9 @@ export function useTypoMetrics(os2: Os2Table): boolean {
 }
 
 /** Get embedding permission level */
-export function getEmbeddingPermission(os2: Os2Table): "installable" | "restricted" | "preview" | "editable" {
+export function getEmbeddingPermission(
+	os2: Os2Table,
+): "installable" | "restricted" | "preview" | "editable" {
 	const fsType = os2.fsType;
 	if ((fsType & FsType.RestrictedLicense) !== 0) return "restricted";
 	if ((fsType & FsType.PreviewAndPrint) !== 0) return "preview";

@@ -1,9 +1,9 @@
-import type { GlyphInfo, GlyphPosition, GlyphId } from "../types.ts";
-import { GlyphClass } from "../types.ts";
 import type { Font } from "../font/font.ts";
 import { getGlyphClass } from "../font/tables/gdef.ts";
-import { getCombiningClass } from "../unicode/normalize.ts";
 import { getKernValue } from "../font/tables/kern.ts";
+import type { GlyphId, GlyphInfo, GlyphPosition } from "../types.ts";
+import { GlyphClass } from "../types.ts";
+import { getCombiningClass } from "../unicode/normalize.ts";
 
 /**
  * Fallback mark positioning when GPOS is not available
@@ -31,7 +31,9 @@ export function applyFallbackMarkPositioning(
 			const prevInfo = infos[j];
 			if (!prevInfo) continue;
 
-			const prevClass = font.gdef ? getGlyphClass(font.gdef, prevInfo.glyphId) : 0;
+			const prevClass = font.gdef
+				? getGlyphClass(font.gdef, prevInfo.glyphId)
+				: 0;
 			const prevCcc = getCombiningClass(prevInfo.codepoint);
 
 			if (prevClass === GlyphClass.Base || (prevClass === 0 && prevCcc === 0)) {
@@ -62,7 +64,7 @@ function positionMarkFallback(
 	font: Font,
 	markInfo: GlyphInfo,
 	markPos: GlyphPosition,
-	baseInfo: GlyphInfo,
+	_baseInfo: GlyphInfo,
 	basePos: GlyphPosition,
 	baseAdvance: number,
 	ccc: number,
@@ -140,7 +142,11 @@ export function applyFallbackKerning(
 	}
 }
 
-function getKernValueFromTable(font: Font, left: GlyphId, right: GlyphId): number {
+function getKernValueFromTable(
+	font: Font,
+	left: GlyphId,
+	right: GlyphId,
+): number {
 	const kern = font.kern;
 	if (!kern) return 0;
 
@@ -152,7 +158,7 @@ function getKernValueFromTable(font: Font, left: GlyphId, right: GlyphId): numbe
  * Some scripts need marks to be processed in specific order
  */
 export function recategorizeCombiningMarks(
-	font: Font,
+	_font: Font,
 	infos: GlyphInfo[],
 ): void {
 	// For Hebrew, Arabic, and other scripts, ensure marks are in canonical order

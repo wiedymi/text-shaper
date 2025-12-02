@@ -1,4 +1,4 @@
-import type { FWord, UFWord, int16, uint16 } from "../../types.ts";
+import type { FWord, int16, UFWord, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /** Horizontal header table */

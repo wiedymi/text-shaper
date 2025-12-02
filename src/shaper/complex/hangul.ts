@@ -18,7 +18,7 @@ const JAMO_V_COUNT = 21; // Number of vowels
 const JAMO_T_COUNT = 28; // Number of trailing consonants (including none)
 
 const JAMO_VT_COUNT = JAMO_V_COUNT * JAMO_T_COUNT; // 588
-const JAMO_LVT_COUNT = JAMO_L_COUNT * JAMO_VT_COUNT; // 11172
+const _JAMO_LVT_COUNT = JAMO_L_COUNT * JAMO_VT_COUNT; // 11172
 
 // Compatibility Jamo (for conversion)
 const COMPAT_JAMO_START = 0x3131;
@@ -43,33 +43,41 @@ export function isHangulSyllable(cp: number): boolean {
  * Check if codepoint is a Hangul Jamo (conjoining)
  */
 export function isHangulJamo(cp: number): boolean {
-	return (cp >= JAMO_L_BASE && cp <= 0x11ff) ||
-	       (cp >= JAMO_EXT_A_START && cp <= JAMO_EXT_A_END) ||
-	       (cp >= JAMO_EXT_B_START && cp <= JAMO_EXT_B_END);
+	return (
+		(cp >= JAMO_L_BASE && cp <= 0x11ff) ||
+		(cp >= JAMO_EXT_A_START && cp <= JAMO_EXT_A_END) ||
+		(cp >= JAMO_EXT_B_START && cp <= JAMO_EXT_B_END)
+	);
 }
 
 /**
  * Check if codepoint is a leading consonant (L)
  */
 export function isJamoL(cp: number): boolean {
-	return (cp >= JAMO_L_BASE && cp < JAMO_L_BASE + JAMO_L_COUNT) ||
-	       (cp >= JAMO_EXT_A_START && cp <= JAMO_EXT_A_END);
+	return (
+		(cp >= JAMO_L_BASE && cp < JAMO_L_BASE + JAMO_L_COUNT) ||
+		(cp >= JAMO_EXT_A_START && cp <= JAMO_EXT_A_END)
+	);
 }
 
 /**
  * Check if codepoint is a vowel (V)
  */
 export function isJamoV(cp: number): boolean {
-	return (cp >= JAMO_V_BASE && cp < JAMO_V_BASE + JAMO_V_COUNT) ||
-	       (cp >= 0xd7b0 && cp <= 0xd7c6);
+	return (
+		(cp >= JAMO_V_BASE && cp < JAMO_V_BASE + JAMO_V_COUNT) ||
+		(cp >= 0xd7b0 && cp <= 0xd7c6)
+	);
 }
 
 /**
  * Check if codepoint is a trailing consonant (T)
  */
 export function isJamoT(cp: number): boolean {
-	return (cp > JAMO_T_BASE && cp <= JAMO_T_BASE + JAMO_T_COUNT - 1) ||
-	       (cp >= 0xd7cb && cp <= 0xd7fb);
+	return (
+		(cp > JAMO_T_BASE && cp <= JAMO_T_BASE + JAMO_T_COUNT - 1) ||
+		(cp >= 0xd7cb && cp <= 0xd7fb)
+	);
 }
 
 /**
@@ -93,7 +101,11 @@ export function decomposeHangul(cp: number): number[] {
 /**
  * Compose Jamo into a precomposed Hangul syllable
  */
-export function composeHangul(l: number, v: number, t: number = 0): number | null {
+export function composeHangul(
+	l: number,
+	v: number,
+	t: number = 0,
+): number | null {
 	// Normalize indices
 	const lIndex = l - JAMO_L_BASE;
 	const vIndex = v - JAMO_V_BASE;
@@ -103,19 +115,19 @@ export function composeHangul(l: number, v: number, t: number = 0): number | nul
 	if (vIndex < 0 || vIndex >= JAMO_V_COUNT) return null;
 	if (tIndex < 0 || tIndex >= JAMO_T_COUNT) return null;
 
-	return HANGUL_BASE + (lIndex * JAMO_VT_COUNT) + (vIndex * JAMO_T_COUNT) + tIndex;
+	return HANGUL_BASE + lIndex * JAMO_VT_COUNT + vIndex * JAMO_T_COUNT + tIndex;
 }
 
 /**
  * Hangul syllable types
  */
-export const enum HangulSyllableType {
+export enum HangulSyllableType {
 	NotApplicable = 0,
-	LeadingJamo = 1,   // L
-	VowelJamo = 2,     // V
-	TrailingJamo = 3,  // T
-	LVSyllable = 4,    // LV (no trailing)
-	LVTSyllable = 5,   // LVT (with trailing)
+	LeadingJamo = 1, // L
+	VowelJamo = 2, // V
+	TrailingJamo = 3, // T
+	LVSyllable = 4, // LV (no trailing)
+	LVTSyllable = 5, // LVT (with trailing)
 }
 
 /**
@@ -129,7 +141,9 @@ export function getHangulSyllableType(cp: number): HangulSyllableType {
 	if (isHangulSyllable(cp)) {
 		const syllableIndex = cp - HANGUL_BASE;
 		const t = syllableIndex % JAMO_T_COUNT;
-		return t === 0 ? HangulSyllableType.LVSyllable : HangulSyllableType.LVTSyllable;
+		return t === 0
+			? HangulSyllableType.LVSyllable
+			: HangulSyllableType.LVTSyllable;
 	}
 
 	return HangulSyllableType.NotApplicable;
@@ -255,7 +269,9 @@ export function normalizeHangul(infos: GlyphInfo[]): GlyphInfo[] {
  * Check if codepoint is Korean (Hangul or Jamo)
  */
 export function isKorean(cp: number): boolean {
-	return isHangulSyllable(cp) ||
-	       isHangulJamo(cp) ||
-	       (cp >= COMPAT_JAMO_START && cp <= COMPAT_JAMO_END);
+	return (
+		isHangulSyllable(cp) ||
+		isHangulJamo(cp) ||
+		(cp >= COMPAT_JAMO_START && cp <= COMPAT_JAMO_END)
+	);
 }

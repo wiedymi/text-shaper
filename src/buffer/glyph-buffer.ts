@@ -25,9 +25,6 @@ export class GlyphBuffer {
 	/** Glyph position array */
 	positions: GlyphPosition[] = [];
 
-	/** Create empty buffer */
-	constructor() {}
-
 	/** Create buffer with pre-allocated capacity */
 	static withCapacity(capacity: number): GlyphBuffer {
 		const buffer = new GlyphBuffer();
@@ -95,7 +92,7 @@ export class GlyphBuffer {
 	mergeClusters(start: number, end: number): void {
 		if (start >= end || start < 0 || end >= this.infos.length) return;
 
-		const cluster = this.infos[start]!.cluster;
+		const cluster = this.infos[start]?.cluster;
 		for (let i = start + 1; i <= end; i++) {
 			const info = this.infos[i];
 			if (info) {
@@ -152,7 +149,7 @@ export class GlyphBuffer {
 			let str = `${info.glyphId}`;
 
 			// Add cluster if not sequential
-			if (i === 0 || info.cluster !== this.infos[i - 1]!.cluster) {
+			if (i === 0 || info.cluster !== this.infos[i - 1]?.cluster) {
 				str += `=${info.cluster}`;
 			}
 

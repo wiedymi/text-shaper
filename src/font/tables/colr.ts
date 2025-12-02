@@ -1,5 +1,5 @@
-import { Reader } from "../binary/reader.ts";
 import type { GlyphId } from "../../types.ts";
+import type { Reader } from "../binary/reader.ts";
 
 /**
  * COLR (Color) table parser
@@ -38,7 +38,7 @@ export interface BaseGlyphPaintRecord {
 }
 
 // Paint types for COLR v1
-export const enum PaintFormat {
+export enum PaintFormat {
 	ColrLayers = 1,
 	Solid = 2,
 	VarSolid = 3,
@@ -216,13 +216,13 @@ export interface ColorStop {
 	alpha: number;
 }
 
-export const enum Extend {
+export enum Extend {
 	Pad = 0,
 	Repeat = 1,
 	Reflect = 2,
 }
 
-export const enum CompositeMode {
+export enum CompositeMode {
 	Clear = 0,
 	Src = 1,
 	Dest = 2,
@@ -333,8 +333,8 @@ export function parseColr(reader: Reader): ColrTable {
 		const baseGlyphListOffset = reader.uint32();
 		const layerListOffset = reader.uint32();
 		const clipListOffset = reader.uint32();
-		const varIdxMapOffset = reader.uint32();
-		const itemVariationStoreOffset = reader.uint32();
+		const _varIdxMapOffset = reader.uint32();
+		const _itemVariationStoreOffset = reader.uint32();
 
 		// Parse base glyph paint records
 		if (baseGlyphListOffset !== 0) {
@@ -348,7 +348,9 @@ export function parseColr(reader: Reader): ColrTable {
 
 				// Parse paint at offset
 				const savedPos = reader.offset;
-				reader.seek(startOffset + baseGlyphListOffset + 4 + i * 6 + 2 + paintOffset - 4);
+				reader.seek(
+					startOffset + baseGlyphListOffset + 4 + i * 6 + 2 + paintOffset - 4,
+				);
 				const paint = parsePaint(reader, startOffset);
 				reader.seek(savedPos);
 
@@ -680,8 +682,8 @@ function parseColorLine(reader: Reader): ColorLine {
 /**
  * Parse ClipList structure
  */
-function parseClipList(reader: Reader, tableOffset: number): ClipRecord[] {
-	const format = reader.uint8();
+function parseClipList(reader: Reader, _tableOffset: number): ClipRecord[] {
+	const _format = reader.uint8();
 	const numClips = reader.uint32();
 	const records: ClipRecord[] = [];
 
@@ -717,7 +719,10 @@ function parseClipList(reader: Reader, tableOffset: number): ClipRecord[] {
 /**
  * Get color layers for a glyph (v0)
  */
-export function getColorLayers(colr: ColrTable, glyphId: GlyphId): LayerRecord[] | null {
+export function getColorLayers(
+	colr: ColrTable,
+	glyphId: GlyphId,
+): LayerRecord[] | null {
 	// Binary search for base glyph record
 	const records = colr.baseGlyphRecords;
 	let lo = 0;
@@ -774,5 +779,8 @@ export function getColorPaint(colr: ColrTable, glyphId: GlyphId): Paint | null {
  * Check if glyph has color data
  */
 export function hasColorGlyph(colr: ColrTable, glyphId: GlyphId): boolean {
-	return getColorLayers(colr, glyphId) !== null || getColorPaint(colr, glyphId) !== null;
+	return (
+		getColorLayers(colr, glyphId) !== null ||
+		getColorPaint(colr, glyphId) !== null
+	);
 }

@@ -71,20 +71,25 @@ export function parseHvar(reader: Reader): HvarTable {
 	const rsbMappingOffset = reader.offset32();
 
 	// Parse item variation store
-	const itemVariationStore = parseItemVariationStore(reader.sliceFrom(itemVariationStoreOffset));
+	const itemVariationStore = parseItemVariationStore(
+		reader.sliceFrom(itemVariationStoreOffset),
+	);
 
 	// Parse mappings
-	const advanceWidthMapping = advanceWidthMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(advanceWidthMappingOffset))
-		: null;
+	const advanceWidthMapping =
+		advanceWidthMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(advanceWidthMappingOffset))
+			: null;
 
-	const lsbMapping = lsbMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(lsbMappingOffset))
-		: null;
+	const lsbMapping =
+		lsbMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(lsbMappingOffset))
+			: null;
 
-	const rsbMapping = rsbMappingOffset !== 0
-		? parseDeltaSetIndexMap(reader.sliceFrom(rsbMappingOffset))
-		: null;
+	const rsbMapping =
+		rsbMappingOffset !== 0
+			? parseDeltaSetIndexMap(reader.sliceFrom(rsbMappingOffset))
+			: null;
 
 	return {
 		majorVersion,

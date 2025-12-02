@@ -1,13 +1,13 @@
-import type { GlyphId, uint16 } from "../../types.ts";
-import type { Reader } from "../binary/reader.ts";
-import {
-	type Coverage,
-	parseCoverageAt,
-} from "../../layout/structures/coverage.ts";
 import {
 	type ClassDef,
 	parseClassDefAt,
 } from "../../layout/structures/class-def.ts";
+import {
+	type Coverage,
+	parseCoverageAt,
+} from "../../layout/structures/coverage.ts";
+import type { GlyphId, uint16 } from "../../types.ts";
+import type { Reader } from "../binary/reader.ts";
 import type { GsubLookup } from "./gsub.ts";
 
 /** Sequence lookup record - applies a lookup at a position */
@@ -274,13 +274,17 @@ function parseChainingFormat1(reader: Reader): ChainingContextFormat1 {
 			const ruleReader = crsReader.sliceFrom(ruleOffset);
 
 			const backtrackCount = ruleReader.uint16();
-			const backtrackSequence = Array.from(ruleReader.uint16Array(backtrackCount));
+			const backtrackSequence = Array.from(
+				ruleReader.uint16Array(backtrackCount),
+			);
 
 			const inputCount = ruleReader.uint16();
 			const inputSequence = Array.from(ruleReader.uint16Array(inputCount - 1));
 
 			const lookaheadCount = ruleReader.uint16();
-			const lookaheadSequence = Array.from(ruleReader.uint16Array(lookaheadCount));
+			const lookaheadSequence = Array.from(
+				ruleReader.uint16Array(lookaheadCount),
+			);
 
 			const lookupCount = ruleReader.uint16();
 			const lookupRecords = parseLookupRecords(ruleReader, lookupCount);
@@ -329,13 +333,17 @@ function parseChainingFormat2(reader: Reader): ChainingContextFormat2 {
 			const ruleReader = ccrsReader.sliceFrom(ruleOffset);
 
 			const backtrackCount = ruleReader.uint16();
-			const backtrackClasses = Array.from(ruleReader.uint16Array(backtrackCount));
+			const backtrackClasses = Array.from(
+				ruleReader.uint16Array(backtrackCount),
+			);
 
 			const inputCount = ruleReader.uint16();
 			const inputClasses = Array.from(ruleReader.uint16Array(inputCount - 1));
 
 			const lookaheadCount = ruleReader.uint16();
-			const lookaheadClasses = Array.from(ruleReader.uint16Array(lookaheadCount));
+			const lookaheadClasses = Array.from(
+				ruleReader.uint16Array(lookaheadCount),
+			);
 
 			const lookupCount = ruleReader.uint16();
 			const lookupRecords = parseLookupRecords(ruleReader, lookupCount);

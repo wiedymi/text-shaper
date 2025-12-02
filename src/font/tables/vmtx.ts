@@ -1,4 +1,4 @@
-import type { GlyphId, uint16, int16 } from "../../types.ts";
+import type { GlyphId, int16, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /**

@@ -1,42 +1,57 @@
 import type { GlyphId, TableRecord, Tag } from "../types.ts";
 import { Tags, tagToString } from "../types.ts";
 import { Reader } from "./binary/reader.ts";
+import { type AvarTable, parseAvar } from "./tables/avar.ts";
+import { type BaseTable, parseBase } from "./tables/base.ts";
+import { type CffTable, parseCff } from "./tables/cff.ts";
+import { type Cff2Table, parseCff2 } from "./tables/cff2.ts";
 import { type CmapTable, getGlyphId, parseCmap } from "./tables/cmap.ts";
+import { type ColrTable, parseColr } from "./tables/colr.ts";
+import { type CpalTable, parseCpal } from "./tables/cpal.ts";
+import { type FvarTable, parseFvar } from "./tables/fvar.ts";
+import { type GdefTable, parseGdef } from "./tables/gdef.ts";
+import {
+	type Contour,
+	type GlyfTable,
+	type Glyph,
+	getGlyphBounds,
+	getGlyphContours,
+	getGlyphContoursWithVariation,
+	parseGlyf,
+	parseGlyph,
+} from "./tables/glyf.ts";
+import { type GposTable, parseGpos } from "./tables/gpos.ts";
+import { type GsubTable, parseGsub } from "./tables/gsub.ts";
+import { type GvarTable, parseGvar } from "./tables/gvar.ts";
 import { type HeadTable, parseHead } from "./tables/head.ts";
 import { type HheaTable, parseHhea } from "./tables/hhea.ts";
 import {
-	type HmtxTable,
 	getAdvanceWidth,
 	getLeftSideBearing,
+	type HmtxTable,
 	parseHmtx,
 } from "./tables/hmtx.ts";
-import { type MaxpTable, parseMaxp } from "./tables/maxp.ts";
-import { type FontDirectory, parseFontDirectory, isTrueType } from "./tables/sfnt.ts";
-import { type GdefTable, parseGdef } from "./tables/gdef.ts";
-import { type GsubTable, parseGsub } from "./tables/gsub.ts";
-import { type GposTable, parseGpos } from "./tables/gpos.ts";
-import { type KernTable, parseKern } from "./tables/kern.ts";
-import { type FvarTable, parseFvar } from "./tables/fvar.ts";
 import { type HvarTable, parseHvar } from "./tables/hvar.ts";
-import { type VheaTable, parseVhea } from "./tables/vhea.ts";
-import { type VmtxTable, parseVmtx, getVerticalMetrics } from "./tables/vmtx.ts";
-import { type MorxTable, parseMorx } from "./tables/morx.ts";
-import { type GvarTable, parseGvar } from "./tables/gvar.ts";
-import { type AvarTable, parseAvar } from "./tables/avar.ts";
-import { type KerxTable, parseKerx } from "./tables/kerx.ts";
-import { type TrakTable, parseTrak } from "./tables/trak.ts";
-import { type CffTable, parseCff } from "./tables/cff.ts";
-import { type Cff2Table, parseCff2 } from "./tables/cff2.ts";
-import { type ColrTable, parseColr } from "./tables/colr.ts";
-import { type CpalTable, parseCpal } from "./tables/cpal.ts";
-import { type VvarTable, parseVvar } from "./tables/vvar.ts";
-import { type MvarTable, parseMvar } from "./tables/mvar.ts";
-import { type Os2Table, parseOs2 } from "./tables/os2.ts";
-import { type NameTable, parseName } from "./tables/name.ts";
-import { type PostTable, parsePost } from "./tables/post.ts";
-import { type BaseTable, parseBase } from "./tables/base.ts";
 import { type JstfTable, parseJstf } from "./tables/jstf.ts";
+import { type KernTable, parseKern } from "./tables/kern.ts";
+import { type KerxTable, parseKerx } from "./tables/kerx.ts";
+import { type LocaTable, parseLoca } from "./tables/loca.ts";
 import { type MathTable, parseMath } from "./tables/math.ts";
+import { type MaxpTable, parseMaxp } from "./tables/maxp.ts";
+import { type MorxTable, parseMorx } from "./tables/morx.ts";
+import { type MvarTable, parseMvar } from "./tables/mvar.ts";
+import { type NameTable, parseName } from "./tables/name.ts";
+import { type Os2Table, parseOs2 } from "./tables/os2.ts";
+import { type PostTable, parsePost } from "./tables/post.ts";
+import {
+	type FontDirectory,
+	isTrueType,
+	parseFontDirectory,
+} from "./tables/sfnt.ts";
+import { parseTrak, type TrakTable } from "./tables/trak.ts";
+import { parseVhea, type VheaTable } from "./tables/vhea.ts";
+import { parseVmtx, type VmtxTable } from "./tables/vmtx.ts";
+import { parseVvar, type VvarTable } from "./tables/vvar.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -83,6 +98,8 @@ export class Font {
 	private _base: BaseTable | null | undefined = undefined;
 	private _jstf: JstfTable | null | undefined = undefined;
 	private _math: MathTable | null | undefined = undefined;
+	private _loca: LocaTable | null | undefined = undefined;
+	private _glyf: GlyfTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -98,14 +115,19 @@ export class Font {
 	static async fromURL(url: string, options?: FontLoadOptions): Promise<Font> {
 		const response = await fetch(url);
 		if (!response.ok) {
-			throw new Error(`Failed to fetch font: ${response.status} ${response.statusText}`);
+			throw new Error(
+				`Failed to fetch font: ${response.status} ${response.statusText}`,
+			);
 		}
 		const buffer = await response.arrayBuffer();
 		return Font.load(buffer, options);
 	}
 
 	/** Load font from file path (Bun only) */
-	static async fromFile(path: string, options?: FontLoadOptions): Promise<Font> {
+	static async fromFile(
+		path: string,
+		options?: FontLoadOptions,
+	): Promise<Font> {
 		const file = Bun.file(path);
 		const buffer = await file.arrayBuffer();
 		return Font.load(buffer, options);
@@ -163,7 +185,11 @@ export class Font {
 		if (!this._hmtx) {
 			const reader = this.getTableReader(Tags.hmtx);
 			if (!reader) throw new Error("Missing required 'hmtx' table");
-			this._hmtx = parseHmtx(reader, this.hhea.numberOfHMetrics, this.numGlyphs);
+			this._hmtx = parseHmtx(
+				reader,
+				this.hhea.numberOfHMetrics,
+				this.numGlyphs,
+			);
 		}
 		return this._hmtx;
 	}
@@ -241,7 +267,9 @@ export class Font {
 				this._vmtx = null;
 			} else {
 				const reader = this.getTableReader(Tags.vmtx);
-				this._vmtx = reader ? parseVmtx(reader, vhea.numberOfVMetrics, this.numGlyphs) : null;
+				this._vmtx = reader
+					? parseVmtx(reader, vhea.numberOfVMetrics, this.numGlyphs)
+					: null;
 			}
 		}
 		return this._vmtx;
@@ -388,6 +416,24 @@ export class Font {
 		return this._math;
 	}
 
+	get loca(): LocaTable | null {
+		if (this._loca === undefined) {
+			const reader = this.getTableReader(Tags.loca);
+			this._loca = reader
+				? parseLoca(reader, this.numGlyphs, this.head.indexToLocFormat)
+				: null;
+		}
+		return this._loca;
+	}
+
+	get glyf(): GlyfTable | null {
+		if (this._glyf === undefined) {
+			const reader = this.getTableReader(Tags.glyf);
+			this._glyf = reader ? parseGlyf(reader) : null;
+		}
+		return this._glyf;
+	}
+
 	// Convenience properties
 
 	/** Number of glyphs in the font */
@@ -472,5 +518,42 @@ export class Font {
 	/** List all table tags in the font */
 	listTables(): string[] {
 		return Array.from(this.directory.tables.keys()).map(tagToString);
+	}
+
+	// Glyph outline operations (TrueType only)
+
+	/** Get raw glyph data (simple or composite) */
+	getGlyph(glyphId: GlyphId): Glyph | null {
+		if (!this.glyf || !this.loca) return null;
+		return parseGlyph(this.glyf, this.loca, glyphId);
+	}
+
+	/** Get flattened contours for a glyph (resolves composites) */
+	getGlyphContours(glyphId: GlyphId): Contour[] | null {
+		if (!this.glyf || !this.loca) return null;
+		return getGlyphContours(this.glyf, this.loca, glyphId);
+	}
+
+	/** Get bounding box for a glyph */
+	getGlyphBounds(
+		glyphId: GlyphId,
+	): { xMin: number; yMin: number; xMax: number; yMax: number } | null {
+		if (!this.glyf || !this.loca) return null;
+		return getGlyphBounds(this.glyf, this.loca, glyphId);
+	}
+
+	/** Get contours for a glyph with variation applied */
+	getGlyphContoursWithVariation(
+		glyphId: GlyphId,
+		axisCoords: number[],
+	): Contour[] | null {
+		if (!this.glyf || !this.loca) return null;
+		return getGlyphContoursWithVariation(
+			this.glyf,
+			this.loca,
+			this.gvar,
+			glyphId,
+			axisCoords,
+		);
 	}
 }

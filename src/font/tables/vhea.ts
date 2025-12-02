@@ -1,4 +1,4 @@
-import type { int16, uint16, FWord } from "../../types.ts";
+import type { FWord, int16, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /**

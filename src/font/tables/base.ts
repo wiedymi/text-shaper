@@ -153,7 +153,11 @@ function parseMinMax(reader: Reader, minMaxOffset: number): MinMax | null {
 	return { minCoord, maxCoord, featMinMaxRecords };
 }
 
-function parseBaseValues(reader: Reader, baseValuesOffset: number, baseTagList: number[]): BaseValues | null {
+function parseBaseValues(
+	reader: Reader,
+	baseValuesOffset: number,
+	_baseTagList: number[],
+): BaseValues | null {
 	if (baseValuesOffset === 0) return null;
 
 	const bvReader = reader.sliceFrom(baseValuesOffset);
@@ -197,7 +201,11 @@ function parseBaseScriptRecord(
 		langSysData.push({ tag, offset });
 	}
 
-	const baseValues = parseBaseValues(reader, scriptOffset + baseValuesOffset, baseTagList);
+	const baseValues = parseBaseValues(
+		reader,
+		scriptOffset + baseValuesOffset,
+		baseTagList,
+	);
 	const defaultMinMax = parseMinMax(reader, scriptOffset + defaultMinMaxOffset);
 
 	for (const { tag, offset } of langSysData) {
@@ -230,7 +238,9 @@ function parseAxisTable(reader: Reader, axisOffset: number): AxisTable | null {
 	// Parse base script list
 	const baseScriptList: BaseScriptRecord[] = [];
 	if (baseScriptListOffset !== 0) {
-		const scriptListReader = reader.sliceFrom(axisOffset + baseScriptListOffset);
+		const scriptListReader = reader.sliceFrom(
+			axisOffset + baseScriptListOffset,
+		);
 		const baseScriptCount = scriptListReader.uint16();
 
 		const scriptData: Array<{ tag: number; offset: number }> = [];
@@ -281,7 +291,9 @@ export function getBaselineForScript(
 	if (!axis) return null;
 
 	// Find script record
-	const scriptRecord = axis.baseScriptList.find((r) => r.scriptTag === scriptTag);
+	const scriptRecord = axis.baseScriptList.find(
+		(r) => r.scriptTag === scriptTag,
+	);
 	if (!scriptRecord?.baseValues) return null;
 
 	// Find baseline tag index
@@ -300,7 +312,9 @@ export function getDefaultBaseline(
 	const axis = horizontal ? base.horizAxis : base.vertAxis;
 	if (!axis) return null;
 
-	const scriptRecord = axis.baseScriptList.find((r) => r.scriptTag === scriptTag);
+	const scriptRecord = axis.baseScriptList.find(
+		(r) => r.scriptTag === scriptTag,
+	);
 	if (!scriptRecord?.baseValues) return null;
 
 	const index = scriptRecord.baseValues.defaultBaselineIndex;
@@ -322,7 +336,9 @@ export function getMinMaxExtent(
 	const axis = horizontal ? base.horizAxis : base.vertAxis;
 	if (!axis) return null;
 
-	const scriptRecord = axis.baseScriptList.find((r) => r.scriptTag === scriptTag);
+	const scriptRecord = axis.baseScriptList.find(
+		(r) => r.scriptTag === scriptTag,
+	);
 	if (!scriptRecord) return null;
 
 	// Try language-specific first

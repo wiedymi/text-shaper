@@ -1,50 +1,45 @@
-import type { GlyphId, uint16, int16 } from "../../types.ts";
-import type { Reader } from "../binary/reader.ts";
-import {
-	type Coverage,
-	parseCoverageAt,
-} from "../../layout/structures/coverage.ts";
 import {
 	type ClassDef,
 	parseClassDefAt,
 } from "../../layout/structures/class-def.ts";
 import {
-	type ScriptList,
-	type FeatureList,
-	parseScriptList,
-	parseFeatureList,
-	LookupFlag,
-} from "../../layout/structures/layout-common.ts";
+	type Coverage,
+	parseCoverageAt,
+} from "../../layout/structures/coverage.ts";
 import {
 	type DeviceOrVariationIndex,
 	parseDeviceAt,
 } from "../../layout/structures/device.ts";
 import {
-	type Anchor,
-	type MarkArray,
+	type FeatureList,
+	LookupFlag,
+	parseFeatureList,
+	parseScriptList,
+	type ScriptList,
+} from "../../layout/structures/layout-common.ts";
+import type { GlyphId, int16, uint16 } from "../../types.ts";
+import type { Reader } from "../binary/reader.ts";
+import {
+	type ChainingContextPosLookup,
+	type ChainingContextPosSubtable,
+	type ContextPosLookup,
+	type ContextPosSubtable,
+	parseChainingContextPos,
+	parseContextPos,
+} from "./gpos-contextual.ts";
+import {
 	type CursivePosSubtable,
 	type MarkBasePosSubtable,
 	type MarkLigaturePosSubtable,
 	type MarkMarkPosSubtable,
-	parseAnchor,
-	parseAnchorAt,
-	parseMarkArray,
 	parseCursivePos,
 	parseMarkBasePos,
 	parseMarkLigaturePos,
 	parseMarkMarkPos,
 } from "./gpos-mark.ts";
-import {
-	type ContextPosLookup,
-	type ContextPosSubtable,
-	type ChainingContextPosLookup,
-	type ChainingContextPosSubtable,
-	parseContextPos,
-	parseChainingContextPos,
-} from "./gpos-contextual.ts";
 
 /** GPOS lookup types */
-export const enum GposLookupType {
+export enum GposLookupType {
 	Single = 1,
 	Pair = 2,
 	Cursive = 3,
@@ -324,19 +319,23 @@ function parseValueRecord(
 	const deviceReader = subtableReader ?? reader;
 	if (valueFormat & ValueFormat.XPlaDevice) {
 		const offset = reader.uint16();
-		if (offset !== 0) record.xPlaDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+		if (offset !== 0)
+			record.xPlaDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
 	}
 	if (valueFormat & ValueFormat.YPlaDevice) {
 		const offset = reader.uint16();
-		if (offset !== 0) record.yPlaDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+		if (offset !== 0)
+			record.yPlaDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
 	}
 	if (valueFormat & ValueFormat.XAdvDevice) {
 		const offset = reader.uint16();
-		if (offset !== 0) record.xAdvDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+		if (offset !== 0)
+			record.xAdvDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
 	}
 	if (valueFormat & ValueFormat.YAdvDevice) {
 		const offset = reader.uint16();
-		if (offset !== 0) record.yAdvDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
+		if (offset !== 0)
+			record.yAdvDevice = parseDeviceAt(deviceReader, offset) ?? undefined;
 	}
 
 	return record;
@@ -396,7 +395,10 @@ function parsePairPos(
 	return subtables;
 }
 
-function parsePairPosFormat1(reader: Reader, subtableReader: Reader): PairPosFormat1 {
+function parsePairPosFormat1(
+	reader: Reader,
+	subtableReader: Reader,
+): PairPosFormat1 {
 	const coverageOffset = reader.offset16();
 	const valueFormat1 = reader.uint16();
 	const valueFormat2 = reader.uint16();
@@ -425,7 +427,10 @@ function parsePairPosFormat1(reader: Reader, subtableReader: Reader): PairPosFor
 	return { format: 1, coverage, valueFormat1, valueFormat2, pairSets };
 }
 
-function parsePairPosFormat2(reader: Reader, subtableReader: Reader): PairPosFormat2 {
+function parsePairPosFormat2(
+	reader: Reader,
+	subtableReader: Reader,
+): PairPosFormat2 {
 	const coverageOffset = reader.offset16();
 	const valueFormat1 = reader.uint16();
 	const valueFormat2 = reader.uint16();
@@ -487,7 +492,7 @@ function parseExtensionLookup(
 
 	if (extSubtables.length === 0) return null;
 
-	const actualType = extSubtables[0]!.type;
+	const actualType = extSubtables[0]?.type;
 
 	switch (actualType) {
 		case GposLookupType.Single: {

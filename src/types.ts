@@ -17,7 +17,7 @@ export type GlyphId = number;
 export type Tag = number;
 
 /** Text direction */
-export const enum Direction {
+export enum Direction {
 	Invalid = 0,
 	LTR = 4,
 	RTL = 5,
@@ -26,14 +26,14 @@ export const enum Direction {
 }
 
 /** Cluster level for glyph-character mapping */
-export const enum ClusterLevel {
+export enum ClusterLevel {
 	MonotoneGraphemes = 0,
 	MonotoneCharacters = 1,
 	Characters = 2,
 }
 
 /** Buffer flags */
-export const enum BufferFlags {
+export enum BufferFlags {
 	Default = 0x0,
 	BeginningOfText = 0x1,
 	EndOfText = 0x2,
@@ -43,7 +43,7 @@ export const enum BufferFlags {
 }
 
 /** Glyph classification from GDEF */
-export const enum GlyphClass {
+export enum GlyphClass {
 	Base = 1,
 	Ligature = 2,
 	Mark = 3,

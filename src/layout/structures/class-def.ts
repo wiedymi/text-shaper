@@ -1,5 +1,5 @@
-import type { GlyphId, uint16 } from "../../types.ts";
 import type { Reader } from "../../font/binary/reader.ts";
+import type { GlyphId, uint16 } from "../../types.ts";
 
 /** Class Definition table - maps glyph IDs to class values */
 export interface ClassDef {

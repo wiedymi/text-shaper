@@ -1,10 +1,10 @@
-import type { GlyphId, uint16, int16 } from "../../types.ts";
-import type { Reader } from "../binary/reader.ts";
 import {
 	type Coverage,
 	parseCoverageAt,
 } from "../../layout/structures/coverage.ts";
-import type { GposLookup, ValueRecord } from "./gpos.ts";
+import type { int16, uint16 } from "../../types.ts";
+import type { Reader } from "../binary/reader.ts";
+import type { GposLookup } from "./gpos.ts";
 
 /** Anchor point for attachment */
 export interface Anchor {
@@ -167,7 +167,8 @@ export function parseCursivePos(
 			const coverageOffset = r.offset16();
 			const entryExitCount = r.uint16();
 
-			const entryExitData: Array<{ entryOffset: uint16; exitOffset: uint16 }> = [];
+			const entryExitData: Array<{ entryOffset: uint16; exitOffset: uint16 }> =
+				[];
 			for (let i = 0; i < entryExitCount; i++) {
 				entryExitData.push({
 					entryOffset: r.uint16(),

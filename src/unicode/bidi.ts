@@ -4,10 +4,10 @@
  */
 
 import {
-	getEmbeddingLevels,
-	getReorderedIndices,
-	getMirroredCharacter,
 	getBidiCharType,
+	getEmbeddingLevels,
+	getMirroredCharacter,
+	getReorderedIndices,
 } from "../../reference/bidi-js/src/index.js";
 
 import type { GlyphInfo } from "../types.ts";
@@ -39,8 +39,12 @@ export function getEmbeddings(
 	text: string,
 	baseDirection: Direction = Direction.LTR,
 ): BidiResult {
-	const dir = baseDirection === Direction.RTL ? "rtl" :
-	            baseDirection === Direction.LTR ? "ltr" : "auto";
+	const dir =
+		baseDirection === Direction.RTL
+			? "rtl"
+			: baseDirection === Direction.LTR
+				? "ltr"
+				: "auto";
 
 	const result = getEmbeddingLevels(text, dir);
 
@@ -96,16 +100,13 @@ export function reorderGlyphs(
 export function getMirror(codepoint: number): number {
 	const char = String.fromCodePoint(codepoint);
 	const mirrored = getMirroredCharacter(char);
-	return mirrored ? mirrored.codePointAt(0) ?? codepoint : codepoint;
+	return mirrored ? (mirrored.codePointAt(0) ?? codepoint) : codepoint;
 }
 
 /**
  * Apply character mirroring for RTL runs
  */
-export function applyMirroring(
-	infos: GlyphInfo[],
-	levels: Uint8Array,
-): void {
+export function applyMirroring(infos: GlyphInfo[], levels: Uint8Array): void {
 	for (let i = 0; i < infos.length; i++) {
 		const level = levels[i];
 		if (level === undefined) continue;
@@ -126,29 +127,29 @@ export function applyMirroring(
  * BiDi character type constants
  */
 export const BidiType = {
-	L: 0x0001,    // Left-to-Right
-	R: 0x0002,    // Right-to-Left
-	EN: 0x0004,   // European Number
-	ES: 0x0008,   // European Separator
-	ET: 0x0010,   // European Terminator
-	AN: 0x0020,   // Arabic Number
-	CS: 0x0040,   // Common Separator
-	B: 0x0080,    // Paragraph Separator
-	S: 0x0100,    // Segment Separator
-	WS: 0x0200,   // Whitespace
-	ON: 0x0400,   // Other Neutral
-	BN: 0x0800,   // Boundary Neutral
-	NSM: 0x1000,  // Non-Spacing Mark
-	AL: 0x2000,   // Arabic Letter
-	LRO: 0x4000,  // Left-to-Right Override
-	RLO: 0x8000,  // Right-to-Left Override
+	L: 0x0001, // Left-to-Right
+	R: 0x0002, // Right-to-Left
+	EN: 0x0004, // European Number
+	ES: 0x0008, // European Separator
+	ET: 0x0010, // European Terminator
+	AN: 0x0020, // Arabic Number
+	CS: 0x0040, // Common Separator
+	B: 0x0080, // Paragraph Separator
+	S: 0x0100, // Segment Separator
+	WS: 0x0200, // Whitespace
+	ON: 0x0400, // Other Neutral
+	BN: 0x0800, // Boundary Neutral
+	NSM: 0x1000, // Non-Spacing Mark
+	AL: 0x2000, // Arabic Letter
+	LRO: 0x4000, // Left-to-Right Override
+	RLO: 0x8000, // Right-to-Left Override
 	LRE: 0x10000, // Left-to-Right Embedding
 	RLE: 0x20000, // Right-to-Left Embedding
 	PDF: 0x40000, // Pop Directional Format
 	LRI: 0x80000, // Left-to-Right Isolate
-	RLI: 0x100000,// Right-to-Left Isolate
-	FSI: 0x200000,// First Strong Isolate
-	PDI: 0x400000,// Pop Directional Isolate
+	RLI: 0x100000, // Right-to-Left Isolate
+	FSI: 0x200000, // First Strong Isolate
+	PDI: 0x400000, // Pop Directional Isolate
 } as const;
 
 /**
@@ -200,7 +201,7 @@ export function processBidi(
 	}
 
 	// Build string from codepoints
-	const text = infos.map(i => String.fromCodePoint(i.codepoint)).join("");
+	const text = infos.map((i) => String.fromCodePoint(i.codepoint)).join("");
 
 	// Get embedding levels
 	const { levels } = getEmbeddings(text, baseDirection);

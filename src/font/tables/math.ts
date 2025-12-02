@@ -1,7 +1,13 @@
+import {
+	type Coverage,
+	parseCoverageAt,
+} from "../../layout/structures/coverage.ts";
+import {
+	type DeviceOrVariationIndex,
+	parseDeviceAt,
+} from "../../layout/structures/device.ts";
 import type { GlyphId, int16, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
-import { type Coverage, parseCoverageAt } from "../../layout/structures/coverage.ts";
-import { type DeviceOrVariationIndex, parseDeviceAt } from "../../layout/structures/device.ts";
 
 /**
  * MATH table - Mathematical typesetting data
@@ -158,7 +164,10 @@ export interface MathTable {
 	variants: MathVariants | null;
 }
 
-function parseMathValueRecord(reader: Reader, tableReader: Reader): MathValueRecord {
+function parseMathValueRecord(
+	reader: Reader,
+	tableReader: Reader,
+): MathValueRecord {
 	const value = reader.int16();
 	const deviceOffset = reader.uint16();
 	return {
@@ -191,7 +200,10 @@ function parseMathConstants(reader: Reader): MathConstants {
 		superscriptBottomMin: parseMathValueRecord(reader, tableReader),
 		superscriptBaselineDropMax: parseMathValueRecord(reader, tableReader),
 		subSuperscriptGapMin: parseMathValueRecord(reader, tableReader),
-		superscriptBottomMaxWithSubscript: parseMathValueRecord(reader, tableReader),
+		superscriptBottomMaxWithSubscript: parseMathValueRecord(
+			reader,
+			tableReader,
+		),
 		spaceAfterScript: parseMathValueRecord(reader, tableReader),
 		upperLimitGapMin: parseMathValueRecord(reader, tableReader),
 		upperLimitBaselineRiseMin: parseMathValueRecord(reader, tableReader),
@@ -208,9 +220,15 @@ function parseMathConstants(reader: Reader): MathConstants {
 		stretchStackGapAboveMin: parseMathValueRecord(reader, tableReader),
 		stretchStackGapBelowMin: parseMathValueRecord(reader, tableReader),
 		fractionNumeratorShiftUp: parseMathValueRecord(reader, tableReader),
-		fractionNumeratorDisplayStyleShiftUp: parseMathValueRecord(reader, tableReader),
+		fractionNumeratorDisplayStyleShiftUp: parseMathValueRecord(
+			reader,
+			tableReader,
+		),
 		fractionDenominatorShiftDown: parseMathValueRecord(reader, tableReader),
-		fractionDenominatorDisplayStyleShiftDown: parseMathValueRecord(reader, tableReader),
+		fractionDenominatorDisplayStyleShiftDown: parseMathValueRecord(
+			reader,
+			tableReader,
+		),
 		fractionNumeratorGapMin: parseMathValueRecord(reader, tableReader),
 		fractionNumDisplayStyleGapMin: parseMathValueRecord(reader, tableReader),
 		fractionRuleThickness: parseMathValueRecord(reader, tableReader),
@@ -302,10 +320,22 @@ function parseMathKernInfoTable(reader: Reader): MathKernInfoTable {
 	const coverage = parseCoverageAt(reader, coverageOffset);
 
 	const kernInfo: MathKernInfo[] = kernInfoRecords.map((record) => ({
-		topRight: record.topRightOffset !== 0 ? parseMathKernRecord(reader, record.topRightOffset) : null,
-		topLeft: record.topLeftOffset !== 0 ? parseMathKernRecord(reader, record.topLeftOffset) : null,
-		bottomRight: record.bottomRightOffset !== 0 ? parseMathKernRecord(reader, record.bottomRightOffset) : null,
-		bottomLeft: record.bottomLeftOffset !== 0 ? parseMathKernRecord(reader, record.bottomLeftOffset) : null,
+		topRight:
+			record.topRightOffset !== 0
+				? parseMathKernRecord(reader, record.topRightOffset)
+				: null,
+		topLeft:
+			record.topLeftOffset !== 0
+				? parseMathKernRecord(reader, record.topLeftOffset)
+				: null,
+		bottomRight:
+			record.bottomRightOffset !== 0
+				? parseMathKernRecord(reader, record.bottomRightOffset)
+				: null,
+		bottomLeft:
+			record.bottomLeftOffset !== 0
+				? parseMathKernRecord(reader, record.bottomLeftOffset)
+				: null,
 	}));
 
 	return { coverage, kernInfo };
@@ -319,12 +349,16 @@ function parseMathGlyphInfo(reader: Reader): MathGlyphInfo {
 
 	let italicsCorrection: MathItalicsCorrection | null = null;
 	if (italicsCorrectionOffset !== 0) {
-		italicsCorrection = parseMathItalicsCorrection(reader.sliceFrom(italicsCorrectionOffset));
+		italicsCorrection = parseMathItalicsCorrection(
+			reader.sliceFrom(italicsCorrectionOffset),
+		);
 	}
 
 	let topAccentAttachment: MathTopAccentAttachment | null = null;
 	if (topAccentAttachmentOffset !== 0) {
-		topAccentAttachment = parseMathTopAccentAttachment(reader.sliceFrom(topAccentAttachmentOffset));
+		topAccentAttachment = parseMathTopAccentAttachment(
+			reader.sliceFrom(topAccentAttachmentOffset),
+		);
 	}
 
 	let extendedShapeCoverage: ExtendedShapeCoverage | null = null;
@@ -368,7 +402,8 @@ function parseMathGlyphConstruction(reader: Reader): MathGlyphConstruction {
 	const glyphAssemblyOffset = reader.uint16();
 	const variantCount = reader.uint16();
 
-	const variants: Array<{ variantGlyph: GlyphId; advanceMeasurement: uint16 }> = [];
+	const variants: Array<{ variantGlyph: GlyphId; advanceMeasurement: uint16 }> =
+		[];
 	for (let i = 0; i < variantCount; i++) {
 		variants.push({
 			variantGlyph: reader.uint16(),
@@ -401,13 +436,15 @@ function parseMathVariants(reader: Reader): MathVariants {
 		horizGlyphConstructionOffsets.push(reader.uint16());
 	}
 
-	const vertGlyphCoverage = vertGlyphCoverageOffset !== 0
-		? parseCoverageAt(reader, vertGlyphCoverageOffset)
-		: null;
+	const vertGlyphCoverage =
+		vertGlyphCoverageOffset !== 0
+			? parseCoverageAt(reader, vertGlyphCoverageOffset)
+			: null;
 
-	const horizGlyphCoverage = horizGlyphCoverageOffset !== 0
-		? parseCoverageAt(reader, horizGlyphCoverageOffset)
-		: null;
+	const horizGlyphCoverage =
+		horizGlyphCoverageOffset !== 0
+			? parseCoverageAt(reader, horizGlyphCoverageOffset)
+			: null;
 
 	const vertGlyphConstruction = vertGlyphConstructionOffsets.map((offset) =>
 		parseMathGlyphConstruction(reader.sliceFrom(offset)),
@@ -460,7 +497,10 @@ export function parseMath(reader: Reader): MathTable {
 // Helper functions
 
 /** Get italic correction for a glyph */
-export function getItalicsCorrection(math: MathTable, glyphId: GlyphId): MathValueRecord | null {
+export function getItalicsCorrection(
+	math: MathTable,
+	glyphId: GlyphId,
+): MathValueRecord | null {
 	const italics = math.glyphInfo?.italicsCorrection;
 	if (!italics) return null;
 
@@ -471,7 +511,10 @@ export function getItalicsCorrection(math: MathTable, glyphId: GlyphId): MathVal
 }
 
 /** Get top accent attachment for a glyph */
-export function getTopAccentAttachment(math: MathTable, glyphId: GlyphId): MathValueRecord | null {
+export function getTopAccentAttachment(
+	math: MathTable,
+	glyphId: GlyphId,
+): MathValueRecord | null {
 	const attachment = math.glyphInfo?.topAccentAttachment;
 	if (!attachment) return null;
 
@@ -518,7 +561,10 @@ export function getHorizontalVariants(
 }
 
 /** Get vertical glyph assembly */
-export function getVerticalAssembly(math: MathTable, glyphId: GlyphId): GlyphAssembly | null {
+export function getVerticalAssembly(
+	math: MathTable,
+	glyphId: GlyphId,
+): GlyphAssembly | null {
 	const variants = math.variants;
 	if (!variants?.vertGlyphCoverage) return null;
 
@@ -529,7 +575,10 @@ export function getVerticalAssembly(math: MathTable, glyphId: GlyphId): GlyphAss
 }
 
 /** Get horizontal glyph assembly */
-export function getHorizontalAssembly(math: MathTable, glyphId: GlyphId): GlyphAssembly | null {
+export function getHorizontalAssembly(
+	math: MathTable,
+	glyphId: GlyphId,
+): GlyphAssembly | null {
 	const variants = math.variants;
 	if (!variants?.horizGlyphCoverage) return null;
 

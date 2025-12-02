@@ -1,11 +1,11 @@
 import type { Tag, uint16, uint32 } from "../../types.ts";
+import { tag } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 import {
+	calculateRegionScalar,
 	type ItemVariationStore,
 	type VariationRegion,
-	calculateRegionScalar,
 } from "./hvar.ts";
-import { tag } from "../../types.ts";
 
 /**
  * Metrics Variations table (MVAR)
@@ -95,7 +95,9 @@ export function parseMvar(reader: Reader): MvarTable {
 	}
 
 	// Parse item variation store
-	const itemVariationStore = parseItemVariationStore(reader.sliceFrom(itemVariationStoreOffset));
+	const itemVariationStore = parseItemVariationStore(
+		reader.sliceFrom(itemVariationStoreOffset),
+	);
 
 	return {
 		majorVersion,
@@ -122,7 +124,11 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 
 	const variationRegions: VariationRegion[] = [];
 	for (let i = 0; i < regionCount; i++) {
-		const regionAxes: { startCoord: number; peakCoord: number; endCoord: number }[] = [];
+		const regionAxes: {
+			startCoord: number;
+			peakCoord: number;
+			endCoord: number;
+		}[] = [];
 		for (let j = 0; j < axisCount; j++) {
 			regionAxes.push({
 				startCoord: regionReader.f2dot14(),
@@ -134,7 +140,11 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 	}
 
 	// Parse item variation data
-	const itemVariationData: { itemCount: uint16; regionIndexes: uint16[]; deltaSets: number[][] }[] = [];
+	const itemVariationData: {
+		itemCount: uint16;
+		regionIndexes: uint16[];
+		deltaSets: number[][];
+	}[] = [];
 	for (const offset of itemVariationDataOffsets) {
 		const dataReader = reader.sliceFrom(offset);
 		const itemCount = dataReader.uint16();
@@ -188,7 +198,7 @@ export function getMetricDelta(
 	coords: number[],
 ): number {
 	// Find value record for this tag
-	const record = mvar.valueRecords.find(r => r.valueTag === valueTag);
+	const record = mvar.valueRecords.find((r) => r.valueTag === valueTag);
 	if (!record) return 0;
 
 	const outer = record.deltaSetOuterIndex;
@@ -257,27 +267,39 @@ export function getCapHeightDelta(mvar: MvarTable, coords: number[]): number {
 /**
  * Get underline offset delta
  */
-export function getUnderlineOffsetDelta(mvar: MvarTable, coords: number[]): number {
+export function getUnderlineOffsetDelta(
+	mvar: MvarTable,
+	coords: number[],
+): number {
 	return getMetricDelta(mvar, MvarTags.undo, coords);
 }
 
 /**
  * Get underline size delta
  */
-export function getUnderlineSizeDelta(mvar: MvarTable, coords: number[]): number {
+export function getUnderlineSizeDelta(
+	mvar: MvarTable,
+	coords: number[],
+): number {
 	return getMetricDelta(mvar, MvarTags.unds, coords);
 }
 
 /**
  * Get strikeout offset delta
  */
-export function getStrikeoutOffsetDelta(mvar: MvarTable, coords: number[]): number {
+export function getStrikeoutOffsetDelta(
+	mvar: MvarTable,
+	coords: number[],
+): number {
 	return getMetricDelta(mvar, MvarTags.stro, coords);
 }
 
 /**
  * Get strikeout size delta
  */
-export function getStrikeoutSizeDelta(mvar: MvarTable, coords: number[]): number {
+export function getStrikeoutSizeDelta(
+	mvar: MvarTable,
+	coords: number[],
+): number {
 	return getMetricDelta(mvar, MvarTags.strs, coords);
 }

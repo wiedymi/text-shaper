@@ -1,4 +1,4 @@
-import type { GlyphId, uint16, uint32, int16 } from "../../types.ts";
+import type { GlyphId, int16, uint16, uint32 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /**
@@ -14,7 +14,7 @@ export interface KerxTable {
 /**
  * kerx subtable types
  */
-export const enum KerxSubtableType {
+export enum KerxSubtableType {
 	OrderedList = 0,
 	StateTable = 1,
 	SimpleArray = 2,
@@ -151,7 +151,7 @@ function parseKerxSubtable(reader: Reader): KerxSubtable | null {
 	};
 
 	const base: KerxSubtableBase = { length, coverage, tupleCount };
-	const subtableEnd = reader.position + length - 12; // Already read 12 bytes
+	const subtableEnd = reader.offset + length - 12; // Already read 12 bytes
 
 	let subtable: KerxSubtable | null = null;
 
@@ -176,7 +176,10 @@ function parseKerxSubtable(reader: Reader): KerxSubtable | null {
 	return subtable;
 }
 
-function parseKerxFormat0(reader: Reader, base: KerxSubtableBase): KerxOrderedListSubtable {
+function parseKerxFormat0(
+	reader: Reader,
+	base: KerxSubtableBase,
+): KerxOrderedListSubtable {
 	const nPairs = reader.uint32();
 	reader.skip(12); // searchRange, entrySelector, rangeShift
 
@@ -198,7 +201,10 @@ function parseKerxFormat0(reader: Reader, base: KerxSubtableBase): KerxOrderedLi
 	};
 }
 
-function parseKerxFormat1(reader: Reader, base: KerxSubtableBase): KerxStateTableSubtable {
+function parseKerxFormat1(
+	reader: Reader,
+	base: KerxSubtableBase,
+): KerxStateTableSubtable {
 	const stateHeader: KerxStateHeader = {
 		nClasses: reader.uint32(),
 		classTableOffset: reader.offset32(),
@@ -214,7 +220,10 @@ function parseKerxFormat1(reader: Reader, base: KerxSubtableBase): KerxStateTabl
 	};
 }
 
-function parseKerxFormat2(reader: Reader, base: KerxSubtableBase): KerxSimpleArraySubtable {
+function parseKerxFormat2(
+	reader: Reader,
+	base: KerxSubtableBase,
+): KerxSimpleArraySubtable {
 	const rowWidth = reader.uint16();
 	reader.skip(2); // padding
 
@@ -223,12 +232,19 @@ function parseKerxFormat2(reader: Reader, base: KerxSubtableBase): KerxSimpleArr
 	const kerningArrayOffset = reader.offset32();
 
 	// Parse class tables
-	const leftClassTable = parseKerxClassTable(reader.sliceFrom(leftClassTableOffset));
-	const rightClassTable = parseKerxClassTable(reader.sliceFrom(rightClassTableOffset));
+	const leftClassTable = parseKerxClassTable(
+		reader.sliceFrom(leftClassTableOffset),
+	);
+	const rightClassTable = parseKerxClassTable(
+		reader.sliceFrom(rightClassTableOffset),
+	);
 
 	// Parse kerning array
 	const arrayReader = reader.sliceFrom(kerningArrayOffset);
-	const numRows = leftClassTable.nGlyphs > 0 ? Math.max(...Array.from(leftClassTable.classes)) + 1 : 0;
+	const numRows =
+		leftClassTable.nGlyphs > 0
+			? Math.max(...Array.from(leftClassTable.classes)) + 1
+			: 0;
 	const numCols = rowWidth / 2;
 	const kerningArray = new Int16Array(numRows * numCols);
 
@@ -258,7 +274,10 @@ function parseKerxClassTable(reader: Reader): KerxClassTable {
 	return { firstGlyph, nGlyphs, classes };
 }
 
-function parseKerxFormat6(reader: Reader, base: KerxSubtableBase): KerxFormat6Subtable {
+function parseKerxFormat6(
+	reader: Reader,
+	base: KerxSubtableBase,
+): KerxFormat6Subtable {
 	const flags = reader.uint32();
 	const rowCount = reader.uint16();
 	const columnCount = reader.uint16();
@@ -283,7 +302,11 @@ function parseKerxFormat6(reader: Reader, base: KerxSubtableBase): KerxFormat6Su
 /**
  * Get kerning value from kerx table
  */
-export function getKerxValue(kerx: KerxTable, left: GlyphId, right: GlyphId): number {
+export function getKerxValue(
+	kerx: KerxTable,
+	left: GlyphId,
+	right: GlyphId,
+): number {
 	for (const subtable of kerx.subtables) {
 		if (subtable.coverage.vertical) continue; // Skip vertical kerning
 
@@ -314,10 +337,16 @@ export function getKerxValue(kerx: KerxTable, left: GlyphId, right: GlyphId): nu
 				const leftTable = subtable.leftClassTable;
 				const rightTable = subtable.rightClassTable;
 
-				if (left < leftTable.firstGlyph || left >= leftTable.firstGlyph + leftTable.nGlyphs) {
+				if (
+					left < leftTable.firstGlyph ||
+					left >= leftTable.firstGlyph + leftTable.nGlyphs
+				) {
 					continue;
 				}
-				if (right < rightTable.firstGlyph || right >= rightTable.firstGlyph + rightTable.nGlyphs) {
+				if (
+					right < rightTable.firstGlyph ||
+					right >= rightTable.firstGlyph + rightTable.nGlyphs
+				) {
 					continue;
 				}
 

@@ -1,5 +1,5 @@
 import type { TableRecord, Tag } from "../../types.ts";
-import { Reader } from "../binary/reader.ts";
+import type { Reader } from "../binary/reader.ts";
 
 /** Supported sfnt version tags */
 const SFNT_VERSION_TRUETYPE = 0x00010000; // TrueType

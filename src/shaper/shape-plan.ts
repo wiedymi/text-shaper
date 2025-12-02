@@ -1,13 +1,13 @@
-import type { Tag } from "../types.ts";
-import { tag, tagToString } from "../types.ts";
 import type { Font } from "../font/font.ts";
-import type { GsubTable, AnyGsubLookup } from "../font/tables/gsub.ts";
-import type { GposTable, AnyGposLookup } from "../font/tables/gpos.ts";
+import type { AnyGposLookup, GposTable } from "../font/tables/gpos.ts";
+import type { AnyGsubLookup, GsubTable } from "../font/tables/gsub.ts";
 import {
-	findScript,
 	findLangSys,
+	findScript,
 	getFeature,
 } from "../layout/structures/layout-common.ts";
+import type { Tag } from "../types.ts";
+import { tag, tagToString } from "../types.ts";
 
 /** Shape plan cache for reusing computed plans */
 const shapePlanCache = new WeakMap<Font, Map<string, ShapePlan>>();
@@ -59,7 +59,7 @@ function getCacheKey(
 	userFeatures: ShapeFeature[],
 ): string {
 	const featuresKey = userFeatures
-		.map(f => `${tagToString(f.tag)}:${f.enabled ? "1" : "0"}`)
+		.map((f) => `${tagToString(f.tag)}:${f.enabled ? "1" : "0"}`)
 		.sort()
 		.join(",");
 	return `${script}|${language || ""}|${direction}|${featuresKey}`;
@@ -89,7 +89,13 @@ export function getOrCreateShapePlan(
 	}
 
 	// Create new plan
-	const plan = createShapePlanInternal(font, script, language, direction, userFeatures);
+	const plan = createShapePlanInternal(
+		font,
+		script,
+		language,
+		direction,
+		userFeatures,
+	);
 
 	// Evict if cache is too large
 	if (fontCache.size >= MAX_CACHE_SIZE) {

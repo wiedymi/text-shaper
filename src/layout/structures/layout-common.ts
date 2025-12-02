@@ -1,5 +1,5 @@
-import type { Tag, uint16 } from "../../types.ts";
 import type { Reader } from "../../font/binary/reader.ts";
+import type { Tag, uint16 } from "../../types.ts";
 
 /** Language system record */
 export interface LangSysRecord {

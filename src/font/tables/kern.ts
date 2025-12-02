@@ -68,7 +68,7 @@ export function parseKern(reader: Reader): KernTable {
 }
 
 function parseKernSubtable(reader: Reader): KernSubtable | null {
-	const version = reader.uint16();
+	const _version = reader.uint16();
 	const length = reader.uint16();
 	const coverageBits = reader.uint16();
 
@@ -95,7 +95,7 @@ function parseKernSubtable(reader: Reader): KernSubtable | null {
 function parseAppleKernSubtable(reader: Reader): KernSubtable | null {
 	const length = reader.uint32();
 	const coverageBits = reader.uint16();
-	const tupleIndex = reader.uint16();
+	const _tupleIndex = reader.uint16();
 
 	const coverage: KernCoverage = {
 		horizontal: (coverageBits & 0x8000) === 0, // bit 15: 0=horizontal
@@ -134,8 +134,12 @@ function parseKernFormat0(reader: Reader, coverage: KernCoverage): KernFormat0 {
 	return { format: 0, coverage, pairs };
 }
 
-function parseKernFormat2(reader: Reader, coverage: KernCoverage, dataLength: number): KernFormat2 {
-	const startOffset = reader.position;
+function parseKernFormat2(
+	reader: Reader,
+	coverage: KernCoverage,
+	dataLength: number,
+): KernFormat2 {
+	const startOffset = reader.offset;
 	const rowWidth = reader.uint16();
 	const leftClassOffset = reader.uint16();
 	const rightClassOffset = reader.uint16();
@@ -179,13 +183,24 @@ function parseKernFormat2(reader: Reader, coverage: KernCoverage, dataLength: nu
 		kerningValues.push(rowValues);
 	}
 
-	return { format: 2, coverage, rowWidth, leftClassTable, rightClassTable, kerningValues };
+	return {
+		format: 2,
+		coverage,
+		rowWidth,
+		leftClassTable,
+		rightClassTable,
+		kerningValues,
+	};
 }
 
 /**
  * Get kerning value from kern table
  */
-export function getKernValue(kern: KernTable, left: GlyphId, right: GlyphId): number {
+export function getKernValue(
+	kern: KernTable,
+	left: GlyphId,
+	right: GlyphId,
+): number {
 	let total = 0;
 
 	for (const subtable of kern.subtables) {

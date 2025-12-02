@@ -1,4 +1,4 @@
-import type { uint16, int16 } from "../../types.ts";
+import type { int16, uint16, uint32 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /**
@@ -208,6 +208,6 @@ export function applyTracking(
 
 	// Add tracking to each advance
 	for (let i = 0; i < advances.length; i++) {
-		advances[i] += trackingValue;
+		advances[i] = (advances[i] ?? 0) + trackingValue;
 	}
 }

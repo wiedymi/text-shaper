@@ -85,7 +85,7 @@ export interface ItemVariationData {
 }
 
 // CFF2 Top DICT operators
-const enum Cff2TopDictOp {
+enum Cff2TopDictOp {
 	FontMatrix = 0x0c07,
 	CharStrings = 17,
 	FDArray = 0x0c24,
@@ -94,7 +94,7 @@ const enum Cff2TopDictOp {
 }
 
 // CFF2 Private DICT operators
-const enum Cff2PrivateDictOp {
+enum Cff2PrivateDictOp {
 	BlueValues = 6,
 	OtherBlues = 7,
 	FamilyBlues = 8,
@@ -129,7 +129,10 @@ export function parseCff2(reader: Reader): Cff2Table {
 	reader.seek(startOffset + headerSize);
 
 	// Top DICT (not an INDEX in CFF2, just raw data)
-	const topDictReader = reader.slice(reader.offset - startOffset, topDictLength);
+	const topDictReader = reader.slice(
+		reader.offset - startOffset,
+		topDictLength,
+	);
 	reader.skip(topDictLength);
 	const topDict = parseCff2TopDict(topDictReader);
 
@@ -151,7 +154,11 @@ export function parseCff2(reader: Reader): Cff2Table {
 
 		for (const data of fdDictData) {
 			const fd = parseCff2FDDict(
-				new Reader(data.buffer, data.byteOffset, data.byteLength)
+				new Reader(
+					data.buffer as ArrayBuffer,
+					data.byteOffset,
+					data.byteLength,
+				),
 			);
 
 			// Parse local subrs if Private DICT has them
@@ -302,7 +309,7 @@ function parseReal(reader: Reader): number {
 	while (!done) {
 		const byte = reader.uint8();
 		for (let i = 0; i < 2; i++) {
-			const nibble = i === 0 ? (byte >> 4) : (byte & 0x0f);
+			const nibble = i === 0 ? byte >> 4 : byte & 0x0f;
 			if (nibble === 0x0f) {
 				done = true;
 				break;
@@ -472,7 +479,7 @@ function parseFDSelect(reader: Reader, numGlyphs: number): Cff2FDSelect {
 				let hi = ranges.length - 1;
 				while (lo < hi) {
 					const mid = Math.ceil((lo + hi) / 2);
-					if (ranges[mid]!.first <= glyphId) {
+					if (ranges[mid]?.first <= glyphId) {
 						lo = mid;
 					} else {
 						hi = mid - 1;
@@ -501,7 +508,7 @@ function parseFDSelect(reader: Reader, numGlyphs: number): Cff2FDSelect {
 				let hi = ranges.length - 1;
 				while (lo < hi) {
 					const mid = Math.ceil((lo + hi) / 2);
-					if (ranges[mid]!.first <= glyphId) {
+					if (ranges[mid]?.first <= glyphId) {
 						lo = mid;
 					} else {
 						hi = mid - 1;
@@ -521,7 +528,7 @@ function parseFDSelect(reader: Reader, numGlyphs: number): Cff2FDSelect {
 function parseItemVariationStore(reader: Reader): ItemVariationStore {
 	const startOffset = reader.offset;
 
-	const length = reader.uint16();
+	const _length = reader.uint16();
 	const format = reader.uint16();
 	const variationRegionListOffset = reader.uint32();
 	const itemVariationDataCount = reader.uint16();
@@ -648,9 +655,11 @@ export function calculateVariationDelta(
 			}
 
 			if (coord < coords.peakCoord) {
-				scalar *= (coord - coords.startCoord) / (coords.peakCoord - coords.startCoord);
+				scalar *=
+					(coord - coords.startCoord) / (coords.peakCoord - coords.startCoord);
 			} else {
-				scalar *= (coords.endCoord - coord) / (coords.endCoord - coords.peakCoord);
+				scalar *=
+					(coords.endCoord - coord) / (coords.endCoord - coords.peakCoord);
 			}
 		}
 

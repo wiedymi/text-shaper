@@ -1,8 +1,8 @@
-import type { Tag, GlyphId, Variation } from "../types.ts";
+import type { GlyphId, Tag, Variation } from "../types.ts";
 import { tag } from "../types.ts";
 import type { Font } from "./font.ts";
-import { normalizeAxisValue, getAxisIndex, type VariationAxis } from "./tables/fvar.ts";
 import { applyAvar } from "./tables/avar.ts";
+import { normalizeAxisValue, type VariationAxis } from "./tables/fvar.ts";
 import { getAdvanceWidthDelta, getLsbDelta } from "./tables/hvar.ts";
 
 /**
@@ -95,14 +95,15 @@ export class Face {
 	 * Get current value for an axis
 	 */
 	getAxisValue(axisTag: Tag | string): number | null {
-		const t = typeof axisTag === "string" ? tag(axisTag.padEnd(4, " ")) : axisTag;
+		const t =
+			typeof axisTag === "string" ? tag(axisTag.padEnd(4, " ")) : axisTag;
 		const fvar = this.font.fvar;
 		if (!fvar) return null;
 
 		const value = this._variations.get(t);
 		if (value !== undefined) return value;
 
-		const axis = fvar.axes.find(a => a.tag === t);
+		const axis = fvar.axes.find((a) => a.tag === t);
 		return axis?.defaultValue ?? null;
 	}
 
@@ -171,14 +172,30 @@ export class Face {
 	}
 
 	// Expose tables
-	get gdef() { return this.font.gdef; }
-	get gsub() { return this.font.gsub; }
-	get gpos() { return this.font.gpos; }
-	get kern() { return this.font.kern; }
-	get morx() { return this.font.morx; }
-	get cmap() { return this.font.cmap; }
-	get hmtx() { return this.font.hmtx; }
-	get hhea() { return this.font.hhea; }
+	get gdef() {
+		return this.font.gdef;
+	}
+	get gsub() {
+		return this.font.gsub;
+	}
+	get gpos() {
+		return this.font.gpos;
+	}
+	get kern() {
+		return this.font.kern;
+	}
+	get morx() {
+		return this.font.morx;
+	}
+	get cmap() {
+		return this.font.cmap;
+	}
+	get hmtx() {
+		return this.font.hmtx;
+	}
+	get hhea() {
+		return this.font.hhea;
+	}
 }
 
 /**

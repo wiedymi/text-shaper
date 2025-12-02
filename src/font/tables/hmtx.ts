@@ -46,16 +46,16 @@ export function parseHmtx(
 /** Get advance width for a glyph */
 export function getAdvanceWidth(hmtx: HmtxTable, glyphId: GlyphId): number {
 	if (glyphId < hmtx.hMetrics.length) {
-		return hmtx.hMetrics[glyphId]!.advanceWidth;
+		return hmtx.hMetrics[glyphId]?.advanceWidth;
 	}
 	// Use last advanceWidth for remaining glyphs
-	return hmtx.hMetrics[hmtx.hMetrics.length - 1]!.advanceWidth;
+	return hmtx.hMetrics[hmtx.hMetrics.length - 1]?.advanceWidth;
 }
 
 /** Get left side bearing for a glyph */
 export function getLeftSideBearing(hmtx: HmtxTable, glyphId: GlyphId): number {
 	if (glyphId < hmtx.hMetrics.length) {
-		return hmtx.hMetrics[glyphId]!.lsb;
+		return hmtx.hMetrics[glyphId]?.lsb;
 	}
 	const idx = glyphId - hmtx.hMetrics.length;
 	return hmtx.leftSideBearings[idx] ?? 0;

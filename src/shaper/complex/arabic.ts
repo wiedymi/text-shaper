@@ -3,7 +3,7 @@ import type { GlyphInfo } from "../../types.ts";
 /**
  * Arabic joining types from Unicode
  */
-export const enum ArabicJoiningType {
+export enum ArabicJoiningType {
 	NonJoining = "U", // Non_Joining
 	RightJoining = "R", // Right_Joining (joins on the right)
 	DualJoining = "D", // Dual_Joining (joins on both sides)
@@ -15,7 +15,7 @@ export const enum ArabicJoiningType {
 /**
  * Action to take for each glyph based on context
  */
-export const enum JoiningAction {
+export enum JoiningAction {
 	None = 0,
 	Isol = 1, // Isolated form
 	Fina = 2, // Final form
@@ -26,7 +26,7 @@ export const enum JoiningAction {
 /**
  * Arabic joining group for specific shaping behavior
  */
-export const enum ArabicJoiningGroup {
+export enum ArabicJoiningGroup {
 	None = 0,
 	Alaph = 1,
 	DalathRish = 2,
@@ -175,7 +175,10 @@ export function analyzeJoining(infos: GlyphInfo[]): JoiningAction[] {
 		const type = types[i]!;
 
 		// Skip non-Arabic characters
-		if (type === ArabicJoiningType.NonJoining || type === ArabicJoiningType.Transparent) {
+		if (
+			type === ArabicJoiningType.NonJoining ||
+			type === ArabicJoiningType.Transparent
+		) {
 			continue;
 		}
 
@@ -198,11 +201,13 @@ export function analyzeJoining(infos: GlyphInfo[]): JoiningAction[] {
 		}
 
 		// Determine if we join left/right
-		const joinsLeft = prevType === ArabicJoiningType.DualJoining ||
+		const joinsLeft =
+			prevType === ArabicJoiningType.DualJoining ||
 			prevType === ArabicJoiningType.LeftJoining ||
 			prevType === ArabicJoiningType.JoinCausing;
 
-		const joinsRight = nextType === ArabicJoiningType.DualJoining ||
+		const joinsRight =
+			nextType === ArabicJoiningType.DualJoining ||
 			nextType === ArabicJoiningType.RightJoining ||
 			nextType === ArabicJoiningType.JoinCausing;
 

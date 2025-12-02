@@ -1,8 +1,22 @@
-import { test, expect, describe } from "bun:test";
-import { tag, tagToString, Tags } from "./types.ts";
-import { getMyanmarCategory, MyanmarCategory, isMyanmar } from "./shaper/complex/myanmar.ts";
-import { getKhmerCategory, KhmerCategory, isKhmer } from "./shaper/complex/khmer.ts";
-import { isHangulSyllable, composeHangul, decomposeHangul, getHangulSyllableType, HangulSyllableType } from "./shaper/complex/hangul.ts";
+import { describe, expect, test } from "bun:test";
+import {
+	composeHangul,
+	decomposeHangul,
+	getHangulSyllableType,
+	HangulSyllableType,
+	isHangulSyllable,
+} from "./shaper/complex/hangul.ts";
+import {
+	getKhmerCategory,
+	isKhmer,
+	KhmerCategory,
+} from "./shaper/complex/khmer.ts";
+import {
+	getMyanmarCategory,
+	isMyanmar,
+	MyanmarCategory,
+} from "./shaper/complex/myanmar.ts";
+import { Tags, tag, tagToString } from "./types.ts";
 
 describe("types", () => {
 	test("tag creation", () => {

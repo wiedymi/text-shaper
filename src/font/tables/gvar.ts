@@ -1,4 +1,4 @@
-import type { GlyphId, uint16, uint32, int16 } from "../../types.ts";
+import type { GlyphId, int16, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /**
@@ -52,7 +52,7 @@ const TUPLE_INDEX_MASK = 0x0fff;
 /**
  * Parse gvar table
  */
-export function parseGvar(reader: Reader, numGlyphs: number): GvarTable {
+export function parseGvar(reader: Reader, _numGlyphs: number): GvarTable {
 	const majorVersion = reader.uint16();
 	const minorVersion = reader.uint16();
 	const axisCount = reader.uint16();
@@ -62,7 +62,7 @@ export function parseGvar(reader: Reader, numGlyphs: number): GvarTable {
 	const flags = reader.uint16();
 	const glyphVariationDataArrayOffset = reader.offset32();
 
-	const offsetSize = (flags & 1) ? 4 : 2;
+	const offsetSize = flags & 1 ? 4 : 2;
 
 	// Read glyph offsets
 	const offsets: number[] = [];
@@ -97,7 +97,12 @@ export function parseGvar(reader: Reader, numGlyphs: number): GvarTable {
 		}
 
 		const dataReader = reader.sliceFrom(dataStart);
-		const variationData = parseGlyphVariationData(dataReader, dataEnd - dataStart, axisCount, sharedTuples);
+		const variationData = parseGlyphVariationData(
+			dataReader,
+			dataEnd - dataStart,
+			axisCount,
+			sharedTuples,
+		);
 		glyphVariationData.push(variationData);
 	}
 
@@ -121,28 +126,21 @@ function parseGlyphVariationData(
 		return { tupleVariationHeaders: [] };
 	}
 
+	const startOffset = reader.offset;
 	const tupleVariationCount = reader.uint16();
 	const dataOffset = reader.offset16();
 
 	const tupleCount = tupleVariationCount & 0x0fff;
-	const sharedPointNumbers = (tupleVariationCount & 0x8000) !== 0;
+	const hasSharedPointNumbers = (tupleVariationCount & 0x8000) !== 0;
 
-	// Parse shared point numbers if present
-	let sharedPoints: number[] | null = null;
-	if (sharedPointNumbers) {
-		const pointReader = reader.sliceFrom(dataOffset);
-		sharedPoints = parsePackedPoints(pointReader);
-	}
-
-	const headers: TupleVariationHeader[] = [];
-	let serializedDataOffset = dataOffset;
-
-	if (sharedPointNumbers && sharedPoints) {
-		// Skip past shared points
-		const tempReader = reader.sliceFrom(dataOffset);
-		parsePackedPoints(tempReader);
-		serializedDataOffset = dataOffset + tempReader.position;
-	}
+	// Read tuple variation headers first
+	const headerData: Array<{
+		variationDataSize: uint16;
+		tupleIndex: uint16;
+		peakTuple: number[] | null;
+		intermediateStartTuple: number[] | null;
+		intermediateEndTuple: number[] | null;
+	}> = [];
 
 	for (let i = 0; i < tupleCount; i++) {
 		const variationDataSize = reader.uint16();
@@ -173,17 +171,62 @@ function parseGlyphVariationData(
 			}
 		}
 
-		const hasPrivatePoints = (tupleIndex & PRIVATE_POINT_NUMBERS) !== 0;
-
-		headers.push({
+		headerData.push({
 			variationDataSize,
 			tupleIndex,
 			peakTuple,
 			intermediateStartTuple,
 			intermediateEndTuple,
-			serializedData: new Uint8Array(0), // Will parse deltas on demand
-			pointNumbers: hasPrivatePoints ? null : sharedPoints,
-			deltas: [],
+		});
+	}
+
+	// Now parse serialized data starting at dataOffset
+	const dataReader = reader.sliceFrom(startOffset + dataOffset);
+
+	// Parse shared point numbers if present
+	let sharedPoints: number[] | null = null;
+	if (hasSharedPointNumbers) {
+		sharedPoints = parsePackedPoints(dataReader);
+	}
+
+	// Parse each tuple's deltas
+	const headers: TupleVariationHeader[] = [];
+	for (const hd of headerData) {
+		const hasPrivatePoints = (hd.tupleIndex & PRIVATE_POINT_NUMBERS) !== 0;
+
+		let pointNumbers: number[] | null;
+		if (hasPrivatePoints) {
+			pointNumbers = parsePackedPoints(dataReader);
+		} else {
+			pointNumbers = sharedPoints;
+		}
+
+		// Calculate number of points to read deltas for
+		const numPoints = pointNumbers ? pointNumbers.length : 0;
+
+		// Parse x deltas then y deltas
+		const xDeltas =
+			numPoints > 0 ? parsePackedDeltas(dataReader, numPoints) : [];
+		const yDeltas =
+			numPoints > 0 ? parsePackedDeltas(dataReader, numPoints) : [];
+
+		const deltas: PointDelta[] = [];
+		for (let p = 0; p < numPoints; p++) {
+			deltas.push({
+				x: xDeltas[p] ?? 0,
+				y: yDeltas[p] ?? 0,
+			});
+		}
+
+		headers.push({
+			variationDataSize: hd.variationDataSize,
+			tupleIndex: hd.tupleIndex,
+			peakTuple: hd.peakTuple,
+			intermediateStartTuple: hd.intermediateStartTuple,
+			intermediateEndTuple: hd.intermediateEndTuple,
+			serializedData: new Uint8Array(0),
+			pointNumbers,
+			deltas,
 		});
 	}
 
@@ -195,7 +238,12 @@ function parseGlyphVariationData(
  */
 function parsePackedPoints(reader: Reader): number[] {
 	const count = reader.uint8();
-	const totalPoints = count === 0 ? 0 : (count & 0x80) ? (((count & 0x7f) << 8) | reader.uint8()) : count;
+	const totalPoints =
+		count === 0
+			? 0
+			: count & 0x80
+				? ((count & 0x7f) << 8) | reader.uint8()
+				: count;
 
 	if (totalPoints === 0) {
 		return []; // All points
@@ -328,14 +376,14 @@ export function getGlyphDelta(
 			if (pointIdx < 0) continue;
 
 			if (header.deltas[pointIdx]) {
-				totalX += header.deltas[pointIdx]!.x * scalar;
-				totalY += header.deltas[pointIdx]!.y * scalar;
+				totalX += header.deltas[pointIdx]?.x * scalar;
+				totalY += header.deltas[pointIdx]?.y * scalar;
 			}
 		} else {
 			// All points
 			if (header.deltas[pointIndex]) {
-				totalX += header.deltas[pointIndex]!.x * scalar;
-				totalY += header.deltas[pointIndex]!.y * scalar;
+				totalX += header.deltas[pointIndex]?.x * scalar;
+				totalY += header.deltas[pointIndex]?.y * scalar;
 			}
 		}
 	}

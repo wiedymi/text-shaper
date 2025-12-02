@@ -1,16 +1,14 @@
-import type { GlyphId, GlyphInfo } from "../types.ts";
 import type {
-	MorxContextualSubtable,
-	MorxLigatureSubtable,
-	MorxRearrangementSubtable,
-	MorxInsertionSubtable,
-	StateTable,
 	ClassTable,
 	ContextualEntry,
-	LigatureEntry,
-	RearrangementEntry,
 	InsertionEntry,
+	LigatureEntry,
+	MorxContextualSubtable,
+	MorxInsertionSubtable,
+	MorxLigatureSubtable,
+	MorxRearrangementSubtable,
 } from "../font/tables/morx.ts";
+import type { GlyphId, GlyphInfo } from "../types.ts";
 
 /**
  * State machine driver for AAT processing
@@ -29,13 +27,16 @@ export interface StateMachineContext {
  */
 const CLASS_END_OF_TEXT = 0;
 const CLASS_OUT_OF_BOUNDS = 1;
-const CLASS_DELETED_GLYPH = 2;
-const CLASS_END_OF_LINE = 3;
+const _CLASS_DELETED_GLYPH = 2;
+const _CLASS_END_OF_LINE = 3;
 
 /**
  * Get class for a glyph
  */
-export function getGlyphClass(classTable: ClassTable, glyphId: GlyphId): number {
+export function getGlyphClass(
+	classTable: ClassTable,
+	glyphId: GlyphId,
+): number {
 	if (glyphId < 0 || glyphId >= classTable.classArray.length) {
 		return CLASS_OUT_OF_BOUNDS;
 	}
@@ -59,7 +60,7 @@ export function processRearrangement(
 		const isEnd = i >= infos.length;
 		const glyphClass = isEnd
 			? CLASS_END_OF_TEXT
-			: getGlyphClass(stateTable.classTable, infos[i]!.glyphId);
+			: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
 
 		const stateRow = stateTable.stateArray[state];
 		if (!stateRow) break;
@@ -245,7 +246,7 @@ export function processContextual(
 		const isEnd = i >= infos.length;
 		const glyphClass = isEnd
 			? CLASS_END_OF_TEXT
-			: getGlyphClass(stateTable.classTable, infos[i]!.glyphId);
+			: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
 
 		const stateRow = stateTable.stateArray[state];
 		if (!stateRow) break;
@@ -259,10 +260,14 @@ export function processContextual(
 		}
 
 		// Apply substitution at mark
-		if (entry.markIndex !== 0xffff && markIndex >= 0 && markIndex < infos.length) {
+		if (
+			entry.markIndex !== 0xffff &&
+			markIndex >= 0 &&
+			markIndex < infos.length
+		) {
 			const substTable = substitutionTable[entry.markIndex];
 			if (substTable) {
-				const replacement = substTable.get(infos[markIndex]!.glyphId);
+				const replacement = substTable.get(infos[markIndex]?.glyphId);
 				if (replacement !== undefined) {
 					infos[markIndex]!.glyphId = replacement;
 				}
@@ -273,7 +278,7 @@ export function processContextual(
 		if (!isEnd && entry.currentIndex !== 0xffff) {
 			const substTable = substitutionTable[entry.currentIndex];
 			if (substTable) {
-				const replacement = substTable.get(infos[i]!.glyphId);
+				const replacement = substTable.get(infos[i]?.glyphId);
 				if (replacement !== undefined) {
 					infos[i]!.glyphId = replacement;
 				}
@@ -306,7 +311,7 @@ export function processLigature(
 		const isEnd = i >= infos.length;
 		const glyphClass = isEnd
 			? CLASS_END_OF_TEXT
-			: getGlyphClass(stateTable.classTable, infos[i]!.glyphId);
+			: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
 
 		const stateRow = stateTable.stateArray[state];
 		if (!stateRow) break;
@@ -330,12 +335,12 @@ export function processLigature(
 				const action = ligatureActions[actionIndex]!;
 				const last = (action & 0x80000000) !== 0;
 				const store = (action & 0x40000000) !== 0;
-				const componentOffset = (action & 0x3fffffff) << 2 >> 2; // Sign extend
+				const componentOffset = ((action & 0x3fffffff) << 2) >> 2; // Sign extend
 
 				const stackIdx = stack.pop();
 				if (stackIdx !== undefined && stackIdx < infos.length) {
 					componentIndices.push(stackIdx);
-					const glyphId = infos[stackIdx]!.glyphId;
+					const glyphId = infos[stackIdx]?.glyphId;
 					const componentIdx = glyphId + componentOffset;
 
 					if (componentIdx >= 0 && componentIdx < components.length) {
@@ -390,13 +395,14 @@ export function processInsertion(
 	let state = 0;
 	let markIndex = -1;
 	const result: GlyphInfo[] = [];
-	const insertions: Map<number, { before: GlyphId[]; after: GlyphId[] }> = new Map();
+	const insertions: Map<number, { before: GlyphId[]; after: GlyphId[] }> =
+		new Map();
 
 	for (let i = 0; i <= infos.length; i++) {
 		const isEnd = i >= infos.length;
 		const glyphClass = isEnd
 			? CLASS_END_OF_TEXT
-			: getGlyphClass(stateTable.classTable, infos[i]!.glyphId);
+			: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
 
 		const stateRow = stateTable.stateArray[state];
 		if (!stateRow) break;
@@ -413,7 +419,10 @@ export function processInsertion(
 		if (entry.markedInsertIndex !== 0xffff && markIndex >= 0) {
 			const count = (entry.flags >> 5) & 0x1f;
 			const insertBefore = (entry.flags & 0x0800) !== 0;
-			const glyphs = insertionGlyphs.slice(entry.markedInsertIndex, entry.markedInsertIndex + count);
+			const glyphs = insertionGlyphs.slice(
+				entry.markedInsertIndex,
+				entry.markedInsertIndex + count,
+			);
 
 			let ins = insertions.get(markIndex);
 			if (!ins) {
@@ -431,7 +440,10 @@ export function processInsertion(
 		if (!isEnd && entry.currentInsertIndex !== 0xffff) {
 			const count = entry.flags & 0x1f;
 			const insertBefore = (entry.flags & 0x0020) !== 0;
-			const glyphs = insertionGlyphs.slice(entry.currentInsertIndex, entry.currentInsertIndex + count);
+			const glyphs = insertionGlyphs.slice(
+				entry.currentInsertIndex,
+				entry.currentInsertIndex + count,
+			);
 
 			let ins = insertions.get(i);
 			if (!ins) {

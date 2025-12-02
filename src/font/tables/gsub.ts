@@ -1,28 +1,25 @@
-import type { GlyphId, uint16 } from "../../types.ts";
-import type { Reader } from "../binary/reader.ts";
 import {
 	type Coverage,
 	parseCoverageAt,
 } from "../../layout/structures/coverage.ts";
 import {
-	type ScriptList,
 	type FeatureList,
-	type LookupHeader,
-	parseScriptList,
-	parseFeatureList,
-	parseLookupHeaders,
 	LookupFlag,
+	parseFeatureList,
+	parseScriptList,
+	type ScriptList,
 } from "../../layout/structures/layout-common.ts";
+import type { GlyphId, uint16 } from "../../types.ts";
+import type { Reader } from "../binary/reader.ts";
 import {
-	type ContextSubstSubtable,
 	type ChainingContextSubstSubtable,
-	type SequenceLookupRecord,
-	parseContextSubst,
+	type ContextSubstSubtable,
 	parseChainingContextSubst,
+	parseContextSubst,
 } from "./gsub-contextual.ts";
 
 /** GSUB lookup types */
-export const enum GsubLookupType {
+export enum GsubLookupType {
 	Single = 1,
 	Multiple = 2,
 	Alternate = 3,
@@ -163,7 +160,11 @@ export function parseGsub(reader: Reader): GsubTable {
 	const lookups: AnyGsubLookup[] = [];
 	for (const lookupOffset of lookupOffsets) {
 		const lookupReader = lookupListReader.sliceFrom(lookupOffset);
-		const lookup = parseGsubLookup(lookupReader, lookupListReader, lookupOffset);
+		const lookup = parseGsubLookup(
+			lookupReader,
+			lookupListReader,
+			lookupOffset,
+		);
 		if (lookup) {
 			lookups.push(lookup);
 		}
@@ -179,8 +180,8 @@ export function parseGsub(reader: Reader): GsubTable {
 
 function parseGsubLookup(
 	reader: Reader,
-	lookupListReader: Reader,
-	lookupOffset: number,
+	_lookupListReader: Reader,
+	_lookupOffset: number,
 ): AnyGsubLookup | null {
 	const lookupType = reader.uint16();
 	const lookupFlag = reader.uint16();
@@ -457,8 +458,8 @@ function parseExtensionLookup(
 
 	if (extSubtables.length === 0) return null;
 
-	const actualType = extSubtables[0]!.type;
-	const actualOffsets = extSubtables.map((_, i) => 0); // All at offset 0 of their readers
+	const actualType = extSubtables[0]?.type;
+	const _actualOffsets = extSubtables.map((_, _i) => 0); // All at offset 0 of their readers
 
 	// Create a combined reader for all subtables
 	switch (actualType) {
@@ -515,7 +516,11 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseReverseChainingSingleSubst(ext.reader, [0]));
 			}
-			return { type: GsubLookupType.ReverseChainingSingle, ...baseProps, subtables };
+			return {
+				type: GsubLookupType.ReverseChainingSingle,
+				...baseProps,
+				subtables,
+			};
 		}
 
 		default:

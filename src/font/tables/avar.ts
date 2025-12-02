@@ -1,4 +1,4 @@
-import type { uint16, int16 } from "../../types.ts";
+import type { uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 
 /**
@@ -60,7 +60,10 @@ export function parseAvar(reader: Reader, axisCount: number): AvarTable {
 /**
  * Apply avar mapping to a normalized coordinate
  */
-export function applyAvarMapping(segmentMap: AxisSegmentMap, coord: number): number {
+export function applyAvarMapping(
+	segmentMap: AxisSegmentMap,
+	coord: number,
+): number {
 	const maps = segmentMap.axisValueMaps;
 
 	if (maps.length === 0) return coord;
@@ -72,16 +75,18 @@ export function applyAvarMapping(segmentMap: AxisSegmentMap, coord: number): num
 
 		if (coord >= map1.fromCoordinate && coord <= map2.fromCoordinate) {
 			// Linear interpolation
-			const t = (coord - map1.fromCoordinate) / (map2.fromCoordinate - map1.fromCoordinate);
+			const t =
+				(coord - map1.fromCoordinate) /
+				(map2.fromCoordinate - map1.fromCoordinate);
 			return map1.toCoordinate + t * (map2.toCoordinate - map1.toCoordinate);
 		}
 	}
 
 	// Clamp to range
-	if (coord <= maps[0]!.fromCoordinate) {
-		return maps[0]!.toCoordinate;
+	if (coord <= maps[0]?.fromCoordinate) {
+		return maps[0]?.toCoordinate;
 	}
-	return maps[maps.length - 1]!.toCoordinate;
+	return maps[maps.length - 1]?.toCoordinate;
 }
 
 /**

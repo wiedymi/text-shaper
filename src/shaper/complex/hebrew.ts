@@ -3,7 +3,7 @@ import type { GlyphInfo } from "../../types.ts";
 /**
  * Hebrew character categories
  */
-export const enum HebrewCategory {
+export enum HebrewCategory {
 	Other = 0,
 	Letter = 1, // Regular letter
 	Point = 2, // Niqqud (vowel point)
@@ -27,8 +27,10 @@ const HEBREW_EXTENDED_END = 0xfb4f;
  * Check if codepoint is Hebrew
  */
 export function isHebrew(cp: number): boolean {
-	return (cp >= HEBREW_START && cp <= HEBREW_END) ||
-		(cp >= HEBREW_EXTENDED_START && cp <= HEBREW_EXTENDED_END);
+	return (
+		(cp >= HEBREW_START && cp <= HEBREW_END) ||
+		(cp >= HEBREW_EXTENDED_START && cp <= HEBREW_EXTENDED_END)
+	);
 }
 
 /**
