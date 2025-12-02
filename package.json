@@ -1,5 +1,5 @@
 {
-  "name": "typeshaper",
+  "name": "text-shaper",
   "version": "0.0.1",
   "description": "Pure TypeScript text shaping engine",
   "type": "module",

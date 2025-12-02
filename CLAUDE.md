@@ -4,7 +4,7 @@ globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
 alwaysApply: false
 ---
 
-# TypeShaper
+# text-shaper
 
 Pure TypeScript text shaping engine (rustybuzz/HarfBuzz port).
 

@@ -1,4 +1,4 @@
-# TypeShaper
+# text-shaper
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-vivy--company-ea4aaa)](https://github.com/sponsors/vivy-company)
@@ -18,15 +18,15 @@ Pure TypeScript text shaping engine. A port of [rustybuzz](https://github.com/Ra
 ## Installation
 
 ```bash
-npm install typeshaper
+npm install text-shaper
 # or
-bun add typeshaper
+bun add text-shaper
 ```
 
 ## Usage
 
 ```typescript
-import { Font, shape, UnicodeBuffer } from "typeshaper";
+import { Font, shape, UnicodeBuffer } from "text-shaper";
 
 // Load a font
 const fontData = await Bun.file("path/to/font.ttf").arrayBuffer();
@@ -50,7 +50,7 @@ for (let i = 0; i < glyphBuffer.length; i++) {
 ### With Features
 
 ```typescript
-import { Font, shape, UnicodeBuffer, feature, features } from "typeshaper";
+import { Font, shape, UnicodeBuffer, feature, features } from "text-shaper";
 
 const glyphBuffer = shape(font, buffer, {
   features: features(
@@ -64,7 +64,7 @@ const glyphBuffer = shape(font, buffer, {
 ### Variable Fonts
 
 ```typescript
-import { Font, shape, UnicodeBuffer, tag } from "typeshaper";
+import { Font, shape, UnicodeBuffer, tag } from "text-shaper";
 
 const glyphBuffer = shape(font, buffer, {
   variations: [
@@ -77,7 +77,7 @@ const glyphBuffer = shape(font, buffer, {
 ### Rendering to SVG
 
 ```typescript
-import { Font, shape, UnicodeBuffer, shapedTextToSVG } from "typeshaper";
+import { Font, shape, UnicodeBuffer, shapedTextToSVG } from "text-shaper";
 
 const buffer = new UnicodeBuffer();
 buffer.addString("Hello");
