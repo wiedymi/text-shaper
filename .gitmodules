@@ -1,0 +1,6 @@
+[submodule "reference/opentype.js"]
+	path = reference/opentype.js
+	url = https://github.com/opentypejs/opentype.js.git
+[submodule "reference/rustybuzz"]
+	path = reference/rustybuzz
+	url = https://github.com/harfbuzz/rustybuzz.git
