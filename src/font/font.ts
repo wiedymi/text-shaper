@@ -67,6 +67,15 @@ import { parseVhea, type VheaTable } from "./tables/vhea.ts";
 import { parseVmtx, type VmtxTable } from "./tables/vmtx.ts";
 import { parseVorg, type VorgTable } from "./tables/vorg.ts";
 import { parseVvar, type VvarTable } from "./tables/vvar.ts";
+import {
+	parseFpgm,
+	parsePrep,
+	parseCvt,
+	type FpgmTable,
+	type PrepTable,
+	type CvtTable,
+} from "./tables/hinting.ts";
+import { parseGasp, type GaspTable } from "./tables/gasp.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -122,6 +131,10 @@ export class Font {
 	private _cbdt: CbdtTable | null | undefined = undefined;
 	private _cblc: CblcTable | null | undefined = undefined;
 	private _feat: FeatTable | null | undefined = undefined;
+	private _fpgm: FpgmTable | null | undefined = undefined;
+	private _prep: PrepTable | null | undefined = undefined;
+	private _cvt: CvtTable | null | undefined = undefined;
+	private _gasp: GaspTable | null | undefined = undefined;
 
 	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
 		this.reader = new Reader(buffer);
@@ -512,6 +525,38 @@ export class Font {
 		return this._feat;
 	}
 
+	get fpgm(): FpgmTable | null {
+		if (this._fpgm === undefined) {
+			const reader = this.getTableReader(Tags.fpgm);
+			this._fpgm = reader ? parseFpgm(reader) : null;
+		}
+		return this._fpgm;
+	}
+
+	get prep(): PrepTable | null {
+		if (this._prep === undefined) {
+			const reader = this.getTableReader(Tags.prep);
+			this._prep = reader ? parsePrep(reader) : null;
+		}
+		return this._prep;
+	}
+
+	get cvtTable(): CvtTable | null {
+		if (this._cvt === undefined) {
+			const reader = this.getTableReader(Tags.cvt);
+			this._cvt = reader ? parseCvt(reader) : null;
+		}
+		return this._cvt;
+	}
+
+	get gasp(): GaspTable | null {
+		if (this._gasp === undefined) {
+			const reader = this.getTableReader(Tags.gasp);
+			this._gasp = reader ? parseGasp(reader) : null;
+		}
+		return this._gasp;
+	}
+
 	// Convenience properties
 
 	/** Number of glyphs in the font */
@@ -572,6 +617,11 @@ export class Font {
 			this.hasTable(Tags.sbix) ||
 			this.hasTable(Tags.CBDT)
 		);
+	}
+
+	/** Does this font have TrueType hinting? */
+	get hasHinting(): boolean {
+		return this.isTrueType && (this.hasTable(Tags.fpgm) || this.hasTable(Tags.prep));
 	}
 
 	// Glyph operations

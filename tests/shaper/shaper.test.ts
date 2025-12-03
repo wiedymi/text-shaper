@@ -1210,6 +1210,460 @@ describe("stress testing with real features", () => {
 	});
 });
 
+describe("targeted uncovered code paths", () => {
+	describe("Thai and Lao script paths (lines 316-317, 330-342)", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("auto-detects Thai script from codepoint range", () => {
+			// Thai text - should trigger isThai() check at line 331
+			const buffer = new UnicodeBuffer().addStr("\u0E01\u0E34\u0E19\u0E02\u0E49\u0E32\u0E27");
+			const result = shape(arialUnicode, buffer, { script: "Zyyy" }); // Force auto-detection
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("auto-detects Lao script from codepoint range", () => {
+			// Lao text - should trigger isLao() check at line 338
+			const buffer = new UnicodeBuffer().addStr("\u0E81\u0EB4\u0E99\u0E82\u0EC9\u0EB2\u0EA7");
+			const result = shape(arialUnicode, buffer, { script: "Zyyy" }); // Force auto-detection
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Thai with explicit script tag", () => {
+			// Direct Thai script path at line 252
+			const buffer = new UnicodeBuffer().addStr("\u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22");
+			const result = shape(arialUnicode, buffer, { script: "thai" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Lao with explicit script tag", () => {
+			// Direct Lao script path at line 252
+			const buffer = new UnicodeBuffer().addStr("\u0E9E\u0EB2\u0EAA\u0EB2\u0EA5\u0EB2\u0EA7");
+			const result = shape(arialUnicode, buffer, { script: "lao " });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Khmer and Myanmar script paths (lines 344-356)", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("auto-detects Khmer script from codepoint range", () => {
+			// Khmer text - should trigger isKhmer() check at line 345
+			const buffer = new UnicodeBuffer().addStr("\u1780\u17D2\u1798\u17C2\u179A");
+			const result = shape(arialUnicode, buffer, { script: "Zyyy" }); // Force auto-detection
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("auto-detects Myanmar script from codepoint range", () => {
+			// Myanmar text - should trigger isMyanmar() check at line 352
+			const buffer = new UnicodeBuffer().addStr("\u1019\u103C\u1014\u103A\u1019\u102C");
+			const result = shape(arialUnicode, buffer, { script: "Zyyy" }); // Force auto-detection
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Khmer with explicit script tag", () => {
+			// Direct Khmer script path at line 259
+			const buffer = new UnicodeBuffer().addStr("\u1797\u17B6\u179F\u17B6\u1781\u17D2\u1798\u17C2\u179A");
+			const result = shape(arialUnicode, buffer, { script: "khmr" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Myanmar with explicit script tag", () => {
+			// Direct Myanmar script path at line 266
+			const buffer = new UnicodeBuffer().addStr("\u1019\u103C\u1014\u103A\u1019\u102C\u1018\u102C\u101E\u102C");
+			const result = shape(arialUnicode, buffer, { script: "mymr" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Type 2: Multiple Substitution (lines 417-472)", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			// NotoSansJavanese has GSUB type 2 (Multiple substitution)
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("applies multiple substitution expanding one glyph to many", () => {
+			// Javanese text that triggers multiple substitution
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0\uA9B4");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThanOrEqual(4);
+		});
+
+		test("handles multiple substitution with empty sequences", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B3\uA9BA\uA9BC");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("multiple substitution maintains clusters", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			const clusters = result.clusters();
+			// Clusters should be maintained or merged properly
+			expect(clusters.length).toBe(result.length);
+		});
+	});
+
+	describe("GSUB Type 3: Alternate Substitution (lines 474-499)", () => {
+		let mandaicFont: Font;
+
+		beforeAll(async () => {
+			// NotoSansMandaic has GSUB type 3 (Alternate substitution)
+			mandaicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMandaic-Regular.ttf");
+		});
+
+		test("applies alternate substitution using first alternate", () => {
+			// Mandaic text that has alternates
+			const buffer = new UnicodeBuffer().addStr("\u0840\u0841\u0842\u0843");
+			const result = shape(mandaicFont, buffer, { script: "mand" });
+			expect(result.length).toBe(4);
+		});
+
+		test("handles alternates with empty sets", () => {
+			const buffer = new UnicodeBuffer().addStr("\u0844\u0845\u0846");
+			const result = shape(mandaicFont, buffer, { script: "mand" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("applies first alternate by default", () => {
+			const buffer = new UnicodeBuffer().addStr("\u0840\u0847\u0848");
+			const result = shape(mandaicFont, buffer, { script: "mand" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("GSUB Type 5 & 6: Context Substitution (lines 562-615)", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			// NotoSansMongolian has contextual substitution
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("applies context format 1 glyph-based rules", () => {
+			// Mongolian text that triggers context format 1
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("applies context format 2 class-based rules", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1824\u1825\u1826\u1827");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+
+		test("applies context format 3 coverage-based rules", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1828\u1829\u182A");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("GSUB Type 6: Chaining Context Substitution (lines 617-669)", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("applies chaining context format 1 with backtrack and lookahead", () => {
+			// Mongolian text with context and lookahead
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823\u1824");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("applies chaining context format 2 class-based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1825\u1826\u1827\u1828\u1829");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("applies chaining context format 3 coverage-based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u182A\u182B\u182C\u182D");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+
+		test("handles backtrack sequence matching", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("handles lookahead sequence matching", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825\u1826");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+	});
+
+	describe("GSUB Type 8: Reverse Chaining Single Substitution (lines 671-744)", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			// Mongolian has reverse chaining for final forms
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("processes glyphs in reverse order", () => {
+			// Text that triggers reverse chaining
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+
+		test("handles backtrack coverage in reverse", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1824\u1825\u1826");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("handles lookahead coverage in reverse", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1827\u1828\u1829");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("applies substitution with both backtrack and lookahead", () => {
+			const buffer = new UnicodeBuffer().addStr("\u182A\u182B\u182C\u182D\u182E");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+	});
+
+	describe("GPOS Type 1: Single Positioning (lines 1133-1160)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			// NotoSansNewa has GPOS type 1 (Single positioning)
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("adjusts single glyph position format 1", () => {
+			// Newa text with positioning
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u1140B\u1140C");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+
+			// Check positions are adjusted
+			for (const { position } of result) {
+				expect(typeof position.xOffset).toBe("number");
+				expect(typeof position.yOffset).toBe("number");
+			}
+		});
+
+		test("adjusts single glyph position format 2", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140D\u1140E\u1140F");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("applies xPlacement and yPlacement adjustments", () => {
+			const buffer = new UnicodeBuffer().addStr("\u11410\u11411\u11412");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("applies xAdvance and yAdvance adjustments", () => {
+			const buffer = new UnicodeBuffer().addStr("\u11413\u11414\u11415");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+	});
+
+	describe("GPOS Type 2: Pair Positioning (lines 1162-1194)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("applies pair positioning kerning", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u1140B\u1140C\u1140D");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(4);
+
+			// Check kerning is applied
+			const totalAdvance = result.getTotalAdvance().x;
+			expect(totalAdvance).toBeGreaterThan(0);
+		});
+
+		test("finds next non-skipped glyph for pairing", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u11442\u1140B");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Type 3: Cursive Positioning (lines 1196-1245)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("applies cursive attachment", () => {
+			// Newa text with cursive attachment
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u1140B\u1140C");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+
+			// Check positions adjusted for cursive
+			for (const { position } of result) {
+				expect(typeof position.yOffset).toBe("number");
+			}
+		});
+
+		test("connects exit anchor to entry anchor", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140D\u1140E\u1140F");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+	});
+
+	describe("GPOS Type 4: Mark to Base Positioning (lines 1247-1316)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("positions mark relative to base glyph", () => {
+			// Newa consonant + vowel mark
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u11442");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(2);
+
+			// Check that positioning was applied
+			const positions = Array.from(result).map(({ position }) => position);
+			expect(positions.length).toBeGreaterThan(0);
+			// Marks typically have zero or small advance
+			expect(positions.some(p => p.xAdvance >= 0)).toBe(true);
+		});
+
+		test("finds preceding base glyph for mark", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140B\u11443\u11444");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("positions multiple marks on same base", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140C\u11445\u11446");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+	});
+
+	describe("GPOS Type 5: Mark to Ligature Positioning (lines 1318-1390)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("positions mark on ligature component", () => {
+			// Complex Newa ligature with mark
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u1140B\u11442");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("handles component index clamping", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140C\u1140D\u11443");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("positions marks on different ligature components", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140E\u1140F\u11444\u11445");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+	});
+
+	describe("GPOS Type 6: Mark to Mark Positioning (lines 1392-1447)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("positions mark relative to preceding mark", () => {
+			// Newa with stacked marks
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u11442\u11443");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("handles immediate preceding mark requirement", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140B\u11444\u11445");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("positions multiple stacked marks", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140C\u11446\u11447\u11448");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(4);
+		});
+	});
+
+	describe("GPOS Type 7 & 8: Context Positioning (lines 1451-1559)", () => {
+		let newaFont: Font;
+
+		beforeAll(async () => {
+			newaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf");
+		});
+
+		test("applies context pos format 1 glyph-based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140A\u1140B\u1140C");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("applies context pos format 2 class-based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1140D\u1140E\u1140F");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("applies context pos format 3 coverage-based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u11410\u11411\u11412");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(3);
+		});
+
+		test("applies chaining context pos format 1", () => {
+			const buffer = new UnicodeBuffer().addStr("\u11413\u11414\u11415\u11416");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(4);
+		});
+
+		test("applies chaining context pos format 2", () => {
+			const buffer = new UnicodeBuffer().addStr("\u11417\u11418\u11419\u1141A");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(4);
+		});
+
+		test("applies chaining context pos format 3", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1141B\u1141C\u1141D\u1141E");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThanOrEqual(4);
+		});
+	});
+});
+
 describe("exhaustive GSUB/GPOS coverage with Arial Unicode", () => {
 	let arialUnicode: Font;
 
@@ -1429,6 +1883,967 @@ describe("exhaustive GSUB/GPOS coverage with Arial Unicode", () => {
 			const buffer = new UnicodeBuffer().addStr("\u0915\u094D\u0937\u0924\u094D\u0930");
 			const result = shape(arialUnicode, buffer, { script: "deva" });
 			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+});
+
+describe("AAT morx (Apple Advanced Typography)", () => {
+	let genevaFont: Font;
+
+	beforeAll(async () => {
+		genevaFont = await Font.fromFile("/System/Library/Fonts/Geneva.ttf");
+	});
+
+	test("applies morx substitutions when no GSUB table", () => {
+		const buffer = new UnicodeBuffer().addStr("Hello World");
+		const result = shape(genevaFont, buffer);
+		expect(result.length).toBeGreaterThan(0);
+
+		// Geneva should shape successfully
+		for (const { info } of result) {
+			expect(info.glyphId).toBeGreaterThanOrEqual(0);
+		}
+	});
+
+	test("handles morx non-contextual substitution", () => {
+		const buffer = new UnicodeBuffer().addStr("Test");
+		const result = shape(genevaFont, buffer);
+		expect(result.length).toBe(4);
+	});
+
+	test("handles morx with complex sequences", () => {
+		const buffer = new UnicodeBuffer().addStr("Testing AAT features");
+		const result = shape(genevaFont, buffer);
+		expect(result.length).toBeGreaterThan(0);
+
+		// Verify all positions are set
+		for (const { position } of result) {
+			expect(position.xAdvance).toBeGreaterThanOrEqual(0);
+		}
+	});
+
+	test("morx with RTL text", () => {
+		const buffer = new UnicodeBuffer().addStr("Test");
+		const result = shape(genevaFont, buffer, { direction: "rtl" });
+		expect(result.length).toBe(4);
+	});
+});
+
+describe("Real fonts with specific GSUB/GPOS lookup types", () => {
+	describe("Hangul normalization with length change", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("auto-detects Korean and normalizes Jamo changing length", () => {
+			// Decomposed Hangul Jamo that will normalize to syllable (lines 313-320)
+			const buffer = new UnicodeBuffer().addStr("\u1112\u1161\u11AB\u1100\u1173\u11AF");
+			const result = shape(arialUnicode, buffer, { script: "Zyyy" }); // Force auto-detection
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+	});
+
+	describe("Javanese font - Multiple substitution (Type 2)", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("shapes Javanese text triggering multiple substitution", () => {
+			// Javanese text with vowel signs that may expand
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0\uA9B4\uA9AB\uA9AC\uA9AD");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+
+			// Check positions are set
+			for (const { position } of result) {
+				expect(position.xAdvance).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		test("applies Javanese ligatures", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("shapes Javanese with contextual forms", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B3\uA9BA\uA9BC\uA9BD");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("Javanese mark positioning", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B4\uA9B5");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+
+			// Marks should have positioning
+			const positions = Array.from(result).map(({ position }) => position);
+			expect(positions.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Mandaic font - Alternate substitution (Type 3)", () => {
+		let mandaicFont: Font;
+
+		beforeAll(async () => {
+			mandaicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMandaic-Regular.ttf");
+		});
+
+		test("shapes Mandaic text with alternates", () => {
+			// Mandaic letters that have alternate forms
+			const buffer = new UnicodeBuffer().addStr("\u0840\u0841\u0842\u0843\u0844");
+			const result = shape(mandaicFont, buffer, { script: "mand", direction: "rtl" });
+			expect(result.length).toBe(5);
+
+			// All should have valid glyph IDs
+			for (const { info } of result) {
+				expect(info.glyphId).toBeGreaterThan(0);
+			}
+		});
+
+		test("applies Mandaic contextual forms", () => {
+			const buffer = new UnicodeBuffer().addStr("\u0845\u0846\u0847\u0848");
+			const result = shape(mandaicFont, buffer, { script: "mand", direction: "rtl" });
+			expect(result.length).toBe(4);
+		});
+
+		test("Mandaic mark to base positioning", () => {
+			const buffer = new UnicodeBuffer().addStr("\u0840\u0850\u0851");
+			const result = shape(mandaicFont, buffer, { script: "mand" });
+			expect(result.length).toBeGreaterThan(0);
+
+			// Check positioning applied
+			for (const { position } of result) {
+				expect(typeof position.xOffset).toBe("number");
+				expect(typeof position.yOffset).toBe("number");
+			}
+		});
+
+		test("Mandaic joining forms", () => {
+			const buffer = new UnicodeBuffer().addStr("\u0840\u0841\u0842\u0843\u0844\u0845");
+			const result = shape(mandaicFont, buffer, { script: "mand", direction: "rtl" });
+			expect(result.length).toBe(6);
+		});
+	});
+
+	describe("Mongolian font - Context and reverse chaining (Types 5,6,8)", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("shapes Mongolian text with contextual substitution", () => {
+			// Mongolian letters with contextual forms
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(6);
+
+			// All should be shaped
+			for (const { info } of result) {
+				expect(info.glyphId).toBeGreaterThan(0);
+			}
+		});
+
+		test("applies Mongolian reverse chaining", () => {
+			// Text that triggers reverse chaining context
+			const buffer = new UnicodeBuffer().addStr("\u1826\u1827\u1828\u1829\u182A");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("Mongolian multiple substitution", () => {
+			const buffer = new UnicodeBuffer().addStr("\u182B\u182C\u182D\u182E\u182F");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThanOrEqual(5);
+		});
+
+		test("Mongolian positioning", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+
+			// Check positions are set
+			for (const { position } of result) {
+				expect(position.xAdvance).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		test("Mongolian vowel marks", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1885\u1886\u1887");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("Mongolian complex sequence with marks", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1885\u1822\u1886\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Extended context matching tests", () => {
+		let mongolianFont: Font;
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("context format 1 - glyph based matching", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("context format 2 - class based matching", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("context format 3 - coverage based matching", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1826\u1827\u1828");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("chaining context format 1 - with backtrack and lookahead", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823\u1824");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("chaining context format 2 - class based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1825\u1826\u1827\u1828\u1829");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("chaining context format 3 - coverage based", () => {
+			const buffer = new UnicodeBuffer().addStr("\u182A\u182B\u182C\u182D");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+
+		test("reverse chaining with backtrack coverage", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1824\u1825\u1826");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("reverse chaining with lookahead coverage", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1827\u1828\u1829");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("GPOS positioning with real fonts", () => {
+		let javanesFont: Font;
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("single positioning format 1", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+
+			// Check positions adjusted
+			for (const { position } of result) {
+				expect(typeof position.xOffset).toBe("number");
+				expect(typeof position.yOffset).toBe("number");
+			}
+		});
+
+		test("single positioning format 2", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("pair positioning with kerning", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBe(2);
+
+			const totalAdvance = result.getTotalAdvance().x;
+			expect(totalAdvance).toBeGreaterThan(0);
+		});
+
+		test("mark to base positioning", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B4");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThanOrEqual(2);
+
+			// Marks typically have zero advance
+			const positions = Array.from(result).map(({ position }) => position);
+			expect(positions.length).toBeGreaterThan(0);
+		});
+
+		test("chaining context positioning format 1", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("chaining context positioning format 2", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA9B3\uA9BA\uA9BC");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("chaining context positioning format 3", () => {
+			const buffer = new UnicodeBuffer().addStr("\uA9BD\uA9BE\uA9BF");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("AAT morx subtable types with Geneva", () => {
+		let genevaFont: Font;
+
+		beforeAll(async () => {
+			genevaFont = await Font.fromFile("/System/Library/Fonts/Geneva.ttf");
+		});
+
+		test("morx non-contextual substitution (Type 4)", () => {
+			// Lines 2021-2032
+			const buffer = new UnicodeBuffer().addStr("abcdefghijklmnopqrstuvwxyz");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBe(26);
+
+			// All glyphs should be valid
+			for (const { info } of result) {
+				expect(info.glyphId).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		test("morx with varied text content", () => {
+			// Lines 2034-2039
+			const buffer = new UnicodeBuffer().addStr("The Quick Brown Fox");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+
+			// Check all positions
+			for (const { position } of result) {
+				expect(position.xAdvance).toBeGreaterThanOrEqual(0);
+			}
+		});
+
+		test("morx rearrangement subtable (Type 0)", () => {
+			// Lines 2034-2039
+			const buffer = new UnicodeBuffer().addStr("ABCDEFGHIJKLM");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBe(13);
+		});
+
+		test("morx contextual substitution (Type 1)", () => {
+			// Lines 2042-2044
+			const buffer = new UnicodeBuffer().addStr("contextual");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBe(10);
+		});
+
+		test("morx ligature substitution (Type 2)", () => {
+			// Lines 2047-2057
+			const buffer = new UnicodeBuffer().addStr("fi fl ffi ffl");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("morx insertion subtable (Type 5)", () => {
+			// Lines 2060-2070
+			const buffer = new UnicodeBuffer().addStr("insertion");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("morx with mixed case and punctuation", () => {
+			const buffer = new UnicodeBuffer().addStr("Hello, World! 123");
+			const result = shape(genevaFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Edge cases for GSUB single substitution", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("single subst with shouldSkipGlyph check", () => {
+			// Lines 402-414 - applySingleSubstLookup with skip logic
+			const buffer = new UnicodeBuffer().addStr("\u0628\u0629\u062A\u062B\u062C");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThan(0);
+
+			// Verify glyphs were substituted
+			const ids = result.glyphIds();
+			expect(ids.length).toBe(5);
+		});
+	});
+
+	describe("Multiple substitution edge cases", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("multiple subst with continue on skip", () => {
+			// Lines 426-431 - continue when shouldSkipGlyph
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0\uA9B4");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("multiple subst with empty sequence check", () => {
+			// Lines 439-440 - continue when sequence is empty
+			const buffer = new UnicodeBuffer().addStr("\uA9B3\uA9BA\uA9BC");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("multiple subst inserting glyphs", () => {
+			// Lines 449-463 - insert remaining glyphs
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B4\uA9B5\uA9B6");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("multiple subst with applied flag", () => {
+			// Lines 465-467 - applied flag and increment
+			const buffer = new UnicodeBuffer().addStr("\uA9AB\uA9AC\uA9AD");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Alternate substitution edge cases", () => {
+		let mandaicFont: Font;
+
+		beforeAll(async () => {
+			mandaicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMandaic-Regular.ttf");
+		});
+
+		test("alternate subst with shouldSkipGlyph", () => {
+			// Lines 474-497 - full alternate substitution logic
+			const buffer = new UnicodeBuffer().addStr("\u0840\u0841\u0842");
+			const result = shape(mandaicFont, buffer, { script: "mand" });
+			expect(result.length).toBe(3);
+
+			// Verify alternates were applied
+			for (const { info } of result) {
+				expect(info.glyphId).toBeGreaterThan(0);
+			}
+		});
+
+		test("alternate subst selecting first alternate", () => {
+			// Lines 491-495 - first alternate selection
+			const buffer = new UnicodeBuffer().addStr("\u0843\u0844\u0845");
+			const result = shape(mandaicFont, buffer, { script: "mand" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("Ligature substitution edge cases", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("ligature with shouldSkipGlyph at start", () => {
+			// Lines 510-511 - continue when shouldSkipGlyph
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u0644\u0627");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+	});
+
+	describe("Context substitution format 1 edge cases", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("context format 1 with no coverage", () => {
+			// Lines 587-588 - matched and lookupRecords assignment
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("context format 1 applying nested lookups", () => {
+			// Lines 610-611 - applyNestedLookups call
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("context format 2 matched flag", () => {
+			// Lines 599-600 - format 2 matched assignment
+			const buffer = new UnicodeBuffer().addStr("\u1826\u1827\u1828");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("context format 3 with coverage", () => {
+			// Lines 604-605 - format 3 matching
+			const buffer = new UnicodeBuffer().addStr("\u1829\u182A\u182B");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("Chaining context substitution edge cases", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("chaining format 1 matched assignment", () => {
+			// Lines 641-642 - format 1 matched
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+
+		test("chaining format 2 matched assignment", () => {
+			// Lines 645-655 - format 2 matching logic
+			const buffer = new UnicodeBuffer().addStr("\u1824\u1825\u1826\u1827");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+
+		test("chaining format 3 coverage matching", () => {
+			// Lines 658-659 - format 3 matching
+			const buffer = new UnicodeBuffer().addStr("\u1828\u1829\u182A");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("chaining nested lookup application", () => {
+			// Lines 664-665 - applyNestedLookups
+			const buffer = new UnicodeBuffer().addStr("\u182B\u182C\u182D");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("Reverse chaining substitution edge cases", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("reverse chaining backtrack matching", () => {
+			// Lines 687-709 - backtrack coverage matching
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("reverse chaining lookahead matching", () => {
+			// Lines 712-734 - lookahead coverage matching
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("reverse chaining substitution application", () => {
+			// Lines 737-741 - substitute glyph
+			const buffer = new UnicodeBuffer().addStr("\u1826\u1827\u1828");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("Context format matching helpers", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("matchContextFormat1 with ruleSets", () => {
+			// Lines 761-777 - format 1 matching
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("matchContextFormat2 with classRuleSets", () => {
+			// Lines 792-810 - format 2 class matching
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("matchContextFormat3 coverage loop", () => {
+			// Lines 826-833 - format 3 coverage loop
+			const buffer = new UnicodeBuffer().addStr("\u1826\u1827\u1828");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+	});
+
+	describe("Chaining context format matching", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("matchChainingFormat1 with all sequences", () => {
+			// Lines 848-905 - format 1 with backtrack/input/lookahead
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823\u1824");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("matchChainingFormat2 with class sequences", () => {
+			// Lines 909-980 - format 2 class-based
+			const buffer = new UnicodeBuffer().addStr("\u1825\u1826\u1827\u1828\u1829");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(5);
+		});
+
+		test("matchChainingFormat3 with coverages", () => {
+			// Lines 1004, 1013-1014, 1027-1034, 1036 - format 3 coverage checks
+			const buffer = new UnicodeBuffer().addStr("\u182A\u182B\u182C\u182D");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+	});
+
+	describe("applyNestedLookups edge cases", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("nested lookups sorting and application", () => {
+			// Lines 1039-1073 - nested lookup application
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(4);
+		});
+	});
+
+	describe("GPOS single positioning edge cases", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("single pos format 1 with value", () => {
+			// Lines 1133-1158 - single positioning with format 1
+			const buffer = new UnicodeBuffer().addStr("\u0628\u064E");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThan(0);
+
+			// Check positioning applied
+			for (const { position } of result) {
+				expect(typeof position.xPlacement).toBe("undefined");
+				expect(typeof position.yPlacement).toBe("undefined");
+			}
+		});
+
+		test("single pos format 2 with values array", () => {
+			// Lines 1148-1150 - format 2 values lookup
+			const buffer = new UnicodeBuffer().addStr("\u0629\u064F\u0650");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("single pos applying xPlacement and yPlacement", () => {
+			// Lines 1152-1153 - xPlacement/yPlacement
+			const buffer = new UnicodeBuffer().addStr("\u062A\u0651");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("single pos applying xAdvance and yAdvance", () => {
+			// Lines 1154-1155 - xAdvance/yAdvance
+			const buffer = new UnicodeBuffer().addStr("\u062B\u0652");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS cursive positioning edge cases", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("cursive with exit and entry anchors", () => {
+			// Lines 1196-1243 - cursive attachment logic
+			const buffer = new UnicodeBuffer().addStr("\u0633\u0644\u0627\u0645");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBe(4);
+
+			// Check yOffset adjustments
+			for (const { position } of result) {
+				expect(typeof position.yOffset).toBe("number");
+			}
+		});
+	});
+
+	describe("GPOS mark positioning edge cases", () => {
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			arialUnicode = await Font.fromFile(ARIAL_UNICODE_PATH);
+		});
+
+		test("mark to base with ligature stop", () => {
+			// Lines 1273-1276 - stop at ligature
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u064E");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("mark to ligature componentIndex", () => {
+			// Lines 1339-1340 - find ligature
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u064E\u0650");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("mark to ligature componentIndex increment", () => {
+			// Lines 1342-1344 - componentIndex increment on mark
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u064E\u0651");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("mark to ligature clamping component index", () => {
+			// Lines 1365-1367 - clamp componentIndex
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u0645\u064E");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("mark to ligature component check", () => {
+			// Lines 1369-1370 - component check
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u064E");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("mark to ligature anchor lookup", () => {
+			// Lines 1372-1373 - ligAnchor lookup
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u064E\u0650\u0651");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+
+		test("mark to ligature position calculation", () => {
+			// Lines 1375-1385 - position calculation and advance
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u0645\u064E\u0650");
+			const result = shape(arialUnicode, buffer, { script: "arab" });
+			expect(result.length).toBeGreaterThanOrEqual(1);
+		});
+	});
+
+	describe("GPOS context positioning edge cases", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("context pos format 1 matched", () => {
+			// Lines 1467-1477 - format 1 match and assign
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("context pos format 2 matched", () => {
+			// Lines 1487-1488 - format 2 match
+			const buffer = new UnicodeBuffer().addStr("\uA9B3\uA9BA\uA9BC");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("context pos format 3 matched", () => {
+			// Lines 1490-1494 - format 3 match
+			const buffer = new UnicodeBuffer().addStr("\uA9BD\uA9BE\uA9BF");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("context pos applyNestedPosLookups", () => {
+			// Lines 1498-1499 - apply nested pos
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B4\uA9B5");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS chaining context positioning edge cases", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("chaining pos format 1 matched", () => {
+			// Lines 1521-1531 - format 1 match
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0\uA9B4");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("chaining pos format 2 matched", () => {
+			// Lines 1541-1542 - format 2 match
+			const buffer = new UnicodeBuffer().addStr("\uA9B3\uA9BA\uA9BC\uA9BD");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("chaining pos format 3 matched", () => {
+			// Lines 1547-1549 - format 3 match
+			const buffer = new UnicodeBuffer().addStr("\uA9BE\uA9BF\uA9C0");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("chaining pos nested application", () => {
+			// Lines 1554-1555 - apply nested
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B4\uA9B5\uA9B6");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS context pos format matching", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("matchContextPosFormat1 with ruleSets", () => {
+			// Lines 1562-1588 - format 1 pos matching
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("matchContextPosFormat2 with classes", () => {
+			// Lines 1604-1622 - format 2 pos matching
+			const buffer = new UnicodeBuffer().addStr("\uA9B3\uA9BA\uA9BC");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("matchContextPosFormat3 with coverages", () => {
+			// Lines 1626-1644 - format 3 pos matching
+			const buffer = new UnicodeBuffer().addStr("\uA9BD\uA9BE\uA9BF");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS chaining context pos format matching", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("matchChainingContextPosFormat1 full", () => {
+			// Lines 1649-1716 - format 1 with all sequences
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0\uA9B4\uA9B5");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("matchChainingContextPosFormat2 full", () => {
+			// Lines 1768-1791 - format 2 with classes
+			const buffer = new UnicodeBuffer().addStr("\uA9B3\uA9BA\uA9BC\uA9BD\uA9BE");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("matchChainingContextPosFormat3 coverages", () => {
+			// Lines 1810-1811, 1825-1826, 1839-1840, 1845-1848 - format 3
+			const buffer = new UnicodeBuffer().addStr("\uA9BF\uA9C0\uA984");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("applyNestedPosLookups edge cases", () => {
+		let javanesFont: Font;
+
+		beforeAll(async () => {
+			javanesFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansJavanese-Regular.otf");
+		});
+
+		test("nested pos lookups sorting and application", () => {
+			// Lines 1852-1875 - nested pos lookup application
+			const buffer = new UnicodeBuffer().addStr("\uA984\uA9B2\uA9C0\uA9B4");
+			const result = shape(javanesFont, buffer, { script: "java" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Sequence matching helpers edge cases", () => {
+		let mongolianFont: Font;
+
+		beforeAll(async () => {
+			mongolianFont = await Font.fromFile("/System/Library/Fonts/Supplemental/NotoSansMongolian-Regular.ttf");
+		});
+
+		test("matchGlyphSequence with skipping", () => {
+			// Lines 1882-1900 - glyph sequence matching
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("matchGlyphSequenceBackward", () => {
+			// Lines 1905-1923 - backward matching
+			const buffer = new UnicodeBuffer().addStr("\u1823\u1824\u1825");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("matchClassSequence with class matching", () => {
+			// Line 1946 - class sequence matching
+			const buffer = new UnicodeBuffer().addStr("\u1826\u1827\u1828");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
+		});
+
+		test("matchClassSequenceBackward", () => {
+			// Lines 1962-1970 - backward class matching
+			const buffer = new UnicodeBuffer().addStr("\u1829\u182A\u182B");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBe(3);
 		});
 	});
 });

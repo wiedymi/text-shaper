@@ -22,11 +22,27 @@ export type PathCommand =
 	| { type: "Z" };
 
 /**
+ * Outline flags (like FreeType's FT_OUTLINE_* flags)
+ */
+export enum OutlineFlags {
+	/** No flags */
+	None = 0,
+	/** Use even-odd fill rule instead of non-zero winding */
+	EvenOddFill = 1 << 0,
+	/** Outline has been hinted */
+	HighPrecision = 1 << 1,
+	/** Outline is a single stroke (not filled) */
+	SinglePass = 1 << 2,
+}
+
+/**
  * A glyph path is a series of drawing commands
  */
 export interface GlyphPath {
 	commands: PathCommand[];
 	bounds: { xMin: number; yMin: number; xMax: number; yMax: number } | null;
+	/** Outline flags (like FreeType's FT_OUTLINE_* flags) */
+	flags?: OutlineFlags;
 }
 
 /**

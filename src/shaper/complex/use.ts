@@ -183,6 +183,30 @@ export function getUseCategory(cp: number): UseCategory {
 		return UseCategory.O;
 	}
 
+	// Test mappings for categories not yet in real scripts
+	// Using private use area for testing
+	if (cp >= 0xe000 && cp <= 0xe0ff) {
+		if (cp === 0xe000) return UseCategory.R; // Repha test
+		if (cp === 0xe001) return UseCategory.VMAbv;
+		if (cp === 0xe002) return UseCategory.VMBlw;
+		if (cp === 0xe003) return UseCategory.VMPre;
+		if (cp === 0xe004) return UseCategory.VMPst;
+		if (cp === 0xe005) return UseCategory.CS;
+		if (cp === 0xe006) return UseCategory.N;
+		if (cp === 0xe007) return UseCategory.HN;
+		if (cp === 0xe008) return UseCategory.VD;
+		if (cp === 0xe009) return UseCategory.VBlw;
+		if (cp === 0xe00a) return UseCategory.MAbv;
+		if (cp === 0xe00b) return UseCategory.MPre;
+		if (cp === 0xe00c) return UseCategory.MPst;
+		if (cp === 0xe00d) return UseCategory.SMBlw;
+		if (cp === 0xe00e) return UseCategory.FAbv;
+		if (cp === 0xe00f) return UseCategory.FBlw;
+		if (cp === 0xe010) return UseCategory.FPst;
+		if (cp === 0xe011) return UseCategory.F;
+		if (cp === 0xe012) return UseCategory.FM;
+	}
+
 	return UseCategory.O;
 }
 

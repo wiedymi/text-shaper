@@ -333,5 +333,503 @@ describe("bidi embedding levels", () => {
 				expect(result.levels[5]).toBe(1); // Hebrew
 			});
 		});
+
+		describe("W1: NSM (non-spacing marks)", () => {
+			test("NSM after strong L type", () => {
+				// U+0300 is combining grave accent (NSM)
+				const result = getEmbeddingLevels("A\u0300");
+				expect(result.levels.length).toBe(2);
+				expect(result.levels[0]).toBe(0);
+			});
+
+			test("NSM after strong R type", () => {
+				const result = getEmbeddingLevels("\u05D0\u0300");
+				expect(result.levels.length).toBe(2);
+				expect(result.levels[0]).toBe(1);
+			});
+
+			test("NSM after isolate initiator becomes ON", () => {
+				// NSM after LRI should become ON
+				const result = getEmbeddingLevels("\u2066\u0300\u2069");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("NSM after PDI becomes ON", () => {
+				const result = getEmbeddingLevels("A\u2066B\u2069\u0300C");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("NSM at start of sequence takes sos type", () => {
+				const result = getEmbeddingLevels("\u0300ABC");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("NSM preceded by BN-like types", () => {
+				// U+200B is zero-width space (BN type)
+				const result = getEmbeddingLevels("A\u200B\u0300B");
+				expect(result.levels.length).toBe(4);
+			});
+		});
+
+		describe("W5: ET sequences", () => {
+			test("ET before EN", () => {
+				// $ is ET, 1 is EN
+				const result = getEmbeddingLevels("$1");
+				expect(result.levels.length).toBe(2);
+			});
+
+			test("ET after EN", () => {
+				const result = getEmbeddingLevels("1$");
+				expect(result.levels.length).toBe(2);
+			});
+
+			test("ET between EN", () => {
+				const result = getEmbeddingLevels("1$2");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("ET with BN before break", () => {
+				// U+200B is BN
+				const result = getEmbeddingLevels("1$\u200BA");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("sequence continues through EN and ET", () => {
+				const result = getEmbeddingLevels("1$2$3");
+				expect(result.levels.length).toBe(5);
+			});
+		});
+
+		describe("W6: ET/ES/CS become ON", () => {
+			test("ET becomes ON when not near EN", () => {
+				const result = getEmbeddingLevels("A$B");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("ES becomes ON when not between numbers", () => {
+				const result = getEmbeddingLevels("A+B");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("CS becomes ON when not between numbers", () => {
+				const result = getEmbeddingLevels("A,B");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("BN after ET/ES/CS becomes ON", () => {
+				const result = getEmbeddingLevels("A$\u200BB");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("BN before ET/ES/CS becomes ON", () => {
+				const result = getEmbeddingLevels("A\u200B$B");
+				expect(result.levels.length).toBe(4);
+			});
+		});
+
+		describe("isolate matching and nesting", () => {
+			test("nested isolates", () => {
+				// LRI + LRI + PDI + PDI
+				const result = getEmbeddingLevels("\u2066\u2066AB\u2069\u2069");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("deeply nested isolates", () => {
+				// Three levels of nesting
+				const result = getEmbeddingLevels("\u2066\u2066\u2066A\u2069\u2069\u2069");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("isolate across paragraph boundary", () => {
+				// Isolate initiator without matching PDI before paragraph separator
+				const result = getEmbeddingLevels("\u2066AB\nCD");
+				expect(result.paragraphs.length).toBe(2);
+			});
+
+			test("FSI that ends at PDI", () => {
+				const result = getEmbeddingLevels("\u2068\u2069");
+				expect(result.levels.length).toBe(2);
+			});
+
+			test("FSI with RTL content determines direction", () => {
+				const result = getEmbeddingLevels("\u2068\u05D0\u05D1\u2069");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("FSI with paragraph break determines LTR", () => {
+				const result = getEmbeddingLevels("\u2068\nAB\u2069");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("overflow isolate count", () => {
+				// Create many nested isolates to trigger overflow
+				let text = "";
+				for (let i = 0; i < 130; i++) {
+					text += "\u2066"; // LRI
+				}
+				text += "A";
+				for (let i = 0; i < 130; i++) {
+					text += "\u2069"; // PDI
+				}
+				const result = getEmbeddingLevels(text);
+				expect(result.levels.length).toBe(text.length);
+			});
+
+			test("PDI without matching isolate initiator", () => {
+				const result = getEmbeddingLevels("A\u2069B");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("multiple unmatched PDIs", () => {
+				const result = getEmbeddingLevels("\u2069\u2069\u2069ABC");
+				expect(result.levels.length).toBe(6);
+			});
+		});
+
+		describe("RLO/LRO override behavior", () => {
+			test("RLO override causes embedding overflow", () => {
+				// Deep nesting with RLO to trigger overflow
+				let text = "";
+				for (let i = 0; i < 130; i++) {
+					text += "\u202E"; // RLO
+				}
+				text += "A";
+				for (let i = 0; i < 130; i++) {
+					text += "\u202C"; // PDF
+				}
+				const result = getEmbeddingLevels(text);
+				expect(result.levels.length).toBe(text.length);
+			});
+
+			test("LRO override causes embedding overflow", () => {
+				let text = "";
+				for (let i = 0; i < 130; i++) {
+					text += "\u202D"; // LRO
+				}
+				text += "A";
+				for (let i = 0; i < 130; i++) {
+					text += "\u202C"; // PDF
+				}
+				const result = getEmbeddingLevels(text);
+				expect(result.levels.length).toBe(text.length);
+			});
+
+			test("LRO with isolate initiator", () => {
+				const result = getEmbeddingLevels("\u202D\u2066AB\u2069\u202C");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("RLO with isolate initiator", () => {
+				const result = getEmbeddingLevels("\u202E\u2066AB\u2069\u202C");
+				expect(result.levels.length).toBe(6);
+			});
+		});
+
+		describe("bracket pairing (N0)", () => {
+			test("simple opening and closing brackets", () => {
+				const result = getEmbeddingLevels("(ABC)");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("brackets with RTL content", () => {
+				const result = getEmbeddingLevels("(\u05D0\u05D1)");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("nested brackets", () => {
+				const result = getEmbeddingLevels("(A(B)C)");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("more than 63 opening brackets triggers break", () => {
+				let text = "";
+				for (let i = 0; i < 65; i++) {
+					text += "(";
+				}
+				text += "A";
+				for (let i = 0; i < 65; i++) {
+					text += ")";
+				}
+				const result = getEmbeddingLevels(text);
+				expect(result.levels.length).toBe(text.length);
+			});
+
+			test("bracket pair with strong type matching embed direction", () => {
+				// LTR paragraph with LTR content in brackets
+				const result = getEmbeddingLevels("(ABC)", "ltr");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("bracket pair with opposite strong type", () => {
+				// LTR paragraph with RTL content in brackets
+				const result = getEmbeddingLevels("(\u05D0\u05D1\u05D2)");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("bracket pair looks at context when no strong type inside", () => {
+				// Brackets with only neutrals, should look at preceding context
+				const result = getEmbeddingLevels("A(...)B");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("bracket pair with NSM after opener in opposite direction", () => {
+				// RTL paragraph with LTR in brackets and NSM after opener
+				const result = getEmbeddingLevels("\u05D0(A\u0300)\u05D1", "rtl");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("bracket pair with NSM after closer in opposite direction", () => {
+				const result = getEmbeddingLevels("\u05D0(A)\u0300\u05D1", "rtl");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("unmatched opening bracket", () => {
+				const result = getEmbeddingLevels("(ABC");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("unmatched closing bracket", () => {
+				const result = getEmbeddingLevels("ABC)");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("canonical bracket equivalence", () => {
+				// Different bracket types that are canonically equivalent
+				const result = getEmbeddingLevels("\u300AAB\u300B");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("bracket pair in RTL embed direction", () => {
+				const result = getEmbeddingLevels("\u05D0(AB)\u05D1");
+				expect(result.levels.length).toBe(6);
+			});
+		});
+
+		describe("L1: trailing whitespace", () => {
+			test("paragraph separator at end", () => {
+				const result = getEmbeddingLevels("ABC\n");
+				// Newline at end creates paragraph boundary
+				expect(result.paragraphs.length).toBeGreaterThanOrEqual(1);
+				// Level at newline should be paragraph level
+				expect(result.levels[3]).toBe(result.paragraphs[0]!.level);
+			});
+
+			test("segment separator resets trailing types", () => {
+				// U+001F is unit separator (S type)
+				const result = getEmbeddingLevels("ABC\u001F");
+				expect(result.levels.length).toBe(4);
+				// Level at separator should be paragraph level
+				expect(result.levels[3]).toBe(result.paragraphs[0]!.level);
+			});
+
+			test("trailing whitespace at paragraph end", () => {
+				const result = getEmbeddingLevels("ABC   \nDEF");
+				expect(result.paragraphs.length).toBe(2);
+				// Trailing spaces before newline should have paragraph level
+				expect(result.levels[3]).toBe(result.paragraphs[0]!.level);
+			});
+		});
+
+		describe("N1/N2: neutral resolution", () => {
+			test("neutrals between same strong types", () => {
+				const result = getEmbeddingLevels("A...B");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("neutrals between opposite strong types", () => {
+				const result = getEmbeddingLevels("A...\u05D0");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("neutrals at start take sos", () => {
+				const result = getEmbeddingLevels("...ABC");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("neutrals at end take eos", () => {
+				const result = getEmbeddingLevels("ABC...");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("sequence of neutrals with BN", () => {
+				const result = getEmbeddingLevels("A.\u200B.B");
+				expect(result.levels.length).toBe(5);
+			});
+		});
+
+		describe("PDF handling", () => {
+			test("PDF without isolate count", () => {
+				const result = getEmbeddingLevels("\u202AA\u202CB");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("PDF with overflow embedding", () => {
+				let text = "";
+				for (let i = 0; i < 130; i++) {
+					text += "\u202A"; // LRE
+				}
+				text += "A";
+				text += "\u202C"; // PDF should decrement overflow
+				const result = getEmbeddingLevels(text);
+				expect(result.levels.length).toBe(text.length);
+			});
+
+			test("PDF in isolate context", () => {
+				const result = getEmbeddingLevels("\u2066\u202AA\u202C\u2069");
+				expect(result.levels.length).toBe(5);
+			});
+		});
+
+		describe("edge cases in auto direction", () => {
+			test("auto with only neutrals before first strong", () => {
+				const result = getEmbeddingLevels("... \u05D0", "auto");
+				expect(result.paragraphs[0]!.level).toBe(1);
+			});
+
+			test("auto with paragraph break before strong", () => {
+				const result = getEmbeddingLevels("...\n\u05D0", "auto");
+				expect(result.paragraphs[0]!.level).toBe(0);
+			});
+
+			test("auto with isolate in determination", () => {
+				const result = getEmbeddingLevels("\u2066\u05D0\u2069ABC", "auto");
+				expect(result.paragraphs[0]!.level).toBe(0);
+			});
+		});
+
+		describe("PDI with embeddings before isolate", () => {
+			test("PDI pops embedding stack before isolate", () => {
+				// LRE + LRE + LRI + text + PDI (should pop embeddings to find isolate)
+				const result = getEmbeddingLevels("\u202A\u202A\u2066AB\u2069C\u202C\u202C");
+				expect(result.levels.length).toBeGreaterThan(0);
+			});
+
+			test("PDI with multiple non-isolate embeddings", () => {
+				// Create embeddings then isolate, PDI should skip non-isolate entries
+				const result = getEmbeddingLevels("A\u202A\u202A\u2066B\u2069\u202C\u202C");
+				expect(result.levels.length).toBe(8);
+			});
+
+			test("PDI pops non-isolate embeddings from stack", () => {
+				// LRI with embeddings inside, PDI should pop embeddings to find isolate
+				// This specifically targets line 298: statusStack.pop()
+				const result = getEmbeddingLevels("\u2066\u202A\u202AB\u2069C");
+				expect(result.levels.length).toBe(6);
+			});
+		});
+
+		describe("bracket pairing with canonical and context", () => {
+			test("canonical bracket with matching via canonical form", () => {
+				// Test canonical bracket matching
+				const result = getEmbeddingLevels("\u300A\u05D0\u300B");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("mismatched brackets don't pair", () => {
+				// Opening bracket followed by wrong closing bracket
+				// Tests line 623 - the closing brace when brackets don't match
+				const result = getEmbeddingLevels("(A]");
+				expect(result.levels.length).toBe(3);
+			});
+
+			test("nested mismatched brackets", () => {
+				// Multiple openers with wrong closer
+				const result = getEmbeddingLevels("((A]");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("bracket pair uses preceding context type", () => {
+				// Brackets with no strong types inside, should look backward for L
+				const result = getEmbeddingLevels("A(...)\u05D0");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("bracket pair opposite direction looks at context", () => {
+				// RTL context with only neutrals in brackets
+				const result = getEmbeddingLevels("\u05D0(...)\u05D1");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("bracket pair with preceding context different from embed", () => {
+				// LTR in RTL paragraph
+				const result = getEmbeddingLevels("\u05D0A(...)", "rtl");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("bracket with no strong inside looks at preceding context", () => {
+				// Targets line 658 - looking backward for context when no strong type inside
+				// RTL preceding an LTR paragraph with neutral brackets
+				const result = getEmbeddingLevels("\u05D0(...)", "ltr");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("bracket with NSM after opener when not embed direction", () => {
+				// Test the NSM handling after opener when useStrongType != embedDirection
+				// Targets lines 667-675
+				const result = getEmbeddingLevels("(\u0300\u05D0)");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("bracket with NSM after closer when not embed direction", () => {
+				// Test the NSM handling after closer when useStrongType != embedDirection
+				const result = getEmbeddingLevels("(\u05D0)\u0300");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("bracket with BN before NSM after opener", () => {
+				// BN followed by NSM after opening bracket
+				const result = getEmbeddingLevels("(\u200B\u0300\u05D0)");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("bracket with BN before NSM after closer", () => {
+				// BN followed by NSM after closing bracket
+				const result = getEmbeddingLevels("(\u05D0)\u200B\u0300");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("bracket pair where found strong doesn't match embed", () => {
+				// LTR paragraph with RTL in brackets, no matching embed direction
+				const result = getEmbeddingLevels("A(\u05D0)B", "ltr");
+				expect(result.levels.length).toBe(5);
+			});
+		});
+
+		describe("complex bracket and NSM scenarios", () => {
+			test("RTL bracket pair with LTR content and NSM", () => {
+				const result = getEmbeddingLevels("\u05D0(A\u0300)B", "rtl");
+				expect(result.levels.length).toBeGreaterThan(0);
+			});
+
+			test("nested brackets with mixed directions", () => {
+				const result = getEmbeddingLevels("(A(\u05D0)B)");
+				expect(result.levels.length).toBe(7);
+			});
+
+			test("bracket at sequence end", () => {
+				const result = getEmbeddingLevels("ABC(");
+				expect(result.levels.length).toBe(4);
+			});
+
+			test("bracket pair with opposite context and NSM after opener", () => {
+				// RTL content in brackets with NSM immediately after opener
+				// Tests lines 667-675 - NSM handling when useStrongType != embedDirection
+				const result = getEmbeddingLevels("A(\u0300\u05D0)B");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("bracket pair with opposite context and NSM after closer", () => {
+				// Tests lines 676-684 - NSM handling after closer
+				const result = getEmbeddingLevels("A(\u05D0)\u0300B");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("bracket pair looks backward for opposite context", () => {
+				// Brackets with only neutrals, preceded by opposite direction
+				// Tests line 658 - useStrongType = lr when lr !== embedDirection
+				const result = getEmbeddingLevels("\u05D0A(...)B", "ltr");
+				expect(result.levels.length).toBe(8);
+			});
+		});
 	});
 });

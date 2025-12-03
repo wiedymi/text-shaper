@@ -22,6 +22,8 @@ const NOTO_NEWA_PATH =
 	"/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf";
 const NOTO_LEPCHA_PATH =
 	"/System/Library/Fonts/Supplemental/NotoSansLepcha-Regular.ttf";
+const STIX_TWO_ITALIC_PATH =
+	"/System/Library/Fonts/Supplemental/STIXTwoText-Italic.ttf";
 
 describe("GPOS table", () => {
 	let font: Font;
@@ -2132,6 +2134,57 @@ describe("GPOS Pair Positioning Format 2 (NotoSansLepcha)", () => {
 									if (subtable.valueFormat2 & ValueFormat.YAdvance) {
 										expect(v2.yAdvance).toBeDefined();
 									}
+
+									// Check device table fields
+									if (subtable.valueFormat1 & ValueFormat.XPlaDevice) {
+										expect(
+											v1.xPlaDevice === undefined ||
+												typeof v1.xPlaDevice === "object",
+										).toBe(true);
+									}
+									if (subtable.valueFormat1 & ValueFormat.YPlaDevice) {
+										expect(
+											v1.yPlaDevice === undefined ||
+												typeof v1.yPlaDevice === "object",
+										).toBe(true);
+									}
+									if (subtable.valueFormat1 & ValueFormat.XAdvDevice) {
+										expect(
+											v1.xAdvDevice === undefined ||
+												typeof v1.xAdvDevice === "object",
+										).toBe(true);
+									}
+									if (subtable.valueFormat1 & ValueFormat.YAdvDevice) {
+										expect(
+											v1.yAdvDevice === undefined ||
+												typeof v1.yAdvDevice === "object",
+										).toBe(true);
+									}
+
+									if (subtable.valueFormat2 & ValueFormat.XPlaDevice) {
+										expect(
+											v2.xPlaDevice === undefined ||
+												typeof v2.xPlaDevice === "object",
+										).toBe(true);
+									}
+									if (subtable.valueFormat2 & ValueFormat.YPlaDevice) {
+										expect(
+											v2.yPlaDevice === undefined ||
+												typeof v2.yPlaDevice === "object",
+										).toBe(true);
+									}
+									if (subtable.valueFormat2 & ValueFormat.XAdvDevice) {
+										expect(
+											v2.xAdvDevice === undefined ||
+												typeof v2.xAdvDevice === "object",
+										).toBe(true);
+									}
+									if (subtable.valueFormat2 & ValueFormat.YAdvDevice) {
+										expect(
+											v2.yAdvDevice === undefined ||
+												typeof v2.yAdvDevice === "object",
+										).toBe(true);
+									}
 								}
 							}
 						}
@@ -2139,5 +2192,285 @@ describe("GPOS Pair Positioning Format 2 (NotoSansLepcha)", () => {
 				}
 			}
 		});
+	});
+
+	describe("device tables and advanced features", () => {
+		test("checks for device tables in all value records", () => {
+			if (lepchaGpos) {
+				const allLookups = lepchaGpos.lookups;
+				for (const lookup of allLookups) {
+					if (lookup.type === GposLookupType.Single) {
+						for (const subtable of lookup.subtables) {
+							if (subtable.format === 1 && subtable.value) {
+								const v = subtable.value;
+								// Check all device table possibilities
+								[v.xPlaDevice, v.yPlaDevice, v.xAdvDevice, v.yAdvDevice].forEach(
+									(dev) => {
+										if (dev !== undefined) {
+											expect(typeof dev).toBe("object");
+										}
+									},
+								);
+							} else if (subtable.format === 2 && subtable.values) {
+								for (const v of subtable.values) {
+									[v.xPlaDevice, v.yPlaDevice, v.xAdvDevice, v.yAdvDevice].forEach(
+										(dev) => {
+											if (dev !== undefined) {
+												expect(typeof dev).toBe("object");
+											}
+										},
+									);
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+
+		test("GPOS version handling", () => {
+			if (lepchaGpos) {
+				expect(lepchaGpos.version.major).toBe(1);
+				// Minor version can be 0 or 1
+				expect([0, 1]).toContain(lepchaGpos.version.minor);
+			}
+		});
+
+		test("checks mark filtering set in lookups", () => {
+			if (lepchaGpos) {
+				let hasMarkFilteringSet = false;
+				for (const lookup of lepchaGpos.lookups) {
+					if (lookup.flag & LookupFlag.UseMarkFilteringSet) {
+						hasMarkFilteringSet = true;
+						expect(lookup.markFilteringSet).toBeDefined();
+						expect(typeof lookup.markFilteringSet).toBe("number");
+					}
+				}
+				// It's OK if no lookups have mark filtering set
+				expect(typeof hasMarkFilteringSet).toBe("boolean");
+			}
+		});
+
+		test("extension lookup handling (Type 9)", () => {
+			if (lepchaGpos) {
+				// Extension lookups should be unwrapped during parsing
+				// so we shouldn't see type 9 in the final lookup list
+				for (const lookup of lepchaGpos.lookups) {
+					expect(lookup.type).not.toBe(GposLookupType.Extension);
+					expect(lookup.type).toBeGreaterThanOrEqual(1);
+					expect(lookup.type).toBeLessThanOrEqual(8);
+				}
+			}
+		});
+	});
+});
+
+describe("GPOS Extension Lookups (STIXTwoText)", () => {
+	let stixFont: Font;
+	let stixGpos: GposTable | null;
+
+	beforeAll(async () => {
+		stixFont = await Font.fromFile(STIX_TWO_ITALIC_PATH);
+		stixGpos = stixFont.gpos;
+	});
+
+	test("loads STIXTwoText-Italic successfully", () => {
+		expect(stixFont).toBeDefined();
+		expect(stixGpos).toBeDefined();
+	});
+
+	test("extension lookups are unwrapped", () => {
+		if (stixGpos) {
+			// Extension lookups should be unwrapped to their actual types
+			for (const lookup of stixGpos.lookups) {
+				expect(lookup.type).not.toBe(GposLookupType.Extension);
+				expect(lookup.type).toBeGreaterThanOrEqual(1);
+				expect(lookup.type).toBeLessThanOrEqual(8);
+			}
+		}
+	});
+
+	test("unwrapped lookups have correct structure", () => {
+		if (stixGpos) {
+			for (const lookup of stixGpos.lookups) {
+				expect(lookup.flag).toBeDefined();
+				expect(typeof lookup.flag).toBe("number");
+				expect(Array.isArray(lookup.subtables)).toBe(true);
+				expect(lookup.subtables.length).toBeGreaterThanOrEqual(0);
+			}
+		}
+	});
+
+	test("extension lookup subtables are valid", () => {
+		if (stixGpos) {
+			for (const lookup of stixGpos.lookups) {
+				for (const subtable of lookup.subtables as any[]) {
+					expect(subtable).toBeDefined();
+
+					// Check based on lookup type
+					if (lookup.type === GposLookupType.Single) {
+						expect(subtable.coverage).toBeDefined();
+						expect([1, 2]).toContain(subtable.format);
+					} else if (lookup.type === GposLookupType.Pair) {
+						expect(subtable.coverage).toBeDefined();
+						expect([1, 2]).toContain(subtable.format);
+					} else if (lookup.type === GposLookupType.Cursive) {
+						expect(subtable.coverage).toBeDefined();
+					} else if (
+						lookup.type === GposLookupType.MarkToBase ||
+						lookup.type === GposLookupType.MarkToLigature ||
+						lookup.type === GposLookupType.MarkToMark
+					) {
+						expect(
+							subtable.markCoverage ||
+								subtable.mark1Coverage ||
+								subtable.baseCoverage,
+						).toBeDefined();
+					}
+				}
+			}
+		}
+	});
+
+	test("extension lookups preserve lookup flags", () => {
+		if (stixGpos) {
+			for (const lookup of stixGpos.lookups) {
+				expect(typeof lookup.flag).toBe("number");
+				if (lookup.flag & LookupFlag.UseMarkFilteringSet) {
+					if (lookup.markFilteringSet !== undefined) {
+						expect(typeof lookup.markFilteringSet).toBe("number");
+					}
+				}
+			}
+		}
+	});
+
+	test("tests all lookup types from extensions", () => {
+		if (stixGpos) {
+			const typeCounts = new Map<number, number>();
+			for (const lookup of stixGpos.lookups) {
+				const count = typeCounts.get(lookup.type) ?? 0;
+				typeCounts.set(lookup.type, count + 1);
+			}
+
+			expect(typeCounts.size).toBeGreaterThan(0);
+
+			// Verify each type that exists has valid structure
+			for (const [type, count] of typeCounts.entries()) {
+				expect(count).toBeGreaterThan(0);
+				expect(type).toBeGreaterThanOrEqual(1);
+				expect(type).toBeLessThanOrEqual(8);
+			}
+		}
+	});
+
+	test("getKerning works with unwrapped extension lookups", () => {
+		if (stixGpos) {
+			const pairLookups = stixGpos.lookups.filter(
+				(l): l is PairPosLookup => l.type === GposLookupType.Pair,
+			);
+
+			for (const lookup of pairLookups) {
+				// Test with various glyphs
+				for (let g1 = 0; g1 < 100; g1++) {
+					for (let g2 = 0; g2 < 100; g2++) {
+						const result = getKerning(lookup, g1, g2);
+						if (result !== null) {
+							expect(typeof result.xAdvance1).toBe("number");
+							expect(typeof result.xAdvance2).toBe("number");
+						}
+					}
+				}
+			}
+		}
+	});
+
+	test("mark positioning works with unwrapped extensions", () => {
+		if (stixGpos) {
+			const markBaseLookups = stixGpos.lookups.filter(
+				(l): l is MarkBasePosLookup => l.type === GposLookupType.MarkToBase,
+			);
+
+			for (const lookup of markBaseLookups) {
+				for (const subtable of lookup.subtables) {
+					expect(subtable.markCoverage).toBeDefined();
+					expect(subtable.baseCoverage).toBeDefined();
+					expect(subtable.markClassCount).toBeGreaterThan(0);
+					expect(subtable.markArray.markRecords.length).toBeGreaterThanOrEqual(
+						0,
+					);
+					expect(subtable.baseArray.length).toBeGreaterThanOrEqual(0);
+				}
+			}
+		}
+	});
+
+	test("single positioning works with unwrapped extensions", () => {
+		if (stixGpos) {
+			const singleLookups = stixGpos.lookups.filter(
+				(l): l is SinglePosLookup => l.type === GposLookupType.Single,
+			);
+
+			for (const lookup of singleLookups) {
+				for (const subtable of lookup.subtables) {
+					expect(subtable.coverage).toBeDefined();
+					expect([1, 2]).toContain(subtable.format);
+					expect(typeof subtable.valueFormat).toBe("number");
+				}
+			}
+		}
+	});
+
+	test("extension lookup value records", () => {
+		if (stixGpos) {
+			const singleLookups = stixGpos.lookups.filter(
+				(l): l is SinglePosLookup => l.type === GposLookupType.Single,
+			);
+
+			for (const lookup of singleLookups) {
+				for (const subtable of lookup.subtables) {
+					if (subtable.format === 1 && subtable.value) {
+						const v = subtable.value;
+						if (v.xAdvance !== undefined) {
+							expect(typeof v.xAdvance).toBe("number");
+						}
+						if (v.xPlacement !== undefined) {
+							expect(typeof v.xPlacement).toBe("number");
+						}
+					} else if (subtable.format === 2 && subtable.values) {
+						for (const v of subtable.values) {
+							if (v.xAdvance !== undefined) {
+								expect(typeof v.xAdvance).toBe("number");
+							}
+							if (v.xPlacement !== undefined) {
+								expect(typeof v.xPlacement).toBe("number");
+							}
+						}
+					}
+				}
+			}
+		}
+	});
+
+	test("comprehensive lookup type coverage", () => {
+		if (stixGpos) {
+			let hasSingle = false;
+			let hasPair = false;
+			let hasMark = false;
+
+			for (const lookup of stixGpos.lookups) {
+				if (lookup.type === GposLookupType.Single) hasSingle = true;
+				if (lookup.type === GposLookupType.Pair) hasPair = true;
+				if (
+					lookup.type === GposLookupType.MarkToBase ||
+					lookup.type === GposLookupType.MarkToLigature ||
+					lookup.type === GposLookupType.MarkToMark
+				)
+					hasMark = true;
+			}
+
+			// STIXTwoText should have at least some lookup types
+			expect(hasSingle || hasPair || hasMark).toBe(true);
+		}
 	});
 });

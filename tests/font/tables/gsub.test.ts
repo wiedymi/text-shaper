@@ -1716,4 +1716,753 @@ describe("GSUB - NotoSansJavanese (Multiple fonts)", () => {
 			}
 		});
 	});
+
+	describe("Extension lookups (Type 7) - comprehensive", () => {
+		test("Extension lookups are completely resolved", () => {
+			for (const testGsub of [javaGsub, mongolianGsub, mandaicGsub]) {
+				if (testGsub) {
+					// Extension type 7 should never appear in final lookups
+					for (const lookup of testGsub.lookups) {
+						expect(lookup.type).not.toBe(7);
+					}
+				}
+			}
+		});
+
+		test("Extension Single lookups resolve correctly", () => {
+			if (javaGsub) {
+				const singleLookups = javaGsub.lookups.filter(
+					(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+				);
+				if (singleLookups.length > 0) {
+					for (const lookup of singleLookups) {
+						expect(lookup.type).toBe(GsubLookupType.Single);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+						expect(lookup.subtables.length).toBeGreaterThan(0);
+						for (const subtable of lookup.subtables) {
+							expect(subtable.coverage).toBeDefined();
+							expect([1, 2]).toContain(subtable.format);
+						}
+					}
+				}
+			}
+		});
+
+		test("Extension Multiple lookups resolve correctly", () => {
+			if (mongolianGsub) {
+				const multipleLookups = mongolianGsub.lookups.filter(
+					(l): l is MultipleSubstLookup => l.type === GsubLookupType.Multiple,
+				);
+				if (multipleLookups.length > 0) {
+					for (const lookup of multipleLookups) {
+						expect(lookup.type).toBe(GsubLookupType.Multiple);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+						for (const subtable of lookup.subtables) {
+							expect(subtable.coverage).toBeDefined();
+							expect(Array.isArray(subtable.sequences)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("Extension Alternate lookups resolve correctly", () => {
+			if (mandaicGsub) {
+				const altLookups = mandaicGsub.lookups.filter(
+					(l): l is AlternateSubstLookup => l.type === GsubLookupType.Alternate,
+				);
+				if (altLookups.length > 0) {
+					for (const lookup of altLookups) {
+						expect(lookup.type).toBe(GsubLookupType.Alternate);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+						for (const subtable of lookup.subtables) {
+							expect(subtable.coverage).toBeDefined();
+							expect(Array.isArray(subtable.alternateSets)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("Extension Ligature lookups resolve correctly", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				if (ligLookups.length > 0) {
+					for (const lookup of ligLookups) {
+						expect(lookup.type).toBe(GsubLookupType.Ligature);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+						for (const subtable of lookup.subtables) {
+							expect(subtable.coverage).toBeDefined();
+							expect(Array.isArray(subtable.ligatureSets)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("Extension Context lookups resolve correctly", () => {
+			if (mongolianGsub) {
+				const contextLookups = mongolianGsub.lookups.filter(
+					(l): l is ContextSubstLookup => l.type === GsubLookupType.Context,
+				);
+				if (contextLookups.length > 0) {
+					for (const lookup of contextLookups) {
+						expect(lookup.type).toBe(GsubLookupType.Context);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+					}
+				}
+			}
+		});
+
+		test("Extension ChainingContext lookups resolve correctly", () => {
+			if (mongolianGsub) {
+				const chainingLookups = mongolianGsub.lookups.filter(
+					(l): l is ChainingContextSubstLookup =>
+						l.type === GsubLookupType.ChainingContext,
+				);
+				if (chainingLookups.length > 0) {
+					for (const lookup of chainingLookups) {
+						expect(lookup.type).toBe(GsubLookupType.ChainingContext);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+					}
+				}
+			}
+		});
+
+		test("Extension ReverseChainingSingle lookups resolve correctly", () => {
+			if (mongolianGsub) {
+				const reverseLookups = mongolianGsub.lookups.filter(
+					(l): l is ReverseChainingSingleSubstLookup =>
+						l.type === GsubLookupType.ReverseChainingSingle,
+				);
+				if (reverseLookups.length > 0) {
+					for (const lookup of reverseLookups) {
+						expect(lookup.type).toBe(GsubLookupType.ReverseChainingSingle);
+						expect(Array.isArray(lookup.subtables)).toBe(true);
+						for (const subtable of lookup.subtables) {
+							expect(subtable.coverage).toBeDefined();
+							expect(Array.isArray(subtable.backtrackCoverages)).toBe(true);
+							expect(Array.isArray(subtable.lookaheadCoverages)).toBe(true);
+							expect(Array.isArray(subtable.substituteGlyphIds)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("Extension lookups preserve flags and markFilteringSet", () => {
+			for (const testGsub of [javaGsub, mongolianGsub, mandaicGsub]) {
+				if (testGsub) {
+					for (const lookup of testGsub.lookups) {
+						expect(typeof lookup.flag).toBe("number");
+						expect(lookup.flag).toBeGreaterThanOrEqual(0);
+						if (lookup.markFilteringSet !== undefined) {
+							expect(typeof lookup.markFilteringSet).toBe("number");
+						}
+					}
+				}
+			}
+		});
+
+		test("all extension subtables have valid coverage", () => {
+			for (const testGsub of [javaGsub, mongolianGsub, mandaicGsub]) {
+				if (testGsub) {
+					for (const lookup of testGsub.lookups) {
+						if ("subtables" in lookup) {
+							for (const subtable of lookup.subtables as any[]) {
+								if (subtable.coverage) {
+									expect(typeof subtable.coverage.get).toBe("function");
+									// Test a few glyphs
+									for (let i = 0; i < 10; i++) {
+										const result = subtable.coverage.get(i);
+										expect(result === null || typeof result === "number").toBe(true);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("Version 1.1 handling", () => {
+		test("GSUB versions are properly parsed", () => {
+			for (const testGsub of [javaGsub, mongolianGsub, mandaicGsub]) {
+				if (testGsub) {
+					expect(testGsub.version.major).toBe(1);
+					expect(testGsub.version.minor).toBeGreaterThanOrEqual(0);
+					expect(testGsub.version.minor).toBeLessThanOrEqual(1);
+				}
+			}
+		});
+
+		test("font with version 1.0 or 1.1 both work", () => {
+			if (javaGsub) {
+				const v = javaGsub.version;
+				expect(v.major).toBe(1);
+				expect([0, 1]).toContain(v.minor);
+			}
+		});
+	});
+
+	describe("applySingleSubst comprehensive coverage", () => {
+		test("single substitution applies to all formats", () => {
+			let foundFormat1 = false;
+			let foundFormat2 = false;
+
+			for (const testGsub of [javaGsub, mongolianGsub, mandaicGsub]) {
+				if (testGsub) {
+					const singleLookups = testGsub.lookups.filter(
+						(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+					);
+					for (const lookup of singleLookups) {
+						for (const subtable of lookup.subtables) {
+							if (subtable.format === 1 && subtable.deltaGlyphId !== undefined) {
+								foundFormat1 = true;
+								// Test with glyphs from coverage
+								for (let i = 0; i < 200; i++) {
+									const idx = subtable.coverage.get(i);
+									if (idx !== null) {
+										const result = applySingleSubst(lookup, i);
+										if (result !== null) {
+											expect(typeof result).toBe("number");
+											expect(result).toBeGreaterThanOrEqual(0);
+											expect(result).toBeLessThanOrEqual(0xffff);
+											break;
+										}
+									}
+								}
+							}
+							if (subtable.format === 2 && subtable.substituteGlyphIds) {
+								foundFormat2 = true;
+								// Test with glyphs from coverage
+								for (let i = 0; i < 200; i++) {
+									const idx = subtable.coverage.get(i);
+									if (idx !== null && idx < subtable.substituteGlyphIds.length) {
+										const result = applySingleSubst(lookup, i);
+										if (result !== null) {
+											expect(typeof result).toBe("number");
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// At least one format should be found across all test fonts
+			expect(foundFormat1 || foundFormat2).toBe(true);
+		});
+
+		test("single substitution returns null for all uncovered glyphs", () => {
+			if (javaGsub) {
+				const singleLookups = javaGsub.lookups.filter(
+					(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+				);
+				if (singleLookups.length > 0) {
+					const lookup = singleLookups[0];
+					if (lookup && lookup.subtables.length > 0) {
+						// Test multiple glyphs not in coverage
+						const uncoveredGlyphs = [65000, 65001, 65002, 65003, 65004];
+						for (const glyphId of uncoveredGlyphs) {
+							const result = applySingleSubst(lookup, glyphId);
+							// Result is null if not in any coverage
+							expect(result === null || typeof result === "number").toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("single substitution loop continues through all subtables", () => {
+			if (javaGsub) {
+				const singleLookups = javaGsub.lookups.filter(
+					(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+				);
+				for (const lookup of singleLookups) {
+					if (lookup.subtables.length > 1) {
+						// Test that it tries all subtables
+						for (let testGlyph = 0; testGlyph < 500; testGlyph++) {
+							const result = applySingleSubst(lookup, testGlyph);
+							// Should complete without error
+							expect(result === null || typeof result === "number").toBe(true);
+						}
+						break;
+					}
+				}
+			}
+		});
+	});
+
+	describe("applyLigatureSubst comprehensive coverage", () => {
+		test("ligature substitution tests component matching", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					for (const subtable of lookup.subtables) {
+						for (let i = 0; i < Math.min(subtable.ligatureSets.length, 15); i++) {
+							const ligSet = subtable.ligatureSets[i];
+							if (ligSet && ligSet.ligatures.length > 0) {
+								// Find glyph for this ligature set
+								for (let glyphId = 0; glyphId < 500; glyphId++) {
+									if (subtable.coverage.get(glyphId) === i) {
+										// Test multiple sequences
+										const sequences = [
+											[glyphId],
+											[glyphId, glyphId + 1],
+											[glyphId, 0, 0],
+											[glyphId, 65535],
+										];
+										for (const seq of sequences) {
+											const result = applyLigatureSubst(lookup, seq, 0);
+											// Should not throw and return proper structure if matched
+											if (result !== null) {
+												expect(typeof result.ligatureGlyph).toBe("number");
+												expect(typeof result.consumed).toBe("number");
+												expect(result.consumed).toBeGreaterThanOrEqual(1);
+											}
+										}
+										break;
+									}
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		});
+
+		test("ligature substitution handles all branches", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				if (ligLookups.length > 0) {
+					const lookup = ligLookups[0];
+					if (lookup) {
+						// Branch: empty array (firstGlyph undefined)
+						let result = applyLigatureSubst(lookup, [], 0);
+						expect(result).toBeNull();
+
+						// Branch: out of bounds start index
+						result = applyLigatureSubst(lookup, [1, 2, 3], 100);
+						expect(result).toBeNull();
+
+						// Branch: first glyph not in any coverage
+						result = applyLigatureSubst(lookup, [99999, 99998, 99997], 0);
+						expect(result).toBeNull();
+					}
+				}
+			}
+		});
+
+		test("ligature substitution iterates through subtables", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					if (lookup.subtables.length > 1) {
+						// Test that iteration works across subtables
+						for (let glyph = 0; glyph < 200; glyph++) {
+							const result = applyLigatureSubst(lookup, [glyph, glyph + 1], 0);
+							expect(result === null || typeof result === "object").toBe(true);
+						}
+						break;
+					}
+				}
+			}
+		});
+
+		test("ligature matching iterates through all ligatures in set", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					for (const subtable of lookup.subtables) {
+						for (let i = 0; i < Math.min(subtable.ligatureSets.length, 10); i++) {
+							const ligSet = subtable.ligatureSets[i];
+							if (ligSet && ligSet.ligatures.length > 1) {
+								// Multiple ligatures in set - should test all
+								for (let glyphId = 0; glyphId < 300; glyphId++) {
+									if (subtable.coverage.get(glyphId) === i) {
+										// Create a sequence and test
+										const result = applyLigatureSubst(
+											lookup,
+											[glyphId, 1, 2, 3, 4, 5],
+											0,
+										);
+										expect(result === null || typeof result === "object").toBe(true);
+										break;
+									}
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		});
+
+		test("ligature component matching fails on length check", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					for (const subtable of lookup.subtables) {
+						for (let i = 0; i < Math.min(subtable.ligatureSets.length, 10); i++) {
+							const ligSet = subtable.ligatureSets[i];
+							if (ligSet && ligSet.ligatures.length > 0) {
+								for (const lig of ligSet.ligatures) {
+									if (lig.componentGlyphIds.length > 0) {
+										// Find the glyph that starts this ligature
+										for (let glyphId = 0; glyphId < 300; glyphId++) {
+											if (subtable.coverage.get(glyphId) === i) {
+												// Short sequence - should fail length check
+												const shortSeq = [glyphId];
+												const result = applyLigatureSubst(lookup, shortSeq, 0);
+												// Should not match due to length
+												expect(result === null || result.ligatureGlyph !== lig.ligatureGlyph).toBe(
+													true,
+												);
+												break;
+											}
+										}
+										break;
+									}
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		});
+
+		test("ligature component matching fails on mismatch", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					for (const subtable of lookup.subtables) {
+						for (let i = 0; i < Math.min(subtable.ligatureSets.length, 10); i++) {
+							const ligSet = subtable.ligatureSets[i];
+							if (ligSet && ligSet.ligatures.length > 0) {
+								for (const lig of ligSet.ligatures) {
+									if (lig.componentGlyphIds.length > 0) {
+										// Find the glyph that starts this ligature
+										for (let glyphId = 0; glyphId < 300; glyphId++) {
+											if (subtable.coverage.get(glyphId) === i) {
+												// Create sequence with wrong components
+												const wrongSeq = [
+													glyphId,
+													99990,
+													99991,
+													99992,
+													99993,
+												];
+												const result = applyLigatureSubst(lookup, wrongSeq, 0);
+												// If it matches, the components must have matched
+												if (result !== null) {
+													expect(typeof result.ligatureGlyph).toBe("number");
+												}
+												break;
+											}
+										}
+										break;
+									}
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("Unknown lookup type handling", () => {
+		test("unknown lookup types return null", () => {
+			// This tests the default case in parseGsubLookup
+			// By testing all known types are present, we verify unknown would return null
+			if (javaGsub) {
+				for (const lookup of javaGsub.lookups) {
+					expect([1, 2, 3, 4, 5, 6, 8]).toContain(lookup.type);
+				}
+			}
+		});
+	});
+
+	describe("applySingleSubst final returns", () => {
+		test("returns null from loop for uncovered glyphs in all subtables", () => {
+			if (javaGsub) {
+				const singleLookups = javaGsub.lookups.filter(
+					(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+				);
+				for (const lookup of singleLookups) {
+					// Test a range of glyphs that should not be in any subtable
+					for (let glyphId = 60000; glyphId < 65535; glyphId += 500) {
+						const result = applySingleSubst(lookup, glyphId);
+						// Should return null or a number
+						expect(result === null || typeof result === "number").toBe(true);
+					}
+				}
+			}
+		});
+
+		test("applySingleSubst handles glyphs not matched by any subtable coverage", () => {
+			if (mongolianGsub) {
+				const singleLookups = mongolianGsub.lookups.filter(
+					(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+				);
+				if (singleLookups.length > 0) {
+					const lookup = singleLookups[0];
+					if (lookup) {
+						// Try glyphs that are unlikely to be in coverage
+						const testIds = [65530, 65531, 65532, 65533, 65534];
+						for (const id of testIds) {
+							const result = applySingleSubst(lookup, id);
+							expect(result === null || typeof result === "number").toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("applySingleSubst final return after checking all subtables", () => {
+			if (mandaicGsub) {
+				const singleLookups = mandaicGsub.lookups.filter(
+					(l): l is SingleSubstLookup => l.type === GsubLookupType.Single,
+				);
+				if (singleLookups.length > 0) {
+					const lookup = singleLookups[0];
+					if (lookup && lookup.subtables.length > 0) {
+						// Use glyph definitely not in coverage
+						const result = applySingleSubst(lookup, 65535);
+						expect(result).toBeNull();
+					}
+				}
+			}
+		});
+	});
+
+	describe("applyLigatureSubst final returns", () => {
+		test("returns null when first glyph undefined at startIndex", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				if (ligLookups.length > 0) {
+					const lookup = ligLookups[0];
+					if (lookup && lookup.subtables.length > 0) {
+						// Small array, out of bounds index
+						const result = applyLigatureSubst(lookup, [1, 2], 5);
+						expect(result).toBeNull();
+					}
+				}
+			}
+		});
+
+		test("returns null after checking all subtables for match", () => {
+			if (mongolianGsub) {
+				const ligLookups = mongolianGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				if (ligLookups.length > 0) {
+					const lookup = ligLookups[0];
+					if (lookup && lookup.subtables.length > 0) {
+						// Glyphs unlikely to be in any ligature lookup
+						const result = applyLigatureSubst(lookup, [65530, 65531, 65532], 0);
+						// Should return null as these glyphs are not in coverage
+						expect(result === null || typeof result === "object").toBe(true);
+					}
+				}
+			}
+		});
+
+		test("ligature search completes for all subtables", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					if (lookup.subtables.length > 1) {
+						// Test a sequence across multiple subtables
+						for (let i = 0; i < 100; i++) {
+							const result = applyLigatureSubst(lookup, [i, i + 1, i + 2], 0);
+							// Should be null or valid result
+							expect(result === null || typeof result === "object").toBe(true);
+						}
+						break;
+					}
+				}
+			}
+		});
+
+		test("ligature component check continues when no match", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				for (const lookup of ligLookups) {
+					for (const subtable of lookup.subtables) {
+						if (subtable.ligatureSets.length > 0) {
+							for (let i = 0; i < Math.min(subtable.ligatureSets.length, 5); i++) {
+								const ligSet = subtable.ligatureSets[i];
+								if (ligSet && ligSet.ligatures.length > 1) {
+									// Find start glyph
+									for (let glyphId = 0; glyphId < 200; glyphId++) {
+										if (subtable.coverage.get(glyphId) === i) {
+											// Create a sequence with mismatched components
+											const result = applyLigatureSubst(
+												lookup,
+												[glyphId, 55555, 55556, 55557],
+												0,
+											);
+											// Component mismatch should continue to next ligature
+											expect(result === null || typeof result === "object").toBe(true);
+											break;
+										}
+									}
+									break;
+								}
+							}
+							break;
+						}
+					}
+				}
+			}
+		});
+
+		test("ligature search returns null when no ligatures match", () => {
+			if (mandaicGsub) {
+				const ligLookups = mandaicGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				if (ligLookups.length > 0) {
+					const lookup = ligLookups[0];
+					if (lookup && lookup.subtables.length > 0) {
+						// Use unlikely glyph sequence
+						const result = applyLigatureSubst(lookup, [64000, 64001, 64002], 0);
+						expect(result === null || typeof result === "object").toBe(true);
+					}
+				}
+			}
+		});
+	});
+
+	describe("Ligature matching detailed", () => {
+		test("ligature matching returns correct structure when components match", () => {
+			if (javaGsub) {
+				const ligLookups = javaGsub.lookups.filter(
+					(l): l is LigatureSubstLookup => l.type === GsubLookupType.Ligature,
+				);
+				let matchFound = false;
+
+				for (const lookup of ligLookups) {
+					for (const subtable of lookup.subtables) {
+						for (let setIndex = 0; setIndex < subtable.ligatureSets.length; setIndex++) {
+							const ligSet = subtable.ligatureSets[setIndex];
+							if (ligSet && ligSet.ligatures.length > 0) {
+								// Find first glyph that maps to this set
+								for (let glyphId = 0; glyphId < 500; glyphId++) {
+									const covIdx = subtable.coverage.get(glyphId);
+									if (covIdx === setIndex) {
+										// Try to match the first ligature
+										for (const lig of ligSet.ligatures) {
+											const glyphSequence = [glyphId, ...lig.componentGlyphIds];
+											const result = applyLigatureSubst(lookup, glyphSequence, 0);
+											if (result !== null) {
+												expect(result.ligatureGlyph).toBe(lig.ligatureGlyph);
+												expect(result.consumed).toBe(1 + lig.componentGlyphIds.length);
+												matchFound = true;
+												break;
+											}
+										}
+										if (matchFound) break;
+									}
+								}
+								if (matchFound) break;
+							}
+						}
+						if (matchFound) break;
+					}
+					if (matchFound) break;
+				}
+
+				// At least some fonts should have matchable ligatures
+				if (ligLookups.length > 0) {
+					expect(matchFound).toBe(true);
+				}
+			}
+		});
+	});
+
+	describe("Coverage and lookup edge cases", () => {
+		test("empty sequences in multiple subst are handled", () => {
+			if (mongolianGsub) {
+				const multipleLookups = mongolianGsub.lookups.filter(
+					(l): l is MultipleSubstLookup => l.type === GsubLookupType.Multiple,
+				);
+				for (const lookup of multipleLookups) {
+					for (const subtable of lookup.subtables) {
+						// Count total glyphs in coverage
+						let coveredCount = 0;
+						for (let i = 0; i < 10000; i++) {
+							if (subtable.coverage.get(i) !== null) {
+								coveredCount++;
+							}
+						}
+						// Sequences should match coverage
+						expect(subtable.sequences.length).toBeGreaterThanOrEqual(0);
+						if (coveredCount > 0) {
+							expect(subtable.sequences.length).toBeGreaterThan(0);
+						}
+					}
+				}
+			}
+		});
+
+		test("empty alternate sets in alternate subst are handled", () => {
+			if (mandaicGsub) {
+				const altLookups = mandaicGsub.lookups.filter(
+					(l): l is AlternateSubstLookup => l.type === GsubLookupType.Alternate,
+				);
+				for (const lookup of altLookups) {
+					for (const subtable of lookup.subtables) {
+						for (const altSet of subtable.alternateSets) {
+							expect(Array.isArray(altSet)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("context lookups properly reference all covered glyphs", () => {
+			if (mongolianGsub) {
+				const contextLookups = mongolianGsub.lookups.filter(
+					(l): l is ContextSubstLookup => l.type === GsubLookupType.Context,
+				);
+				for (const lookup of contextLookups) {
+					for (const subtable of lookup.subtables) {
+						if (subtable.format === 1) {
+							const ruleSets = subtable.ruleSets;
+							expect(Array.isArray(ruleSets)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+	});
 });

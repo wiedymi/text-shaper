@@ -92,7 +92,7 @@ export function parseGdef(reader: Reader): GdefTable {
 	};
 }
 
-function parseAttachList(reader: Reader): Map<GlyphId, AttachPoint> {
+export function parseAttachList(reader: Reader): Map<GlyphId, AttachPoint> {
 	const coverageOffset = reader.offset16();
 	const glyphCount = reader.uint16();
 
@@ -137,7 +137,7 @@ function parseAttachList(reader: Reader): Map<GlyphId, AttachPoint> {
 	return result;
 }
 
-function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
+export function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
 	const coverageOffset = reader.offset16();
 	const ligGlyphCount = reader.uint16();
 
@@ -199,7 +199,7 @@ function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
 	return result;
 }
 
-function parseMarkGlyphSets(reader: Reader): MarkGlyphSets {
+export function parseMarkGlyphSets(reader: Reader): MarkGlyphSets {
 	const _format = reader.uint16();
 	const markSetCount = reader.uint16();
 

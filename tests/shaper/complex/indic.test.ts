@@ -6,6 +6,7 @@ import {
 	MatraPosition,
 	isIndic,
 	getIndicCategory,
+	getMatraPosition,
 	findSyllables,
 	setupIndicMasks,
 	reorderIndic,
@@ -458,6 +459,497 @@ describe("indic shaper", () => {
 
 			expect(infos[0].codepoint).toBe(0x0915);
 			expect(infos[1].codepoint).toBe(0x093e);
+		});
+
+		test("moves reph to end of syllable", () => {
+			// र्क should have reph moved after base
+			const infos = [
+				makeInfo(0x0930), // RA
+				makeInfo(0x094d), // Virama (reph)
+				makeInfo(0x0915), // KA (base)
+			];
+
+			reorderIndic(infos);
+
+			// Reph (Ra + Halant) should move after base
+			expect(infos[0].codepoint).toBe(0x0915); // KA now first
+			expect(infos[1].codepoint).toBe(0x0930); // RA
+			expect(infos[2].codepoint).toBe(0x094d); // Virama
+		});
+
+		test("moves reph before syllable modifiers", () => {
+			// र्कं - reph should move after base but before anusvara
+			const infos = [
+				makeInfo(0x0930), // RA
+				makeInfo(0x094d), // Virama (reph)
+				makeInfo(0x0915), // KA (base)
+				makeInfo(0x0902), // Anusvara (SM)
+			];
+
+			reorderIndic(infos);
+
+			// Order should be: KA, RA, Virama, Anusvara
+			expect(infos[0].codepoint).toBe(0x0915); // KA
+			expect(infos[1].codepoint).toBe(0x0930); // RA
+			expect(infos[2].codepoint).toBe(0x094d); // Virama
+			expect(infos[3].codepoint).toBe(0x0902); // Anusvara
+		});
+
+		test("does not move reph if target is same as current position", () => {
+			// र्क् with final halant - short syllable
+			const infos = [
+				makeInfo(0x0930), // RA
+				makeInfo(0x094d), // Virama (reph)
+				makeInfo(0x0915), // KA (base)
+				makeInfo(0x094d), // Final virama
+			];
+
+			const originalLength = infos.length;
+			reorderIndic(infos);
+
+			// Should still reorder
+			expect(infos.length).toBe(originalLength);
+		});
+
+		test("handles pre-base matra with reph", () => {
+			// र्कि - reph + I matra: both should reorder
+			const infos = [
+				makeInfo(0x0930), // RA
+				makeInfo(0x094d), // Virama (reph)
+				makeInfo(0x0915), // KA (base)
+				makeInfo(0x093f), // I matra (pre-base)
+			];
+
+			reorderIndic(infos);
+
+			// I matra should be after reph, before base
+			expect(infos[0].codepoint).toBe(0x093f); // I matra first
+			expect(infos[1].codepoint).toBe(0x0915); // KA
+			expect(infos[2].codepoint).toBe(0x0930); // RA
+			expect(infos[3].codepoint).toBe(0x094d); // Virama
+		});
+
+		test("handles multiple pre-base matras", () => {
+			// Multiple pre-base matras (Bengali split vowels)
+			const infos = [
+				makeInfo(0x0995), // Bengali KA
+				makeInfo(0x09c7), // Bengali E matra (pre-base)
+				makeInfo(0x09be), // Bengali AA matra (post-base)
+			];
+
+			reorderIndic(infos);
+
+			// E matra should move before base
+			expect(infos[0].codepoint).toBe(0x09c7); // E matra
+			expect(infos[1].codepoint).toBe(0x0995); // KA
+			expect(infos[2].codepoint).toBe(0x09be); // AA matra
+		});
+	});
+
+	describe("edge cases and script-specific behaviors", () => {
+		describe("category detection edge cases", () => {
+			test("Devanagari symbols", () => {
+				expect(getIndicCategory(0x0966)).toBe(IndicCategory.Symbol); // 0
+				expect(getIndicCategory(0x096f)).toBe(IndicCategory.Symbol); // 9
+			});
+
+			test("Devanagari unknown characters", () => {
+				expect(getIndicCategory(0x0950)).toBe(IndicCategory.X); // OM sign
+				expect(getIndicCategory(0x0970)).toBe(IndicCategory.X); // Abbreviation sign
+			});
+
+			test("Bengali unknown characters", () => {
+				expect(getIndicCategory(0x09fa)).toBe(IndicCategory.X); // Bengali isshar
+			});
+
+			test("other Indic scripts fallback category X", () => {
+				// Tamil - character outside defined ranges
+				expect(getIndicCategory(0x0bf9)).toBe(IndicCategory.X); // Tamil rupee
+				// Telugu - outside standard ranges
+				expect(getIndicCategory(0x0c77)).toBe(IndicCategory.X); // Telugu sign
+			});
+		});
+
+		describe("syllable parsing edge cases", () => {
+			test("handles null info entries in syllable parsing", () => {
+				const infos: (GlyphInfo | null)[] = [
+					makeInfo(0x0915), // KA
+					null,
+					makeInfo(0x093e), // AA matra
+				];
+
+				// Cast to force through - testing robustness
+				const syllables = findSyllables(infos as GlyphInfo[]);
+				expect(syllables.length).toBeGreaterThan(0);
+			});
+
+			test("handles standalone nukta", () => {
+				const infos = [
+					makeInfo(0x093c), // Nukta alone
+					makeInfo(0x0915), // KA
+				];
+
+				const syllables = findSyllables(infos);
+				// Nukta followed by consonant forms single syllable
+				expect(syllables.length).toBe(1);
+			});
+
+			test("handles consonant + halant + ZWJ", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x094d), // Virama
+					makeInfo(0x200d), // ZWJ
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(3);
+			});
+
+			test("handles consonant + halant + ZWNJ", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x094d), // Virama
+					makeInfo(0x200c), // ZWNJ
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(3);
+			});
+
+			test("handles independent vowel as base", () => {
+				const infos = [
+					makeInfo(0x0905), // Independent vowel A
+					makeInfo(0x0902), // Anusvara
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(2);
+			});
+
+			test("handles non-syllable character", () => {
+				const infos = [
+					makeInfo(0x0041), // Latin 'A' (non-Indic)
+					makeInfo(0x0915), // KA
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(2);
+				expect(syllables[0].end).toBe(1); // Non-Indic is single syllable
+			});
+
+			test("handles final halant in syllable", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x094d), // Final virama
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(2);
+			});
+
+			test("advances at least one position", () => {
+				const infos = [
+					makeInfo(0x0041), // Non-Indic character
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(1);
+			});
+		});
+
+		describe("matra position detection", () => {
+			test("Telugu above-base matras", () => {
+				expect(getMatraPosition(0x0c3e)).toBe(MatraPosition.AboveBase);
+				expect(getMatraPosition(0x0c46)).toBe(MatraPosition.AboveBase);
+			});
+
+			test("Telugu below-base matras", () => {
+				expect(getMatraPosition(0x0c41)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0c44)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Telugu post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0c55)).toBe(MatraPosition.PostBase);
+			});
+
+			test("Kannada above-base matras", () => {
+				expect(getMatraPosition(0x0cbe)).toBe(MatraPosition.AboveBase);
+				expect(getMatraPosition(0x0cc6)).toBe(MatraPosition.AboveBase);
+			});
+
+			test("Kannada below-base matras", () => {
+				expect(getMatraPosition(0x0cc1)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0cc4)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Kannada post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0ccc)).toBe(MatraPosition.PostBase);
+			});
+
+			test("Oriya pre-base matra", () => {
+				expect(getMatraPosition(0x0b3f)).toBe(MatraPosition.PreBase);
+			});
+
+			test("Oriya below-base matras", () => {
+				expect(getMatraPosition(0x0b41)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0b43)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Oriya post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0b4c)).toBe(MatraPosition.PostBase);
+			});
+		});
+
+		describe("mask setup edge cases", () => {
+			test("sets post-base halant mask correctly", () => {
+				const infos = [
+					makeInfo(0x0915), // KA (base)
+					makeInfo(0x094d), // Virama (post-base halant - final form)
+				];
+
+				setupIndicMasks(infos);
+
+				// Post-base halant should have blwf and pstf masks
+				expect(infos[1].mask & IndicFeatureMask.blwf).toBe(
+					IndicFeatureMask.blwf,
+				);
+				expect(infos[1].mask & IndicFeatureMask.pstf).toBe(
+					IndicFeatureMask.pstf,
+				);
+			});
+
+			test("handles null info in mask setup", () => {
+				const infos: (GlyphInfo | null)[] = [
+					makeInfo(0x0915), // KA
+					null,
+					makeInfo(0x093e), // AA matra
+				];
+
+				// Should not crash
+				setupIndicMasks(infos as GlyphInfo[]);
+				expect(infos[0]?.mask).toBeDefined();
+			});
+		});
+
+		describe("reph reordering edge cases", () => {
+			test("handles null entries during reph movement", () => {
+				const infos: (GlyphInfo | null)[] = [
+					makeInfo(0x0930), // RA
+					makeInfo(0x094d), // Virama
+					makeInfo(0x0915), // KA
+					null,
+					makeInfo(0x0902), // Anusvara
+				];
+
+				// Should handle gracefully
+				reorderIndic(infos as GlyphInfo[]);
+			});
+
+			test("reph does not move if only Ra+Halant+base", () => {
+				const infos = [
+					makeInfo(0x0930), // RA
+					makeInfo(0x094d), // Virama
+				];
+
+				reorderIndic(infos);
+
+				// Should stay in place (short syllable)
+				expect(infos[0].codepoint).toBe(0x0930);
+				expect(infos[1].codepoint).toBe(0x094d);
+			});
+
+			test("reph skips accent marks when finding target", () => {
+				const infos = [
+					makeInfo(0x0930), // RA
+					makeInfo(0x094d), // Virama (reph)
+					makeInfo(0x0915), // KA (base)
+					makeInfo(0x093e), // AA matra
+					makeInfo(0x0951), // Accent mark (udatta)
+				];
+
+				reorderIndic(infos);
+
+				// Reph should be before accent mark
+				expect(infos[2].codepoint).toBe(0x0930); // RA before accent
+				expect(infos[3].codepoint).toBe(0x094d); // Virama
+				expect(infos[4].codepoint).toBe(0x0951); // Accent at end
+			});
+		});
+
+		describe("complex conjunct formation", () => {
+			test("handles multiple consonants with halants", () => {
+				// त्र्य (TA + virama + RA + virama + YA)
+				const infos = [
+					makeInfo(0x0924), // TA
+					makeInfo(0x094d), // Virama
+					makeInfo(0x0930), // RA
+					makeInfo(0x094d), // Virama
+					makeInfo(0x092f), // YA
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(5);
+			});
+
+			test("handles consonant cluster with nukta", () => {
+				// क़्ष (KA + nukta + virama + SSA)
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x093c), // Nukta
+					makeInfo(0x094d), // Virama
+					makeInfo(0x0937), // SSA
+				];
+
+				const syllables = findSyllables(infos);
+				expect(syllables.length).toBe(1);
+				expect(syllables[0].end).toBe(4);
+
+				setupIndicMasks(infos);
+				expect(infos[1].mask & IndicFeatureMask.nukt).toBe(
+					IndicFeatureMask.nukt,
+				);
+			});
+		});
+
+		describe("script-specific matra handling", () => {
+			test("Bengali split vowels", () => {
+				// Bengali ে (E) is pre-base
+				expect(getMatraPosition(0x09c7)).toBe(MatraPosition.PreBase);
+				expect(getMatraPosition(0x09c8)).toBe(MatraPosition.PreBase);
+			});
+
+			test("Tamil pre-base matras", () => {
+				expect(getMatraPosition(0x0bc6)).toBe(MatraPosition.PreBase);
+				expect(getMatraPosition(0x0bc7)).toBe(MatraPosition.PreBase);
+				expect(getMatraPosition(0x0bc8)).toBe(MatraPosition.PreBase);
+			});
+
+			test("Tamil below-base matras", () => {
+				expect(getMatraPosition(0x0bc1)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0bc2)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Tamil post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0bca)).toBe(MatraPosition.PostBase);
+			});
+
+			test("Malayalam pre-base matras", () => {
+				expect(getMatraPosition(0x0d46)).toBe(MatraPosition.PreBase);
+				expect(getMatraPosition(0x0d47)).toBe(MatraPosition.PreBase);
+				expect(getMatraPosition(0x0d48)).toBe(MatraPosition.PreBase);
+			});
+
+			test("Malayalam below-base matras", () => {
+				expect(getMatraPosition(0x0d41)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0d42)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0d43)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Malayalam post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0d4a)).toBe(MatraPosition.PostBase);
+			});
+
+			test("Gurmukhi pre-base matra", () => {
+				expect(getMatraPosition(0x0a3f)).toBe(MatraPosition.PreBase);
+			});
+
+			test("Gurmukhi below-base matras", () => {
+				expect(getMatraPosition(0x0a41)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0a42)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Gurmukhi post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0a47)).toBe(MatraPosition.PostBase);
+			});
+
+			test("Gujarati pre-base matra", () => {
+				expect(getMatraPosition(0x0abf)).toBe(MatraPosition.PreBase);
+			});
+
+			test("Gujarati below-base matras", () => {
+				expect(getMatraPosition(0x0ac1)).toBe(MatraPosition.BelowBase);
+				expect(getMatraPosition(0x0ac4)).toBe(MatraPosition.BelowBase);
+			});
+
+			test("Gujarati post-base matras (fallback)", () => {
+				expect(getMatraPosition(0x0ac7)).toBe(MatraPosition.PostBase);
+			});
+
+			test("non-Indic returns PostBase", () => {
+				expect(getMatraPosition(0x0041)).toBe(MatraPosition.PostBase);
+			});
+		});
+
+		describe("matra mask setup for different positions", () => {
+			test("sets masks for above-base matra", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x0945), // Devanagari candra E (above-base)
+				];
+
+				setupIndicMasks(infos);
+
+				expect(infos[1].mask & IndicFeatureMask.abvf).toBe(
+					IndicFeatureMask.abvf,
+				);
+				expect(infos[1].mask & IndicFeatureMask.abvs).toBe(
+					IndicFeatureMask.abvs,
+				);
+			});
+
+			test("sets masks for below-base matra", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x0941), // Devanagari U (below-base)
+				];
+
+				setupIndicMasks(infos);
+
+				expect(infos[1].mask & IndicFeatureMask.blwf).toBe(
+					IndicFeatureMask.blwf,
+				);
+				expect(infos[1].mask & IndicFeatureMask.blws).toBe(
+					IndicFeatureMask.blws,
+				);
+			});
+
+			test("sets masks for post-base matra", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x093e), // Devanagari AA (post-base)
+				];
+
+				setupIndicMasks(infos);
+
+				expect(infos[1].mask & IndicFeatureMask.pstf).toBe(
+					IndicFeatureMask.pstf,
+				);
+				expect(infos[1].mask & IndicFeatureMask.psts).toBe(
+					IndicFeatureMask.psts,
+				);
+			});
+
+			test("sets masks for pre-base matra", () => {
+				const infos = [
+					makeInfo(0x0915), // KA
+					makeInfo(0x093f), // Devanagari I (pre-base)
+				];
+
+				setupIndicMasks(infos);
+
+				expect(infos[1].mask & IndicFeatureMask.pref).toBe(
+					IndicFeatureMask.pref,
+				);
+				expect(infos[1].mask & IndicFeatureMask.pres).toBe(
+					IndicFeatureMask.pres,
+				);
+			});
 		});
 	});
 });

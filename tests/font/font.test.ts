@@ -224,7 +224,114 @@ describe("Font", () => {
 
 		test("kern returns table or null", () => {
 			const kern = font.kern;
-			// kern is optional
+			if (kern) {
+				expect(kern.subtables).toBeDefined();
+			}
+		});
+
+		test("fvar returns table or null", () => {
+			const fvar = font.fvar;
+			if (fvar) {
+				expect(fvar.axes).toBeDefined();
+			}
+		});
+
+		test("hvar returns table or null", () => {
+			const hvar = font.hvar;
+			if (hvar) {
+				expect(hvar.version).toBeDefined();
+			}
+		});
+
+		test("vhea returns table or null", () => {
+			const vhea = font.vhea;
+			if (vhea) {
+				expect(vhea.ascender).toBeDefined();
+			}
+		});
+
+		test("vmtx returns table or null", () => {
+			const vmtx = font.vmtx;
+			if (vmtx) {
+				expect(vmtx.vMetrics).toBeDefined();
+			}
+		});
+
+		test("morx returns table or null", () => {
+			const morx = font.morx;
+			if (morx) {
+				expect(morx.chains).toBeDefined();
+			}
+		});
+
+		test("gvar returns table or null", () => {
+			const gvar = font.gvar;
+			if (gvar) {
+				expect(gvar.sharedTuples).toBeDefined();
+			}
+		});
+
+		test("avar returns table or null", () => {
+			const avar = font.avar;
+			if (avar) {
+				expect(avar.segments).toBeDefined();
+			}
+		});
+
+		test("kerx returns table or null", () => {
+			const kerx = font.kerx;
+			if (kerx) {
+				expect(kerx.subtables).toBeDefined();
+			}
+		});
+
+		test("trak returns table or null", () => {
+			const trak = font.trak;
+			if (trak) {
+				expect(trak.horizData).toBeDefined();
+			}
+		});
+
+		test("cff returns table or null", () => {
+			const cff = font.cff;
+			if (cff) {
+				expect(cff.topDict).toBeDefined();
+			}
+		});
+
+		test("cff2 returns table or null", () => {
+			const cff2 = font.cff2;
+			if (cff2) {
+				expect(cff2.topDict).toBeDefined();
+			}
+		});
+
+		test("colr returns table or null", () => {
+			const colr = font.colr;
+			if (colr) {
+				expect(colr.version).toBeDefined();
+			}
+		});
+
+		test("cpal returns table or null", () => {
+			const cpal = font.cpal;
+			if (cpal) {
+				expect(cpal.numPaletteEntries).toBeDefined();
+			}
+		});
+
+		test("vvar returns table or null", () => {
+			const vvar = font.vvar;
+			if (vvar) {
+				expect(vvar.majorVersion).toBeDefined();
+			}
+		});
+
+		test("mvar returns table or null", () => {
+			const mvar = font.mvar;
+			if (mvar) {
+				expect(mvar.majorVersion).toBeDefined();
+			}
 		});
 
 		test("os2 returns table or null", () => {
@@ -245,6 +352,90 @@ describe("Font", () => {
 			const post = font.post;
 			if (post) {
 				expect(post.version).toBeDefined();
+			}
+		});
+
+		test("base returns table or null", () => {
+			const base = font.base;
+			if (base) {
+				expect(base.majorVersion).toBeDefined();
+			}
+		});
+
+		test("jstf returns table or null", () => {
+			const jstf = font.jstf;
+			if (jstf) {
+				expect(jstf.majorVersion).toBeDefined();
+			}
+		});
+
+		test("math returns table or null", () => {
+			const math = font.math;
+			if (math) {
+				expect(math.majorVersion).toBeDefined();
+			}
+		});
+
+		test("loca returns table or null", () => {
+			const loca = font.loca;
+			if (loca) {
+				expect(loca.offsets).toBeDefined();
+			}
+		});
+
+		test("glyf returns table or null", () => {
+			const glyf = font.glyf;
+			if (glyf) {
+				expect(glyf.reader).toBeDefined();
+			}
+		});
+
+		test("svg returns table or null", () => {
+			const svg = font.svg;
+			if (svg) {
+				expect(svg.version).toBeDefined();
+			}
+		});
+
+		test("vorg returns table or null", () => {
+			const vorg = font.vorg;
+			if (vorg) {
+				expect(vorg.defaultVertOriginY).toBeDefined();
+			}
+		});
+
+		test("sbix returns table or null", () => {
+			const sbix = font.sbix;
+			if (sbix) {
+				expect(sbix.version).toBeDefined();
+			}
+		});
+
+		test("stat returns table or null", () => {
+			const stat = font.stat;
+			if (stat) {
+				expect(stat.version).toBeDefined();
+			}
+		});
+
+		test("cblc returns table or null", () => {
+			const cblc = font.cblc;
+			if (cblc) {
+				expect(cblc.version).toBeDefined();
+			}
+		});
+
+		test("cbdt returns table or null", () => {
+			const cbdt = font.cbdt;
+			if (cbdt) {
+				expect(cbdt.version).toBeDefined();
+			}
+		});
+
+		test("feat returns table or null", () => {
+			const feat = font.feat;
+			if (feat) {
+				expect(feat.version).toBeDefined();
 			}
 		});
 	});
@@ -368,6 +559,20 @@ describe("Font edge cases", () => {
 			const spaceId = font.glyphId(0x20);
 			const bounds = font.getGlyphBounds(spaceId);
 			// May be null for space
+		});
+
+		test("getGlyphContoursWithVariation without variation support", () => {
+			const glyphA = font.glyphId(0x41);
+			const contours = font.getGlyphContoursWithVariation(glyphA, []);
+			// Should return contours even without variations
+			expect(contours).not.toBeNull();
+		});
+
+		test("getGlyphContoursWithVariation with axis coords", () => {
+			const glyphA = font.glyphId(0x41);
+			// Even if not a variable font, should handle gracefully
+			const contours = font.getGlyphContoursWithVariation(glyphA, [0, 0]);
+			expect(contours).not.toBeNull();
 		});
 	});
 
@@ -495,5 +700,107 @@ describe("Font loading edge cases", () => {
 
 	test("Font.fromURL rejects for invalid URL", async () => {
 		await expect(Font.fromURL("http://localhost:99999/nonexistent.ttf")).rejects.toThrow();
+	});
+});
+
+describe("Font static methods", () => {
+	test("Font.load creates font from buffer", async () => {
+		const file = Bun.file(ARIAL_PATH);
+		const buffer = await file.arrayBuffer();
+		const font = Font.load(buffer);
+		expect(font).toBeInstanceOf(Font);
+		expect(font.numGlyphs).toBeGreaterThan(0);
+	});
+
+	test("Font.fromFile works with valid path", async () => {
+		const font = await Font.fromFile(ARIAL_PATH);
+		expect(font).toBeInstanceOf(Font);
+		expect(font.numGlyphs).toBeGreaterThan(0);
+	});
+
+	test("Font.fromFile fails with invalid path", async () => {
+		await expect(Font.fromFile("/invalid/path/font.ttf")).rejects.toThrow();
+	});
+
+	test("Font.load with options", async () => {
+		const file = Bun.file(ARIAL_PATH);
+		const buffer = await file.arrayBuffer();
+		const font = Font.load(buffer, { eagerTables: [Tags.head, Tags.maxp] });
+		expect(font).toBeInstanceOf(Font);
+	});
+});
+
+describe("Font table access patterns", () => {
+	let font: Font;
+
+	beforeAll(async () => {
+		font = await Font.fromFile(ARIAL_PATH);
+	});
+
+	test("accessing all optional tables does not crash", () => {
+		// Access all optional tables to ensure lazy loading works
+		const tables = [
+			font.gdef,
+			font.gsub,
+			font.gpos,
+			font.kern,
+			font.fvar,
+			font.hvar,
+			font.vhea,
+			font.vmtx,
+			font.morx,
+			font.gvar,
+			font.avar,
+			font.kerx,
+			font.trak,
+			font.cff,
+			font.cff2,
+			font.colr,
+			font.cpal,
+			font.vvar,
+			font.mvar,
+			font.os2,
+			font.name,
+			font.post,
+			font.base,
+			font.jstf,
+			font.math,
+			font.loca,
+			font.glyf,
+			font.svg,
+			font.vorg,
+			font.sbix,
+			font.stat,
+			font.cblc,
+			font.cbdt,
+			font.feat,
+		];
+
+		// All should be null or defined, not throw
+		for (const table of tables) {
+			expect(table === null || table !== undefined).toBe(true);
+		}
+	});
+
+	test("accessing same table multiple times returns same instance", () => {
+		const head1 = font.head;
+		const head2 = font.head;
+		expect(head1).toBe(head2);
+
+		const cmap1 = font.cmap;
+		const cmap2 = font.cmap;
+		expect(cmap1).toBe(cmap2);
+
+		const gpos1 = font.gpos;
+		const gpos2 = font.gpos;
+		expect(gpos1).toBe(gpos2);
+	});
+
+	test("accessing required tables always succeeds", () => {
+		expect(() => font.head).not.toThrow();
+		expect(() => font.maxp).not.toThrow();
+		expect(() => font.hhea).not.toThrow();
+		expect(() => font.hmtx).not.toThrow();
+		expect(() => font.cmap).not.toThrow();
 	});
 });

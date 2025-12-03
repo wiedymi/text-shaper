@@ -178,6 +178,12 @@ export const Tags = {
 	vhea: tag("vhea"),
 	vmtx: tag("vmtx"),
 	VORG: tag("VORG"),
+
+	// Hinting
+	fpgm: tag("fpgm"),
+	prep: tag("prep"),
+	cvt: tag("cvt "),
+	gasp: tag("gasp"),
 } as const;
 
 // Feature tags

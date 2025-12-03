@@ -449,7 +449,7 @@ export enum MatraPosition {
 /**
  * Get matra position based on codepoint
  */
-function getMatraPosition(cp: number): MatraPosition {
+export function getMatraPosition(cp: number): MatraPosition {
 	// Devanagari
 	if (cp >= 0x0900 && cp <= 0x097f) {
 		// Pre-base: ि (093F)

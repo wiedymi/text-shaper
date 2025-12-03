@@ -1,0 +1,323 @@
+/**
+ * Decompose path commands into rasterizer calls
+ */
+
+import { type PathCommand, type GlyphPath, OutlineFlags } from "../render/path.ts";
+import type { GrayRaster } from "./gray-raster.ts";
+import { ONE_PIXEL } from "./fixed-point.ts";
+import { FillRule } from "./types.ts";
+
+/**
+ * Outline validation error types (like FreeType's error codes)
+ */
+export enum OutlineError {
+	Ok = 0,
+	InvalidOutline = 1,
+	InvalidArgument = 2,
+	EmptyOutline = 3,
+}
+
+/**
+ * Validation result with error code and message
+ */
+export interface ValidationResult {
+	error: OutlineError;
+	message?: string;
+}
+
+/**
+ * Validate a GlyphPath before rasterization (like FreeType's outline validation)
+ *
+ * Checks:
+ * - Path is not null/undefined
+ * - Commands array exists
+ * - Path is not empty (unless allowEmpty is true)
+ * - Command structure is valid
+ * - Contours are properly closed (start with M, end with Z)
+ */
+export function validateOutline(
+	path: GlyphPath | null | undefined,
+	allowEmpty: boolean = true,
+): ValidationResult {
+	// Check for null/undefined path
+	if (!path) {
+		return { error: OutlineError.InvalidOutline, message: "Path is null or undefined" };
+	}
+
+	// Check commands array exists
+	if (!path.commands) {
+		return { error: OutlineError.InvalidOutline, message: "Path commands array is missing" };
+	}
+
+	// Check for empty path
+	if (path.commands.length === 0) {
+		if (allowEmpty) {
+			return { error: OutlineError.EmptyOutline };
+		}
+		return { error: OutlineError.InvalidOutline, message: "Path is empty" };
+	}
+
+	// Validate command structure
+	let hasMove = false;
+	let inContour = false;
+	let contourCount = 0;
+
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
+
+		switch (cmd.type) {
+			case "M":
+				if (inContour) {
+					// Implicit close - allowed but noted
+				}
+				hasMove = true;
+				inContour = true;
+				contourCount++;
+				// Validate coordinates are finite numbers
+				if (!isFinite(cmd.x) || !isFinite(cmd.y)) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Invalid coordinates at command ${i}: (${cmd.x}, ${cmd.y})`,
+					};
+				}
+				break;
+
+			case "L":
+				if (!hasMove) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Line command at ${i} without preceding moveTo`,
+					};
+				}
+				if (!isFinite(cmd.x) || !isFinite(cmd.y)) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Invalid coordinates at command ${i}`,
+					};
+				}
+				break;
+
+			case "Q":
+				if (!hasMove) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Quadratic curve at ${i} without preceding moveTo`,
+					};
+				}
+				if (
+					!isFinite(cmd.x1) ||
+					!isFinite(cmd.y1) ||
+					!isFinite(cmd.x) ||
+					!isFinite(cmd.y)
+				) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Invalid coordinates at command ${i}`,
+					};
+				}
+				break;
+
+			case "C":
+				if (!hasMove) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Cubic curve at ${i} without preceding moveTo`,
+					};
+				}
+				if (
+					!isFinite(cmd.x1) ||
+					!isFinite(cmd.y1) ||
+					!isFinite(cmd.x2) ||
+					!isFinite(cmd.y2) ||
+					!isFinite(cmd.x) ||
+					!isFinite(cmd.y)
+				) {
+					return {
+						error: OutlineError.InvalidOutline,
+						message: `Invalid coordinates at command ${i}`,
+					};
+				}
+				break;
+
+			case "Z":
+				inContour = false;
+				break;
+
+			default:
+				return {
+					error: OutlineError.InvalidOutline,
+					message: `Unknown command type at ${i}: ${(cmd as PathCommand).type}`,
+				};
+		}
+	}
+
+	// Warn if no contours found (valid but useless)
+	if (contourCount === 0 && !allowEmpty) {
+		return { error: OutlineError.EmptyOutline, message: "No contours in path" };
+	}
+
+	return { error: OutlineError.Ok };
+}
+
+/**
+ * Convert a GlyphPath to rasterizer commands
+ *
+ * @param raster - The rasterizer instance
+ * @param path - Path commands to decompose
+ * @param scale - Scale factor (font units to pixels)
+ * @param offsetX - X offset in pixels
+ * @param offsetY - Y offset in pixels
+ * @param flipY - Flip Y axis (font coords are Y-up)
+ */
+export function decomposePath(
+	raster: GrayRaster,
+	path: GlyphPath,
+	scale: number,
+	offsetX: number = 0,
+	offsetY: number = 0,
+	flipY: boolean = true,
+): void {
+	let startX = 0;
+	let startY = 0;
+	let inContour = false;
+
+	for (const cmd of path.commands) {
+		switch (cmd.type) {
+			case "M": {
+				// Close previous contour if open
+				if (inContour) {
+					raster.lineTo(startX, startY);
+				}
+
+				// Convert to subpixel coordinates
+				const x = toSubpixel(cmd.x, scale, offsetX);
+				const y = flipY
+					? toSubpixelFlipY(cmd.y, scale, offsetY)
+					: toSubpixel(cmd.y, scale, offsetY);
+
+				raster.moveTo(x, y);
+				startX = x;
+				startY = y;
+				inContour = true;
+				break;
+			}
+
+			case "L": {
+				const x = toSubpixel(cmd.x, scale, offsetX);
+				const y = flipY
+					? toSubpixelFlipY(cmd.y, scale, offsetY)
+					: toSubpixel(cmd.y, scale, offsetY);
+
+				raster.lineTo(x, y);
+				break;
+			}
+
+			case "Q": {
+				const cx = toSubpixel(cmd.x1, scale, offsetX);
+				const cy = flipY
+					? toSubpixelFlipY(cmd.y1, scale, offsetY)
+					: toSubpixel(cmd.y1, scale, offsetY);
+				const x = toSubpixel(cmd.x, scale, offsetX);
+				const y = flipY
+					? toSubpixelFlipY(cmd.y, scale, offsetY)
+					: toSubpixel(cmd.y, scale, offsetY);
+
+				raster.conicTo(cx, cy, x, y);
+				break;
+			}
+
+			case "C": {
+				const cx1 = toSubpixel(cmd.x1, scale, offsetX);
+				const cy1 = flipY
+					? toSubpixelFlipY(cmd.y1, scale, offsetY)
+					: toSubpixel(cmd.y1, scale, offsetY);
+				const cx2 = toSubpixel(cmd.x2, scale, offsetX);
+				const cy2 = flipY
+					? toSubpixelFlipY(cmd.y2, scale, offsetY)
+					: toSubpixel(cmd.y2, scale, offsetY);
+				const x = toSubpixel(cmd.x, scale, offsetX);
+				const y = flipY
+					? toSubpixelFlipY(cmd.y, scale, offsetY)
+					: toSubpixel(cmd.y, scale, offsetY);
+
+				raster.cubicTo(cx1, cy1, cx2, cy2, x, y);
+				break;
+			}
+
+			case "Z": {
+				// Close contour
+				if (inContour) {
+					raster.lineTo(startX, startY);
+					inContour = false;
+				}
+				break;
+			}
+		}
+	}
+
+	// Close final contour if still open
+	if (inContour) {
+		raster.lineTo(startX, startY);
+	}
+}
+
+/**
+ * Convert font units to subpixel coordinates
+ */
+function toSubpixel(value: number, scale: number, offset: number): number {
+	return Math.round((value * scale + offset) * ONE_PIXEL);
+}
+
+/**
+ * Convert font units to subpixel coordinates with Y flip
+ * Font coordinates are Y-up, bitmap is Y-down
+ */
+function toSubpixelFlipY(value: number, scale: number, offset: number): number {
+	return Math.round((-value * scale + offset) * ONE_PIXEL);
+}
+
+/**
+ * Calculate bounding box of path in pixel coordinates
+ */
+export function getPathBounds(
+	path: GlyphPath,
+	scale: number,
+	flipY: boolean = true,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+	if (!path.bounds) return null;
+
+	const b = path.bounds;
+
+	if (flipY) {
+		return {
+			minX: Math.floor(b.xMin * scale),
+			minY: Math.floor(-b.yMax * scale),
+			maxX: Math.ceil(b.xMax * scale),
+			maxY: Math.ceil(-b.yMin * scale),
+		};
+	} else {
+		return {
+			minX: Math.floor(b.xMin * scale),
+			minY: Math.floor(b.yMin * scale),
+			maxX: Math.ceil(b.xMax * scale),
+			maxY: Math.ceil(b.yMax * scale),
+		};
+	}
+}
+
+/**
+ * Get fill rule from outline flags (like FreeType's FT_OUTLINE_EVEN_ODD_FILL check)
+ *
+ * @param path Path with optional flags
+ * @param defaultRule Default fill rule if flags not set
+ * @returns Fill rule to use
+ */
+export function getFillRuleFromFlags(
+	path: GlyphPath | null | undefined,
+	defaultRule: FillRule = FillRule.NonZero,
+): FillRule {
+	if (!path?.flags) return defaultRule;
+	return (path.flags & OutlineFlags.EvenOddFill) !== 0
+		? FillRule.EvenOdd
+		: FillRule.NonZero;
+}
