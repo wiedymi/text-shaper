@@ -26,6 +26,10 @@ import {
 	parseGlyf,
 	parseGlyph,
 } from "./tables/glyf.ts";
+import {
+	executeCffCharString,
+	executeCff2CharString,
+} from "./tables/cff-charstring.ts";
 import { type GposTable, parseGpos } from "./tables/gpos.ts";
 import { type GsubTable, parseGsub } from "./tables/gsub.ts";
 import { type GvarTable, parseGvar } from "./tables/gvar.ts";
@@ -599,9 +603,9 @@ export class Font {
 		return Array.from(this.directory.tables.keys()).map(tagToString);
 	}
 
-	// Glyph outline operations (TrueType only)
+	// Glyph outline operations
 
-	/** Get raw glyph data (simple or composite) */
+	/** Get raw glyph data (simple or composite) - TrueType only */
 	getGlyph(glyphId: GlyphId): Glyph | null {
 		if (!this.glyf || !this.loca) return null;
 		return parseGlyph(this.glyf, this.loca, glyphId);
@@ -609,16 +613,49 @@ export class Font {
 
 	/** Get flattened contours for a glyph (resolves composites) */
 	getGlyphContours(glyphId: GlyphId): Contour[] | null {
-		if (!this.glyf || !this.loca) return null;
-		return getGlyphContours(this.glyf, this.loca, glyphId);
+		// Try TrueType first
+		if (this.glyf && this.loca) {
+			return getGlyphContours(this.glyf, this.loca, glyphId);
+		}
+		// Try CFF
+		if (this.cff) {
+			return executeCffCharString(this.cff, glyphId, 0);
+		}
+		// Try CFF2
+		if (this.cff2) {
+			return executeCff2CharString(this.cff2, glyphId, null);
+		}
+		return null;
 	}
 
 	/** Get bounding box for a glyph */
 	getGlyphBounds(
 		glyphId: GlyphId,
 	): { xMin: number; yMin: number; xMax: number; yMax: number } | null {
-		if (!this.glyf || !this.loca) return null;
-		return getGlyphBounds(this.glyf, this.loca, glyphId);
+		// Try TrueType first
+		if (this.glyf && this.loca) {
+			return getGlyphBounds(this.glyf, this.loca, glyphId);
+		}
+		// For CFF, compute bounds from contours
+		const contours = this.getGlyphContours(glyphId);
+		if (!contours || contours.length === 0) return null;
+
+		let xMin = Infinity;
+		let yMin = Infinity;
+		let xMax = -Infinity;
+		let yMax = -Infinity;
+
+		for (const contour of contours) {
+			for (const point of contour) {
+				xMin = Math.min(xMin, point.x);
+				yMin = Math.min(yMin, point.y);
+				xMax = Math.max(xMax, point.x);
+				yMax = Math.max(yMax, point.y);
+			}
+		}
+
+		if (xMin === Infinity) return null;
+		return { xMin, yMin, xMax, yMax };
 	}
 
 	/** Get contours for a glyph with variation applied */
@@ -626,13 +663,21 @@ export class Font {
 		glyphId: GlyphId,
 		axisCoords: number[],
 	): Contour[] | null {
-		if (!this.glyf || !this.loca) return null;
-		return getGlyphContoursWithVariation(
-			this.glyf,
-			this.loca,
-			this.gvar,
-			glyphId,
-			axisCoords,
-		);
+		// Try TrueType first
+		if (this.glyf && this.loca) {
+			return getGlyphContoursWithVariation(
+				this.glyf,
+				this.loca,
+				this.gvar,
+				glyphId,
+				axisCoords,
+			);
+		}
+		// Try CFF2 with variation
+		if (this.cff2) {
+			return executeCff2CharString(this.cff2, glyphId, axisCoords);
+		}
+		// CFF doesn't support variations
+		return this.getGlyphContours(glyphId);
 	}
 }

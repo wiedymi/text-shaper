@@ -7,3 +7,6 @@
 [submodule "reference/bidi-js"]
 	path = reference/bidi-js
 	url = https://github.com/lojjic/bidi-js.git
+[submodule "reference/freetype"]
+	path = reference/freetype
+	url = https://github.com/freetype/freetype.git

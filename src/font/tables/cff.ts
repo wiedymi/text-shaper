@@ -602,9 +602,8 @@ export function parseCff(reader: Reader): CffTable {
 		// Private DICT and local subrs
 		if (topDict.private) {
 			const [privateSize, privateOffset] = topDict.private;
-			reader.seek(startOffset + privateOffset);
 			const privateDict = parsePrivateDict(
-				reader.slice(0, privateSize),
+				reader.slice(privateOffset, privateSize),
 				strings,
 			);
 

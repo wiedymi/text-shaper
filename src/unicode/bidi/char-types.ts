@@ -57,14 +57,14 @@ let map: Map<number, number> | null = null;
 function parseData(): void {
 	if (!map) {
 		map = new Map();
-		let lastCode = 0;
+		let start = 0;
 		for (const type in DATA) {
 			if (Object.hasOwn(DATA, type)) {
 				const segments = DATA[type as keyof typeof DATA];
 				let temp = "";
-				let start = 0;
 				let end = 0;
 				let state = false;
+				let lastCode = 0; // Reset for each type - data is encoded relative to 0
 				for (let i = 0; i <= segments.length + 1; i += 1) {
 					const char = segments[i];
 					if (char !== "," && i !== segments.length) {

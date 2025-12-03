@@ -100,11 +100,22 @@ export function executeCffCharString(
 	if (!charString) return null;
 
 	const globalSubrs = cff.globalSubrs;
-	const localSubrs = cff.localSubrs[fontIndex] || [];
 
-	// Get private dict for default/nominal width
-	const _topDict = cff.topDicts[fontIndex];
-	const privateDict: PrivateDict = {};
+	// For CID fonts, use fdSelect to get the right FD and its local subrs
+	const topDict = cff.topDicts[fontIndex];
+	const isCID = topDict?.ros !== undefined;
+	let localSubrs: Uint8Array[] = [];
+
+	if (isCID && cff.fdSelects[fontIndex] && cff.fdArrays[fontIndex]) {
+		const fdIndex = cff.fdSelects[fontIndex]?.select(glyphId) ?? 0;
+		const fdArray = cff.fdArrays[fontIndex];
+		const fd = fdArray?.[fdIndex];
+		// FD-specific local subrs would be parsed from fd.private.subrs
+		// For now, use the main localSubrs
+		localSubrs = cff.localSubrs[fontIndex] || [];
+	} else {
+		localSubrs = cff.localSubrs[fontIndex] || [];
+	}
 
 	const state: CharStringState = {
 		x: 0,
@@ -112,7 +123,7 @@ export function executeCffCharString(
 		stack: [],
 		nStems: 0,
 		haveWidth: false,
-		width: privateDict.defaultWidthX ?? 0,
+		width: 0,
 		contours: [],
 		currentContour: [],
 		transientArray: new Array(32).fill(0),
