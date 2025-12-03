@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![GitHub Sponsors](https://img.shields.io/badge/Sponsor-vivy--company-ea4aaa)](https://github.com/sponsors/vivy-company)
 
-Pure TypeScript text shaping engine. A port of [rustybuzz](https://github.com/RazrFalcon/rustybuzz)/[HarfBuzz](https://github.com/harfbuzz/harfbuzz) for the browser and Node.js.
+Pure TypeScript text shaping engine with OpenType layout, TrueType hinting, and FreeType-style rasterization. Works in browsers and Bun/Node.js with zero dependencies.
 
 ## Features
 

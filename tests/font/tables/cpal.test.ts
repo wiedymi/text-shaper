@@ -10,6 +10,7 @@ import {
 	type Color,
 	type ColorPalette,
 } from "../../../src/font/tables/cpal.ts";
+import { Reader } from "../../../src/font/binary/reader.ts";
 
 const EMOJI_FONT_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 
@@ -26,6 +27,342 @@ describe("cpal table", () => {
 		} catch (e) {
 			// Font not available, tests will be skipped
 		}
+	});
+
+	describe("parseCpal with binary data", () => {
+		test("parses version 0 CPAL table", () => {
+			if (!font) return;
+			const cpalData = font.tableData("CPAL");
+			if (!cpalData) return;
+
+			const reader = new Reader(cpalData);
+			const parsed = parseCpal(reader);
+
+			expect(parsed.version).toBeGreaterThanOrEqual(0);
+			expect(parsed.numPalettes).toBeGreaterThan(0);
+			expect(parsed.numPaletteEntries).toBeGreaterThan(0);
+			expect(parsed.palettes.length).toBe(parsed.numPalettes);
+		});
+
+		test("parses color records correctly", () => {
+			if (!font) return;
+			const cpalData = font.tableData("CPAL");
+			if (!cpalData) return;
+
+			const reader = new Reader(cpalData);
+			const parsed = parseCpal(reader);
+
+			for (const palette of parsed.palettes) {
+				expect(palette.colors.length).toBe(parsed.numPaletteEntries);
+				for (const color of palette.colors) {
+					expect(color.blue).toBeGreaterThanOrEqual(0);
+					expect(color.blue).toBeLessThanOrEqual(255);
+					expect(color.green).toBeGreaterThanOrEqual(0);
+					expect(color.green).toBeLessThanOrEqual(255);
+					expect(color.red).toBeGreaterThanOrEqual(0);
+					expect(color.red).toBeLessThanOrEqual(255);
+					expect(color.alpha).toBeGreaterThanOrEqual(0);
+					expect(color.alpha).toBeLessThanOrEqual(255);
+				}
+			}
+		});
+
+		test("parses version 1 extensions if present", () => {
+			if (!font) return;
+			const cpalData = font.tableData("CPAL");
+			if (!cpalData) return;
+
+			const reader = new Reader(cpalData);
+			const parsed = parseCpal(reader);
+
+			if (parsed.version >= 1) {
+				// Check for optional v1 arrays
+				if (parsed.paletteTypes !== undefined) {
+					expect(Array.isArray(parsed.paletteTypes)).toBe(true);
+					expect(parsed.paletteTypes.length).toBe(parsed.numPalettes);
+					for (const type of parsed.paletteTypes) {
+						expect(typeof type).toBe("number");
+					}
+				}
+
+				if (parsed.paletteLabels !== undefined) {
+					expect(Array.isArray(parsed.paletteLabels)).toBe(true);
+					expect(parsed.paletteLabels.length).toBe(parsed.numPalettes);
+					for (const label of parsed.paletteLabels) {
+						expect(typeof label).toBe("number");
+					}
+				}
+
+				if (parsed.paletteEntryLabels !== undefined) {
+					expect(Array.isArray(parsed.paletteEntryLabels)).toBe(true);
+					expect(parsed.paletteEntryLabels.length).toBe(
+						parsed.numPaletteEntries,
+					);
+					for (const label of parsed.paletteEntryLabels) {
+						expect(typeof label).toBe("number");
+					}
+				}
+			}
+		});
+
+		test("handles multiple color record indices", () => {
+			if (!font) return;
+			const cpalData = font.tableData("CPAL");
+			if (!cpalData) return;
+
+			const reader = new Reader(cpalData);
+			const parsed = parseCpal(reader);
+
+			// Verify each palette can be accessed
+			for (let i = 0; i < parsed.numPalettes; i++) {
+				const palette = parsed.palettes[i];
+				expect(palette).toBeDefined();
+				if (palette) {
+					expect(palette.colors.length).toBe(parsed.numPaletteEntries);
+				}
+			}
+		});
+	});
+
+	describe("parseCpal synthetic data", () => {
+		test("parses minimal version 0 CPAL", () => {
+			// Create minimal CPAL v0: 1 palette, 1 color
+			const buffer = new ArrayBuffer(24);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 0); // version
+			offset += 2;
+			view.setUint16(offset, 1); // numPaletteEntries
+			offset += 2;
+			view.setUint16(offset, 1); // numPalettes
+			offset += 2;
+			view.setUint16(offset, 1); // numColorRecords
+			offset += 2;
+			view.setUint32(offset, 14); // colorRecordsArrayOffset (header + 1 palette index)
+			offset += 4;
+			view.setUint16(offset, 0); // palette 0 starts at color record 0
+			offset += 2;
+			// Color record at offset 14: BGRA
+			view.setUint8(offset, 255); // blue
+			offset += 1;
+			view.setUint8(offset, 128); // green
+			offset += 1;
+			view.setUint8(offset, 64); // red
+			offset += 1;
+			view.setUint8(offset, 255); // alpha
+			offset += 1;
+
+			const reader = new Reader(buffer);
+			const parsed = parseCpal(reader);
+
+			expect(parsed.version).toBe(0);
+			expect(parsed.numPalettes).toBe(1);
+			expect(parsed.numPaletteEntries).toBe(1);
+			expect(parsed.palettes.length).toBe(1);
+			expect(parsed.palettes[0]?.colors.length).toBe(1);
+			expect(parsed.palettes[0]?.colors[0]?.blue).toBe(255);
+			expect(parsed.palettes[0]?.colors[0]?.green).toBe(128);
+			expect(parsed.palettes[0]?.colors[0]?.red).toBe(64);
+			expect(parsed.palettes[0]?.colors[0]?.alpha).toBe(255);
+		});
+
+		test("parses CPAL with multiple palettes", () => {
+			// Create CPAL v0: 2 palettes, 2 colors each
+			const buffer = new ArrayBuffer(32);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 0); // version
+			offset += 2;
+			view.setUint16(offset, 2); // numPaletteEntries
+			offset += 2;
+			view.setUint16(offset, 2); // numPalettes
+			offset += 2;
+			view.setUint16(offset, 4); // numColorRecords
+			offset += 2;
+			view.setUint32(offset, 16); // colorRecordsArrayOffset (header + 2 palette indices)
+			offset += 4;
+			view.setUint16(offset, 0); // palette 0 starts at color record 0
+			offset += 2;
+			view.setUint16(offset, 2); // palette 1 starts at color record 2
+			offset += 2;
+
+			// Color records (4 colors)
+			// Palette 0, color 0
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			// Palette 0, color 1
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			// Palette 1, color 0
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			// Palette 1, color 1
+			view.setUint8(offset, 128);
+			offset += 1;
+			view.setUint8(offset, 128);
+			offset += 1;
+			view.setUint8(offset, 128);
+			offset += 1;
+			view.setUint8(offset, 128);
+			offset += 1;
+
+			const reader = new Reader(buffer);
+			const parsed = parseCpal(reader);
+
+			expect(parsed.version).toBe(0);
+			expect(parsed.numPalettes).toBe(2);
+			expect(parsed.numPaletteEntries).toBe(2);
+			expect(parsed.palettes.length).toBe(2);
+
+			// Check palette 0
+			expect(parsed.palettes[0]?.colors[0]?.blue).toBe(255);
+			expect(parsed.palettes[0]?.colors[1]?.green).toBe(255);
+
+			// Check palette 1
+			expect(parsed.palettes[1]?.colors[0]?.red).toBe(255);
+			expect(parsed.palettes[1]?.colors[1]?.alpha).toBe(128);
+		});
+
+		test("parses version 1 CPAL with paletteTypes", () => {
+			// Create CPAL v1 with paletteTypes array
+			// Header (12) + 1 palette index (2) + 1 color record (4) + v1 offsets (12) + paletteTypes (4) = 34
+			const buffer = new ArrayBuffer(34);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1); // version 1
+			offset += 2;
+			view.setUint16(offset, 1); // numPaletteEntries
+			offset += 2;
+			view.setUint16(offset, 1); // numPalettes
+			offset += 2;
+			view.setUint16(offset, 1); // numColorRecords
+			offset += 2;
+			view.setUint32(offset, 26); // colorRecordsArrayOffset (after v1 offsets)
+			offset += 4;
+			view.setUint16(offset, 0); // palette 0 starts at color record 0
+			offset += 2;
+			// V1 extensions start at offset 14
+			view.setUint32(offset, 30); // paletteTypesArrayOffset
+			offset += 4;
+			view.setUint32(offset, 0); // paletteLabelsArrayOffset (null)
+			offset += 4;
+			view.setUint32(offset, 0); // paletteEntryLabelsArrayOffset (null)
+			offset += 4;
+			// Color record at offset 26
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			// paletteTypes array at offset 30
+			view.setUint32(offset, 0x0003); // UsableWithLight | UsableWithDark
+			offset += 4;
+
+			const reader = new Reader(buffer);
+			const parsed = parseCpal(reader);
+
+			expect(parsed.version).toBe(1);
+			expect(parsed.paletteTypes).toBeDefined();
+			expect(parsed.paletteTypes?.length).toBe(1);
+			expect(parsed.paletteTypes?.[0]).toBe(0x0003);
+			expect(parsed.paletteLabels).toBeUndefined();
+			expect(parsed.paletteEntryLabels).toBeUndefined();
+		});
+
+		test("parses version 1 CPAL with all v1 arrays", () => {
+			// Create CPAL v1 with all three v1 arrays
+			// Header (12) + 1 palette index (2) + v1 offsets (12) + 2 color records (8) + paletteTypes (4) + paletteLabels (2) + paletteEntryLabels (4) = 44
+			const buffer = new ArrayBuffer(44);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1); // version 1
+			offset += 2;
+			view.setUint16(offset, 2); // numPaletteEntries
+			offset += 2;
+			view.setUint16(offset, 1); // numPalettes
+			offset += 2;
+			view.setUint16(offset, 2); // numColorRecords
+			offset += 2;
+			view.setUint32(offset, 26); // colorRecordsArrayOffset
+			offset += 4;
+			view.setUint16(offset, 0); // palette 0 starts at color record 0
+			offset += 2;
+			// V1 extensions at offset 14
+			view.setUint32(offset, 34); // paletteTypesArrayOffset
+			offset += 4;
+			view.setUint32(offset, 38); // paletteLabelsArrayOffset
+			offset += 4;
+			view.setUint32(offset, 40); // paletteEntryLabelsArrayOffset
+			offset += 4;
+			// Color records at offset 26 (2 colors)
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			view.setUint8(offset, 0);
+			offset += 1;
+			view.setUint8(offset, 255);
+			offset += 1;
+			// paletteTypes at offset 34
+			view.setUint32(offset, 0x0001); // UsableWithLightBackground
+			offset += 4;
+			// paletteLabels at offset 38
+			view.setUint16(offset, 256); // name ID 256
+			offset += 2;
+			// paletteEntryLabels at offset 40
+			view.setUint16(offset, 257); // name ID 257
+			offset += 2;
+			view.setUint16(offset, 258); // name ID 258
+			offset += 2;
+
+			const reader = new Reader(buffer);
+			const parsed = parseCpal(reader);
+
+			expect(parsed.version).toBe(1);
+			expect(parsed.paletteTypes).toBeDefined();
+			expect(parsed.paletteTypes?.length).toBe(1);
+			expect(parsed.paletteTypes?.[0]).toBe(0x0001);
+			expect(parsed.paletteLabels).toBeDefined();
+			expect(parsed.paletteLabels?.length).toBe(1);
+			expect(parsed.paletteLabels?.[0]).toBe(256);
+			expect(parsed.paletteEntryLabels).toBeDefined();
+			expect(parsed.paletteEntryLabels?.length).toBe(2);
+			expect(parsed.paletteEntryLabels?.[0]).toBe(257);
+			expect(parsed.paletteEntryLabels?.[1]).toBe(258);
+		});
 	});
 
 	describe("parseCpal", () => {

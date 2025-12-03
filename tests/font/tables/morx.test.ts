@@ -17,18 +17,21 @@ const GENEVA_PATH = "/System/Library/Fonts/Geneva.ttf";
 const MONACO_PATH = "/System/Library/Fonts/Monaco.ttf";
 const APPLE_SYMBOLS_PATH = "/System/Library/Fonts/Apple Symbols.ttf";
 const KEYBOARD_PATH = "/System/Library/Fonts/Keyboard.ttf";
+const ZAPFINO_PATH = "/System/Library/Fonts/Supplemental/Zapfino.ttf";
 
 describe("morx table", () => {
 	let genevaFont: Font;
 	let monacoFont: Font;
 	let appleSymbolsFont: Font;
 	let keyboardFont: Font;
+	let zapfinoFont: Font;
 
 	beforeAll(async () => {
 		genevaFont = await Font.fromFile(GENEVA_PATH);
 		monacoFont = await Font.fromFile(MONACO_PATH);
 		appleSymbolsFont = await Font.fromFile(APPLE_SYMBOLS_PATH);
 		keyboardFont = await Font.fromFile(KEYBOARD_PATH);
+		zapfinoFont = await Font.fromFile(ZAPFINO_PATH);
 	});
 
 	describe("parseMorx", () => {
@@ -134,7 +137,7 @@ describe("morx table", () => {
 		});
 
 		test("test fonts cover rearrangement subtables", () => {
-			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont, zapfinoFont];
 			let hasRearrangement = false;
 			for (const font of fonts) {
 				const morx = font.morx;
@@ -154,7 +157,7 @@ describe("morx table", () => {
 		});
 
 		test("test fonts cover insertion subtables", () => {
-			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont, zapfinoFont];
 			for (const font of fonts) {
 				const morx = font.morx;
 				if (morx) {
@@ -913,6 +916,587 @@ describe("morx table", () => {
 			const result = parseMorx(mockReader as any);
 			expect(result.version).toBe(1);
 			expect(result.chains.length).toBe(0);
+		});
+	});
+
+	describe("detailed rearrangement state table parsing", () => {
+		test("rearrangement entries have valid newState and flags", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+			let foundRearrangement = false;
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.Rearrangement) {
+								foundRearrangement = true;
+								const rearrangement = subtable as MorxRearrangementSubtable;
+
+								expect(rearrangement.stateTable).toBeDefined();
+								expect(rearrangement.stateTable.nClasses).toBeGreaterThanOrEqual(0);
+								expect(Array.isArray(rearrangement.stateTable.stateArray)).toBe(true);
+
+								for (const row of rearrangement.stateTable.stateArray) {
+									expect(Array.isArray(row)).toBe(true);
+									for (const entry of row) {
+										expect(typeof entry.newState).toBe("number");
+										expect(typeof entry.flags).toBe("number");
+										expect(entry.newState).toBeGreaterThanOrEqual(0);
+										expect(entry.flags).toBeGreaterThanOrEqual(0);
+									}
+								}
+
+								const classTable = rearrangement.stateTable.classTable;
+								expect(classTable).toBeDefined();
+								expect(typeof classTable.format).toBe("number");
+								expect(Array.isArray(classTable.classArray)).toBe(true);
+							}
+						}
+					}
+				}
+			}
+
+			if (!foundRearrangement) {
+				console.log("No rearrangement subtables found in test fonts");
+			}
+		});
+
+		test("state array dimensions match nClasses", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.Rearrangement) {
+								const rearrangement = subtable as MorxRearrangementSubtable;
+								const nClasses = rearrangement.stateTable.nClasses;
+
+								for (const row of rearrangement.stateTable.stateArray) {
+									expect(row.length).toBeLessThanOrEqual(nClasses);
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("detailed insertion state table parsing", () => {
+		test("insertion entries have valid indices", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+			let foundInsertion = false;
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.Insertion) {
+								foundInsertion = true;
+								const insertion = subtable as MorxInsertionSubtable;
+
+								expect(insertion.stateTable).toBeDefined();
+								expect(insertion.stateTable.nClasses).toBeGreaterThanOrEqual(0);
+								expect(Array.isArray(insertion.insertionGlyphs)).toBe(true);
+
+								for (const row of insertion.stateTable.stateArray) {
+									expect(Array.isArray(row)).toBe(true);
+									for (const entry of row) {
+										expect(typeof entry.newState).toBe("number");
+										expect(typeof entry.flags).toBe("number");
+										expect(typeof entry.currentInsertIndex).toBe("number");
+										expect(typeof entry.markedInsertIndex).toBe("number");
+										expect(entry.newState).toBeGreaterThanOrEqual(0);
+										expect(entry.flags).toBeGreaterThanOrEqual(0);
+									}
+								}
+
+								const classTable = insertion.stateTable.classTable;
+								expect(classTable).toBeDefined();
+								expect(typeof classTable.format).toBe("number");
+								expect(Array.isArray(classTable.classArray)).toBe(true);
+							}
+						}
+					}
+				}
+			}
+
+			if (!foundInsertion) {
+				console.log("No insertion subtables found in test fonts");
+			}
+		});
+
+		test("insertion glyphs are valid glyph IDs", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.Insertion) {
+								const insertion = subtable as MorxInsertionSubtable;
+
+								for (const glyphId of insertion.insertionGlyphs) {
+									expect(typeof glyphId).toBe("number");
+									expect(glyphId).toBeGreaterThanOrEqual(0);
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+
+		test("insertion state array has proper structure", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.Insertion) {
+								const insertion = subtable as MorxInsertionSubtable;
+								const nClasses = insertion.stateTable.nClasses;
+
+								expect(insertion.stateTable.stateArray.length).toBeGreaterThanOrEqual(0);
+
+								for (const row of insertion.stateTable.stateArray) {
+									expect(row.length).toBeLessThanOrEqual(nClasses);
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("lookup table format 0 (simple array)", () => {
+		test("handles format 0 lookup tables", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+			let foundFormat0 = false;
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.NonContextual) {
+								const nonContextual = subtable as MorxNonContextualSubtable;
+								if (nonContextual.lookupTable.format === 0) {
+									foundFormat0 = true;
+									expect(nonContextual.lookupTable.mapping).toBeInstanceOf(Map);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (!foundFormat0) {
+				console.log("No format 0 lookup tables found, which is expected");
+			}
+		});
+	});
+
+	describe("lookup table format 4 (segment array)", () => {
+		test("handles format 4 lookup tables", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+			let foundFormat4 = false;
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.NonContextual) {
+								const nonContextual = subtable as MorxNonContextualSubtable;
+								if (nonContextual.lookupTable.format === 4) {
+									foundFormat4 = true;
+									expect(nonContextual.lookupTable.mapping).toBeInstanceOf(Map);
+									expect(nonContextual.lookupTable.format).toBe(4);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (!foundFormat4) {
+				console.log("No format 4 lookup tables found in test fonts");
+			}
+		});
+	});
+
+	describe("comprehensive subtable type coverage", () => {
+		test("all fonts have valid subtable structures", () => {
+			const fonts = [
+				{ name: "Geneva", font: genevaFont },
+				{ name: "Monaco", font: monacoFont },
+				{ name: "Apple Symbols", font: appleSymbolsFont },
+				{ name: "Keyboard", font: keyboardFont },
+			];
+
+			for (const { name, font } of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						expect(Array.isArray(chain.subtables)).toBe(true);
+
+						for (const subtable of chain.subtables) {
+							expect(subtable.type).toBeGreaterThanOrEqual(0);
+							expect(subtable.type).toBeLessThanOrEqual(5);
+							expect(subtable.coverage).toBeDefined();
+							expect(typeof subtable.subFeatureFlags).toBe("number");
+
+							switch (subtable.type) {
+								case MorxSubtableType.Rearrangement: {
+									const rearr = subtable as MorxRearrangementSubtable;
+									expect(rearr.stateTable).toBeDefined();
+									expect(rearr.stateTable.classTable).toBeDefined();
+									expect(Array.isArray(rearr.stateTable.stateArray)).toBe(true);
+									break;
+								}
+								case MorxSubtableType.Contextual: {
+									const ctx = subtable as MorxContextualSubtable;
+									expect(ctx.stateTable).toBeDefined();
+									expect(Array.isArray(ctx.substitutionTable)).toBe(true);
+									break;
+								}
+								case MorxSubtableType.Ligature: {
+									const lig = subtable as MorxLigatureSubtable;
+									expect(lig.stateTable).toBeDefined();
+									expect(Array.isArray(lig.ligatureActions)).toBe(true);
+									expect(Array.isArray(lig.components)).toBe(true);
+									expect(Array.isArray(lig.ligatures)).toBe(true);
+									break;
+								}
+								case MorxSubtableType.NonContextual: {
+									const nonCtx = subtable as MorxNonContextualSubtable;
+									expect(nonCtx.lookupTable).toBeDefined();
+									expect(nonCtx.lookupTable.mapping).toBeInstanceOf(Map);
+									break;
+								}
+								case MorxSubtableType.Insertion: {
+									const ins = subtable as MorxInsertionSubtable;
+									expect(ins.stateTable).toBeDefined();
+									expect(Array.isArray(ins.insertionGlyphs)).toBe(true);
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+
+		test("subtables have consistent internal structures", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (
+								subtable.type === MorxSubtableType.Rearrangement ||
+								subtable.type === MorxSubtableType.Contextual ||
+								subtable.type === MorxSubtableType.Ligature ||
+								subtable.type === MorxSubtableType.Insertion
+							) {
+								const stateSubtable = subtable as
+									| MorxRearrangementSubtable
+									| MorxContextualSubtable
+									| MorxLigatureSubtable
+									| MorxInsertionSubtable;
+
+								expect(stateSubtable.stateTable).toBeDefined();
+								expect(stateSubtable.stateTable.nClasses).toBeGreaterThanOrEqual(0);
+								expect(stateSubtable.stateTable.classTable.format).toBeGreaterThanOrEqual(0);
+								expect(Array.isArray(stateSubtable.stateTable.classTable.classArray)).toBe(true);
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("coverage flags detailed validation", () => {
+		test("coverage vertical flag is parsed correctly", () => {
+			const morx = genevaFont.morx;
+			if (morx) {
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						expect(typeof subtable.coverage.vertical).toBe("boolean");
+					}
+				}
+			}
+		});
+
+		test("coverage descending flag is parsed correctly", () => {
+			const morx = genevaFont.morx;
+			if (morx) {
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						expect(typeof subtable.coverage.descending).toBe("boolean");
+					}
+				}
+			}
+		});
+
+		test("coverage logical flag is parsed correctly", () => {
+			const morx = genevaFont.morx;
+			if (morx) {
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						expect(typeof subtable.coverage.logical).toBe("boolean");
+					}
+				}
+			}
+		});
+	});
+
+	describe("class table format 2 parsing", () => {
+		test("class table format 2 has proper segment structure", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (
+								subtable.type === MorxSubtableType.Rearrangement ||
+								subtable.type === MorxSubtableType.Insertion
+							) {
+								const stateSubtable = subtable as
+									| MorxRearrangementSubtable
+									| MorxInsertionSubtable;
+
+								const classTable = stateSubtable.stateTable.classTable;
+								expect(classTable.format).toBe(2);
+								expect(Array.isArray(classTable.classArray)).toBe(true);
+
+								for (const classValue of classTable.classArray) {
+									expect(typeof classValue).toBe("number");
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("lookup table format 2 detailed", () => {
+		test("format 2 segment single lookup has mappings", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.NonContextual) {
+								const nonContextual = subtable as MorxNonContextualSubtable;
+
+								if (nonContextual.lookupTable.format === 2) {
+									expect(nonContextual.lookupTable.mapping).toBeInstanceOf(Map);
+
+									for (const [glyph, value] of nonContextual.lookupTable.mapping) {
+										expect(typeof glyph).toBe("number");
+										expect(typeof value).toBe("number");
+										expect(glyph).toBeGreaterThanOrEqual(0);
+										expect(value).toBeGreaterThanOrEqual(0);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("lookup table format 8 detailed", () => {
+		test("format 8 trimmed array handles values correctly", () => {
+			const fonts = [genevaFont, monacoFont, appleSymbolsFont, keyboardFont];
+
+			for (const font of fonts) {
+				const morx = font.morx;
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							if (subtable.type === MorxSubtableType.NonContextual) {
+								const nonContextual = subtable as MorxNonContextualSubtable;
+
+								if (nonContextual.lookupTable.format === 8) {
+									expect(nonContextual.lookupTable.mapping).toBeInstanceOf(Map);
+
+									for (const [glyph, value] of nonContextual.lookupTable.mapping) {
+										expect(typeof glyph).toBe("number");
+										expect(typeof value).toBe("number");
+										expect(glyph).toBeGreaterThanOrEqual(0);
+										expect(value).not.toBe(0);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		});
+	});
+
+	describe("all subtable types in all fonts", () => {
+		test("catalogues all subtable types found", () => {
+			const fonts = [
+				{ name: "Geneva", font: genevaFont },
+				{ name: "Monaco", font: monacoFont },
+				{ name: "Apple Symbols", font: appleSymbolsFont },
+				{ name: "Keyboard", font: keyboardFont },
+			];
+
+			const subtableTypesByFont = new Map<string, Set<number>>();
+
+			for (const { name, font } of fonts) {
+				const types = new Set<number>();
+				const morx = font.morx;
+
+				if (morx) {
+					for (const chain of morx.chains) {
+						for (const subtable of chain.subtables) {
+							types.add(subtable.type);
+						}
+					}
+				}
+
+				subtableTypesByFont.set(name, types);
+				expect(types.size).toBeGreaterThan(0);
+			}
+
+			for (const [fontName, types] of subtableTypesByFont) {
+				console.log(`${fontName}: types ${Array.from(types).join(", ")}`);
+			}
+		});
+	});
+
+	describe("Zapfino font tests", () => {
+		test("Zapfino has morx table", () => {
+			const morx = zapfinoFont.morx;
+			expect(morx).not.toBeNull();
+			expect(morx?.version).toBeGreaterThanOrEqual(2);
+		});
+
+		test("Zapfino has contextual subtables", () => {
+			const morx = zapfinoFont.morx;
+			if (morx) {
+				let foundContextual = false;
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						if (subtable.type === MorxSubtableType.Contextual) {
+							foundContextual = true;
+							const ctx = subtable as MorxContextualSubtable;
+							expect(ctx.stateTable).toBeDefined();
+							expect(Array.isArray(ctx.substitutionTable)).toBe(true);
+						}
+					}
+				}
+				expect(foundContextual).toBe(true);
+			}
+		});
+
+		test("Zapfino has ligature subtables", () => {
+			const morx = zapfinoFont.morx;
+			if (morx) {
+				let foundLigature = false;
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						if (subtable.type === MorxSubtableType.Ligature) {
+							foundLigature = true;
+							const lig = subtable as MorxLigatureSubtable;
+							expect(lig.stateTable).toBeDefined();
+							expect(Array.isArray(lig.ligatureActions)).toBe(true);
+							expect(Array.isArray(lig.components)).toBe(true);
+							expect(Array.isArray(lig.ligatures)).toBe(true);
+						}
+					}
+				}
+				expect(foundLigature).toBe(true);
+			}
+		});
+
+		test("Zapfino has non-contextual with format 4 lookup", () => {
+			const morx = zapfinoFont.morx;
+			if (morx) {
+				let foundFormat4 = false;
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						if (subtable.type === MorxSubtableType.NonContextual) {
+							const nc = subtable as MorxNonContextualSubtable;
+							if (nc.lookupTable.format === 4) {
+								foundFormat4 = true;
+								expect(nc.lookupTable.mapping).toBeInstanceOf(Map);
+							}
+						}
+					}
+				}
+				expect(foundFormat4).toBe(true);
+			}
+		});
+
+		test("Zapfino chains have features", () => {
+			const morx = zapfinoFont.morx;
+			if (morx) {
+				for (const chain of morx.chains) {
+					expect(Array.isArray(chain.features)).toBe(true);
+					for (const feature of chain.features) {
+						expect(typeof feature.featureType).toBe("number");
+						expect(typeof feature.featureSetting).toBe("number");
+						expect(typeof feature.enableFlags).toBe("number");
+						expect(typeof feature.disableFlags).toBe("number");
+					}
+				}
+			}
+		});
+
+		test("Zapfino contextual subtable class tables", () => {
+			const morx = zapfinoFont.morx;
+			if (morx) {
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						if (subtable.type === MorxSubtableType.Contextual) {
+							const ctx = subtable as MorxContextualSubtable;
+							expect(ctx.stateTable.classTable).toBeDefined();
+							expect(typeof ctx.stateTable.classTable.format).toBe("number");
+							expect(Array.isArray(ctx.stateTable.classTable.classArray)).toBe(true);
+						}
+					}
+				}
+			}
+		});
+
+		test("Zapfino ligature subtable class tables", () => {
+			const morx = zapfinoFont.morx;
+			if (morx) {
+				for (const chain of morx.chains) {
+					for (const subtable of chain.subtables) {
+						if (subtable.type === MorxSubtableType.Ligature) {
+							const lig = subtable as MorxLigatureSubtable;
+							expect(lig.stateTable.classTable).toBeDefined();
+							expect(typeof lig.stateTable.classTable.format).toBe("number");
+							expect(Array.isArray(lig.stateTable.classTable.classArray)).toBe(true);
+						}
+					}
+				}
+			}
 		});
 	});
 

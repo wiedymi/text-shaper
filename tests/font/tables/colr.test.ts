@@ -8,6 +8,7 @@ import {
 	getClipBox,
 	getLayerPaint,
 	isColrV1,
+	getColorVariationDelta,
 	PaintFormat,
 	Extend,
 	CompositeMode,
@@ -17,10 +18,828 @@ import {
 	type Paint,
 	type PaintSolid,
 	type PaintColrLayers,
+	type PaintLinearGradient,
+	type PaintRadialGradient,
+	type PaintSweepGradient,
+	type PaintGlyph,
+	type PaintColrGlyph,
+	type PaintTransform,
+	type PaintTranslate,
+	type PaintScale,
+	type PaintRotate,
+	type PaintSkew,
+	type PaintComposite,
 } from "../../../src/font/tables/colr.ts";
 import { Reader } from "../../../src/font/binary/reader.ts";
 
 const EMOJI_FONT_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
+
+/**
+ * Create a binary COLR v0 table for testing
+ */
+function createColrV0Binary(): ArrayBuffer {
+	const buffer = new ArrayBuffer(1024);
+	const view = new DataView(buffer);
+	let offset = 0;
+
+	// Version 0
+	view.setUint16(offset, 0);
+	offset += 2;
+
+	// numBaseGlyphRecords
+	view.setUint16(offset, 2);
+	offset += 2;
+
+	// baseGlyphRecordsOffset
+	view.setUint32(offset, 14);
+	offset += 4;
+
+	// layerRecordsOffset
+	view.setUint32(offset, 26);
+	offset += 4;
+
+	// numLayerRecords
+	view.setUint16(offset, 4);
+	offset += 2;
+
+	// Base glyph records (at offset 14)
+	// Record 1: glyph 10, layers [0, 1]
+	view.setUint16(14, 10);
+	view.setUint16(16, 0);
+	view.setUint16(18, 2);
+
+	// Record 2: glyph 20, layers [2, 3]
+	view.setUint16(20, 20);
+	view.setUint16(22, 2);
+	view.setUint16(24, 2);
+
+	// Layer records (at offset 26)
+	// Layer 0
+	view.setUint16(26, 100);
+	view.setUint16(28, 0);
+
+	// Layer 1
+	view.setUint16(30, 101);
+	view.setUint16(32, 1);
+
+	// Layer 2
+	view.setUint16(34, 102);
+	view.setUint16(36, 2);
+
+	// Layer 3
+	view.setUint16(38, 103);
+	view.setUint16(40, 3);
+
+	return buffer.slice(0, 42);
+}
+
+/**
+ * Create a binary COLR v1 table with various paint formats
+ */
+function createColrV1Binary(): ArrayBuffer {
+	const buffer = new ArrayBuffer(4096);
+	const view = new DataView(buffer);
+	let offset = 0;
+
+	// Version 1
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// numBaseGlyphRecords (v0 data)
+	view.setUint16(offset, 0);
+	offset += 2;
+
+	// baseGlyphRecordsOffset
+	view.setUint32(offset, 0);
+	offset += 4;
+
+	// layerRecordsOffset
+	view.setUint32(offset, 0);
+	offset += 4;
+
+	// numLayerRecords
+	view.setUint16(offset, 0);
+	offset += 2;
+
+	// V1 offsets
+	const baseGlyphListOffset = 34;
+	const layerListOffset = 200;
+	const clipListOffset = 500;
+
+	// baseGlyphListOffset
+	view.setUint32(offset, baseGlyphListOffset);
+	offset += 4;
+
+	// layerListOffset
+	view.setUint32(offset, layerListOffset);
+	offset += 4;
+
+	// clipListOffset
+	view.setUint32(offset, clipListOffset);
+	offset += 4;
+
+	// varIdxMapOffset (0 = none)
+	view.setUint32(offset, 0);
+	offset += 4;
+
+	// itemVariationStoreOffset (0 = none)
+	view.setUint32(offset, 0);
+	offset += 4;
+
+	// BaseGlyphList (at offset 34)
+	offset = baseGlyphListOffset;
+
+	// numRecords
+	view.setUint32(offset, 1);
+	offset += 4;
+
+	// BaseGlyphPaintRecord: glyph 50, paint offset 6
+	view.setUint16(offset, 50);
+	offset += 2;
+	view.setUint32(offset, 6);
+	offset += 4;
+
+	// Paint at offset 34 + 4 + 6 = 44 (PaintSolid)
+	offset = 44;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 5);
+	offset += 2;
+	// alpha as f2dot14 (1.0 = 16384)
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// LayerList (at offset 200)
+	offset = layerListOffset;
+
+	// numLayers
+	view.setUint32(offset, 10);
+	offset += 4;
+
+	// Paint offsets
+	const paintOffsets = [
+		24, // ColrLayers
+		28, // Solid
+		34, // VarSolid
+		44, // LinearGradient
+		68, // RadialGradient
+		92, // SweepGradient
+		112, // Glyph
+		120, // ColrGlyph
+		124, // Transform
+		154, // Composite
+	];
+
+	for (const po of paintOffsets) {
+		view.setUint32(offset, po);
+		offset += 4;
+	}
+
+	// Paint 0: ColrLayers (at 200 + 24 = 224)
+	offset = 224;
+	view.setUint8(offset, PaintFormat.ColrLayers);
+	offset += 1;
+	view.setUint8(offset, 2);
+	offset += 1;
+	view.setUint32(offset, 1);
+	offset += 4;
+
+	// Paint 1: Solid (at 200 + 28 = 228)
+	offset = 228;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 3);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 2: VarSolid (at 200 + 34 = 234)
+	offset = 234;
+	view.setUint8(offset, PaintFormat.VarSolid);
+	offset += 1;
+	view.setUint16(offset, 4);
+	offset += 2;
+	view.setInt16(offset, 8192);
+	offset += 2;
+	view.setUint32(offset, 123);
+	offset += 4;
+
+	// Paint 3: LinearGradient (at 200 + 44 = 244)
+	offset = 244;
+	view.setUint8(offset, PaintFormat.LinearGradient);
+	offset += 1;
+	// colorLineOffset (3 bytes)
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 19);
+	offset += 3;
+	// x0, y0, x1, y1, x2, y2 (6 FWORDs)
+	view.setInt16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 100);
+	offset += 2;
+	view.setInt16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 100);
+	offset += 2;
+	view.setInt16(offset, 100);
+	offset += 2;
+
+	// ColorLine at 244 + 19 = 263
+	offset = 263;
+	view.setUint8(offset, Extend.Pad);
+	offset += 1;
+	view.setUint16(offset, 2);
+	offset += 2;
+	// Stop 1
+	view.setInt16(offset, 0);
+	offset += 2;
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+	// Stop 2
+	view.setInt16(offset, 16384);
+	offset += 2;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 4: RadialGradient (at 200 + 68 = 268)
+	offset = 268;
+	view.setUint8(offset, PaintFormat.RadialGradient);
+	offset += 1;
+	// colorLineOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 19);
+	offset += 3;
+	// x0, y0, radius0, x1, y1, radius1
+	view.setInt16(offset, 50);
+	offset += 2;
+	view.setInt16(offset, 50);
+	offset += 2;
+	view.setUint16(offset, 10);
+	offset += 2;
+	view.setInt16(offset, 50);
+	offset += 2;
+	view.setInt16(offset, 50);
+	offset += 2;
+	view.setUint16(offset, 100);
+	offset += 2;
+
+	// ColorLine at 268 + 19 = 287
+	offset = 287;
+	view.setUint8(offset, Extend.Repeat);
+	offset += 1;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setInt16(offset, 8192);
+	offset += 2;
+	view.setUint16(offset, 2);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 5: SweepGradient (at 200 + 92 = 292)
+	offset = 292;
+	view.setUint8(offset, PaintFormat.SweepGradient);
+	offset += 1;
+	// colorLineOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 11);
+	offset += 3;
+	// centerX, centerY, startAngle, endAngle
+	view.setInt16(offset, 50);
+	offset += 2;
+	view.setInt16(offset, 50);
+	offset += 2;
+	view.setInt16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// ColorLine at 292 + 11 = 303
+	offset = 303;
+	view.setUint8(offset, Extend.Reflect);
+	offset += 1;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 6: Glyph (at 200 + 112 = 312)
+	offset = 312;
+	view.setUint8(offset, PaintFormat.Glyph);
+	offset += 1;
+	// paintOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 5);
+	offset += 3;
+	view.setUint16(offset, 99);
+	offset += 2;
+
+	// Paint for Glyph at 312 + 5 = 317 (Solid)
+	offset = 317;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 7: ColrGlyph (at 200 + 120 = 320)
+	offset = 320;
+	view.setUint8(offset, PaintFormat.ColrGlyph);
+	offset += 1;
+	view.setUint16(offset, 88);
+	offset += 2;
+
+	// Paint 8: Transform (at 200 + 124 = 324)
+	offset = 324;
+	view.setUint8(offset, PaintFormat.Transform);
+	offset += 1;
+	// paintOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 6);
+	offset += 3;
+	// transformOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 11);
+	offset += 3;
+
+	// Paint at 324 + 6 = 330 (Solid)
+	offset = 330;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Affine2x3 at 324 + 11 = 335
+	offset = 335;
+	view.setInt32(offset, 65536);
+	offset += 4; // xx = 1.0
+	view.setInt32(offset, 0);
+	offset += 4; // yx = 0.0
+	view.setInt32(offset, 0);
+	offset += 4; // xy = 0.0
+	view.setInt32(offset, 65536);
+	offset += 4; // yy = 1.0
+	view.setInt32(offset, 10 << 16);
+	offset += 4; // dx = 10
+	view.setInt32(offset, 20 << 16);
+	offset += 4; // dy = 20
+
+	// Paint 9: Composite (at 200 + 154 = 354)
+	offset = 354;
+	view.setUint8(offset, PaintFormat.Composite);
+	offset += 1;
+	// sourcePaintOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 7);
+	offset += 3;
+	// compositeMode
+	view.setUint8(offset, CompositeMode.SrcOver);
+	offset += 1;
+	// backdropPaintOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 12);
+	offset += 3;
+
+	// Source paint at 354 + 7 = 361 (Solid)
+	offset = 361;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Backdrop paint at 354 + 12 = 366 (Solid)
+	offset = 366;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 2);
+	offset += 2;
+	view.setInt16(offset, 8192);
+	offset += 2;
+
+	// ClipList (at offset 500)
+	offset = clipListOffset;
+
+	// format
+	view.setUint8(offset, 1);
+	offset += 1;
+
+	// numClips
+	view.setUint32(offset, 1);
+	offset += 4;
+
+	// ClipRecord
+	view.setUint16(offset, 50);
+	offset += 2; // startGlyphId
+	view.setUint16(offset, 55);
+	offset += 2; // endGlyphId
+	// clipBoxOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 7);
+	offset += 3;
+
+	// ClipBox at 500 + 5 + 7 = 512
+	offset = 512;
+	view.setUint8(offset, 1);
+	offset += 1; // format
+	view.setInt16(offset, 0);
+	offset += 2; // xMin
+	view.setInt16(offset, 0);
+	offset += 2; // yMin
+	view.setInt16(offset, 1000);
+	offset += 2; // xMax
+	view.setInt16(offset, 1000);
+	offset += 2; // yMax
+
+	return buffer.slice(0, 600);
+}
+
+/**
+ * Create a COLR v1 table with additional paint formats
+ */
+function createColrV1Extended(): ArrayBuffer {
+	const buffer = new ArrayBuffer(2048);
+	const view = new DataView(buffer);
+	let offset = 0;
+
+	// Version 1
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// V0 header (minimal)
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setUint32(offset, 0);
+	offset += 4;
+	view.setUint32(offset, 0);
+	offset += 4;
+	view.setUint16(offset, 0);
+	offset += 2;
+
+	// V1 offsets
+	const layerListOffset = 34;
+
+	view.setUint32(offset, 0);
+	offset += 4; // baseGlyphListOffset
+	view.setUint32(offset, layerListOffset);
+	offset += 4;
+	view.setUint32(offset, 0);
+	offset += 4; // clipListOffset
+	view.setUint32(offset, 0);
+	offset += 4; // varIdxMapOffset
+	view.setUint32(offset, 0);
+	offset += 4; // itemVariationStoreOffset
+
+	// LayerList
+	offset = layerListOffset;
+
+	// numLayers
+	view.setUint32(offset, 7);
+	offset += 4;
+
+	// Paint offsets
+	const paintOffsets = [
+		32, // Translate
+		44, // Scale
+		56, // ScaleAroundCenter
+		72, // Rotate
+		84, // RotateAroundCenter
+		100, // Skew
+		112, // SkewAroundCenter
+	];
+
+	for (const po of paintOffsets) {
+		view.setUint32(offset, po);
+		offset += 4;
+	}
+
+	// Paint 0: Translate (at 34 + 32 = 66)
+	offset = 66;
+	view.setUint8(offset, PaintFormat.Translate);
+	offset += 1;
+	// paintOffset
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 7);
+	offset += 3;
+	// dx, dy
+	view.setInt16(offset, 10);
+	offset += 2;
+	view.setInt16(offset, 20);
+	offset += 2;
+
+	// Inner paint at 66 + 7 = 73 (Solid)
+	offset = 73;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 1: Scale (at 34 + 44 = 78)
+	offset = 78;
+	view.setUint8(offset, PaintFormat.Scale);
+	offset += 1;
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 7);
+	offset += 3;
+	view.setInt16(offset, 8192);
+	offset += 2; // scaleX = 0.5
+	view.setInt16(offset, 16384);
+	offset += 2; // scaleY = 1.0
+
+	offset = 85;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 2: ScaleAroundCenter (at 34 + 56 = 90)
+	offset = 90;
+	view.setUint8(offset, PaintFormat.ScaleAroundCenter);
+	offset += 1;
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 11);
+	offset += 3;
+	view.setInt16(offset, 16384);
+	offset += 2; // scaleX
+	view.setInt16(offset, 16384);
+	offset += 2; // scaleY
+	view.setInt16(offset, 50);
+	offset += 2; // centerX
+	view.setInt16(offset, 50);
+	offset += 2; // centerY
+
+	offset = 101;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 2);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 3: Rotate (at 34 + 72 = 106)
+	offset = 106;
+	view.setUint8(offset, PaintFormat.Rotate);
+	offset += 1;
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 5);
+	offset += 3;
+	view.setInt16(offset, 4096);
+	offset += 2; // angle
+
+	offset = 111;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 3);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 4: RotateAroundCenter (at 34 + 84 = 118)
+	offset = 118;
+	view.setUint8(offset, PaintFormat.RotateAroundCenter);
+	offset += 1;
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 9);
+	offset += 3;
+	view.setInt16(offset, 8192);
+	offset += 2; // angle
+	view.setInt16(offset, 100);
+	offset += 2; // centerX
+	view.setInt16(offset, 100);
+	offset += 2; // centerY
+
+	offset = 127;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 4);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 5: Skew (at 34 + 100 = 134)
+	offset = 134;
+	view.setUint8(offset, PaintFormat.Skew);
+	offset += 1;
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 7);
+	offset += 3;
+	view.setInt16(offset, 2048);
+	offset += 2; // xSkewAngle
+	view.setInt16(offset, 1024);
+	offset += 2; // ySkewAngle
+
+	offset = 141;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 5);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	// Paint 6: SkewAroundCenter (at 34 + 112 = 146)
+	offset = 146;
+	view.setUint8(offset, PaintFormat.SkewAroundCenter);
+	offset += 1;
+	view.setUint8(offset, 0);
+	view.setUint16(offset + 1, 11);
+	offset += 3;
+	view.setInt16(offset, 1024);
+	offset += 2; // xSkewAngle
+	view.setInt16(offset, 2048);
+	offset += 2; // ySkewAngle
+	view.setInt16(offset, 75);
+	offset += 2; // centerX
+	view.setInt16(offset, 75);
+	offset += 2; // centerY
+
+	offset = 157;
+	view.setUint8(offset, PaintFormat.Solid);
+	offset += 1;
+	view.setUint16(offset, 6);
+	offset += 2;
+	view.setInt16(offset, 16384);
+	offset += 2;
+
+	return buffer.slice(0, 200);
+}
+
+/**
+ * Create a COLR v1 table with variable font support
+ */
+function createColrV1WithVariations(): ArrayBuffer {
+	const buffer = new ArrayBuffer(2048);
+	const view = new DataView(buffer);
+	let offset = 0;
+
+	// Version 1
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// V0 header
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setUint32(offset, 0);
+	offset += 4;
+	view.setUint32(offset, 0);
+	offset += 4;
+	view.setUint16(offset, 0);
+	offset += 2;
+
+	// V1 offsets
+	const varIdxMapOffset = 34;
+	const itemVariationStoreOffset = 100;
+
+	view.setUint32(offset, 0);
+	offset += 4; // baseGlyphListOffset
+	view.setUint32(offset, 0);
+	offset += 4; // layerListOffset
+	view.setUint32(offset, 0);
+	offset += 4; // clipListOffset
+	view.setUint32(offset, varIdxMapOffset);
+	offset += 4;
+	view.setUint32(offset, itemVariationStoreOffset);
+	offset += 4;
+
+	// DeltaSetIndexMap (at offset 34)
+	offset = varIdxMapOffset;
+
+	// format 0
+	view.setUint8(offset, 0);
+	offset += 1;
+
+	// entryFormat (4 inner bits, 4 outer bits = 0x33)
+	view.setUint8(offset, 0x33);
+	offset += 1;
+
+	// mapCount
+	view.setUint16(offset, 2);
+	offset += 2;
+
+	// Entry 0: outer=1, inner=2 -> (1 << 4) | 2 = 0x12
+	view.setUint8(offset, 0x12);
+	offset += 1;
+
+	// Entry 1: outer=0, inner=3 -> (0 << 4) | 3 = 0x03
+	view.setUint8(offset, 0x03);
+	offset += 1;
+
+	// ItemVariationStore (at offset 100)
+	offset = itemVariationStoreOffset;
+
+	// format
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// variationRegionListOffset
+	view.setUint32(offset, 8);
+	offset += 4;
+
+	// itemVariationDataCount
+	view.setUint16(offset, 2);
+	offset += 2;
+
+	// itemVariationDataOffsets
+	view.setUint32(offset, 50);
+	offset += 4;
+	view.setUint32(offset, 80);
+	offset += 4;
+
+	// VariationRegionList (at 100 + 8 = 108)
+	offset = 108;
+
+	// axisCount
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// regionCount
+	view.setUint16(offset, 2);
+	offset += 2;
+
+	// Region 0: axis 0
+	view.setInt16(offset, 0);
+	offset += 2; // startCoord
+	view.setInt16(offset, 16384);
+	offset += 2; // peakCoord = 1.0
+	view.setInt16(offset, 16384);
+	offset += 2; // endCoord
+
+	// Region 1: axis 0
+	view.setInt16(offset, -16384);
+	offset += 2; // startCoord = -1.0
+	view.setInt16(offset, 0);
+	offset += 2; // peakCoord
+	view.setInt16(offset, 0);
+	offset += 2; // endCoord
+
+	// ItemVariationData 0 (at 100 + 50 = 150)
+	offset = 150;
+
+	// itemCount
+	view.setUint16(offset, 2);
+	offset += 2;
+
+	// wordDeltaCount
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// regionIndexCount
+	view.setUint16(offset, 2);
+	offset += 2;
+
+	// regionIndexes
+	view.setUint16(offset, 0);
+	offset += 2;
+	view.setUint16(offset, 1);
+	offset += 2;
+
+	// deltaSets for item 0
+	view.setInt16(offset, 100);
+	offset += 2;
+	view.setInt8(offset, 50);
+	offset += 1;
+
+	// deltaSets for item 1
+	view.setInt16(offset, -100);
+	offset += 2;
+	view.setInt8(offset, -50);
+	offset += 1;
+
+	// ItemVariationData 1 (at 100 + 80 = 180)
+	offset = 180;
+
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setUint16(offset, 1);
+	offset += 2;
+	view.setUint16(offset, 0);
+	offset += 2;
+
+	// deltaSets
+	view.setInt16(offset, 200);
+	offset += 2;
+
+	return buffer.slice(0, 200);
+}
 
 describe("colr table", () => {
 	let font: Font | null = null;
@@ -685,6 +1504,1472 @@ describe("colr table", () => {
 			if (layers) {
 				expect(layers.length).toBeLessThanOrEqual(2);
 			}
+		});
+	});
+
+	describe("synthetic COLR v0 parsing", () => {
+		test("parses COLR v0 table correctly", () => {
+			const binary = createColrV0Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			expect(table.version).toBe(0);
+			expect(table.baseGlyphRecords.length).toBe(2);
+			expect(table.layerRecords.length).toBe(4);
+
+			expect(table.baseGlyphRecords[0]?.glyphId).toBe(10);
+			expect(table.baseGlyphRecords[0]?.firstLayerIndex).toBe(0);
+			expect(table.baseGlyphRecords[0]?.numLayers).toBe(2);
+
+			expect(table.layerRecords[0]?.glyphId).toBe(100);
+			expect(table.layerRecords[0]?.paletteIndex).toBe(0);
+		});
+
+		test("getColorLayers works with synthetic v0 table", () => {
+			const binary = createColrV0Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const layers = getColorLayers(table, 10);
+			expect(layers).not.toBeNull();
+			expect(layers?.length).toBe(2);
+			expect(layers?.[0]?.glyphId).toBe(100);
+			expect(layers?.[1]?.glyphId).toBe(101);
+		});
+	});
+
+	describe("synthetic COLR v1 parsing", () => {
+		test("parses COLR v1 table with all paint formats", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			expect(table.version).toBe(1);
+			expect(table.baseGlyphPaintRecords?.length).toBe(1);
+			expect(table.layerList?.length).toBe(10);
+			expect(table.clipList?.length).toBe(1);
+		});
+
+		test("parses ColrLayers paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintColrLayers;
+			expect(paint.format).toBe(PaintFormat.ColrLayers);
+			expect(paint.numLayers).toBe(2);
+			expect(paint.firstLayerIndex).toBe(1);
+		});
+
+		test("parses Solid paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[1] as PaintSolid;
+			expect(paint.format).toBe(PaintFormat.Solid);
+			expect(paint.paletteIndex).toBe(3);
+			expect(paint.alpha).toBeCloseTo(1.0, 1);
+		});
+
+		test("parses VarSolid paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[2] as PaintSolid;
+			expect(paint.format).toBe(PaintFormat.VarSolid);
+			expect(paint.paletteIndex).toBe(4);
+			expect(paint.varIndexBase).toBe(123);
+		});
+
+		test("parses LinearGradient paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[3] as PaintLinearGradient;
+			expect(paint.format).toBe(PaintFormat.LinearGradient);
+			expect(paint.x0).toBe(0);
+			expect(paint.y0).toBe(0);
+			expect(paint.x1).toBe(100);
+			expect(paint.y1).toBe(0);
+			expect(paint.x2).toBe(100);
+			expect(paint.y2).toBe(100);
+			expect(paint.colorLine.extend).toBe(Extend.Pad);
+			expect(paint.colorLine.colorStops.length).toBe(2);
+		});
+
+		test("parses RadialGradient paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[4] as PaintRadialGradient;
+			expect(paint.format).toBe(PaintFormat.RadialGradient);
+			expect(paint.x0).toBe(50);
+			expect(paint.y0).toBe(50);
+			expect(paint.radius0).toBe(10);
+			expect(paint.x1).toBe(50);
+			expect(paint.y1).toBe(50);
+			expect(paint.radius1).toBe(100);
+			expect(paint.colorLine.extend).toBe(Extend.Repeat);
+		});
+
+		test("parses SweepGradient paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[5] as PaintSweepGradient;
+			expect(paint.format).toBe(PaintFormat.SweepGradient);
+			expect(paint.centerX).toBe(50);
+			expect(paint.centerY).toBe(50);
+			expect(paint.colorLine.extend).toBe(Extend.Reflect);
+		});
+
+		test("parses Glyph paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[6] as PaintGlyph;
+			expect(paint.format).toBe(PaintFormat.Glyph);
+			expect(paint.glyphId).toBe(99);
+			expect(paint.paint).toBeDefined();
+			expect(paint.paint.format).toBe(PaintFormat.Solid);
+		});
+
+		test("parses ColrGlyph paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[7] as PaintColrGlyph;
+			expect(paint.format).toBe(PaintFormat.ColrGlyph);
+			expect(paint.glyphId).toBe(88);
+		});
+
+		test("parses Transform paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[8] as PaintTransform;
+			expect(paint.format).toBe(PaintFormat.Transform);
+			expect(paint.paint).toBeDefined();
+			expect(paint.transform).toBeDefined();
+			expect(paint.transform.xx).toBeCloseTo(1.0, 1);
+			expect(paint.transform.yy).toBeCloseTo(1.0, 1);
+			expect(paint.transform.dx).toBeCloseTo(10, 1);
+			expect(paint.transform.dy).toBeCloseTo(20, 1);
+		});
+
+		test("parses Composite paint", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[9] as PaintComposite;
+			expect(paint.format).toBe(PaintFormat.Composite);
+			expect(paint.compositeMode).toBe(CompositeMode.SrcOver);
+			expect(paint.sourcePaint).toBeDefined();
+			expect(paint.backdropPaint).toBeDefined();
+		});
+
+		test("parses clip list", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			expect(table.clipList?.length).toBe(1);
+			const clip = table.clipList?.[0];
+			expect(clip?.startGlyphId).toBe(50);
+			expect(clip?.endGlyphId).toBe(55);
+			expect(clip?.clipBox.xMin).toBe(0);
+			expect(clip?.clipBox.xMax).toBe(1000);
+		});
+
+		test("getColorPaint works with synthetic v1 table", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = getColorPaint(table, 50);
+			expect(paint).not.toBeNull();
+			expect(paint?.format).toBe(PaintFormat.Solid);
+		});
+
+		test("getClipBox works with synthetic v1 table", () => {
+			const binary = createColrV1Binary();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const clipBox = getClipBox(table, 52);
+			expect(clipBox).not.toBeNull();
+			expect(clipBox?.xMax).toBe(1000);
+		});
+	});
+
+	describe("synthetic COLR v1 extended paint formats", () => {
+		test("parses Translate paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintTranslate;
+			expect(paint.format).toBe(PaintFormat.Translate);
+			expect(paint.dx).toBe(10);
+			expect(paint.dy).toBe(20);
+			expect(paint.paint).toBeDefined();
+		});
+
+		test("parses Scale paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[1] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.Scale);
+			expect(paint.scaleX).toBeCloseTo(0.5, 1);
+			expect(paint.scaleY).toBeCloseTo(1.0, 1);
+			expect(paint.paint).toBeDefined();
+		});
+
+		test("parses ScaleAroundCenter paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[2] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.ScaleAroundCenter);
+			expect(paint.scaleX).toBeCloseTo(1.0, 1);
+			expect(paint.scaleY).toBeCloseTo(1.0, 1);
+			expect(paint.centerX).toBe(50);
+			expect(paint.centerY).toBe(50);
+			expect(paint.paint).toBeDefined();
+		});
+
+		test("parses Rotate paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[3] as PaintRotate;
+			expect(paint.format).toBe(PaintFormat.Rotate);
+			expect(paint.angle).toBeCloseTo(0.25, 1);
+			expect(paint.paint).toBeDefined();
+		});
+
+		test("parses RotateAroundCenter paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[4] as PaintRotate;
+			expect(paint.format).toBe(PaintFormat.RotateAroundCenter);
+			expect(paint.angle).toBeCloseTo(0.5, 1);
+			expect(paint.centerX).toBe(100);
+			expect(paint.centerY).toBe(100);
+			expect(paint.paint).toBeDefined();
+		});
+
+		test("parses Skew paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[5] as PaintSkew;
+			expect(paint.format).toBe(PaintFormat.Skew);
+			expect(paint.xSkewAngle).toBeCloseTo(0.125, 1);
+			expect(paint.ySkewAngle).toBeCloseTo(0.0625, 1);
+			expect(paint.paint).toBeDefined();
+		});
+
+		test("parses SkewAroundCenter paint", () => {
+			const binary = createColrV1Extended();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[6] as PaintSkew;
+			expect(paint.format).toBe(PaintFormat.SkewAroundCenter);
+			expect(paint.xSkewAngle).toBeCloseTo(0.0625, 1);
+			expect(paint.ySkewAngle).toBeCloseTo(0.125, 1);
+			expect(paint.centerX).toBe(75);
+			expect(paint.centerY).toBe(75);
+			expect(paint.paint).toBeDefined();
+		});
+	});
+
+	describe("synthetic COLR v1 with variations", () => {
+		test("parses DeltaSetIndexMap", () => {
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			expect(table.varIdxMap).toBeDefined();
+			expect(table.varIdxMap?.length).toBe(2);
+
+			const entry0 = table.varIdxMap?.[0];
+			const entry1 = table.varIdxMap?.[1];
+
+			expect(entry0).toBe((1 << 16) | 2);
+			expect(entry1).toBe((0 << 16) | 3);
+		});
+
+		test("parses ItemVariationStore", () => {
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			expect(table.itemVariationStore).toBeDefined();
+			const store = table.itemVariationStore;
+
+			expect(store?.format).toBe(1);
+			expect(store?.itemVariationDataCount).toBe(2);
+			expect(store?.variationRegions.length).toBe(2);
+			expect(store?.itemVariationData.length).toBe(2);
+		});
+
+		test("parses variation regions", () => {
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const region0 = table.itemVariationStore?.variationRegions[0];
+			expect(region0?.regionAxes.length).toBe(1);
+			expect(region0?.regionAxes[0]?.startCoord).toBeCloseTo(0, 1);
+			expect(region0?.regionAxes[0]?.peakCoord).toBeCloseTo(1.0, 1);
+			expect(region0?.regionAxes[0]?.endCoord).toBeCloseTo(1.0, 1);
+		});
+
+		test("parses item variation data", () => {
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const data0 = table.itemVariationStore?.itemVariationData[0];
+			expect(data0?.itemCount).toBe(2);
+			expect(data0?.regionIndexCount).toBe(2);
+			expect(data0?.deltaSets.length).toBe(2);
+			expect(data0?.deltaSets[0]?.[0]).toBe(100);
+			expect(data0?.deltaSets[0]?.[1]).toBe(50);
+		});
+
+		test("getColorVariationDelta calculates deltas", () => {
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const delta = getColorVariationDelta(table, 0, [1.0]);
+
+			expect(delta).toBeGreaterThan(0);
+		});
+
+		test("getColorVariationDelta returns 0 for invalid index", () => {
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
+			const table = parseColr(reader);
+
+			const delta = getColorVariationDelta(table, 999, [1.0]);
+			expect(delta).toBe(0);
+		});
+
+		test("getColorVariationDelta returns 0 without store", () => {
+			const table: ColrTable = {
+				version: 1,
+				baseGlyphRecords: [],
+				layerRecords: [],
+			};
+
+			const delta = getColorVariationDelta(table, 0, [1.0]);
+			expect(delta).toBe(0);
+		});
+	});
+
+	describe("additional paint format variations", () => {
+		test("parses ScaleUniform paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.ScaleUniform);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 5);
+			offset += 3;
+			view.setInt16(offset, 8192);
+			offset += 2;
+
+			offset = 47;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.ScaleUniform);
+			expect(paint.scaleX).toBeCloseTo(0.5, 1);
+			expect(paint.scaleY).toBeCloseTo(0.5, 1);
+		});
+
+		test("parses ScaleUniformAroundCenter paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.ScaleUniformAroundCenter);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 9);
+			offset += 3;
+			view.setInt16(offset, 16384);
+			offset += 2;
+			view.setInt16(offset, 60);
+			offset += 2;
+			view.setInt16(offset, 70);
+			offset += 2;
+
+			offset = 51;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.ScaleUniformAroundCenter);
+			expect(paint.scaleX).toBeCloseTo(1.0, 1);
+			expect(paint.scaleY).toBeCloseTo(1.0, 1);
+			expect(paint.centerX).toBe(60);
+			expect(paint.centerY).toBe(70);
+		});
+
+		test("parses VarLinearGradient paint", () => {
+			const buffer = new ArrayBuffer(512);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarLinearGradient);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 19);
+			offset += 3;
+			view.setInt16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 200);
+			offset += 2;
+			view.setInt16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 200);
+			offset += 2;
+			view.setInt16(offset, 200);
+			offset += 2;
+
+			offset = 61;
+			view.setUint8(offset, Extend.Pad);
+			offset += 1;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setInt16(offset, 8192);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintLinearGradient;
+			expect(paint.format).toBe(PaintFormat.VarLinearGradient);
+			expect(paint.x1).toBe(200);
+		});
+
+		test("parses VarRadialGradient paint", () => {
+			const buffer = new ArrayBuffer(512);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarRadialGradient);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 19);
+			offset += 3;
+			view.setInt16(offset, 40);
+			offset += 2;
+			view.setInt16(offset, 40);
+			offset += 2;
+			view.setUint16(offset, 5);
+			offset += 2;
+			view.setInt16(offset, 40);
+			offset += 2;
+			view.setInt16(offset, 40);
+			offset += 2;
+			view.setUint16(offset, 80);
+			offset += 2;
+
+			offset = 61;
+			view.setUint8(offset, Extend.Repeat);
+			offset += 1;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setInt16(offset, 0);
+			offset += 2;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintRadialGradient;
+			expect(paint.format).toBe(PaintFormat.VarRadialGradient);
+			expect(paint.radius1).toBe(80);
+		});
+
+		test("parses VarSweepGradient paint", () => {
+			const buffer = new ArrayBuffer(512);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarSweepGradient);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 11);
+			offset += 3;
+			view.setInt16(offset, 60);
+			offset += 2;
+			view.setInt16(offset, 60);
+			offset += 2;
+			view.setInt16(offset, 4096);
+			offset += 2;
+			view.setInt16(offset, 12288);
+			offset += 2;
+
+			offset = 53;
+			view.setUint8(offset, Extend.Reflect);
+			offset += 1;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setInt16(offset, 0);
+			offset += 2;
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintSweepGradient;
+			expect(paint.format).toBe(PaintFormat.VarSweepGradient);
+			expect(paint.centerX).toBe(60);
+		});
+
+		test("parses VarTransform paint", () => {
+			const buffer = new ArrayBuffer(512);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarTransform);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 6);
+			offset += 3;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 11);
+			offset += 3;
+
+			offset = 48;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			offset = 53;
+			view.setInt32(offset, 32768);
+			offset += 4;
+			view.setInt32(offset, 0);
+			offset += 4;
+			view.setInt32(offset, 0);
+			offset += 4;
+			view.setInt32(offset, 32768);
+			offset += 4;
+			view.setInt32(offset, 0);
+			offset += 4;
+			view.setInt32(offset, 0);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintTransform;
+			expect(paint.format).toBe(PaintFormat.VarTransform);
+			expect(paint.transform.xx).toBeCloseTo(0.5, 1);
+		});
+
+		test("parses VarTranslate paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarTranslate);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 7);
+			offset += 3;
+			view.setInt16(offset, 15);
+			offset += 2;
+			view.setInt16(offset, 25);
+			offset += 2;
+
+			offset = 49;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintTranslate;
+			expect(paint.format).toBe(PaintFormat.VarTranslate);
+			expect(paint.dx).toBe(15);
+			expect(paint.dy).toBe(25);
+		});
+
+		test("parses VarScale paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarScale);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 7);
+			offset += 3;
+			view.setInt16(offset, 12288);
+			offset += 2;
+			view.setInt16(offset, 20480);
+			offset += 2;
+
+			offset = 49;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.VarScale);
+			expect(paint.scaleX).toBeCloseTo(0.75, 1);
+			expect(paint.scaleY).toBeCloseTo(1.25, 1);
+		});
+
+		test("parses VarScaleAroundCenter paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarScaleAroundCenter);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 11);
+			offset += 3;
+			view.setInt16(offset, 24576);
+			offset += 2;
+			view.setInt16(offset, 8192);
+			offset += 2;
+			view.setInt16(offset, 80);
+			offset += 2;
+			view.setInt16(offset, 90);
+			offset += 2;
+
+			offset = 53;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.VarScaleAroundCenter);
+			expect(paint.scaleX).toBeCloseTo(1.5, 1);
+			expect(paint.scaleY).toBeCloseTo(0.5, 1);
+			expect(paint.centerX).toBe(80);
+			expect(paint.centerY).toBe(90);
+		});
+
+		test("parses VarScaleUniform paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarScaleUniform);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 5);
+			offset += 3;
+			view.setInt16(offset, 24576);
+			offset += 2;
+
+			offset = 47;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 3);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.VarScaleUniform);
+			expect(paint.scaleX).toBeCloseTo(1.5, 1);
+			expect(paint.scaleY).toBeCloseTo(1.5, 1);
+		});
+
+		test("parses VarScaleUniformAroundCenter paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarScaleUniformAroundCenter);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 9);
+			offset += 3;
+			view.setInt16(offset, 32768);
+			offset += 2;
+			view.setInt16(offset, 110);
+			offset += 2;
+			view.setInt16(offset, 120);
+			offset += 2;
+
+			offset = 51;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 4);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintScale;
+			expect(paint.format).toBe(PaintFormat.VarScaleUniformAroundCenter);
+			expect(paint.scaleX).toBeCloseTo(2.0, 1);
+			expect(paint.scaleY).toBeCloseTo(2.0, 1);
+			expect(paint.centerX).toBe(110);
+			expect(paint.centerY).toBe(120);
+		});
+
+		test("parses VarRotate paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarRotate);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 5);
+			offset += 3;
+			view.setInt16(offset, 6144);
+			offset += 2;
+
+			offset = 47;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 5);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintRotate;
+			expect(paint.format).toBe(PaintFormat.VarRotate);
+			expect(paint.angle).toBeCloseTo(0.375, 1);
+		});
+
+		test("parses VarRotateAroundCenter paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarRotateAroundCenter);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 9);
+			offset += 3;
+			view.setInt16(offset, 10240);
+			offset += 2;
+			view.setInt16(offset, 130);
+			offset += 2;
+			view.setInt16(offset, 140);
+			offset += 2;
+
+			offset = 51;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 6);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintRotate;
+			expect(paint.format).toBe(PaintFormat.VarRotateAroundCenter);
+			expect(paint.angle).toBeCloseTo(0.625, 1);
+			expect(paint.centerX).toBe(130);
+			expect(paint.centerY).toBe(140);
+		});
+
+		test("parses VarSkew paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarSkew);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 7);
+			offset += 3;
+			view.setInt16(offset, 3072);
+			offset += 2;
+			view.setInt16(offset, 1536);
+			offset += 2;
+
+			offset = 49;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 7);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintSkew;
+			expect(paint.format).toBe(PaintFormat.VarSkew);
+			expect(paint.xSkewAngle).toBeCloseTo(0.1875, 1);
+			expect(paint.ySkewAngle).toBeCloseTo(0.09375, 1);
+		});
+
+		test("parses VarSkewAroundCenter paint", () => {
+			const buffer = new ArrayBuffer(256);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const layerListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, layerListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = layerListOffset;
+			view.setUint32(offset, 1);
+			offset += 4;
+			view.setUint32(offset, 8);
+			offset += 4;
+
+			offset = 42;
+			view.setUint8(offset, PaintFormat.VarSkewAroundCenter);
+			offset += 1;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 11);
+			offset += 3;
+			view.setInt16(offset, 512);
+			offset += 2;
+			view.setInt16(offset, 4096);
+			offset += 2;
+			view.setInt16(offset, 150);
+			offset += 2;
+			view.setInt16(offset, 160);
+			offset += 2;
+
+			offset = 53;
+			view.setUint8(offset, PaintFormat.Solid);
+			offset += 1;
+			view.setUint16(offset, 8);
+			offset += 2;
+			view.setInt16(offset, 16384);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const paint = table.layerList?.[0] as PaintSkew;
+			expect(paint.format).toBe(PaintFormat.VarSkewAroundCenter);
+			expect(paint.xSkewAngle).toBeCloseTo(0.03125, 1);
+			expect(paint.ySkewAngle).toBeCloseTo(0.25, 1);
+			expect(paint.centerX).toBe(150);
+			expect(paint.centerY).toBe(160);
+		});
+
+		test("handles ClipBox format 2 with varIndexBase", () => {
+			const buffer = new ArrayBuffer(1024);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const clipListOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, clipListOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = clipListOffset;
+			view.setUint8(offset, 1);
+			offset += 1;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint16(offset, 100);
+			offset += 2;
+			view.setUint16(offset, 105);
+			offset += 2;
+			view.setUint8(offset, 0);
+			view.setUint16(offset + 1, 7);
+			offset += 3;
+
+			offset = 48;
+			view.setUint8(offset, 2);
+			offset += 1;
+			view.setInt16(offset, -50);
+			offset += 2;
+			view.setInt16(offset, -100);
+			offset += 2;
+			view.setInt16(offset, 500);
+			offset += 2;
+			view.setInt16(offset, 800);
+			offset += 2;
+			view.setUint32(offset, 999);
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			const clipBox = getClipBox(table, 102);
+			expect(clipBox).not.toBeNull();
+			expect(clipBox?.format).toBe(2);
+			expect(clipBox?.varIndexBase).toBe(999);
+		});
+
+		test("handles DeltaSetIndexMap format 1", () => {
+			const buffer = new ArrayBuffer(1024);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const varIdxMapOffset = 34;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, varIdxMapOffset);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			offset = varIdxMapOffset;
+			view.setUint8(offset, 1);
+			offset += 1;
+			view.setUint8(offset, 0x22);
+			offset += 1;
+			view.setUint32(offset, 3);
+			offset += 4;
+
+			view.setUint8(offset, 0x01);
+			offset += 1;
+			view.setUint8(offset, 0x23);
+			offset += 1;
+			view.setUint8(offset, 0x45);
+			offset += 1;
+
+			const reader = new Reader(buffer.slice(0, 100));
+			const table = parseColr(reader);
+
+			expect(table.varIdxMap?.length).toBe(3);
 		});
 	});
 });

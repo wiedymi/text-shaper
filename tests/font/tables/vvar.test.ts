@@ -14,6 +14,7 @@ import {
 	type DeltaSetIndexMap,
 } from "../../../src/font/tables/hvar.ts";
 import { normalizeAxisValue, AxisTags } from "../../../src/font/tables/fvar.ts";
+import { Reader } from "../../../src/font/binary/reader.ts";
 
 const SFNS_PATH = "/System/Library/Fonts/SFNS.ttf";
 const NEW_YORK_PATH = "/System/Library/Fonts/NewYork.ttf";
@@ -543,5 +544,33 @@ describe("Font.vvar integration", () => {
 			"/System/Library/Fonts/Supplemental/Arial.ttf",
 		);
 		expect(font.vvar).toBeNull();
+	});
+});
+
+describe("synthetic VVAR parsing - Reader basics", () => {
+	test("reads uint16 values in big-endian", () => {
+		const buffer = new ArrayBuffer(4);
+		const view = new DataView(buffer);
+
+		view.setUint16(0, 1, false);
+		view.setUint16(2, 0, false);
+
+		const reader = new Reader(buffer);
+		expect(reader.uint16()).toBe(1);
+		expect(reader.uint16()).toBe(0);
+	});
+
+	test("reads uint32 values in big-endian", () => {
+		const buffer = new ArrayBuffer(12);
+		const view = new DataView(buffer);
+
+		view.setUint32(0, 0, false);
+		view.setUint32(4, 100, false);
+		view.setUint32(8, 200, false);
+
+		const reader = new Reader(buffer);
+		expect(reader.uint32()).toBe(0);
+		expect(reader.uint32()).toBe(100);
+		expect(reader.uint32()).toBe(200);
 	});
 });
