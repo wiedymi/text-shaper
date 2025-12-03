@@ -13,6 +13,9 @@ Pure TypeScript text shaping engine. A port of [rustybuzz](https://github.com/Ra
 - **AAT Support**: morx, kerx, trak tables for Apple fonts
 - **Color Fonts**: SVG, sbix, CBDT/CBLC tables
 - **BiDi**: UAX #9 bidirectional text algorithm
+- **Rasterization**: FreeType-style grayscale, LCD subpixel, and monochrome rendering
+- **TrueType Hinting**: Full bytecode interpreter (150+ opcodes)
+- **Texture Atlas**: GPU-ready glyph atlas generation with shelf packing
 - **Zero Dependencies**: Pure TypeScript, works in browser and Node.js
 
 ## Installation
@@ -106,6 +109,26 @@ const svg = shapedTextToSVG(font, glyphBuffer, { fontSize: 48 });
 - `shapedTextToSVG(font, buffer, options)` - Render shaped text to SVG
 - `renderShapedText(ctx, font, buffer, options)` - Render to Canvas 2D context
 
+### Rasterization
+
+```typescript
+import { Font, rasterizeGlyph, buildAtlas, PixelMode } from "text-shaper";
+
+// Rasterize a single glyph
+const glyph = rasterizeGlyph(font, glyphId, 48, {
+  pixelMode: PixelMode.Gray,  // Gray, Mono, or LCD
+  hinting: true,              // Enable TrueType hinting
+});
+
+// Build a texture atlas for GPU rendering
+const atlas = buildAtlas(font, glyphIds, {
+  fontSize: 32,
+  padding: 1,
+  pixelMode: PixelMode.Gray,
+  hinting: true,
+});
+```
+
 ### Feature Helpers
 
 ```typescript
@@ -155,6 +178,9 @@ COLR, CPAL, SVG, sbix, CBDT, CBLC
 
 ### Vertical
 vhea, vmtx, VORG
+
+### Hinting
+fpgm, prep, cvt, gasp
 
 ## License
 
