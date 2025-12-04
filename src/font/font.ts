@@ -1,6 +1,23 @@
 import type { GlyphId, TableRecord, Tag } from "../types.ts";
 import { Tags, tagToString } from "../types.ts";
 import { Reader } from "./binary/reader.ts";
+import { woff2ToSfnt } from "./woff2.ts";
+
+// WOFF/WOFF2 magic numbers
+const WOFF_MAGIC = 0x774f4646; // 'wOFF'
+const WOFF2_MAGIC = 0x774f4632; // 'wOF2'
+
+/** Check if buffer is WOFF2 format */
+function isWoff2(buffer: ArrayBuffer): boolean {
+	const view = new DataView(buffer);
+	return view.getUint32(0, false) === WOFF2_MAGIC;
+}
+
+/** Check if buffer is WOFF format */
+function isWoff(buffer: ArrayBuffer): boolean {
+	const view = new DataView(buffer);
+	return view.getUint32(0, false) === WOFF_MAGIC;
+}
 import { type AvarTable, parseAvar } from "./tables/avar.ts";
 import { type BaseTable, parseBase } from "./tables/base.ts";
 import {
@@ -141,12 +158,28 @@ export class Font {
 		this.directory = parseFontDirectory(this.reader);
 	}
 
-	/** Load font from ArrayBuffer */
+	/** Load font from ArrayBuffer (sync - does not support WOFF2) */
 	static load(buffer: ArrayBuffer, options?: FontLoadOptions): Font {
+		if (isWoff2(buffer)) {
+			throw new Error("WOFF2 requires async loading. Use Font.loadAsync() instead.");
+		}
+		if (isWoff(buffer)) {
+			throw new Error("WOFF format is not supported. Please use TTF, OTF, or WOFF2.");
+		}
 		return new Font(buffer, options);
 	}
 
-	/** Load font from URL (works in browser and Bun) */
+	/** Load font from ArrayBuffer with WOFF2 support (async) */
+	static async loadAsync(buffer: ArrayBuffer, options?: FontLoadOptions): Promise<Font> {
+		if (isWoff2(buffer)) {
+			buffer = await woff2ToSfnt(buffer);
+		} else if (isWoff(buffer)) {
+			throw new Error("WOFF format is not supported. Please use TTF, OTF, or WOFF2.");
+		}
+		return new Font(buffer, options);
+	}
+
+	/** Load font from URL (works in browser and Bun, supports WOFF2) */
 	static async fromURL(url: string, options?: FontLoadOptions): Promise<Font> {
 		const response = await fetch(url);
 		if (!response.ok) {
@@ -155,17 +188,17 @@ export class Font {
 			);
 		}
 		const buffer = await response.arrayBuffer();
-		return Font.load(buffer, options);
+		return Font.loadAsync(buffer, options);
 	}
 
-	/** Load font from file path (Bun only) */
+	/** Load font from file path (Bun only, supports WOFF2) */
 	static async fromFile(
 		path: string,
 		options?: FontLoadOptions,
 	): Promise<Font> {
 		const file = Bun.file(path);
 		const buffer = await file.arrayBuffer();
-		return Font.load(buffer, options);
+		return Font.loadAsync(buffer, options);
 	}
 
 	// Table accessors

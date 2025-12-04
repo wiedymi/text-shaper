@@ -46,10 +46,112 @@ export interface GlyphPath {
 }
 
 /**
- * Convert TrueType contours to path commands
- * TrueType uses quadratic Bézier curves with on-curve and off-curve points
+ * Convert contours to path commands
+ * Handles both TrueType (quadratic Béziers) and CFF (cubic Béziers)
  */
 export function contourToPath(contour: Contour): PathCommand[] {
+	if (contour.length === 0) return [];
+
+	const commands: PathCommand[] = [];
+
+	// Check if this contour uses cubic beziers (CFF font)
+	const hasCubic = contour.some((p) => p.cubic);
+
+	if (hasCubic) {
+		// CFF-style contour with cubic beziers
+		return contourToPathCubic(contour);
+	}
+
+	// TrueType-style contour with quadratic beziers
+	return contourToPathQuadratic(contour);
+}
+
+/**
+ * Convert CFF contour (cubic beziers) to path commands
+ */
+function contourToPathCubic(contour: Contour): PathCommand[] {
+	if (contour.length === 0) return [];
+
+	const commands: PathCommand[] = [];
+	let i = 0;
+
+	// First point should be on-curve (moveto)
+	const first = contour[0];
+	if (!first) return [];
+
+	commands.push({ type: "M", x: first.x, y: first.y });
+	i = 1;
+
+	while (i < contour.length) {
+		const point = contour[i];
+		if (!point) break;
+
+		if (point.onCurve) {
+			// Line to
+			commands.push({ type: "L", x: point.x, y: point.y });
+			i++;
+		} else if (point.cubic) {
+			// Cubic bezier: expect cp1, cp2, endpoint
+			const cp1 = point;
+			const cp2 = contour[i + 1];
+			const end = contour[i + 2];
+
+			if (!cp2 || !end) {
+				// Malformed, skip
+				i++;
+				continue;
+			}
+
+			commands.push({
+				type: "C",
+				x1: cp1.x,
+				y1: cp1.y,
+				x2: cp2.x,
+				y2: cp2.y,
+				x: end.x,
+				y: end.y,
+			});
+			i += 3;
+		} else {
+			// Quadratic bezier (shouldn't happen in CFF but handle anyway)
+			const cp = point;
+			const next = contour[i + 1];
+			if (!next) {
+				i++;
+				continue;
+			}
+
+			let endPoint: GlyphPoint;
+			if (next.onCurve) {
+				endPoint = next;
+				i += 2;
+			} else {
+				endPoint = {
+					x: (cp.x + next.x) / 2,
+					y: (cp.y + next.y) / 2,
+					onCurve: true,
+				};
+				i++;
+			}
+
+			commands.push({
+				type: "Q",
+				x1: cp.x,
+				y1: cp.y,
+				x: endPoint.x,
+				y: endPoint.y,
+			});
+		}
+	}
+
+	commands.push({ type: "Z" });
+	return commands;
+}
+
+/**
+ * Convert TrueType contour (quadratic beziers) to path commands
+ */
+function contourToPathQuadratic(contour: Contour): PathCommand[] {
 	if (contour.length === 0) return [];
 
 	const commands: PathCommand[] = [];

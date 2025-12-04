@@ -110,9 +110,8 @@ export function executeCffCharString(
 		const fdIndex = cff.fdSelects[fontIndex]?.select(glyphId) ?? 0;
 		const fdArray = cff.fdArrays[fontIndex];
 		const fd = fdArray?.[fdIndex];
-		// FD-specific local subrs would be parsed from fd.private.subrs
-		// For now, use the main localSubrs
-		localSubrs = cff.localSubrs[fontIndex] || [];
+		// Use FD-specific local subrs if available
+		localSubrs = fd?.localSubrs || cff.localSubrs[fontIndex] || [];
 	} else {
 		localSubrs = cff.localSubrs[fontIndex] || [];
 	}
@@ -236,6 +235,22 @@ function executeCharString(
 			if (b1 === undefined) return;
 			const op = 0x0c00 | b1;
 			executeOperator(state, op, globalSubrs, localSubrs);
+		} else if (b0 === Op.hintmask || b0 === Op.cntrmask) {
+			// hintmask/cntrmask: process stems from stack, then skip mask bytes
+			const stack = state.stack;
+			const hasWidth = stack.length % 2 !== 0;
+			if (hasWidth && !state.haveWidth) {
+				const width = stack.shift();
+				if (width !== undefined) {
+					state.width = width;
+					state.haveWidth = true;
+				}
+			}
+			state.nStems += stack.length / 2;
+			stack.length = 0;
+			// Skip mask bytes (ceil(nStems / 8) bytes)
+			const maskBytes = Math.ceil(state.nStems / 8);
+			pos += maskBytes;
 		} else {
 			// Single-byte operator
 			executeOperator(state, b0, globalSubrs, localSubrs);
@@ -278,20 +293,9 @@ function executeOperator(
 		}
 
 		case Op.hintmask:
-		case Op.cntrmask: {
-			// Hint/counter mask - stems may be implicit
-			const hasWidth = stack.length % 2 !== 0;
-			if (hasWidth && !state.haveWidth) {
-				const width = stack.shift();
-				if (width === undefined) break;
-				state.width = width;
-				state.haveWidth = true;
-			}
-			state.nStems += stack.length / 2;
-			stack.length = 0;
-			// Skip mask bytes (not handled here, would need to track position)
+		case Op.cntrmask:
+			// Handled inline in executeCharString to skip mask bytes
 			break;
-		}
 
 		case Op.rmoveto: {
 			if (stack.length > 2 && !state.haveWidth) {
@@ -984,9 +988,9 @@ function addCubicBezier(
 	dx3: number,
 	dy3: number,
 ): void {
-	// CFF uses cubic Beziers. We need to convert to quadratic for TrueType-style contours
-	// or keep as cubic if our path system supports it.
-	// For simplicity, we'll approximate cubics with multiple quadratics.
+	// CFF uses cubic Beziers
+	// Store control points with onCurve: false and special marker for cubic
+	// We use a convention: cubic control points are stored as pairs with a special flag
 
 	const x0 = state.x;
 	const y0 = state.y;
@@ -997,11 +1001,11 @@ function addCubicBezier(
 	const x3 = x2 + dx3;
 	const y3 = y2 + dy3;
 
-	// Approximate cubic with quadratics
-	// Simple approach: use midpoint approximation
-	// For better quality, use adaptive subdivision
-
-	approximateCubicWithQuadratics(state, x0, y0, x1, y1, x2, y2, x3, y3, 0);
+	// Store as: cp1 (cubic=true), cp2 (cubic=true), endpoint (onCurve=true)
+	// The 'cubic' property distinguishes this from TrueType quadratic off-curve points
+	state.currentContour.push({ x: x1, y: y1, onCurve: false, cubic: true } as GlyphPoint);
+	state.currentContour.push({ x: x2, y: y2, onCurve: false, cubic: true } as GlyphPoint);
+	state.currentContour.push({ x: x3, y: y3, onCurve: true });
 
 	state.x = x3;
 	state.y = y3;

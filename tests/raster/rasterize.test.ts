@@ -457,15 +457,17 @@ describe("raster/rasterize", () => {
 			const rgba = bitmapToRGBA(bitmap);
 			expect(rgba.length).toBe(2 * 2 * 4);
 
-			expect(rgba[0]).toBe(255); // R
-			expect(rgba[1]).toBe(255); // G
-			expect(rgba[2]).toBe(255); // B
-			expect(rgba[3]).toBe(255); // A (from gray value 255)
+			// First pixel: coverage 255 -> black (0)
+			expect(rgba[0]).toBe(0); // R = 255 - 255
+			expect(rgba[1]).toBe(0); // G
+			expect(rgba[2]).toBe(0); // B
+			expect(rgba[3]).toBe(255); // A = fully opaque
 
-			expect(rgba[4]).toBe(255); // R
-			expect(rgba[5]).toBe(255); // G
-			expect(rgba[6]).toBe(255); // B
-			expect(rgba[7]).toBe(128); // A (from gray value 128)
+			// Second pixel: coverage 128 -> gray (127)
+			expect(rgba[4]).toBe(127); // R = 255 - 128
+			expect(rgba[5]).toBe(127); // G
+			expect(rgba[6]).toBe(127); // B
+			expect(rgba[7]).toBe(255); // A = fully opaque
 		});
 
 		test("converts Mono bitmap to RGBA", () => {
@@ -481,10 +483,15 @@ describe("raster/rasterize", () => {
 			const rgba = bitmapToRGBA(bitmap);
 			expect(rgba.length).toBe(8 * 1 * 4);
 
-			expect(rgba[3]).toBe(255); // First pixel on
-			expect(rgba[7]).toBe(0); // Second pixel off
-			expect(rgba[11]).toBe(255); // Third pixel on
-			expect(rgba[15]).toBe(0); // Fourth pixel off
+			// First pixel on -> black
+			expect(rgba[0]).toBe(0); // R = black
+			expect(rgba[3]).toBe(255); // A = opaque
+			// Second pixel off -> white
+			expect(rgba[4]).toBe(255); // R = white
+			expect(rgba[7]).toBe(255); // A = opaque
+			// Third pixel on -> black
+			expect(rgba[8]).toBe(0); // R = black
+			expect(rgba[11]).toBe(255); // A = opaque
 		});
 
 		test("handles empty bitmap", () => {
@@ -500,12 +507,14 @@ describe("raster/rasterize", () => {
 			const rgba = bitmapToRGBA(bitmap);
 			expect(rgba.length).toBe(5 * 2 * 4);
 
-			for (let i = 3; i < rgba.length; i += 4) {
-				expect(rgba[i]).toBe(0); // All alpha should be 0
+			// Empty bitmap (coverage 0) -> white background, fully opaque
+			for (let i = 0; i < rgba.length; i += 4) {
+				expect(rgba[i]).toBe(255); // R = white
+				expect(rgba[i + 3]).toBe(255); // A = opaque
 			}
 		});
 
-		test("produces white text on transparent background", () => {
+		test("produces black text on white background", () => {
 			const bitmap: Bitmap = {
 				buffer: new Uint8Array([200]),
 				width: 1,
@@ -516,10 +525,10 @@ describe("raster/rasterize", () => {
 			};
 
 			const rgba = bitmapToRGBA(bitmap);
-			expect(rgba[0]).toBe(255); // R = white
-			expect(rgba[1]).toBe(255); // G = white
-			expect(rgba[2]).toBe(255); // B = white
-			expect(rgba[3]).toBe(200); // A = coverage
+			expect(rgba[0]).toBe(55); // R = 255 - 200
+			expect(rgba[1]).toBe(55); // G
+			expect(rgba[2]).toBe(55); // B
+			expect(rgba[3]).toBe(255); // A = fully opaque
 		});
 
 		test("handles bitmap with pitch larger than width", () => {
@@ -535,10 +544,18 @@ describe("raster/rasterize", () => {
 			const rgba = bitmapToRGBA(bitmap);
 			expect(rgba.length).toBe(2 * 2 * 4);
 
-			expect(rgba[3]).toBe(255); // First pixel
-			expect(rgba[7]).toBe(128); // Second pixel
-			expect(rgba[11]).toBe(64); // Third pixel
-			expect(rgba[15]).toBe(32); // Fourth pixel
+			// First pixel: coverage 255 -> R = 0 (black)
+			expect(rgba[0]).toBe(0);
+			expect(rgba[3]).toBe(255); // A = opaque
+			// Second pixel: coverage 128 -> R = 127
+			expect(rgba[4]).toBe(127);
+			expect(rgba[7]).toBe(255); // A = opaque
+			// Third pixel: coverage 64 -> R = 191
+			expect(rgba[8]).toBe(191);
+			expect(rgba[11]).toBe(255); // A = opaque
+			// Fourth pixel: coverage 32 -> R = 223
+			expect(rgba[12]).toBe(223);
+			expect(rgba[15]).toBe(255); // A = opaque
 		});
 	});
 

@@ -10,3 +10,6 @@
 [submodule "reference/freetype"]
 	path = reference/freetype
 	url = https://github.com/freetype/freetype.git
+[submodule "reference/brotli.js"]
+	path = reference/brotli.js
+	url = https://github.com/foliojs/brotli.js.git

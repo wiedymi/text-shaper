@@ -172,14 +172,15 @@ test("bitmapToRGBA produces valid RGBA data", () => {
 
 	expect(rgba.length).toBe(16); // 2x2x4
 
-	// Check first pixel (255 alpha)
-	expect(rgba[0]).toBe(255); // R
-	expect(rgba[1]).toBe(255); // G
-	expect(rgba[2]).toBe(255); // B
-	expect(rgba[3]).toBe(255); // A
+	// Check first pixel (coverage 255 -> black, fully opaque)
+	expect(rgba[0]).toBe(0); // R = 255 - 255
+	expect(rgba[1]).toBe(0); // G
+	expect(rgba[2]).toBe(0); // B
+	expect(rgba[3]).toBe(255); // A = fully opaque
 
-	// Check second pixel (128 alpha)
-	expect(rgba[7]).toBe(128); // A
+	// Check second pixel (coverage 128 -> gray, fully opaque)
+	expect(rgba[4]).toBe(127); // R = 255 - 128
+	expect(rgba[7]).toBe(255); // A = fully opaque
 });
 
 test("Rasterize multiple glyphs", async () => {

@@ -407,6 +407,172 @@ describe("VVAR table - New York", () => {
 	});
 });
 
+describe("synthetic VVAR tests", () => {
+	function createVvarData(): ArrayBuffer {
+		// Create a minimal VVAR table with synthetic data
+		// Header: 24 bytes (2+2+4+4+4+4+4)
+		// ItemVariationStore: variable
+		// Mappings: variable
+		const headerSize = 24;
+		const ivsOffset = headerSize;
+
+		// ItemVariationStore structure:
+		// format (2) + regionListOffset (4) + dataCount (2) + dataOffsets (4 each)
+		const ivsHeaderSize = 8;
+		const ivsDataOffset = ivsOffset + ivsHeaderSize + 4; // After header + one offset
+		const regionListOffset = ivsDataOffset + 20; // After one ItemVariationData
+
+		// Region list: axisCount (2) + regionCount (2) + regions
+		const axisCount = 1;
+		const regionCount = 1;
+		const regionListSize = 4 + regionCount * axisCount * 6; // Each axis: start/peak/end (2 bytes each)
+
+		// Total size
+		const totalSize = regionListOffset + regionListSize + 100;
+		const buffer = new ArrayBuffer(totalSize);
+		const view = new DataView(buffer);
+
+		let offset = 0;
+
+		// VVAR Header
+		view.setUint16(offset, 1, false); offset += 2; // majorVersion
+		view.setUint16(offset, 0, false); offset += 2; // minorVersion
+		view.setUint32(offset, ivsOffset, false); offset += 4; // itemVariationStoreOffset
+		view.setUint32(offset, 0, false); offset += 4; // advanceHeightMappingOffset (null)
+		view.setUint32(offset, 0, false); offset += 4; // tsbMappingOffset (null)
+		view.setUint32(offset, 0, false); offset += 4; // bsbMappingOffset (null)
+		view.setUint32(offset, 0, false); offset += 4; // vOrgMappingOffset (null)
+
+		// ItemVariationStore at ivsOffset
+		offset = ivsOffset;
+		view.setUint16(offset, 1, false); offset += 2; // format
+		view.setUint32(offset, regionListOffset - ivsOffset, false); offset += 4; // variationRegionListOffset (relative)
+		view.setUint16(offset, 1, false); offset += 2; // itemVariationDataCount
+		view.setUint32(offset, ivsDataOffset - ivsOffset, false); offset += 4; // first data offset (relative)
+
+		// ItemVariationData at ivsDataOffset
+		offset = ivsDataOffset;
+		view.setUint16(offset, 2, false); offset += 2; // itemCount
+		view.setUint16(offset, 1, false); offset += 2; // wordDeltaCount
+		view.setUint16(offset, 1, false); offset += 2; // regionIndexCount
+		view.setUint16(offset, 0, false); offset += 2; // regionIndex[0]
+		// Delta sets (2 items, 1 word delta each)
+		view.setInt16(offset, 100, false); offset += 2; // item 0 delta
+		view.setInt16(offset, -50, false); offset += 2; // item 1 delta
+
+		// VariationRegionList at regionListOffset
+		offset = regionListOffset;
+		view.setUint16(offset, axisCount, false); offset += 2;
+		view.setUint16(offset, regionCount, false); offset += 2;
+		// Region 0, Axis 0: startCoord=-1.0, peakCoord=1.0, endCoord=1.0 (F2Dot14)
+		view.setInt16(offset, -16384, false); offset += 2; // startCoord = -1.0
+		view.setInt16(offset, 16384, false); offset += 2; // peakCoord = 1.0
+		view.setInt16(offset, 16384, false); offset += 2; // endCoord = 1.0
+
+		return buffer;
+	}
+
+	test("parseVvar parses header correctly", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.majorVersion).toBe(1);
+		expect(vvar.minorVersion).toBe(0);
+	});
+
+	test("parseVvar parses itemVariationStore", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.itemVariationStore).toBeDefined();
+		expect(vvar.itemVariationStore.format).toBe(1);
+		expect(vvar.itemVariationStore.variationRegions.length).toBeGreaterThan(0);
+		expect(vvar.itemVariationStore.itemVariationData.length).toBeGreaterThan(0);
+	});
+
+	test("parseVvar handles null mappings", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).toBeNull();
+		expect(vvar.tsbMapping).toBeNull();
+		expect(vvar.bsbMapping).toBeNull();
+		expect(vvar.vOrgMapping).toBeNull();
+	});
+
+	test("getAdvanceHeightDelta uses direct mapping when no advanceHeightMapping", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		// With no mapping, outer=0, inner=glyphId
+		const delta0 = getAdvanceHeightDelta(vvar, 0, [1.0]);
+		const delta1 = getAdvanceHeightDelta(vvar, 1, [1.0]);
+
+		expect(typeof delta0).toBe("number");
+		expect(typeof delta1).toBe("number");
+		expect(delta0).toBe(100); // At peak coord 1.0, full delta
+		expect(delta1).toBe(-50);
+	});
+
+	test("getAdvanceHeightDelta returns 0 for out-of-range glyph", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getAdvanceHeightDelta(vvar, 999, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getTsbDelta returns 0 when no mapping", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getTsbDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getBsbDelta returns 0 when no mapping", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getBsbDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getVorgDelta returns 0 when no mapping", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getVorgDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("delta scales with coordinate", () => {
+		const data = createVvarData();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const deltaAtMinus1 = getAdvanceHeightDelta(vvar, 0, [-1.0]);
+		const deltaAt0 = getAdvanceHeightDelta(vvar, 0, [0]);
+		const deltaAt1 = getAdvanceHeightDelta(vvar, 0, [1.0]);
+
+		// Region has startCoord=-1, peakCoord=1, endCoord=1
+		// At -1 (start), scalar = 0
+		// At 0 (halfway to peak), scalar = 0.5
+		// At 1 (peak), scalar = 1.0
+		expect(deltaAtMinus1).toBe(0);
+		expect(deltaAt0).toBe(50); // 100 * 0.5
+		expect(deltaAt1).toBe(100); // 100 * 1.0
+	});
+});
+
 describe("edge cases", () => {
 	let vvar: VvarTable | null;
 

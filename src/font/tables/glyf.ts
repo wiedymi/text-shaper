@@ -42,6 +42,8 @@ export interface GlyphPoint {
 	x: number;
 	y: number;
 	onCurve: boolean;
+	/** True if this is a cubic bezier control point (CFF fonts) */
+	cubic?: boolean;
 }
 
 /** A contour is a closed path of points */

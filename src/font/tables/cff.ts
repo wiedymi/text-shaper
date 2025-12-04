@@ -77,6 +77,8 @@ export interface PrivateDict {
 
 export interface FDDict extends PrivateDict {
 	fontName?: string;
+	/** Local subroutines for this FD (parsed from private dict subrs offset) */
+	localSubrs?: Uint8Array[];
 }
 
 export interface FDSelect {
@@ -631,6 +633,24 @@ export function parseCff(reader: Reader): CffTable {
 					),
 					strings,
 				) as FDDict;
+
+				// Parse FD-specific private dict and local subrs
+				if (fdDict.private) {
+					const [fdPrivateSize, fdPrivateOffset] = fdDict.private;
+					const fdPrivateDict = parsePrivateDict(
+						reader.slice(startOffset + fdPrivateOffset, fdPrivateSize),
+						strings,
+					);
+					// Copy private dict properties to fdDict
+					Object.assign(fdDict, fdPrivateDict);
+
+					// Parse FD-specific local subrs
+					if (fdPrivateDict.subrs !== undefined) {
+						reader.seek(startOffset + fdPrivateOffset + fdPrivateDict.subrs);
+						fdDict.localSubrs = parseIndex(reader);
+					}
+				}
+
 				fds.push(fdDict);
 			}
 			fdArrays.push(fds);

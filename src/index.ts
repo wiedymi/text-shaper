@@ -408,3 +408,23 @@ export {
 	isComplexScript,
 	isScript,
 } from "./unicode/script.ts";
+// Rasterization
+export type {
+	Bitmap,
+	RasterizedGlyph,
+	RasterizeOptions,
+	Span,
+} from "./raster/types.ts";
+export {
+	PixelMode,
+	FillRule,
+	createBitmap,
+	clearBitmap,
+} from "./raster/types.ts";
+export {
+	rasterizeGlyph,
+	rasterizePath,
+	rasterizeText,
+	bitmapToRGBA,
+	bitmapToGray,
+} from "./raster/rasterize.ts";

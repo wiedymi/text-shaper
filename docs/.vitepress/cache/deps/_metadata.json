@@ -1,31 +1,46 @@
 {
-  "hash": "c5ddee29",
-  "configHash": "012d58ef",
+  "hash": "58e1502f",
+  "configHash": "e02a7dfc",
   "lockfileHash": "b6d78a21",
-  "browserHash": "199c6db3",
+  "browserHash": "c3e5446d",
   "optimized": {
     "vue": {
       "src": "../../../../node_modules/vue/dist/vue.runtime.esm-bundler.js",
       "file": "vue.js",
-      "fileHash": "e4f0a1b1",
+      "fileHash": "23b28e11",
       "needsInterop": false
     },
     "vitepress > @vue/devtools-api": {
       "src": "../../../../node_modules/@vue/devtools-api/dist/index.js",
       "file": "vitepress___@vue_devtools-api.js",
-      "fileHash": "2f0779a4",
+      "fileHash": "a09e900b",
       "needsInterop": false
     },
     "vitepress > @vueuse/core": {
       "src": "../../../../node_modules/@vueuse/core/dist/index.js",
       "file": "vitepress___@vueuse_core.js",
-      "fileHash": "6be46e54",
+      "fileHash": "0abb3555",
+      "needsInterop": false
+    },
+    "text-shaper": {
+      "src": "../../../../src/index.ts",
+      "file": "text-shaper.js",
+      "fileHash": "5daeae11",
       "needsInterop": false
     }
   },
   "chunks": {
     "chunk-TICTUL3T": {
       "file": "chunk-TICTUL3T.js"
+    },
+    "node_zlib-GYVILIHA": {
+      "file": "node_zlib-GYVILIHA.js"
+    },
+    "decode-TR7JJYCG": {
+      "file": "decode-TR7JJYCG.js"
+    },
+    "chunk-BUSYA2B4": {
+      "file": "chunk-BUSYA2B4.js"
     }
   }
 }

@@ -424,29 +424,51 @@ export function rasterizeText(
  * Export bitmap to raw RGBA pixels (for WebGL textures, etc.)
  */
 export function bitmapToRGBA(bitmap: Bitmap): Uint8Array {
+	// bitmap.width is always the pixel width
+	// For LCD mode, pitch = width * 3 (3 bytes per pixel for R, G, B subpixels)
+	const isLCD = bitmap.pixelMode === PixelMode.LCD;
 	const rgba = new Uint8Array(bitmap.width * bitmap.rows * 4);
 
 	for (let y = 0; y < bitmap.rows; y++) {
 		for (let x = 0; x < bitmap.width; x++) {
-			const srcIdx = y * bitmap.pitch + x;
 			const dstIdx = (y * bitmap.width + x) * 4;
 
-			let alpha: number;
 			if (bitmap.pixelMode === PixelMode.Gray) {
-				alpha = bitmap.buffer[srcIdx] ?? 0;
+				const srcIdx = y * bitmap.pitch + x;
+				const alpha = bitmap.buffer[srcIdx] ?? 0;
+				// Black text on white background
+				rgba[dstIdx] = 255 - alpha;
+				rgba[dstIdx + 1] = 255 - alpha;
+				rgba[dstIdx + 2] = 255 - alpha;
+				rgba[dstIdx + 3] = 255;
 			} else if (bitmap.pixelMode === PixelMode.Mono) {
 				const byteIdx = y * bitmap.pitch + (x >> 3);
 				const bitIdx = 7 - (x & 7);
-				alpha = ((bitmap.buffer[byteIdx] ?? 0) >> bitIdx) & 1 ? 255 : 0;
+				const alpha = ((bitmap.buffer[byteIdx] ?? 0) >> bitIdx) & 1 ? 255 : 0;
+				rgba[dstIdx] = 255 - alpha;
+				rgba[dstIdx + 1] = 255 - alpha;
+				rgba[dstIdx + 2] = 255 - alpha;
+				rgba[dstIdx + 3] = 255;
+			} else if (isLCD) {
+				// LCD: 3 bytes per pixel (R, G, B subpixel coverage)
+				const srcIdx = y * bitmap.pitch + x * 3;
+				const r = bitmap.buffer[srcIdx] ?? 0;
+				const g = bitmap.buffer[srcIdx + 1] ?? 0;
+				const b = bitmap.buffer[srcIdx + 2] ?? 0;
+				// Black text on white background with subpixel colors
+				rgba[dstIdx] = 255 - r;
+				rgba[dstIdx + 1] = 255 - g;
+				rgba[dstIdx + 2] = 255 - b;
+				rgba[dstIdx + 3] = 255;
 			} else {
-				alpha = bitmap.buffer[srcIdx] ?? 0;
+				// Fallback for other modes
+				const srcIdx = y * bitmap.pitch + x;
+				const alpha = bitmap.buffer[srcIdx] ?? 0;
+				rgba[dstIdx] = 255 - alpha;
+				rgba[dstIdx + 1] = 255 - alpha;
+				rgba[dstIdx + 2] = 255 - alpha;
+				rgba[dstIdx + 3] = 255;
 			}
-
-			// White text on transparent background
-			rgba[dstIdx] = 255;
-			rgba[dstIdx + 1] = 255;
-			rgba[dstIdx + 2] = 255;
-			rgba[dstIdx + 3] = alpha;
 		}
 	}
 

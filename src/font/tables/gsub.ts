@@ -450,9 +450,10 @@ function parseExtensionLookup(
 		const extensionLookupType = extReader.uint16();
 		const extensionOffset = extReader.uint32();
 
+		// extensionOffset is relative to start of extension subtable
 		extSubtables.push({
 			type: extensionLookupType,
-			reader: extReader.sliceFrom(extensionOffset - 8),
+			reader: extReader.sliceFrom(extensionOffset),
 		});
 	}
 

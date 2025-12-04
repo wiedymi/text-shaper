@@ -290,77 +290,32 @@ export class GrayRaster {
 	}
 
 	/**
-	 * Draw a quadratic Bezier curve using DDA forward differencing
-	 * Based on FreeType's gray_render_conic with predictable subdivision count
+	 * Draw a quadratic Bezier curve using simple parametric sampling
 	 */
 	conicTo(cx: number, cy: number, toX: number, toY: number): void {
 		const p0x = this.x;
 		const p0y = this.y;
-		const p1x = cx;
-		const p1y = cy;
-		const p2x = toX;
-		const p2y = toY;
 
-		// A = P0 + P2 - 2*P1 (second difference, measures curvature)
-		const ax = p0x + p2x - 2 * p1x;
-		const ay = p0y + p2y - 2 * p1y;
+		// Estimate number of segments based on curve length
+		const dx1 = cx - p0x;
+		const dy1 = cy - p0y;
+		const dx2 = toX - cx;
+		const dy2 = toY - cy;
+		const len = Math.sqrt(dx1 * dx1 + dy1 * dy1) + Math.sqrt(dx2 * dx2 + dy2 * dy2);
 
-		// Calculate deviation (max curvature component)
-		let dx = abs(ax);
-		let dy = abs(ay);
-		if (dx < dy) dx = dy;
+		// At least 4 segments, more for longer curves
+		const numSegments = Math.max(4, Math.ceil(len / (ONE_PIXEL * 4)));
 
-		// If nearly flat, just draw a line
-		if (dx <= ONE_PIXEL >> 2) {
-			this.renderLine(toX, toY);
-			this.x = toX;
-			this.y = toY;
-			return;
-		}
-
-		// Calculate number of bisections needed
-		// Each bisection reduces deviation by 4x
-		let shift = 16;
-		while (dx > ONE_PIXEL >> 2) {
-			dx >>= 2;
-			shift--;
-		}
-		const count = 0x10000 >>> shift;
-
-		// B = P1 - P0
-		const bx = p1x - p0x;
-		const by = p1y - p0y;
-
-		// DDA forward differencing with 64-bit precision (BigInt)
-		// This ensures accurate curve rendering without cumulative error
-		const shift2 = BigInt(shift + shift);
-		const shift17 = BigInt(shift + 17);
-
-		// R = 2 * A * h^2 (constant second difference)
-		let rx = BigInt(ax) << shift2;
-		let ry = BigInt(ay) << shift2;
-
-		// Q = 2*B*h + A*h^2 (first difference)
-		let qx = (BigInt(bx) << shift17) + rx;
-		let qy = (BigInt(by) << shift17) + ry;
-
-		rx *= 2n;
-		ry *= 2n;
-
-		// P = P0 (current position, scaled by 2^32)
-		let px = BigInt(p0x) << 32n;
-		let py = BigInt(p0y) << 32n;
-
-		// Iterate with forward differencing
-		for (let i = 0; i < count; i++) {
-			px += qx;
-			py += qy;
-			qx += rx;
-			qy += ry;
-
-			const lineX = Number(px >> 32n);
-			const lineY = Number(py >> 32n);
-			this.renderLine(lineX, lineY);
+		for (let i = 1; i <= numSegments; i++) {
+			const t = i / numSegments;
+			const ti = 1 - t;
+			// Quadratic bezier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
+			const x = Math.round(ti * ti * p0x + 2 * ti * t * cx + t * t * toX);
+			const y = Math.round(ti * ti * p0y + 2 * ti * t * cy + t * t * toY);
+			this.renderLine(x, y);
+			// Update current position for next segment
+			this.x = x;
+			this.y = y;
 		}
 
 		this.x = toX;
@@ -467,9 +422,11 @@ export class GrayRaster {
 				}
 
 				// Compute anti-aliased coverage for this edge cell
-				// Area is accumulated as (y-delta * 2 * x-position)
-				// We need to combine with accumulated cover
-				const area = (cover << (PIXEL_BITS + 1)) + cell.area;
+				// FreeType: cover += cell->cover * (ONE_PIXEL * 2)
+				//           area = cover - cell->area
+				// The area is SUBTRACTED from scaled cover, not added
+				const scaledCover = cover * (ONE_PIXEL * 2);
+				const area = scaledCover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 
 				if (gray > 0 && cell.x >= 0 && cell.x < bitmap.width) {
@@ -521,6 +478,16 @@ export class GrayRaster {
 					bitmap.buffer[byteIdx] |= 1 << bitIdx;
 				}
 			}
+		} else if (bitmap.pixelMode === PixelMode.LCD) {
+			// LCD mode: 3 bytes per pixel (RGB subpixels)
+			// For now, write same coverage to all 3 subpixels
+			// A proper implementation would use subpixel positioning
+			for (let x = start; x < end; x++) {
+				const idx = row + x * 3;
+				bitmap.buffer[idx] = gray;
+				bitmap.buffer[idx + 1] = gray;
+				bitmap.buffer[idx + 2] = gray;
+			}
 		}
 	}
 
@@ -538,6 +505,12 @@ export class GrayRaster {
 				const bitIdx = 7 - (x & 7);
 				bitmap.buffer[byteIdx] |= 1 << bitIdx;
 			}
+		} else if (bitmap.pixelMode === PixelMode.LCD) {
+			// LCD mode: 3 bytes per pixel (RGB subpixels)
+			const idx = row + x * 3;
+			bitmap.buffer[idx] = gray;
+			bitmap.buffer[idx + 1] = gray;
+			bitmap.buffer[idx + 2] = gray;
 		}
 	}
 
@@ -570,8 +543,9 @@ export class GrayRaster {
 					}
 				}
 
-				// Edge cell
-				const area = (cover << (PIXEL_BITS + 1)) + cell.area;
+				// Edge cell - area is SUBTRACTED from scaled cover
+				const scaledCover = cover * (ONE_PIXEL * 2);
+				const area = scaledCover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 				if (gray > 0) {
 					spans.push({ x: cell.x, len: 1, coverage: gray });
@@ -621,8 +595,9 @@ export class GrayRaster {
 					}
 				}
 
-				// Edge cell
-				const area = (cover << (PIXEL_BITS + 1)) + cell.area;
+				// Edge cell - area is SUBTRACTED from scaled cover
+				const scaledCover = cover * (ONE_PIXEL * 2);
+				const area = scaledCover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 				if (gray > 0 && cell.x >= minX && cell.x < maxX) {
 					spanBuffer.push({ x: cell.x, len: 1, coverage: gray });
@@ -817,8 +792,9 @@ export class GrayRaster {
 					}
 				}
 
-				// Edge cell anti-aliasing
-				const area = (cover << (PIXEL_BITS + 1)) + cell.area;
+				// Edge cell anti-aliasing - area is SUBTRACTED from scaled cover
+				const scaledCover = cover * (ONE_PIXEL * 2);
+				const area = scaledCover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 
 				if (gray > 0 && cell.x >= 0 && cell.x < bitmap.width) {

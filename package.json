@@ -1,8 +1,27 @@
 {
   "name": "text-shaper",
   "version": "0.1.0",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "devDependencies": {
+    "@biomejs/biome": "2.3.8",
+    "@types/bun": "latest",
+    "vitepress": "^2.0.0-alpha.15",
+    "vitepress-plugin-llms": "^1.9.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "description": "Pure TypeScript text shaping engine with OpenType layout, TrueType hinting, and FreeType-style rasterization",
-  "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "keywords": [
     "font",
     "text",
@@ -22,19 +41,7 @@
     "lcd-rendering",
     "texture-atlas"
   ],
-  "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist"
-  ],
+  "license": "MIT",
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target browser --minify --sourcemap=linked",
     "build:prod": "bun build ./src/index.ts --outdir ./dist --target browser --production --sourcemap=external",
@@ -48,13 +55,6 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
   },
-  "devDependencies": {
-    "@biomejs/biome": "2.3.8",
-    "@types/bun": "latest",
-    "vitepress": "^2.0.0-alpha.15",
-    "vitepress-plugin-llms": "^1.9.3"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+  "type": "module",
+  "types": "./dist/index.d.ts"
 }

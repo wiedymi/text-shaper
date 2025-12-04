@@ -1,12 +1,22 @@
 import { defineConfig } from 'vitepress'
 import llmstxt from 'vitepress-plugin-llms'
 import { copyOrDownloadAsMarkdownButtons } from 'vitepress-plugin-llms'
+import { fileURLToPath, URL } from 'node:url'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: "TextShaper",
   description: "Pure TypeScript text shaping engine with OpenType layout, TrueType hinting, and FreeType-style rasterization",
   vite: {
+    resolve: {
+      alias: {
+        'text-shaper': fileURLToPath(new URL('../../src/index.ts', import.meta.url))
+      }
+    },
+    optimizeDeps: {
+      force: true,
+      include: ['text-shaper']
+    },
     plugins: [
       llmstxt({
         generateLLMsFullTxt: true,
@@ -19,6 +29,7 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API', link: '/api/font' },
+      { text: 'Playground', link: '/playground/' },
       { text: 'Advanced', link: '/advanced/architecture' }
     ],
 
