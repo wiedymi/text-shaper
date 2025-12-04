@@ -1,8 +1,18 @@
 import { describe, expect, test, beforeAll } from "bun:test";
 import { Font } from "../../src/font/font.ts";
 import { UnicodeBuffer } from "../../src/buffer/unicode-buffer.ts";
-import { shape } from "../../src/shaper/shaper.ts";
+import { shape, type ShapeOptions } from "../../src/shaper/shaper.ts";
+import type { ShapeFeature } from "../../src/shaper/shape-plan.ts";
+import { feature } from "../../src/shaper/features.ts";
 import { Direction } from "../../src/types.ts";
+
+// Helper to convert feature strings to ShapeFeature objects
+function parseFeature(featureStr: string): ShapeFeature {
+	if (featureStr.startsWith("-")) {
+		return feature(featureStr.slice(1), false);
+	}
+	return feature(featureStr, true);
+}
 
 // System font paths (macOS)
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
@@ -612,21 +622,21 @@ describe("shape edge cases", () => {
 		test("accepts feature strings", () => {
 			const buffer = new UnicodeBuffer().addStr("fi");
 			// Request liga feature
-			const result = shape(font, buffer, { features: ["liga"] });
+			const result = shape(font, buffer, { features: [parseFeature("liga")] });
 			expect(result.length).toBeGreaterThanOrEqual(1);
 		});
 
 		test("accepts disabled features", () => {
 			const buffer = new UnicodeBuffer().addStr("fi");
 			// Disable liga feature
-			const result = shape(font, buffer, { features: ["-liga"] });
+			const result = shape(font, buffer, { features: [parseFeature("-liga")] });
 			expect(result.length).toBe(2);
 		});
 
 		test("accepts multiple features", () => {
 			const buffer = new UnicodeBuffer().addStr("test");
 			const result = shape(font, buffer, {
-				features: ["kern", "liga", "calt"],
+				features: [parseFeature("kern"), parseFeature("liga"), parseFeature("calt")],
 			});
 			expect(result.length).toBe(4);
 		});
@@ -721,8 +731,8 @@ describe("GPOS and GSUB features with real fonts", () => {
 	describe("GSUB ligature substitution", () => {
 		test("applies ligature substitution for fi", () => {
 			const buffer = new UnicodeBuffer().addStr("fi");
-			const withLiga = shape(timesFont, buffer, { features: ["liga"] });
-			const withoutLiga = shape(timesFont, buffer, { features: ["-liga"] });
+			const withLiga = shape(timesFont, buffer, { features: [parseFeature("liga")] });
+			const withoutLiga = shape(timesFont, buffer, { features: [parseFeature("-liga")] });
 
 			// With liga enabled, might produce 1 glyph (ligature) or 2 (if not available)
 			// Without liga, should produce 2 glyphs
@@ -732,25 +742,25 @@ describe("GPOS and GSUB features with real fonts", () => {
 
 		test("applies ligature substitution for fl", () => {
 			const buffer = new UnicodeBuffer().addStr("fl");
-			const result = shape(timesFont, buffer, { features: ["liga"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 			expect(result.length).toBeGreaterThanOrEqual(1);
 		});
 
 		test("applies ligature substitution for ffi", () => {
 			const buffer = new UnicodeBuffer().addStr("ffi");
-			const result = shape(timesFont, buffer, { features: ["liga"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 			expect(result.length).toBeGreaterThanOrEqual(1);
 		});
 
 		test("applies ligature substitution for ffl", () => {
 			const buffer = new UnicodeBuffer().addStr("ffl");
-			const result = shape(timesFont, buffer, { features: ["liga"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 			expect(result.length).toBeGreaterThanOrEqual(1);
 		});
 
 		test("handles mixed ligature context", () => {
 			const buffer = new UnicodeBuffer().addStr("office");
-			const result = shape(timesFont, buffer, { features: ["liga"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 			expect(result.length).toBeGreaterThan(0);
 		});
 	});
@@ -758,8 +768,8 @@ describe("GPOS and GSUB features with real fonts", () => {
 	describe("GPOS kerning", () => {
 		test("applies kerning pairs", () => {
 			const buffer = new UnicodeBuffer().addStr("AV");
-			const withKern = shape(arialFont, buffer, { features: ["kern"] });
-			const withoutKern = shape(arialFont, buffer, { features: ["-kern"] });
+			const withKern = shape(arialFont, buffer, { features: [parseFeature("kern")] });
+			const withoutKern = shape(arialFont, buffer, { features: [parseFeature("-kern")] });
 
 			const withAdvance = withKern.getTotalAdvance().x;
 			const withoutAdvance = withoutKern.getTotalAdvance().x;
@@ -770,7 +780,7 @@ describe("GPOS and GSUB features with real fonts", () => {
 
 		test("applies kerning for multiple pairs", () => {
 			const buffer = new UnicodeBuffer().addStr("AWAY");
-			const result = shape(arialFont, buffer, { features: ["kern"] });
+			const result = shape(arialFont, buffer, { features: [parseFeature("kern")] });
 			expect(result.length).toBe(4);
 		});
 
@@ -778,7 +788,7 @@ describe("GPOS and GSUB features with real fonts", () => {
 			const buffer = new UnicodeBuffer().addStr("AV");
 			const result = shape(arialFont, buffer, {
 				direction: "rtl",
-				features: ["kern"],
+				features: [parseFeature("kern")],
 			});
 			expect(result.length).toBe(2);
 		});
@@ -843,13 +853,13 @@ describe("GPOS and GSUB features with real fonts", () => {
 	describe("GSUB contextual substitution", () => {
 		test("handles contextual forms", () => {
 			const buffer = new UnicodeBuffer().addStr("test");
-			const result = shape(timesFont, buffer, { features: ["calt"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 			expect(result.length).toBe(4);
 		});
 
 		test("handles contextual alternates in sequence", () => {
 			const buffer = new UnicodeBuffer().addStr("different");
-			const result = shape(timesFont, buffer, { features: ["calt"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 			expect(result.length).toBe(9);
 		});
 	});
@@ -866,7 +876,7 @@ describe("GPOS and GSUB features with real fonts", () => {
 	describe("GSUB alternate substitution", () => {
 		test("uses first alternate by default", () => {
 			const buffer = new UnicodeBuffer().addStr("test");
-			const result = shape(timesFont, buffer, { features: ["salt"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("salt")] });
 			expect(result.length).toBe(4);
 		});
 	});
@@ -911,20 +921,20 @@ describe("GPOS and GSUB features with real fonts", () => {
 	describe("complex feature interactions", () => {
 		test("combines ligatures and kerning", () => {
 			const buffer = new UnicodeBuffer().addStr("official");
-			const result = shape(timesFont, buffer, { features: ["liga", "kern"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("liga"), parseFeature("kern")] });
 			expect(result.length).toBeGreaterThan(0);
 		});
 
 		test("applies features with marks", () => {
 			const buffer = new UnicodeBuffer().addStr("cafe\u0301");
-			const result = shape(timesFont, buffer, { features: ["liga", "kern"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("liga"), parseFeature("kern")] });
 			expect(result.length).toBeGreaterThan(0);
 		});
 
 		test("handles disabled feature combinations", () => {
 			const buffer = new UnicodeBuffer().addStr("fi");
 			const result = shape(timesFont, buffer, {
-				features: ["-liga", "-kern"],
+				features: [parseFeature("-liga"), parseFeature("-kern")],
 			});
 			expect(result.length).toBe(2);
 		});
@@ -953,13 +963,13 @@ describe("GPOS and GSUB features with real fonts", () => {
 	describe("feature variations", () => {
 		test("enables specific feature", () => {
 			const buffer = new UnicodeBuffer().addStr("test");
-			const result = shape(timesFont, buffer, { features: ["smcp"] });
+			const result = shape(timesFont, buffer, { features: [parseFeature("smcp")] });
 			expect(result.length).toBe(4);
 		});
 
 		test("handles unknown features gracefully", () => {
 			const buffer = new UnicodeBuffer().addStr("test");
-			const result = shape(arialFont, buffer, { features: ["xxxx"] });
+			const result = shape(arialFont, buffer, { features: [parseFeature("xxxx")] });
 			expect(result.length).toBe(4);
 		});
 	});
@@ -1013,37 +1023,37 @@ describe("GPOS and GSUB context formats", () => {
 
 	test("handles context format 1 (glyph-based)", () => {
 		const buffer = new UnicodeBuffer().addStr("test");
-		const result = shape(timesFont, buffer, { features: ["calt"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 		expect(result.length).toBe(4);
 	});
 
 	test("handles context format 2 (class-based)", () => {
 		const buffer = new UnicodeBuffer().addStr("testing");
-		const result = shape(timesFont, buffer, { features: ["calt"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 		expect(result.length).toBe(7);
 	});
 
 	test("handles context format 3 (coverage-based)", () => {
 		const buffer = new UnicodeBuffer().addStr("example");
-		const result = shape(timesFont, buffer, { features: ["calt"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 		expect(result.length).toBe(7);
 	});
 
 	test("handles chaining context format 1", () => {
 		const buffer = new UnicodeBuffer().addStr("difficult");
-		const result = shape(timesFont, buffer, { features: ["calt"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 		expect(result.length).toBe(9);
 	});
 
 	test("handles chaining context format 2", () => {
 		const buffer = new UnicodeBuffer().addStr("qualification");
-		const result = shape(timesFont, buffer, { features: ["calt"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 		expect(result.length).toBe(13);
 	});
 
 	test("handles chaining context format 3", () => {
 		const buffer = new UnicodeBuffer().addStr("beautiful");
-		const result = shape(timesFont, buffer, { features: ["calt"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("calt")] });
 		expect(result.length).toBe(9);
 	});
 });
@@ -1108,19 +1118,19 @@ describe("feature-specific coverage", () => {
 
 	test("pair positioning adjusts adjacent glyphs", () => {
 		const buffer = new UnicodeBuffer().addStr("To");
-		const result = shape(timesFont, buffer, { features: ["kern"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("kern")] });
 		expect(result.length).toBe(2);
 	});
 
 	test("handles long ligature sequences", () => {
 		const buffer = new UnicodeBuffer().addStr("ffi ffl fi fl ff");
-		const result = shape(timesFont, buffer, { features: ["liga"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 		expect(result.length).toBeGreaterThan(0);
 	});
 
 	test("handles complex ligature context", () => {
 		const buffer = new UnicodeBuffer().addStr("shuffling");
-		const result = shape(timesFont, buffer, { features: ["liga"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 		expect(result.length).toBeGreaterThan(0);
 	});
 });
@@ -1140,19 +1150,19 @@ describe("edge cases in feature application", () => {
 
 	test("handles feature with value", () => {
 		const buffer = new UnicodeBuffer().addStr("test");
-		const result = shape(arialFont, buffer, { features: ["kern=1"] });
+		const result = shape(arialFont, buffer, { features: [parseFeature("kern=1")] });
 		expect(result.length).toBe(4);
 	});
 
 	test("handles mixed enabled and disabled features", () => {
 		const buffer = new UnicodeBuffer().addStr("fi");
-		const result = shape(arialFont, buffer, { features: ["liga", "-calt"] });
+		const result = shape(arialFont, buffer, { features: [parseFeature("liga"), parseFeature("-calt")] });
 		expect(result.length).toBeGreaterThanOrEqual(1);
 	});
 
 	test("processes text with no applicable features", () => {
 		const buffer = new UnicodeBuffer().addStr("123");
-		const result = shape(arialFont, buffer, { features: ["liga", "calt"] });
+		const result = shape(arialFont, buffer, { features: [parseFeature("liga"), parseFeature("calt")] });
 		expect(result.length).toBe(3);
 	});
 });
@@ -1193,13 +1203,13 @@ describe("stress testing with real features", () => {
 	test("handles long text with ligatures", () => {
 		const text = "The office staff efficiently shuffled files for qualification.";
 		const buffer = new UnicodeBuffer().addStr(text);
-		const result = shape(timesFont, buffer, { features: ["liga", "kern"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("liga"), parseFeature("kern")] });
 		expect(result.length).toBeGreaterThan(0);
 	});
 
 	test("handles repeated ligature candidates", () => {
 		const buffer = new UnicodeBuffer().addStr("fi fi fi fi fi");
-		const result = shape(timesFont, buffer, { features: ["liga"] });
+		const result = shape(timesFont, buffer, { features: [parseFeature("liga")] });
 		expect(result.length).toBeGreaterThan(0);
 	});
 
@@ -2562,8 +2572,8 @@ describe("Real fonts with specific GSUB/GPOS lookup types", () => {
 
 			// Check positioning applied
 			for (const { position } of result) {
-				expect(typeof position.xPlacement).toBe("undefined");
-				expect(typeof position.yPlacement).toBe("undefined");
+				expect(typeof position.xOffset).toBe("undefined");
+				expect(typeof position.yOffset).toBe("undefined");
 			}
 		});
 

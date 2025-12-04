@@ -239,7 +239,7 @@ describe("Font", () => {
 		test("hvar returns table or null", () => {
 			const hvar = font.hvar;
 			if (hvar) {
-				expect(hvar.version).toBeDefined();
+				expect(hvar.majorVersion).toBeDefined();
 			}
 		});
 
@@ -267,14 +267,14 @@ describe("Font", () => {
 		test("gvar returns table or null", () => {
 			const gvar = font.gvar;
 			if (gvar) {
-				expect(gvar.sharedTuples).toBeDefined();
+				expect(gvar.glyphVariationData).toBeDefined();
 			}
 		});
 
 		test("avar returns table or null", () => {
 			const avar = font.avar;
 			if (avar) {
-				expect(avar.segments).toBeDefined();
+				expect(avar.axisSegmentMaps).toBeDefined();
 			}
 		});
 
@@ -295,7 +295,7 @@ describe("Font", () => {
 		test("cff returns table or null", () => {
 			const cff = font.cff;
 			if (cff) {
-				expect(cff.topDict).toBeDefined();
+				expect(cff.topDicts).toBeDefined();
 			}
 		});
 
@@ -414,21 +414,21 @@ describe("Font", () => {
 		test("stat returns table or null", () => {
 			const stat = font.stat;
 			if (stat) {
-				expect(stat.version).toBeDefined();
+				expect(stat.majorVersion).toBeDefined();
 			}
 		});
 
 		test("cblc returns table or null", () => {
 			const cblc = font.cblc;
 			if (cblc) {
-				expect(cblc.version).toBeDefined();
+				expect(cblc.majorVersion).toBeDefined();
 			}
 		});
 
 		test("cbdt returns table or null", () => {
 			const cbdt = font.cbdt;
 			if (cbdt) {
-				expect(cbdt.version).toBeDefined();
+				expect(cbdt.majorVersion).toBeDefined();
 			}
 		});
 

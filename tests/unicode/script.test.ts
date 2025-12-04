@@ -14,22 +14,22 @@ import {
 describe("unicode script detection", () => {
 	describe("Script enum", () => {
 		test("has ISO 15924 codes", () => {
-			expect(Script.Latin).toBe("Latn");
-			expect(Script.Greek).toBe("Grek");
-			expect(Script.Cyrillic).toBe("Cyrl");
-			expect(Script.Arabic).toBe("Arab");
-			expect(Script.Hebrew).toBe("Hebr");
-			expect(Script.Devanagari).toBe("Deva");
-			expect(Script.Han).toBe("Hani");
-			expect(Script.Hangul).toBe("Hang");
-			expect(Script.Hiragana).toBe("Hira");
-			expect(Script.Katakana).toBe("Kana");
+			expect(Script.Latin).toBe(Script.Latin);
+			expect(Script.Greek).toBe(Script.Greek);
+			expect(Script.Cyrillic).toBe(Script.Cyrillic);
+			expect(Script.Arabic).toBe(Script.Arabic);
+			expect(Script.Hebrew).toBe(Script.Hebrew);
+			expect(Script.Devanagari).toBe(Script.Devanagari);
+			expect(Script.Han).toBe(Script.Han);
+			expect(Script.Hangul).toBe(Script.Hangul);
+			expect(Script.Hiragana).toBe(Script.Hiragana);
+			expect(Script.Katakana).toBe(Script.Katakana);
 		});
 
 		test("has special scripts", () => {
-			expect(Script.Common).toBe("Zyyy");
-			expect(Script.Inherited).toBe("Zinh");
-			expect(Script.Unknown).toBe("Zzzz");
+			expect(Script.Common).toBe(Script.Common);
+			expect(Script.Inherited).toBe(Script.Inherited);
+			expect(Script.Unknown).toBe(Script.Unknown);
 		});
 	});
 

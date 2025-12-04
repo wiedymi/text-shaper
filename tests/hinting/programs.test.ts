@@ -497,12 +497,13 @@ describe("Hinting Programs - Integration with Real Font", () => {
 		font = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial.ttf");
 
 		const cvtValues = font.cvtTable ? new Int32Array(font.cvtTable.values) : undefined;
+		const maxp = font.maxp;
 		engine = createHintingEngine(
 			font.unitsPerEm,
-			font.maxp.maxStackElements || 256,
-			font.maxp.maxStorage || 64,
-			font.maxp.maxFunctionDefs || 64,
-			font.maxp.maxTwilightPoints || 16,
+			"maxStackElements" in maxp ? maxp.maxStackElements : 256,
+			"maxStorage" in maxp ? maxp.maxStorage : 64,
+			"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
+			"maxTwilightPoints" in maxp ? maxp.maxTwilightPoints : 16,
 			cvtValues,
 		);
 	});
@@ -580,11 +581,30 @@ describe("Hinting Programs - Integration with Real Font", () => {
 		}
 
 		// Extract outline data
+		let xCoords: number[] = [];
+		let yCoords: number[] = [];
+		let flags: number[] = [];
+		let contourEnds: number[] = [];
+
+		if (glyph.type === "simple") {
+			let pointIndex = 0;
+			for (let i = 0; i < glyph.contours.length; i++) {
+				const contour = glyph.contours[i]!;
+				for (const point of contour) {
+					xCoords.push(point.x);
+					yCoords.push(point.y);
+					flags.push(point.onCurve ? 1 : 0);
+					pointIndex++;
+				}
+				contourEnds.push(pointIndex - 1);
+			}
+		}
+
 		const outline: GlyphOutline = {
-			xCoords: glyph.xCoordinates || [],
-			yCoords: glyph.yCoordinates || [],
-			flags: glyph.flags || new Uint8Array([]),
-			contourEnds: glyph.contourEnds || [],
+			xCoords,
+			yCoords,
+			flags: new Uint8Array(flags),
+			contourEnds,
 			instructions: glyph.instructions || new Uint8Array([]),
 		};
 
@@ -613,10 +633,19 @@ describe("Hinting Programs - Integration with Real Font", () => {
 	});
 
 	test("font maxp values are reasonable", () => {
-		expect(font.maxp.maxStackElements).toBeGreaterThan(0);
-		expect(font.maxp.maxStorage).toBeGreaterThan(0);
-		expect(font.maxp.maxFunctionDefs).toBeGreaterThan(0);
-		expect(font.maxp.maxTwilightPoints).toBeGreaterThan(0);
+		const maxp = font.maxp;
+		if ("maxStackElements" in maxp) {
+			expect(maxp.maxStackElements).toBeGreaterThan(0);
+		}
+		if ("maxStorage" in maxp) {
+			expect(maxp.maxStorage).toBeGreaterThan(0);
+		}
+		if ("maxFunctionDefs" in maxp) {
+			expect(maxp.maxFunctionDefs).toBeGreaterThan(0);
+		}
+		if ("maxTwilightPoints" in maxp) {
+			expect(maxp.maxTwilightPoints).toBeGreaterThan(0);
+		}
 	});
 
 	test("CVT values scale correctly at different sizes", () => {
@@ -667,7 +696,8 @@ describe("Hinting Programs - Integration with Real Font", () => {
 		// Skip test if glyphs don't have coordinates (parsing issue)
 		const testGlyphId = font.glyphId("A".codePointAt(0)!);
 		const testGlyph = font.getGlyph(testGlyphId);
-		if (!testGlyph || testGlyph.type === "empty" || !testGlyph.xCoordinates || testGlyph.xCoordinates.length === 0) {
+		const hasCoords = testGlyph && testGlyph.type === "simple" && testGlyph.contours.length > 0;
+		if (!hasCoords) {
 			console.log("Skipping test: glyphs don't have coordinates (possible parsing issue)");
 			expect(true).toBe(true); // Skip test gracefully
 			return;
@@ -675,12 +705,13 @@ describe("Hinting Programs - Integration with Real Font", () => {
 
 		// Create fresh engine for this test
 		const cvtValues = font.cvtTable ? new Int32Array(font.cvtTable.values) : undefined;
+		const maxp = font.maxp;
 		const freshEngine = createHintingEngine(
 			font.unitsPerEm,
-			font.maxp.maxStackElements || 256,
-			font.maxp.maxStorage || 64,
-			font.maxp.maxFunctionDefs || 64,
-			font.maxp.maxTwilightPoints || 16,
+			"maxStackElements" in maxp ? maxp.maxStackElements : 256,
+			"maxStorage" in maxp ? maxp.maxStorage : 64,
+			"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
+			"maxTwilightPoints" in maxp ? maxp.maxTwilightPoints : 16,
 			cvtValues,
 		);
 
@@ -708,11 +739,30 @@ describe("Hinting Programs - Integration with Real Font", () => {
 				continue;
 			}
 
+			let xCoords: number[] = [];
+			let yCoords: number[] = [];
+			let flags: number[] = [];
+			let contourEnds: number[] = [];
+
+			if (glyph.type === "simple") {
+				let pointIndex = 0;
+				for (let i = 0; i < glyph.contours.length; i++) {
+					const contour = glyph.contours[i]!;
+					for (const point of contour) {
+						xCoords.push(point.x);
+						yCoords.push(point.y);
+						flags.push(point.onCurve ? 1 : 0);
+						pointIndex++;
+					}
+					contourEnds.push(pointIndex - 1);
+				}
+			}
+
 			const outline: GlyphOutline = {
-				xCoords: glyph.xCoordinates || [],
-				yCoords: glyph.yCoordinates || [],
-				flags: glyph.flags || new Uint8Array([]),
-				contourEnds: glyph.contourEnds || [],
+				xCoords,
+				yCoords,
+				flags: new Uint8Array(flags),
+				contourEnds,
 				instructions: glyph.instructions || new Uint8Array([]),
 			};
 

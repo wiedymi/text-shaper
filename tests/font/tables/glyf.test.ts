@@ -18,7 +18,43 @@ import {
 	type GlyfTable,
 	type Contour,
 } from "../../../src/font/tables/glyf.ts";
+import type {
+	GvarTable,
+	GlyphVariationData,
+	TupleVariationHeader,
+	PointDelta,
+} from "../../../src/font/tables/gvar.ts";
 import { getGlyphLocation } from "../../../src/font/tables/loca.ts";
+
+/** Helper to create a mock TupleVariationHeader */
+function createMockTupleHeader(
+	opts: Partial<TupleVariationHeader> & { deltas: PointDelta[] },
+): TupleVariationHeader {
+	return {
+		variationDataSize: 0,
+		tupleIndex: 0,
+		serializedData: new Uint8Array(0),
+		peakTuple: opts.peakTuple ?? [1.0],
+		intermediateStartTuple: opts.intermediateStartTuple ?? null,
+		intermediateEndTuple: opts.intermediateEndTuple ?? null,
+		pointNumbers: opts.pointNumbers ?? null,
+		deltas: opts.deltas,
+	};
+}
+
+/** Helper to create a mock GvarTable for tests */
+function createMockGvar(
+	glyphVariationData: GlyphVariationData[] = [],
+): GvarTable {
+	return {
+		majorVersion: 1,
+		minorVersion: 0,
+		axisCount: 1,
+		sharedTupleCount: 0,
+		sharedTuples: [],
+		glyphVariationData,
+	};
+}
 
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
 
@@ -460,8 +496,10 @@ describe("glyf table", () => {
 	describe("edge cases", () => {
 		test("parseGlyph with glyph at boundary", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
+				const glyf = font.glyf;
+				const loca = font.loca;
 				const lastGlyph = font.numGlyphs - 1;
-				expect(() => parseGlyph(font.glyf, font.loca, lastGlyph)).not.toThrow();
+				expect(() => parseGlyph(glyf, loca, lastGlyph)).not.toThrow();
 			}
 		});
 
@@ -501,9 +539,11 @@ describe("glyf table", () => {
 
 		test("handles all ASCII printable characters", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
+				const glyf = font.glyf;
+				const loca = font.loca;
 				for (let cp = 0x20; cp < 0x7f; cp++) {
 					const glyphId = font.glyphId(cp);
-					expect(() => parseGlyph(font.glyf, font.loca, glyphId)).not.toThrow();
+					expect(() => parseGlyph(glyf, loca, glyphId)).not.toThrow();
 				}
 			}
 		});
@@ -828,12 +868,7 @@ describe("glyf table", () => {
 
 	describe("getGlyphDeltas function", () => {
 		test("returns zero deltas when gvar has no data for glyph", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [],
-			};
+			const mockGvar = createMockGvar([]);
 			const deltas = getGlyphDeltas(mockGvar, 10, 5, [0.5]);
 			expect(deltas.length).toBe(5);
 			expect(deltas[0]?.x).toBe(0);
@@ -841,42 +876,24 @@ describe("glyf table", () => {
 		});
 
 		test("returns zero deltas when glyphData exists but tupleVariationHeaders is empty", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [
-					{
-						tupleVariationHeaders: [],
-					},
-				],
-			};
+			const mockGvar = createMockGvar([{ tupleVariationHeaders: [] }]);
 			const deltas = getGlyphDeltas(mockGvar, 0, 5, [0.5]);
 			expect(deltas.length).toBe(5);
 		});
 
 		test("rounds final delta values", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [
-					{
-						tupleVariationHeaders: [
-							{
-								peakTuple: [1.0],
-								intermediateStartTuple: null,
-								intermediateEndTuple: null,
-								pointNumbers: null,
-								deltas: [
-									{ x: 10.6, y: 20.4 },
-									{ x: 5.2, y: -5.8 },
-								],
-							},
-						],
-					},
-				],
-			};
+			const mockGvar = createMockGvar([
+				{
+					tupleVariationHeaders: [
+						createMockTupleHeader({
+							deltas: [
+								{ x: 10.6, y: 20.4 },
+								{ x: 5.2, y: -5.8 },
+							],
+						}),
+					],
+				},
+			]);
 			const deltas = getGlyphDeltas(mockGvar, 0, 2, [1.0]);
 			expect(deltas[0]?.x).toBe(11);
 			expect(deltas[0]?.y).toBe(20);
@@ -885,27 +902,19 @@ describe("glyf table", () => {
 		});
 
 		test("handles sparse point deltas", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [
-					{
-						tupleVariationHeaders: [
-							{
-								peakTuple: [1.0],
-								intermediateStartTuple: null,
-								intermediateEndTuple: null,
-								pointNumbers: [0, 2],
-								deltas: [
-									{ x: 10, y: 20 },
-									{ x: 5, y: -5 },
-								],
-							},
-						],
-					},
-				],
-			};
+			const mockGvar = createMockGvar([
+				{
+					tupleVariationHeaders: [
+						createMockTupleHeader({
+							pointNumbers: [0, 2],
+							deltas: [
+								{ x: 10, y: 20 },
+								{ x: 5, y: -5 },
+							],
+						}),
+					],
+				},
+			]);
 			const deltas = getGlyphDeltas(mockGvar, 0, 5, [1.0]);
 			expect(deltas[0]?.x).toBe(10);
 			expect(deltas[0]?.y).toBe(20);
@@ -916,55 +925,38 @@ describe("glyf table", () => {
 		});
 
 		test("handles pointNumbers out of range", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [
-					{
-						tupleVariationHeaders: [
-							{
-								peakTuple: [1.0],
-								intermediateStartTuple: null,
-								intermediateEndTuple: null,
-								pointNumbers: [0, 10],
-								deltas: [
-									{ x: 10, y: 20 },
-									{ x: 5, y: -5 },
-								],
-							},
-						],
-					},
-				],
-			};
+			const mockGvar = createMockGvar([
+				{
+					tupleVariationHeaders: [
+						createMockTupleHeader({
+							pointNumbers: [0, 10],
+							deltas: [
+								{ x: 10, y: 20 },
+								{ x: 5, y: -5 },
+							],
+						}),
+					],
+				},
+			]);
 			const deltas = getGlyphDeltas(mockGvar, 0, 5, [1.0]);
 			expect(deltas[0]?.x).toBe(10);
 			expect(deltas.length).toBe(5);
 		});
 
 		test("handles deltas length exceeding numPoints", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [
-					{
-						tupleVariationHeaders: [
-							{
-								peakTuple: [1.0],
-								intermediateStartTuple: null,
-								intermediateEndTuple: null,
-								pointNumbers: null,
-								deltas: [
-									{ x: 10, y: 20 },
-									{ x: 5, y: -5 },
-									{ x: 3, y: -3 },
-								],
-							},
-						],
-					},
-				],
-			};
+			const mockGvar = createMockGvar([
+				{
+					tupleVariationHeaders: [
+						createMockTupleHeader({
+							deltas: [
+								{ x: 10, y: 20 },
+								{ x: 5, y: -5 },
+								{ x: 3, y: -3 },
+							],
+						}),
+					],
+				},
+			]);
 			const deltas = getGlyphDeltas(mockGvar, 0, 2, [1.0]);
 			expect(deltas.length).toBe(2);
 			expect(deltas[0]?.x).toBe(10);
@@ -972,24 +964,16 @@ describe("glyf table", () => {
 		});
 
 		test("skips tuples with no peakTuple", () => {
-			const mockGvar = {
-				axisCount: 1,
-				glyphCount: 100,
-				sharedTuples: [],
-				glyphVariationData: [
-					{
-						tupleVariationHeaders: [
-							{
-								peakTuple: null,
-								intermediateStartTuple: null,
-								intermediateEndTuple: null,
-								pointNumbers: null,
-								deltas: [{ x: 10, y: 20 }],
-							},
-						],
-					},
-				],
-			};
+			const mockGvar = createMockGvar([
+				{
+					tupleVariationHeaders: [
+						createMockTupleHeader({
+							peakTuple: null,
+							deltas: [{ x: 10, y: 20 }],
+						}),
+					],
+				},
+			]);
 			const deltas = getGlyphDeltas(mockGvar, 0, 1, [1.0]);
 			expect(deltas[0]?.x).toBe(0);
 			expect(deltas[0]?.y).toBe(0);
@@ -1031,12 +1015,7 @@ describe("glyf table", () => {
 				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
 					const glyph = parseGlyph(font.glyf, font.loca, i);
 					if (glyph.type === "composite") {
-						const mockGvar = {
-							axisCount: 1,
-							glyphCount: font.numGlyphs,
-							sharedTuples: [],
-							glyphVariationData: [],
-						};
+						const mockGvar = createMockGvar([]);
 						const contours = getGlyphContoursWithVariation(
 							font.glyf,
 							font.loca,
@@ -1054,12 +1033,7 @@ describe("glyf table", () => {
 		test("applies variation to simple glyph with gvar and coords", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
 				const glyphId = font.glyphId(0x41);
-				const mockGvar = {
-					axisCount: 1,
-					glyphCount: font.numGlyphs,
-					sharedTuples: [],
-					glyphVariationData: [],
-				};
+				const mockGvar = createMockGvar([]);
 				const contours = getGlyphContoursWithVariation(
 					font.glyf,
 					font.loca,
@@ -1074,12 +1048,7 @@ describe("glyf table", () => {
 		test("handles empty axis coordinates", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
 				const glyphId = font.glyphId(0x41);
-				const mockGvar = {
-					axisCount: 1,
-					glyphCount: font.numGlyphs,
-					sharedTuples: [],
-					glyphVariationData: [],
-				};
+				const mockGvar = createMockGvar([]);
 				const contours = getGlyphContoursWithVariation(
 					font.glyf,
 					font.loca,
@@ -1098,24 +1067,13 @@ describe("glyf table", () => {
 				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
 					const glyph = parseGlyph(font.glyf, font.loca, i);
 					if (glyph.type === "composite") {
-						const mockGvar = {
-							axisCount: 1,
-							glyphCount: font.numGlyphs,
-							sharedTuples: [],
-							glyphVariationData: [
-								{
-									tupleVariationHeaders: [
-										{
-											peakTuple: [1.0],
-											intermediateStartTuple: null,
-											intermediateEndTuple: null,
-											pointNumbers: null,
-											deltas: [],
-										},
-									],
-								},
-							],
-						};
+						const mockGvar = createMockGvar([
+							{
+								tupleVariationHeaders: [
+									createMockTupleHeader({ deltas: [] }),
+								],
+							},
+						]);
 						const contours = getGlyphContoursWithVariation(
 							font.glyf,
 							font.loca,
@@ -1143,12 +1101,7 @@ describe("glyf table", () => {
 								comp.glyphId,
 							);
 							if (componentGlyph.type === "composite") {
-								const mockGvar = {
-									axisCount: 1,
-									glyphCount: font.numGlyphs,
-									sharedTuples: [],
-									glyphVariationData: [],
-								};
+								const mockGvar = createMockGvar([]);
 								const contours = getGlyphContoursWithVariation(
 									font.glyf,
 									font.loca,
@@ -1172,12 +1125,7 @@ describe("glyf table", () => {
 				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
 					const glyph = parseGlyph(font.glyf, font.loca, i);
 					if (glyph.type === "composite") {
-						const mockGvar = {
-							axisCount: 1,
-							glyphCount: font.numGlyphs,
-							sharedTuples: [],
-							glyphVariationData: [],
-						};
+						const mockGvar = createMockGvar([]);
 						const contours = getGlyphContoursWithVariation(
 							font.glyf,
 							font.loca,
@@ -1198,7 +1146,7 @@ describe("glyf table", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
 				const sampleSize = Math.min(1000, font.numGlyphs);
 				for (let i = 0; i < sampleSize; i++) {
-					expect(() => parseGlyph(font.glyf, font.loca, i)).not.toThrow();
+					expect(() => parseGlyph(font.glyf!, font.loca!, i)).not.toThrow();
 				}
 			}
 		});
@@ -1310,12 +1258,7 @@ describe("glyf table", () => {
 						for (let i = 0; i < Math.min(500, testFont.numGlyphs); i++) {
 							const glyph = parseGlyph(testFont.glyf, testFont.loca, i);
 							if (glyph.type === "composite") {
-								const mockGvar = {
-									axisCount: 1,
-									glyphCount: testFont.numGlyphs,
-									sharedTuples: [],
-									glyphVariationData: [],
-								};
+								const mockGvar = createMockGvar([]);
 								const contours = getGlyphContoursWithVariation(
 									testFont.glyf,
 									testFont.loca,

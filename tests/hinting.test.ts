@@ -474,12 +474,13 @@ describe("TrueType Hinting Engine", () => {
 		const cvt = font.cvtTable;
 		const cvtValues = cvt ? new Int32Array(cvt.values) : undefined;
 
+		const maxp = font.maxp;
 		const engine = createHintingEngine(
 			font.unitsPerEm,
-			font.maxp.maxStackElements || 256,
-			font.maxp.maxStorage || 64,
-			font.maxp.maxFunctionDefs || 64,
-			font.maxp.maxTwilightPoints || 16,
+			"maxStackElements" in maxp ? maxp.maxStackElements : 256,
+			"maxStorage" in maxp ? maxp.maxStorage : 64,
+			"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
+			"maxTwilightPoints" in maxp ? maxp.maxTwilightPoints : 16,
 			cvtValues,
 		);
 
@@ -493,12 +494,13 @@ describe("TrueType Hinting Engine", () => {
 		if (!fpgm) return;
 
 		const cvtValues = cvt ? new Int32Array(cvt.values) : undefined;
+		const maxp = font.maxp;
 		const engine = createHintingEngine(
 			font.unitsPerEm,
-			font.maxp.maxStackElements || 256,
-			font.maxp.maxStorage || 64,
-			font.maxp.maxFunctionDefs || 64,
-			font.maxp.maxTwilightPoints || 16,
+			"maxStackElements" in maxp ? maxp.maxStackElements : 256,
+			"maxStorage" in maxp ? maxp.maxStorage : 64,
+			"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
+			"maxTwilightPoints" in maxp ? maxp.maxTwilightPoints : 16,
 			cvtValues,
 		);
 

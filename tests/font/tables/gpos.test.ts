@@ -583,7 +583,7 @@ describe("GPOS table", () => {
 		test("iterates through all lookups without error", () => {
 			if (gpos) {
 				expect(() => {
-					for (const lookup of gpos.lookups) {
+					for (const lookup of gpos!.lookups) {
 						expect(lookup).toBeDefined();
 					}
 				}).not.toThrow();

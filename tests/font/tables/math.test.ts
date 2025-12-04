@@ -889,8 +889,8 @@ describe("MATH table", () => {
 				const firstGlyph = 0;
 				const lastGlyph = stixFont.numGlyphs - 1;
 
-				expect(() => getItalicsCorrection(stixMath, firstGlyph)).not.toThrow();
-				expect(() => getItalicsCorrection(stixMath, lastGlyph)).not.toThrow();
+				expect(() => getItalicsCorrection(stixMath!, firstGlyph)).not.toThrow();
+				expect(() => getItalicsCorrection(stixMath!, lastGlyph)).not.toThrow();
 			}
 		});
 	});

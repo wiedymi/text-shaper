@@ -923,18 +923,19 @@ describe("TrueType Interpreter - Real Font Tests", () => {
 	});
 
 	test("can create execution context from font", () => {
+		const maxp = font.maxp;
 		const ctx = createExecContext(
-			font.maxp.maxStackElements || 256,
-			font.maxp.maxStorage || 64,
-			font.maxp.maxFunctionDefs || 64,
-			font.maxp.maxFunctionDefs || 64,
+			"maxStackElements" in maxp ? maxp.maxStackElements : 256,
+			"maxStorage" in maxp ? maxp.maxStorage : 64,
+			"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
+			"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
 			32,
-			font.maxp.maxTwilightPoints || 16,
+			"maxTwilightPoints" in maxp ? maxp.maxTwilightPoints : 16,
 		);
 
 		expect(ctx).toBeDefined();
-		expect(ctx.stack.length).toBe(font.maxp.maxStackElements || 256);
-		expect(ctx.storage.length).toBe(font.maxp.maxStorage || 64);
+		expect(ctx.stack.length).toBe("maxStackElements" in maxp ? maxp.maxStackElements : 256);
+		expect(ctx.storage.length).toBe("maxStorage" in maxp ? maxp.maxStorage : 64);
 	});
 
 	test("glyph has instructions", () => {

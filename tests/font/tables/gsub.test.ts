@@ -532,7 +532,7 @@ describe("GSUB table", () => {
 		test("iterates through all lookups without error", () => {
 			if (gsub) {
 				expect(() => {
-					for (const lookup of gsub.lookups) {
+					for (const lookup of gsub!.lookups) {
 						expect(lookup).toBeDefined();
 					}
 				}).not.toThrow();

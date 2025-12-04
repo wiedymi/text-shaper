@@ -400,7 +400,7 @@ describe("getAxis", () => {
 
 	test("returns correct axis instance", () => {
 		const axis = getAxis(fvar, AxisTags.wght);
-		expect(axis).toBe(fvar.axes.find((a) => a.tag === AxisTags.wght));
+		expect(axis).toBe(fvar.axes.find((a) => a.tag === AxisTags.wght) ?? null);
 	});
 });
 

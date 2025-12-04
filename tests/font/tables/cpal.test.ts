@@ -31,29 +31,19 @@ describe("cpal table", () => {
 
 	describe("parseCpal with binary data", () => {
 		test("parses version 0 CPAL table", () => {
-			if (!font) return;
-			const cpalData = font.tableData("CPAL");
-			if (!cpalData) return;
+			if (!font || !cpal) return;
 
-			const reader = new Reader(cpalData);
-			const parsed = parseCpal(reader);
-
-			expect(parsed.version).toBeGreaterThanOrEqual(0);
-			expect(parsed.numPalettes).toBeGreaterThan(0);
-			expect(parsed.numPaletteEntries).toBeGreaterThan(0);
-			expect(parsed.palettes.length).toBe(parsed.numPalettes);
+			expect(cpal.version).toBeGreaterThanOrEqual(0);
+			expect(cpal.numPalettes).toBeGreaterThan(0);
+			expect(cpal.numPaletteEntries).toBeGreaterThan(0);
+			expect(cpal.palettes.length).toBe(cpal.numPalettes);
 		});
 
 		test("parses color records correctly", () => {
-			if (!font) return;
-			const cpalData = font.tableData("CPAL");
-			if (!cpalData) return;
+			if (!font || !cpal) return;
 
-			const reader = new Reader(cpalData);
-			const parsed = parseCpal(reader);
-
-			for (const palette of parsed.palettes) {
-				expect(palette.colors.length).toBe(parsed.numPaletteEntries);
+			for (const palette of cpal.palettes) {
+				expect(palette.colors.length).toBe(cpal.numPaletteEntries);
 				for (const color of palette.colors) {
 					expect(color.blue).toBeGreaterThanOrEqual(0);
 					expect(color.blue).toBeLessThanOrEqual(255);
@@ -68,37 +58,32 @@ describe("cpal table", () => {
 		});
 
 		test("parses version 1 extensions if present", () => {
-			if (!font) return;
-			const cpalData = font.tableData("CPAL");
-			if (!cpalData) return;
+			if (!font || !cpal) return;
 
-			const reader = new Reader(cpalData);
-			const parsed = parseCpal(reader);
-
-			if (parsed.version >= 1) {
+			if (cpal.version >= 1) {
 				// Check for optional v1 arrays
-				if (parsed.paletteTypes !== undefined) {
-					expect(Array.isArray(parsed.paletteTypes)).toBe(true);
-					expect(parsed.paletteTypes.length).toBe(parsed.numPalettes);
-					for (const type of parsed.paletteTypes) {
+				if (cpal.paletteTypes !== undefined) {
+					expect(Array.isArray(cpal.paletteTypes)).toBe(true);
+					expect(cpal.paletteTypes.length).toBe(cpal.numPalettes);
+					for (const type of cpal.paletteTypes) {
 						expect(typeof type).toBe("number");
 					}
 				}
 
-				if (parsed.paletteLabels !== undefined) {
-					expect(Array.isArray(parsed.paletteLabels)).toBe(true);
-					expect(parsed.paletteLabels.length).toBe(parsed.numPalettes);
-					for (const label of parsed.paletteLabels) {
+				if (cpal.paletteLabels !== undefined) {
+					expect(Array.isArray(cpal.paletteLabels)).toBe(true);
+					expect(cpal.paletteLabels.length).toBe(cpal.numPalettes);
+					for (const label of cpal.paletteLabels) {
 						expect(typeof label).toBe("number");
 					}
 				}
 
-				if (parsed.paletteEntryLabels !== undefined) {
-					expect(Array.isArray(parsed.paletteEntryLabels)).toBe(true);
-					expect(parsed.paletteEntryLabels.length).toBe(
-						parsed.numPaletteEntries,
+				if (cpal.paletteEntryLabels !== undefined) {
+					expect(Array.isArray(cpal.paletteEntryLabels)).toBe(true);
+					expect(cpal.paletteEntryLabels.length).toBe(
+						cpal.numPaletteEntries,
 					);
-					for (const label of parsed.paletteEntryLabels) {
+					for (const label of cpal.paletteEntryLabels) {
 						expect(typeof label).toBe("number");
 					}
 				}
@@ -106,19 +91,14 @@ describe("cpal table", () => {
 		});
 
 		test("handles multiple color record indices", () => {
-			if (!font) return;
-			const cpalData = font.tableData("CPAL");
-			if (!cpalData) return;
-
-			const reader = new Reader(cpalData);
-			const parsed = parseCpal(reader);
+			if (!font || !cpal) return;
 
 			// Verify each palette can be accessed
-			for (let i = 0; i < parsed.numPalettes; i++) {
-				const palette = parsed.palettes[i];
+			for (let i = 0; i < cpal.numPalettes; i++) {
+				const palette = cpal.palettes[i];
 				expect(palette).toBeDefined();
 				if (palette) {
-					expect(palette.colors.length).toBe(parsed.numPaletteEntries);
+					expect(palette.colors.length).toBe(cpal.numPaletteEntries);
 				}
 			}
 		});

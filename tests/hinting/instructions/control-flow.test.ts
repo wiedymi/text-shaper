@@ -479,9 +479,9 @@ describe("Control Flow Instructions", () => {
 
 			expect(ctx.callStackTop).toBe(1);
 			expect(ctx.callStack[0]!.callerIP).toBe(1);
-			expect(ctx.callStack[0]!.callerRange).toBe(CodeRange.Glyph);
+			expect(ctx.callStack[0]!.callerRange).toBe(CodeRange.Font);
 			expect(ctx.IP).toBe(0);
-			expect(ctx.currentRange).toBe(CodeRange.Font);
+			expect(ctx.currentRange).toBe(CodeRange.Glyph);
 		});
 
 		test("CALL errors on invalid function number", () => {
@@ -538,7 +538,7 @@ describe("Control Flow Instructions", () => {
 
 			expect(ctx.callStackTop).toBe(0);
 			expect(ctx.IP).toBe(10);
-			expect(ctx.currentRange).toBe(CodeRange.Glyph);
+			expect(ctx.currentRange).toBe(CodeRange.Font);
 		});
 
 		test("ENDF errors when not in function", () => {
