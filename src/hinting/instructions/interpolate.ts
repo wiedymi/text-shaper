@@ -40,12 +40,12 @@ function interpolateUntouched(
 	let contourStart = 0;
 
 	for (let c = 0; c < nContours; c++) {
-		const contourEnd = zone.contours[c]!;
+		const contourEnd = zone.contours[c];
 
 		// Find first touched point in this contour
 		let firstTouched = -1;
 		for (let i = contourStart; i <= contourEnd; i++) {
-			if (zone.tags[i]! & touchFlag) {
+			if (zone.tags[i] & touchFlag) {
 				firstTouched = i;
 				break;
 			}
@@ -85,7 +85,7 @@ function interpolateUntouched(
 				break;
 			}
 
-			if (zone.tags[i]! & touchFlag) {
+			if (zone.tags[i] & touchFlag) {
 				// Found touched point - interpolate between prevTouched and i
 				if (prevTouched !== i) {
 					interpolateRange(zone, prevTouched, i, contourStart, contourEnd, isX);
@@ -161,9 +161,9 @@ function interpolateRange(
 		}
 
 		if (isX) {
-			zone.cur[i]!.x = newPos;
+			zone.cur[i].x = newPos;
 		} else {
-			zone.cur[i]!.y = newPos;
+			zone.cur[i].y = newPos;
 		}
 
 		i++;

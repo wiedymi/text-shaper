@@ -86,8 +86,9 @@ function parseStrike(
 	const glyphData = new Map<GlyphId, SbixGlyph>();
 
 	for (let glyphId = 0; glyphId < numGlyphs; glyphId++) {
-		const offset = glyphDataOffsets[glyphId]!;
-		const nextOffset = glyphDataOffsets[glyphId + 1]!;
+		const offset = glyphDataOffsets[glyphId];
+		const nextOffset = glyphDataOffsets[glyphId + 1];
+		if (offset === undefined || nextOffset === undefined) continue;
 		const dataLength = nextOffset - offset;
 
 		if (dataLength <= 8) {
@@ -196,7 +197,7 @@ export function resolveDupeGlyph(
 	// Data contains the glyph ID to reference
 	if (glyph.data.length < 2) return null;
 
-	const dupeGlyphId = (glyph.data[0]! << 8) | glyph.data[1]!;
+	const dupeGlyphId = ((glyph.data[0] ?? 0) << 8) | (glyph.data[1] ?? 0);
 	const resolved = strike.glyphData.get(dupeGlyphId);
 
 	if (!resolved) return null;

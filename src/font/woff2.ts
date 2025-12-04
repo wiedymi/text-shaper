@@ -782,7 +782,10 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	const locaEntry = tables.find((t) => t.tag === "loca");
 
 	if (glyfEntry && glyfEntry.transformVersion === 0) {
-		const glyfTransformed = tableData.get("glyf")!;
+		const glyfTransformed = tableData.get("glyf");
+		if (!glyfTransformed) {
+			throw new Error("Missing glyf table data for transform");
+		}
 		const { glyf, loca } = reconstructGlyfLoca(
 			glyfTransformed,
 			numGlyphs,
@@ -827,10 +830,16 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	let headOffset = -1;
 	for (let i = 0; i < tables.length; i++) {
 		const table = tables[i];
-		const tdata = tableData.get(table.tag)!;
+		const tdata = tableData.get(table.tag);
+		if (!tdata) {
+			throw new Error(`Missing table data for ${table.tag}`);
+		}
 		const dirOffset = headerSize + i * 16;
 
-		if (table.tag === "head") headOffset = tableOffsets[i];
+		const tableOff = tableOffsets[i];
+		if (table.tag === "head" && tableOff !== undefined) {
+			headOffset = tableOff;
+		}
 
 		// Tag
 		for (let j = 0; j < 4; j++) {

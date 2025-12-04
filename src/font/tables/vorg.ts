@@ -61,7 +61,8 @@ export function getVertOriginY(vorg: VorgTable, glyphId: GlyphId): int16 {
 
 	while (lo <= hi) {
 		const mid = (lo + hi) >>> 1;
-		const metric = metrics[mid]!;
+		const metric = metrics[mid];
+		if (metric === undefined) break;
 
 		if (metric.glyphIndex === glyphId) {
 			return metric.vertOriginY;
@@ -86,7 +87,8 @@ export function hasVertOriginY(vorg: VorgTable, glyphId: GlyphId): boolean {
 
 	while (lo <= hi) {
 		const mid = (lo + hi) >>> 1;
-		const metric = metrics[mid]!;
+		const metric = metrics[mid];
+		if (metric === undefined) break;
 
 		if (metric.glyphIndex === glyphId) {
 			return true;

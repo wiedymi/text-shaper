@@ -36,7 +36,7 @@ export function movePoint(
 	pointIndex: number,
 	distance: F26Dot6,
 ): void {
-	const pt = zone.cur[pointIndex]!;
+	const pt = zone.cur[pointIndex];
 
 	// Calculate movement along freedom vector
 	// freedom vector is in 2.14 format, so divide by 0x4000
@@ -109,7 +109,7 @@ export function touchPoint(
 
 /** MDAP - Move Direct Absolute Point */
 export function MDAP(ctx: ExecContext, doRound: boolean): void {
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const pointIndex = ctx.stack[--ctx.stackTop];
 
 	const zone = ctx.zp0;
 	if (pointIndex < 0 || pointIndex >= zone.nPoints) {
@@ -139,8 +139,8 @@ export function MDAP(ctx: ExecContext, doRound: boolean): void {
 
 /** MIAP - Move Indirect Absolute Point (uses CVT) */
 export function MIAP(ctx: ExecContext, doRound: boolean): void {
-	const cvtIndex = ctx.stack[--ctx.stackTop]!;
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const cvtIndex = ctx.stack[--ctx.stackTop];
+	const pointIndex = ctx.stack[--ctx.stackTop];
 
 	const zone = ctx.zp0;
 	if (pointIndex < 0 || pointIndex >= zone.nPoints) {
@@ -153,7 +153,7 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 		return;
 	}
 
-	let cvtDistance = ctx.cvt[cvtIndex]!;
+	let cvtDistance = ctx.cvt[cvtIndex];
 	const currentPos = getCurrent(ctx, zone, pointIndex);
 
 	if (doRound) {
@@ -183,7 +183,7 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 
 /** MDRP - Move Direct Relative Point */
 export function MDRP(ctx: ExecContext, flags: number): void {
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const pointIndex = ctx.stack[--ctx.stackTop];
 
 	const setRp0 = (flags & 0x10) !== 0;
 	const keepMinDist = (flags & 0x08) !== 0;
@@ -251,8 +251,8 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 
 /** MIRP - Move Indirect Relative Point (uses CVT) */
 export function MIRP(ctx: ExecContext, flags: number): void {
-	const cvtIndex = ctx.stack[--ctx.stackTop]!;
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const cvtIndex = ctx.stack[--ctx.stackTop];
+	const pointIndex = ctx.stack[--ctx.stackTop];
 
 	const setRp0 = (flags & 0x10) !== 0;
 	const keepMinDist = (flags & 0x08) !== 0;
@@ -283,7 +283,7 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 		getOriginal(ctx, zp1, pointIndex) - getOriginal(ctx, zp0, rp0);
 
 	// Get CVT distance
-	let cvtDist = ctx.cvt[cvtIndex]!;
+	let cvtDist = ctx.cvt[cvtIndex];
 
 	// Auto-flip
 	if (ctx.GS.autoFlip) {
@@ -362,7 +362,7 @@ export function SHP(ctx: ExecContext, useRp1: boolean): void {
 	ctx.GS.loop = 1;
 
 	for (let i = 0; i < count; i++) {
-		const pointIndex = ctx.stack[--ctx.stackTop]!;
+		const pointIndex = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `SHP: invalid point ${pointIndex}`;
@@ -380,7 +380,7 @@ export function SHP(ctx: ExecContext, useRp1: boolean): void {
 
 /** SHC - Shift Contour using reference point */
 export function SHC(ctx: ExecContext, useRp1: boolean): void {
-	const contourIndex = ctx.stack[--ctx.stackTop]!;
+	const contourIndex = ctx.stack[--ctx.stackTop];
 
 	const refZone = useRp1 ? ctx.zp0 : ctx.zp1;
 	const refPoint = useRp1 ? ctx.GS.rp1 : ctx.GS.rp2;
@@ -402,8 +402,8 @@ export function SHC(ctx: ExecContext, useRp1: boolean): void {
 	const shift = curRef - orgRef;
 
 	// Get contour bounds
-	const start = contourIndex === 0 ? 0 : zone.contours[contourIndex - 1]! + 1;
-	const end = zone.contours[contourIndex]!;
+	const start = contourIndex === 0 ? 0 : zone.contours[contourIndex - 1] + 1;
+	const end = zone.contours[contourIndex];
 
 	// Shift all points in contour (except reference point if in same zone)
 	for (let i = start; i <= end; i++) {
@@ -419,7 +419,7 @@ export function SHC(ctx: ExecContext, useRp1: boolean): void {
 
 /** SHZ - Shift Zone using reference point */
 export function SHZ(ctx: ExecContext, useRp1: boolean): void {
-	const zoneIndex = ctx.stack[--ctx.stackTop]!;
+	const zoneIndex = ctx.stack[--ctx.stackTop];
 
 	const refZone = useRp1 ? ctx.zp0 : ctx.zp1;
 	const refPoint = useRp1 ? ctx.GS.rp1 : ctx.GS.rp2;
@@ -450,14 +450,14 @@ export function SHZ(ctx: ExecContext, useRp1: boolean): void {
 
 /** SHPIX - Shift Point by Pixel Amount */
 export function SHPIX(ctx: ExecContext): void {
-	const distance = ctx.stack[--ctx.stackTop]!;
+	const distance = ctx.stack[--ctx.stackTop];
 
 	const zone = ctx.zp2;
 	const count = ctx.GS.loop;
 	ctx.GS.loop = 1;
 
 	for (let i = 0; i < count; i++) {
-		const pointIndex = ctx.stack[--ctx.stackTop]!;
+		const pointIndex = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `SHPIX: invalid point ${pointIndex}`;
@@ -501,7 +501,7 @@ export function IP(ctx: ExecContext): void {
 	ctx.GS.loop = 1;
 
 	for (let i = 0; i < count; i++) {
-		const pointIndex = ctx.stack[--ctx.stackTop]!;
+		const pointIndex = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `IP: invalid point ${pointIndex}`;
@@ -547,7 +547,7 @@ export function ALIGNRP(ctx: ExecContext): void {
 	ctx.GS.loop = 1;
 
 	for (let i = 0; i < count; i++) {
-		const pointIndex = ctx.stack[--ctx.stackTop]!;
+		const pointIndex = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `ALIGNRP: invalid point ${pointIndex}`;
@@ -568,8 +568,8 @@ export function ALIGNRP(ctx: ExecContext): void {
 
 /** MSIRP - Move Stack Indirect Relative Point */
 export function MSIRP(ctx: ExecContext, setRp0: boolean): void {
-	const distance = ctx.stack[--ctx.stackTop]!;
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const distance = ctx.stack[--ctx.stackTop];
+	const pointIndex = ctx.stack[--ctx.stackTop];
 
 	const zp0 = ctx.zp0;
 	const zp1 = ctx.zp1;
@@ -606,11 +606,11 @@ export function MSIRP(ctx: ExecContext, setRp0: boolean): void {
 
 /** ISECT - Move Point to Intersection of two lines */
 export function ISECT(ctx: ExecContext): void {
-	const b1 = ctx.stack[--ctx.stackTop]!;
-	const b0 = ctx.stack[--ctx.stackTop]!;
-	const a1 = ctx.stack[--ctx.stackTop]!;
-	const a0 = ctx.stack[--ctx.stackTop]!;
-	const point = ctx.stack[--ctx.stackTop]!;
+	const b1 = ctx.stack[--ctx.stackTop];
+	const b0 = ctx.stack[--ctx.stackTop];
+	const a1 = ctx.stack[--ctx.stackTop];
+	const a0 = ctx.stack[--ctx.stackTop];
+	const point = ctx.stack[--ctx.stackTop];
 
 	// Line A: points a0 to a1 in zp0
 	// Line B: points b0 to b1 in zp1
@@ -634,10 +634,10 @@ export function ISECT(ctx: ExecContext): void {
 	}
 
 	// Get line endpoints
-	const pa0 = zone0.cur[a0]!;
-	const pa1 = zone0.cur[a1]!;
-	const pb0 = zone1.cur[b0]!;
-	const pb1 = zone1.cur[b1]!;
+	const pa0 = zone0.cur[a0];
+	const pa1 = zone0.cur[a1];
+	const pb0 = zone1.cur[b0];
+	const pb1 = zone1.cur[b1];
 
 	// Calculate direction vectors
 	const dax = pa1.x - pa0.x;
@@ -648,7 +648,7 @@ export function ISECT(ctx: ExecContext): void {
 	// Cross product for denominator
 	const denom = dax * dby - day * dbx;
 
-	const pt = zone2.cur[point]!;
+	const pt = zone2.cur[point];
 
 	if (denom === 0) {
 		// Lines are parallel, move point to midpoint
@@ -673,8 +673,8 @@ export function ISECT(ctx: ExecContext): void {
 
 /** ALIGNPTS - Align two points */
 export function ALIGNPTS(ctx: ExecContext): void {
-	const p2 = ctx.stack[--ctx.stackTop]!;
-	const p1 = ctx.stack[--ctx.stackTop]!;
+	const p2 = ctx.stack[--ctx.stackTop];
+	const p1 = ctx.stack[--ctx.stackTop];
 
 	const zone1 = ctx.zp0;
 	const zone2 = ctx.zp1;
@@ -708,7 +708,7 @@ export function ALIGNPTS(ctx: ExecContext): void {
 
 /** GC - Get Coordinate projected onto projection vector */
 export function GC(ctx: ExecContext, useOriginal: boolean): void {
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const pointIndex = ctx.stack[--ctx.stackTop];
 	const zone = ctx.zp2;
 
 	if (pointIndex < 0 || pointIndex >= zone.nPoints) {
@@ -730,8 +730,8 @@ export function GC(ctx: ExecContext, useOriginal: boolean): void {
 
 /** SCFS - Set Coordinate From Stack */
 export function SCFS(ctx: ExecContext): void {
-	const coord = ctx.stack[--ctx.stackTop]!;
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const coord = ctx.stack[--ctx.stackTop];
+	const pointIndex = ctx.stack[--ctx.stackTop];
 
 	const zone = ctx.zp2;
 
@@ -751,8 +751,8 @@ export function SCFS(ctx: ExecContext): void {
 
 /** MD - Measure Distance between two points */
 export function MD(ctx: ExecContext, useOriginal: boolean): void {
-	const p2 = ctx.stack[--ctx.stackTop]!;
-	const p1 = ctx.stack[--ctx.stackTop]!;
+	const p2 = ctx.stack[--ctx.stackTop];
+	const p1 = ctx.stack[--ctx.stackTop];
 
 	const zone0 = ctx.zp0;
 	const zone1 = ctx.zp1;
@@ -804,7 +804,7 @@ export function FLIPPT(ctx: ExecContext): void {
 	ctx.GS.loop = 1;
 
 	for (let i = 0; i < count; i++) {
-		const pointIndex = ctx.stack[--ctx.stackTop]!;
+		const pointIndex = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `FLIPPT: invalid point ${pointIndex}`;
@@ -822,8 +822,8 @@ export function FLIPPT(ctx: ExecContext): void {
 
 /** FLIPRGON - Set on-curve flag for range */
 export function FLIPRGON(ctx: ExecContext): void {
-	const endPoint = ctx.stack[--ctx.stackTop]!;
-	const startPoint = ctx.stack[--ctx.stackTop]!;
+	const endPoint = ctx.stack[--ctx.stackTop];
+	const startPoint = ctx.stack[--ctx.stackTop];
 
 	const zone = ctx.pts;
 
@@ -839,8 +839,8 @@ export function FLIPRGON(ctx: ExecContext): void {
 
 /** FLIPRGOFF - Clear on-curve flag for range */
 export function FLIPRGOFF(ctx: ExecContext): void {
-	const endPoint = ctx.stack[--ctx.stackTop]!;
-	const startPoint = ctx.stack[--ctx.stackTop]!;
+	const endPoint = ctx.stack[--ctx.stackTop];
+	const startPoint = ctx.stack[--ctx.stackTop];
 
 	const zone = ctx.pts;
 
@@ -860,14 +860,14 @@ export function FLIPRGOFF(ctx: ExecContext): void {
 
 /** ROUND - Round value */
 export function ROUND(ctx: ExecContext, _colorIndex: number): void {
-	const value = ctx.stack[--ctx.stackTop]!;
+	const value = ctx.stack[--ctx.stackTop];
 	const comp = compensate(value, ctx.GS);
 	ctx.stack[ctx.stackTop++] = round(value, comp, ctx.GS);
 }
 
 /** NROUND - No-round (just applies engine compensation) */
 export function NROUND(ctx: ExecContext, _colorIndex: number): void {
-	const value = ctx.stack[--ctx.stackTop]!;
+	const value = ctx.stack[--ctx.stackTop];
 	const comp = compensate(value, ctx.GS);
 	ctx.stack[ctx.stackTop++] = value + comp;
 }

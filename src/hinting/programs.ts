@@ -134,7 +134,7 @@ export function setSize(
  */
 function scaleCVT(ctx: ExecContext): void {
 	for (let i = 0; i < ctx.cvtSize; i++) {
-		ctx.cvt[i] = Math.round(ctx.cvt[i]! * ctx.scale);
+		ctx.cvt[i] = Math.round(ctx.cvt[i] * ctx.scale);
 	}
 }
 
@@ -199,16 +199,16 @@ export function hintGlyph(
 
 	// Scale and copy point coordinates
 	for (let i = 0; i < nPoints; i++) {
-		const x = Math.round(outline.xCoords[i]! * ctx.scale);
-		const y = Math.round(outline.yCoords[i]! * ctx.scale);
+		const x = Math.round(outline.xCoords[i] * ctx.scale);
+		const y = Math.round(outline.yCoords[i] * ctx.scale);
 
-		zone.org[i]!.x = x;
-		zone.org[i]!.y = y;
-		zone.cur[i]!.x = x;
-		zone.cur[i]!.y = y;
-		zone.orus[i]!.x = outline.xCoords[i]!;
-		zone.orus[i]!.y = outline.yCoords[i]!;
-		zone.tags[i] = outline.flags[i]!;
+		zone.org[i].x = x;
+		zone.org[i].y = y;
+		zone.cur[i].x = x;
+		zone.cur[i].y = y;
+		zone.orus[i].x = outline.xCoords[i];
+		zone.orus[i].y = outline.yCoords[i];
+		zone.tags[i] = outline.flags[i];
 	}
 
 	// Set up phantom points (for horizontal/vertical metrics)
@@ -220,7 +220,7 @@ export function hintGlyph(
 	// Calculate xMin from outline for phantom point positioning
 	let xMin = Infinity;
 	for (let i = 0; i < nPoints; i++) {
-		if (outline.xCoords[i]! < xMin) xMin = outline.xCoords[i]!;
+		if (outline.xCoords[i] < xMin) xMin = outline.xCoords[i];
 	}
 	if (!Number.isFinite(xMin)) xMin = 0;
 
@@ -229,38 +229,38 @@ export function hintGlyph(
 
 	// Phantom point 0: horizontal origin
 	const pp0x = Math.round((xMin - lsb) * ctx.scale);
-	zone.org[nPoints]!.x = pp0x;
-	zone.org[nPoints]!.y = 0;
-	zone.cur[nPoints]!.x = pp0x;
-	zone.cur[nPoints]!.y = 0;
-	zone.orus[nPoints]!.x = xMin - lsb;
-	zone.orus[nPoints]!.y = 0;
+	zone.org[nPoints].x = pp0x;
+	zone.org[nPoints].y = 0;
+	zone.cur[nPoints].x = pp0x;
+	zone.cur[nPoints].y = 0;
+	zone.orus[nPoints].x = xMin - lsb;
+	zone.orus[nPoints].y = 0;
 	zone.tags[nPoints] = 0;
 
 	// Phantom point 1: advance width
 	const pp1x = Math.round((xMin - lsb + advW) * ctx.scale);
-	zone.org[nPoints + 1]!.x = pp1x;
-	zone.org[nPoints + 1]!.y = 0;
-	zone.cur[nPoints + 1]!.x = pp1x;
-	zone.cur[nPoints + 1]!.y = 0;
-	zone.orus[nPoints + 1]!.x = xMin - lsb + advW;
-	zone.orus[nPoints + 1]!.y = 0;
+	zone.org[nPoints + 1].x = pp1x;
+	zone.org[nPoints + 1].y = 0;
+	zone.cur[nPoints + 1].x = pp1x;
+	zone.cur[nPoints + 1].y = 0;
+	zone.orus[nPoints + 1].x = xMin - lsb + advW;
+	zone.orus[nPoints + 1].y = 0;
 	zone.tags[nPoints + 1] = 0;
 
 	// Phantom points 2 & 3: vertical metrics (simplified - set to 0)
 	for (let i = nPoints + 2; i < totalPoints; i++) {
-		zone.org[i]!.x = 0;
-		zone.org[i]!.y = 0;
-		zone.cur[i]!.x = 0;
-		zone.cur[i]!.y = 0;
-		zone.orus[i]!.x = 0;
-		zone.orus[i]!.y = 0;
+		zone.org[i].x = 0;
+		zone.org[i].y = 0;
+		zone.cur[i].x = 0;
+		zone.cur[i].y = 0;
+		zone.orus[i].x = 0;
+		zone.orus[i].y = 0;
 		zone.tags[i] = 0;
 	}
 
 	// Copy contour ends
 	for (let i = 0; i < nContours; i++) {
-		zone.contours[i] = outline.contourEnds[i]!;
+		zone.contours[i] = outline.contourEnds[i];
 	}
 
 	// Set up context
@@ -272,10 +272,10 @@ export function hintGlyph(
 	// Reset twilight zone
 	ctx.twilight.nPoints = ctx.twilight.org.length;
 	for (let i = 0; i < ctx.twilight.nPoints; i++) {
-		ctx.twilight.org[i]!.x = 0;
-		ctx.twilight.org[i]!.y = 0;
-		ctx.twilight.cur[i]!.x = 0;
-		ctx.twilight.cur[i]!.y = 0;
+		ctx.twilight.org[i].x = 0;
+		ctx.twilight.org[i].y = 0;
+		ctx.twilight.cur[i].x = 0;
+		ctx.twilight.cur[i].y = 0;
 		ctx.twilight.tags[i] = 0;
 	}
 

@@ -145,11 +145,11 @@ function applyLcdFilterHorizontal(
 			const subX = x * 3;
 
 			// Red/Blue (first subpixel)
-			const r0 = subX - 2 >= 0 ? src.buffer[srcRow + subX - 2]! : 0;
-			const r1 = subX - 1 >= 0 ? src.buffer[srcRow + subX - 1]! : 0;
-			const r2 = src.buffer[srcRow + subX]!;
-			const r3 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1]! : 0;
-			const r4 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2]! : 0;
+			const r0 = subX - 2 >= 0 ? src.buffer[srcRow + subX - 2] : 0;
+			const r1 = subX - 1 >= 0 ? src.buffer[srcRow + subX - 1] : 0;
+			const r2 = src.buffer[srcRow + subX];
+			const r3 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1] : 0;
+			const r4 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2] : 0;
 			const rv = Math.min(
 				255,
 				Math.round(
@@ -158,11 +158,11 @@ function applyLcdFilterHorizontal(
 			);
 
 			// Green (middle subpixel)
-			const g0 = subX - 1 >= 0 ? src.buffer[srcRow + subX - 1]! : 0;
-			const g1 = src.buffer[srcRow + subX]!;
-			const g2 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1]! : 0;
-			const g3 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2]! : 0;
-			const g4 = subX + 3 < src.width ? src.buffer[srcRow + subX + 3]! : 0;
+			const g0 = subX - 1 >= 0 ? src.buffer[srcRow + subX - 1] : 0;
+			const g1 = src.buffer[srcRow + subX];
+			const g2 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1] : 0;
+			const g3 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2] : 0;
+			const g4 = subX + 3 < src.width ? src.buffer[srcRow + subX + 3] : 0;
 			const gv = Math.min(
 				255,
 				Math.round(
@@ -171,11 +171,11 @@ function applyLcdFilterHorizontal(
 			);
 
 			// Blue/Red (last subpixel)
-			const b0 = src.buffer[srcRow + subX]!;
-			const b1 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1]! : 0;
-			const b2 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2]! : 0;
-			const b3 = subX + 3 < src.width ? src.buffer[srcRow + subX + 3]! : 0;
-			const b4 = subX + 4 < src.width ? src.buffer[srcRow + subX + 4]! : 0;
+			const b0 = src.buffer[srcRow + subX];
+			const b1 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1] : 0;
+			const b2 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2] : 0;
+			const b3 = subX + 3 < src.width ? src.buffer[srcRow + subX + 3] : 0;
+			const b4 = subX + 4 < src.width ? src.buffer[srcRow + subX + 4] : 0;
 			const bv = Math.min(
 				255,
 				Math.round(
@@ -216,13 +216,13 @@ function applyLcdFilterVertical(
 
 		for (let x = 0; x < dst.width; x++) {
 			// Red/Blue (first subpixel row)
-			const r0 = subY - 2 >= 0 ? src.buffer[(subY - 2) * src.pitch + x]! : 0;
-			const r1 = subY - 1 >= 0 ? src.buffer[(subY - 1) * src.pitch + x]! : 0;
-			const r2 = src.buffer[subY * src.pitch + x]!;
+			const r0 = subY - 2 >= 0 ? src.buffer[(subY - 2) * src.pitch + x] : 0;
+			const r1 = subY - 1 >= 0 ? src.buffer[(subY - 1) * src.pitch + x] : 0;
+			const r2 = src.buffer[subY * src.pitch + x];
 			const r3 =
-				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
+				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x] : 0;
 			const r4 =
-				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
+				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x] : 0;
 			const rv = Math.min(
 				255,
 				Math.round(
@@ -231,14 +231,14 @@ function applyLcdFilterVertical(
 			);
 
 			// Green (middle subpixel row)
-			const g0 = subY - 1 >= 0 ? src.buffer[(subY - 1) * src.pitch + x]! : 0;
-			const g1 = src.buffer[subY * src.pitch + x]!;
+			const g0 = subY - 1 >= 0 ? src.buffer[(subY - 1) * src.pitch + x] : 0;
+			const g1 = src.buffer[subY * src.pitch + x];
 			const g2 =
-				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
+				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x] : 0;
 			const g3 =
-				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
+				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x] : 0;
 			const g4 =
-				subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x]! : 0;
+				subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x] : 0;
 			const gv = Math.min(
 				255,
 				Math.round(
@@ -247,15 +247,15 @@ function applyLcdFilterVertical(
 			);
 
 			// Blue/Red (last subpixel row)
-			const b0 = src.buffer[subY * src.pitch + x]!;
+			const b0 = src.buffer[subY * src.pitch + x];
 			const b1 =
-				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
+				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x] : 0;
 			const b2 =
-				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
+				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x] : 0;
 			const b3 =
-				subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x]! : 0;
+				subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x] : 0;
 			const b4 =
-				subY + 4 < src.rows ? src.buffer[(subY + 4) * src.pitch + x]! : 0;
+				subY + 4 < src.rows ? src.buffer[(subY + 4) * src.pitch + x] : 0;
 			const bv = Math.min(
 				255,
 				Math.round(
@@ -299,9 +299,9 @@ export function lcdToRGBA(
 			const srcIdx = srcRow + x * 3;
 			const dstIdx = dstRow + x * 4;
 
-			const r = lcd.buffer[srcIdx]!;
-			const g = lcd.buffer[srcIdx + 1]!;
-			const b = lcd.buffer[srcIdx + 2]!;
+			const r = lcd.buffer[srcIdx];
+			const g = lcd.buffer[srcIdx + 1];
+			const b = lcd.buffer[srcIdx + 2];
 
 			// Blend with foreground/background
 			rgba[dstIdx] = blendChannel(bgR, fgR, r);

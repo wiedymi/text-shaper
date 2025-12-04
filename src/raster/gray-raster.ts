@@ -685,7 +685,8 @@ export class GrayRaster {
 		// Process bands with 2D bisection on overflow
 		let depth = 0;
 		while (bandStack.length > 0 && depth < MAX_BAND_DEPTH) {
-			const band = bandStack.pop()!;
+			const band = bandStack.pop();
+			if (!band) break;
 
 			if (
 				this.renderBandWithXClip(

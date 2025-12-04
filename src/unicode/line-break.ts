@@ -836,8 +836,8 @@ export function analyzeLineBreaksFromCodepoints(
 
 	// Process each boundary
 	for (let i = 1; i < len; i++) {
-		const before = classes[i - 1]!;
-		const after = classes[i]!;
+		const before = classes[i - 1];
+		const after = classes[i];
 
 		const action = getPairAction(before, after);
 

@@ -70,9 +70,7 @@ export class CellBuffer {
 
 	/** Clip bounds in pixels */
 	private clipMinX: number = -Infinity;
-	private clipMinY: number = -Infinity;
 	private clipMaxX: number = Infinity;
-	private clipMaxY: number = Infinity;
 
 	/** Null cell index (sentinel at end of pool) */
 	private nullCellIndex: number;
@@ -91,8 +89,8 @@ export class CellBuffer {
 		}
 
 		// Initialize null cell (sentinel)
-		this.pool[this.nullCellIndex]!.x = CELL_MAX_X;
-		this.pool[this.nullCellIndex]!.next = -1;
+		this.pool[this.nullCellIndex].x = CELL_MAX_X;
+		this.pool[this.nullCellIndex].next = -1;
 
 		this.ycells = [];
 		this.freeIndex = 0;
@@ -144,10 +142,10 @@ export class CellBuffer {
 		this.freeIndex = 0;
 
 		// Reset null cell
-		this.pool[this.nullCellIndex]!.x = CELL_MAX_X;
-		this.pool[this.nullCellIndex]!.area = 0;
-		this.pool[this.nullCellIndex]!.cover = 0;
-		this.pool[this.nullCellIndex]!.next = -1;
+		this.pool[this.nullCellIndex].x = CELL_MAX_X;
+		this.pool[this.nullCellIndex].area = 0;
+		this.pool[this.nullCellIndex].cover = 0;
+		this.pool[this.nullCellIndex].next = -1;
 
 		// Reset ycells to null (only if band was set; otherwise leave for dynamic expansion)
 		if (this.bandSet) {
@@ -228,10 +226,10 @@ export class CellBuffer {
 
 		// Walk linked list for this row
 		let prevIndex = -1;
-		let cellIndex = this.ycells[rowIndex]!;
+		let cellIndex = this.ycells[rowIndex];
 
 		while (cellIndex !== this.nullCellIndex) {
-			const cell = this.pool[cellIndex]!;
+			const cell = this.pool[cellIndex];
 			if (cell.x === x) {
 				return cellIndex; // Found existing cell
 			}
@@ -248,7 +246,7 @@ export class CellBuffer {
 		}
 
 		const newIndex = this.freeIndex++;
-		const newCell = this.pool[newIndex]!;
+		const newCell = this.pool[newIndex];
 		newCell.x = x;
 		newCell.area = 0;
 		newCell.cover = 0;
@@ -258,7 +256,7 @@ export class CellBuffer {
 		if (prevIndex === -1) {
 			this.ycells[rowIndex] = newIndex;
 		} else {
-			this.pool[prevIndex]!.next = newIndex;
+			this.pool[prevIndex].next = newIndex;
 		}
 
 		return newIndex;
@@ -317,7 +315,7 @@ export class CellBuffer {
 	 */
 	addArea(area: number, cover: number): void {
 		if (this.currentCellIndex >= 0) {
-			const cell = this.pool[this.currentCellIndex]!;
+			const cell = this.pool[this.currentCellIndex];
 			cell.area += area;
 			cell.cover += cover;
 		}
@@ -353,9 +351,9 @@ export class CellBuffer {
 		}
 
 		const cells: Cell[] = [];
-		let cellIndex = this.ycells[rowIndex]!;
+		let cellIndex = this.ycells[rowIndex];
 		while (cellIndex !== this.nullCellIndex) {
-			cells.push(this.pool[cellIndex]!);
+			cells.push(this.pool[cellIndex]);
 			cellIndex = this.pool[cellIndex]?.next;
 		}
 		return cells;
@@ -367,12 +365,12 @@ export class CellBuffer {
 	*iterateCells(): Generator<{ y: number; cells: Cell[] }> {
 		for (let i = 0; i < this.ycells.length; i++) {
 			const y = this.bandMinY + i;
-			let cellIndex = this.ycells[i]!;
+			let cellIndex = this.ycells[i];
 			if (cellIndex === this.nullCellIndex) continue;
 
 			const cells: Cell[] = [];
 			while (cellIndex !== this.nullCellIndex) {
-				cells.push(this.pool[cellIndex]!);
+				cells.push(this.pool[cellIndex]);
 				cellIndex = this.pool[cellIndex]?.next;
 			}
 			if (cells.length > 0) {
@@ -388,9 +386,9 @@ export class CellBuffer {
 		const rowIndex = y - this.bandMinY;
 		if (rowIndex < 0 || rowIndex >= this.ycells.length) return;
 
-		let cellIndex = this.ycells[rowIndex]!;
+		let cellIndex = this.ycells[rowIndex];
 		while (cellIndex !== this.nullCellIndex) {
-			yield this.pool[cellIndex]!;
+			yield this.pool[cellIndex];
 			cellIndex = this.pool[cellIndex]?.next;
 		}
 	}

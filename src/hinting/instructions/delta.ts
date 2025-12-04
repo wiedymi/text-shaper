@@ -34,7 +34,7 @@ export function DELTAP3(ctx: ExecContext): void {
  * Common logic for DELTAP1/2/3
  */
 function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
-	const count = ctx.stack[--ctx.stackTop]!;
+	const count = ctx.stack[--ctx.stackTop];
 
 	if (count < 0) {
 		ctx.error = `DELTAP: invalid count ${count}`;
@@ -44,8 +44,8 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 	const zone = ctx.zp0;
 
 	for (let i = 0; i < count; i++) {
-		const argByte = ctx.stack[--ctx.stackTop]!;
-		const pointIndex = ctx.stack[--ctx.stackTop]!;
+		const argByte = ctx.stack[--ctx.stackTop];
+		const pointIndex = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `DELTAP: invalid point ${pointIndex}`;
@@ -103,7 +103,7 @@ export function DELTAC3(ctx: ExecContext): void {
  * Common logic for DELTAC1/2/3
  */
 function deltaCVT(ctx: ExecContext, rangeOffset: number): void {
-	const count = ctx.stack[--ctx.stackTop]!;
+	const count = ctx.stack[--ctx.stackTop];
 
 	if (count < 0) {
 		ctx.error = `DELTAC: invalid count ${count}`;
@@ -111,8 +111,8 @@ function deltaCVT(ctx: ExecContext, rangeOffset: number): void {
 	}
 
 	for (let i = 0; i < count; i++) {
-		const argByte = ctx.stack[--ctx.stackTop]!;
-		const cvtIndex = ctx.stack[--ctx.stackTop]!;
+		const argByte = ctx.stack[--ctx.stackTop];
+		const cvtIndex = ctx.stack[--ctx.stackTop];
 
 		if (cvtIndex < 0 || cvtIndex >= ctx.cvtSize) {
 			ctx.error = `DELTAC: invalid CVT index ${cvtIndex}`;
@@ -136,6 +136,6 @@ function deltaCVT(ctx: ExecContext, rangeOffset: number): void {
 			delta = -((magnitude - 7) << (6 - ctx.GS.deltaShift));
 		}
 
-		ctx.cvt[cvtIndex]! += delta;
+		ctx.cvt[cvtIndex] += delta;
 	}
 }

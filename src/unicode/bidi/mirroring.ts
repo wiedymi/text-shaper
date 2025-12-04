@@ -42,9 +42,9 @@ export function getMirroredCharactersMap(
 
 	const map = new Map<number, string>();
 	for (let i = start; i <= end; i++) {
-		if (embeddingLevels[i]! & 1) {
+		if (embeddingLevels[i] & 1) {
 			// only odd (rtl) levels
-			const mirror = getMirroredCharacter(string[i]!);
+			const mirror = getMirroredCharacter(string[i]);
 			if (mirror !== null) {
 				map.set(i, mirror);
 			}

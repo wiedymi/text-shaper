@@ -73,7 +73,7 @@ export function validateOutline(
 	let contourCount = 0;
 
 	for (let i = 0; i < path.commands.length; i++) {
-		const cmd = path.commands[i]!;
+		const cmd = path.commands[i];
 
 		switch (cmd.type) {
 			case "M":

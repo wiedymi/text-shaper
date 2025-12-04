@@ -138,7 +138,7 @@ export function justify(
 		const priorities = getJstfPriorities(jstf, script, language);
 
 		for (let i = 0; i < Math.min(priorities.length, maxPriority); i++) {
-			const priority = priorities[i]!;
+			const priority = priorities[i];
 			const mods =
 				actualMode === JustifyMode.Shrink
 					? getShrinkageMods(priority)
@@ -168,7 +168,7 @@ export function justify(
 			if (extenderGlyphs.length > 0) {
 				const kashidaResult = insertKashida(
 					buffer,
-					extenderGlyphs[0]!,
+					extenderGlyphs[0],
 					remainingDelta,
 					font,
 				);
@@ -230,7 +230,7 @@ function insertKashida(
 	// Find valid Kashida insertion points (between Arabic letters)
 	const insertionPoints: number[] = [];
 	for (let i = 0; i < buffer.infos.length - 1; i++) {
-		const info = buffer.infos[i]!;
+		const info = buffer.infos[i];
 		// Check if this is a valid insertion point
 		// (between joining Arabic characters)
 		if (isValidKashidaPoint(info.codepoint)) {
@@ -261,7 +261,7 @@ function insertKashida(
 		if (totalExtension >= targetExtension) break;
 
 		// Add Kashida extension via xAdvance
-		buffer.positions[point]!.xAdvance += adjustmentPerPoint;
+		buffer.positions[point].xAdvance += adjustmentPerPoint;
 		totalExtension += adjustmentPerPoint;
 
 		adjustments.push({
@@ -321,7 +321,7 @@ function adjustWordSpacing(
 			: Math.max(adjustmentPerSpace, -maxAdjustment);
 
 	for (const idx of spaceIndices) {
-		buffer.positions[idx]!.xAdvance += clampedAdjustment;
+		buffer.positions[idx].xAdvance += clampedAdjustment;
 		totalAdjustment += clampedAdjustment;
 	}
 
@@ -365,7 +365,7 @@ function adjustLetterSpacing(
 	let totalAdjustment = 0;
 
 	for (let i = 0; i < numGlyphs - 1; i++) {
-		buffer.positions[i]!.xAdvance += clampedAdjustment;
+		buffer.positions[i].xAdvance += clampedAdjustment;
 		totalAdjustment += clampedAdjustment;
 		affectedIndices.push(i);
 	}
@@ -411,8 +411,8 @@ export function breakIntoLines(
 	let _lastBreakWidth = 0;
 
 	for (let i = 0; i < buffer.infos.length; i++) {
-		const pos = buffer.positions[i]!;
-		const info = buffer.infos[i]!;
+		const pos = buffer.positions[i];
+		const info = buffer.infos[i];
 
 		currentWidth += pos.xAdvance;
 
@@ -474,8 +474,8 @@ function createLineBuffer(
 	lineBuffer.language = source.language;
 
 	for (let i = start; i < end; i++) {
-		lineBuffer.infos.push({ ...source.infos[i]! });
-		lineBuffer.positions.push({ ...source.positions[i]! });
+		lineBuffer.infos.push({ ...source.infos[i] });
+		lineBuffer.positions.push({ ...source.positions[i] });
 	}
 
 	return lineBuffer;
@@ -492,7 +492,7 @@ export function justifyParagraph(
 	const results: JustifyResult[] = [];
 
 	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i]!;
+		const line = lines[i];
 		const isLastLine = i === lines.length - 1;
 
 		// Don't justify the last line (or justify less aggressively)

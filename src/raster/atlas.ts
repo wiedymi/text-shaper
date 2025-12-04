@@ -94,8 +94,8 @@ export function buildAtlas(
 	const glyphMetrics = new Map<number, GlyphMetrics>();
 
 	for (let i = 0; i < glyphData.length; i++) {
-		const glyph = glyphData[i]!;
-		const placement = placements[i]!;
+		const glyph = glyphData[i];
+		const placement = placements[i];
 
 		if (!placement.placed) continue;
 
@@ -196,7 +196,7 @@ function packGlyphs(
 
 		// Try to find an existing shelf
 		for (let i = 0; i < shelves.length; i++) {
-			const shelf = shelves[i]!;
+			const shelf = shelves[i];
 
 			// Check if glyph fits in this shelf
 			if (shelf.width + size.width <= maxWidth && size.height <= shelf.height) {
@@ -209,7 +209,7 @@ function packGlyphs(
 
 		if (bestShelf >= 0) {
 			// Place in existing shelf
-			const shelf = shelves[bestShelf]!;
+			const shelf = shelves[bestShelf];
 			placements.push({
 				x: shelf.width,
 				y: shelf.y,
@@ -271,7 +271,7 @@ function copyBitmap(
 		const dstRow = (dstY + y) * dst.pitch + dstX * bytesPerPixel;
 
 		for (let x = 0; x < src.width * bytesPerPixel; x++) {
-			dst.buffer[dstRow + x] = src.buffer[srcRow + x]!;
+			dst.buffer[dstRow + x] = src.buffer[srcRow + x];
 		}
 	}
 }
@@ -329,7 +329,7 @@ export function atlasToAlpha(atlas: GlyphAtlas): Uint8Array {
 	const alpha = new Uint8Array(bitmap.width * bitmap.rows);
 	for (let y = 0; y < bitmap.rows; y++) {
 		for (let x = 0; x < bitmap.width; x++) {
-			alpha[y * bitmap.width + x] = bitmap.buffer[y * bitmap.pitch + x]!;
+			alpha[y * bitmap.width + x] = bitmap.buffer[y * bitmap.pitch + x];
 		}
 	}
 

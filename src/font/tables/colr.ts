@@ -981,15 +981,17 @@ export function getColorVariationDelta(
 	// Calculate scalar for each region and sum deltas
 	let result = 0;
 	for (let i = 0; i < data.regionIndexCount; i++) {
-		const regionIndex = data.regionIndexes[i]!;
+		const regionIndex = data.regionIndexes[i];
+		if (regionIndex === undefined) continue;
 		const region = store.variationRegions[regionIndex];
 		if (!region) continue;
 
 		// Calculate scalar for this region
 		let scalar = 1.0;
 		for (let j = 0; j < region.regionAxes.length && j < coords.length; j++) {
-			const axis = region.regionAxes[j]!;
-			const coord = coords[j]!;
+			const axis = region.regionAxes[j];
+			const coord = coords[j];
+			if (axis === undefined || coord === undefined) continue;
 			scalar *= calculateAxisScalar(
 				coord,
 				axis.startCoord,
@@ -999,7 +1001,10 @@ export function getColorVariationDelta(
 			if (scalar === 0) break;
 		}
 
-		result += deltas[i]! * scalar;
+		const delta = deltas[i];
+		if (delta !== undefined) {
+			result += delta * scalar;
+		}
 	}
 
 	return result;

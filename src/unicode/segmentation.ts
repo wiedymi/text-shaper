@@ -654,8 +654,8 @@ export function findGraphemeBoundaries(
 	let inExtendedPictographicSequence = false;
 
 	for (let i = 1; i < len; i++) {
-		const prev = properties[i - 1]!;
-		const curr = properties[i]!;
+		const prev = properties[i - 1];
+		const curr = properties[i];
 
 		let shouldBreak = true;
 
@@ -799,8 +799,8 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 	let riCount = 0;
 
 	for (let i = 1; i < len; i++) {
-		const prev = properties[i - 1]!;
-		const curr = properties[i]!;
+		const prev = properties[i - 1];
+		const curr = properties[i];
 
 		let shouldBreak = true;
 
@@ -863,7 +863,7 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 		) {
 			// Look ahead
 			if (i + 1 < len) {
-				const next = properties[i + 1]!;
+				const next = properties[i + 1];
 				if (
 					next === WordBreakProperty.ALetter ||
 					next === WordBreakProperty.Hebrew_Letter
@@ -998,13 +998,13 @@ export function splitWords(text: string): string[] {
 	const words: string[] = [];
 
 	for (let i = 0; i < boundaries.length - 1; i++) {
-		const start = boundaries[i]!;
-		const end = boundaries[i + 1]!;
+		const start = boundaries[i];
+		const end = boundaries[i + 1];
 
 		// Skip whitespace-only segments
 		let hasContent = false;
 		for (let j = start; j < end; j++) {
-			const prop = properties[j]!;
+			const prop = properties[j];
 			if (
 				prop !== WordBreakProperty.WSegSpace &&
 				prop !== WordBreakProperty.CR &&

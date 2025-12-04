@@ -150,7 +150,7 @@ export function execute(ctx: ExecContext): void {
 			return;
 		}
 
-		const opcode = ctx.code[ctx.IP++]!;
+		const opcode = ctx.code[ctx.IP++];
 		ctx.opcode = opcode;
 
 		executeOpcode(ctx, opcode);
@@ -662,7 +662,7 @@ function executeOpcode(ctx: ExecContext, opcode: number): void {
 		default:
 			// Check for user-defined instruction
 			if (opcode < ctx.maxIDefs && ctx.IDefs[opcode]?.active) {
-				const def = ctx.IDefs[opcode]!;
+				const def = ctx.IDefs[opcode];
 
 				if (ctx.callStackTop >= ctx.maxCallStack) {
 					ctx.error = "IDEF call: call stack overflow";
@@ -670,7 +670,7 @@ function executeOpcode(ctx: ExecContext, opcode: number): void {
 				}
 
 				// Push call record
-				const call = ctx.callStack[ctx.callStackTop++]!;
+				const call = ctx.callStack[ctx.callStackTop++];
 				call.callerIP = ctx.IP;
 				call.callerRange = ctx.currentRange;
 				call.def = {

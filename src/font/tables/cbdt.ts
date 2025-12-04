@@ -226,8 +226,9 @@ function parseIndexSubTable(
 				offsets.push(subReader.uint32());
 			}
 			for (let i = 0; i < numGlyphs; i++) {
-				const glyphOffset = offsets[i]!;
-				const nextOffset = offsets[i + 1]!;
+				const glyphOffset = offsets[i];
+				const nextOffset = offsets[i + 1];
+				if (glyphOffset === undefined || nextOffset === undefined) continue;
 				if (nextOffset > glyphOffset) {
 					glyphOffsets.set(firstGlyph + i, {
 						offset: imageDataOffset + glyphOffset,
@@ -266,8 +267,9 @@ function parseIndexSubTable(
 				offsets.push(subReader.uint16());
 			}
 			for (let i = 0; i < numGlyphs; i++) {
-				const glyphOffset = offsets[i]!;
-				const nextOffset = offsets[i + 1]!;
+				const glyphOffset = offsets[i];
+				const nextOffset = offsets[i + 1];
+				if (glyphOffset === undefined || nextOffset === undefined) continue;
 				if (nextOffset > glyphOffset) {
 					glyphOffsets.set(firstGlyph + i, {
 						offset: imageDataOffset + glyphOffset,
@@ -288,8 +290,9 @@ function parseIndexSubTable(
 				});
 			}
 			for (let i = 0; i < numGlyphsActual; i++) {
-				const entry = glyphArray[i]!;
-				const nextEntry = glyphArray[i + 1]!;
+				const entry = glyphArray[i];
+				const nextEntry = glyphArray[i + 1];
+				if (entry === undefined || nextEntry === undefined) continue;
 				glyphOffsets.set(entry.glyphId, {
 					offset: imageDataOffset + entry.offset,
 					length: nextEntry.offset - entry.offset,
@@ -397,21 +400,23 @@ function parseGlyphData(
 			// Small or big metrics embedded
 			if (imageFormat === 1 || imageFormat === 17) {
 				// Small metrics (5 bytes)
+				if (offset + 5 > data.length) return null;
 				metrics = {
-					height: data[offset++]!,
-					width: data[offset++]!,
-					bearingX: (data[offset++]! << 24) >> 24, // Sign extend
-					bearingY: (data[offset++]! << 24) >> 24,
-					advance: data[offset++]!,
+					height: data[offset++] ?? 0,
+					width: data[offset++] ?? 0,
+					bearingX: ((data[offset++] ?? 0) << 24) >> 24, // Sign extend
+					bearingY: ((data[offset++] ?? 0) << 24) >> 24,
+					advance: data[offset++] ?? 0,
 				};
 			} else {
 				// Big metrics (8 bytes)
+				if (offset + 8 > data.length) return null;
 				metrics = {
-					height: data[offset++]!,
-					width: data[offset++]!,
-					bearingX: (data[offset++]! << 24) >> 24,
-					bearingY: (data[offset++]! << 24) >> 24,
-					advance: data[offset++]!,
+					height: data[offset++] ?? 0,
+					width: data[offset++] ?? 0,
+					bearingX: ((data[offset++] ?? 0) << 24) >> 24,
+					bearingY: ((data[offset++] ?? 0) << 24) >> 24,
+					advance: data[offset++] ?? 0,
 				};
 				offset += 3; // Skip vertical metrics
 			}

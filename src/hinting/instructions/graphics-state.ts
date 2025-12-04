@@ -81,8 +81,8 @@ function vectorFromPoints(
 
 /** SPVTL - Set projection vector to line */
 export function SPVTL(ctx: ExecContext, perpendicular: boolean): void {
-	const p2 = ctx.stack[--ctx.stackTop]!;
-	const p1 = ctx.stack[--ctx.stackTop]!;
+	const p2 = ctx.stack[--ctx.stackTop];
+	const p1 = ctx.stack[--ctx.stackTop];
 
 	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
 
@@ -99,8 +99,8 @@ export function SPVTL(ctx: ExecContext, perpendicular: boolean): void {
 
 /** SFVTL - Set freedom vector to line */
 export function SFVTL(ctx: ExecContext, perpendicular: boolean): void {
-	const p2 = ctx.stack[--ctx.stackTop]!;
-	const p1 = ctx.stack[--ctx.stackTop]!;
+	const p2 = ctx.stack[--ctx.stackTop];
+	const p1 = ctx.stack[--ctx.stackTop];
 
 	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
 
@@ -115,8 +115,8 @@ export function SFVTL(ctx: ExecContext, perpendicular: boolean): void {
 
 /** SDPVTL - Set dual projection vector to line (only sets dualVector, not projVector) */
 export function SDPVTL(ctx: ExecContext, perpendicular: boolean): void {
-	const p2 = ctx.stack[--ctx.stackTop]!;
-	const p1 = ctx.stack[--ctx.stackTop]!;
+	const p2 = ctx.stack[--ctx.stackTop];
+	const p1 = ctx.stack[--ctx.stackTop];
 
 	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
 
@@ -133,8 +133,8 @@ export function SDPVTL(ctx: ExecContext, perpendicular: boolean): void {
 
 /** SPVFS - Set projection vector from stack */
 export function SPVFS(ctx: ExecContext): void {
-	const y = ctx.stack[--ctx.stackTop]!;
-	const x = ctx.stack[--ctx.stackTop]!;
+	const y = ctx.stack[--ctx.stackTop];
+	const x = ctx.stack[--ctx.stackTop];
 
 	// Normalize
 	const len = Math.sqrt(x * x + y * y);
@@ -151,8 +151,8 @@ export function SPVFS(ctx: ExecContext): void {
 
 /** SFVFS - Set freedom vector from stack */
 export function SFVFS(ctx: ExecContext): void {
-	const y = ctx.stack[--ctx.stackTop]!;
-	const x = ctx.stack[--ctx.stackTop]!;
+	const y = ctx.stack[--ctx.stackTop];
+	const x = ctx.stack[--ctx.stackTop];
 
 	const len = Math.sqrt(x * x + y * y);
 	if (len === 0) {
@@ -186,24 +186,24 @@ export function SFVTPV(ctx: ExecContext): void {
 
 /** SRP0 - Set reference point 0 */
 export function SRP0(ctx: ExecContext): void {
-	ctx.GS.rp0 = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.rp0 = ctx.stack[--ctx.stackTop];
 }
 
 /** SRP1 - Set reference point 1 */
 export function SRP1(ctx: ExecContext): void {
-	ctx.GS.rp1 = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.rp1 = ctx.stack[--ctx.stackTop];
 }
 
 /** SRP2 - Set reference point 2 */
 export function SRP2(ctx: ExecContext): void {
-	ctx.GS.rp2 = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.rp2 = ctx.stack[--ctx.stackTop];
 }
 
 // Zone pointer instructions
 
 /** SZP0 - Set zone pointer 0 */
 export function SZP0(ctx: ExecContext): void {
-	const zone = ctx.stack[--ctx.stackTop]!;
+	const zone = ctx.stack[--ctx.stackTop];
 	if (zone !== 0 && zone !== 1) {
 		ctx.error = `SZP0: invalid zone ${zone}`;
 		return;
@@ -214,7 +214,7 @@ export function SZP0(ctx: ExecContext): void {
 
 /** SZP1 - Set zone pointer 1 */
 export function SZP1(ctx: ExecContext): void {
-	const zone = ctx.stack[--ctx.stackTop]!;
+	const zone = ctx.stack[--ctx.stackTop];
 	if (zone !== 0 && zone !== 1) {
 		ctx.error = `SZP1: invalid zone ${zone}`;
 		return;
@@ -225,7 +225,7 @@ export function SZP1(ctx: ExecContext): void {
 
 /** SZP2 - Set zone pointer 2 */
 export function SZP2(ctx: ExecContext): void {
-	const zone = ctx.stack[--ctx.stackTop]!;
+	const zone = ctx.stack[--ctx.stackTop];
 	if (zone !== 0 && zone !== 1) {
 		ctx.error = `SZP2: invalid zone ${zone}`;
 		return;
@@ -236,7 +236,7 @@ export function SZP2(ctx: ExecContext): void {
 
 /** SZPS - Set all zone pointers */
 export function SZPS(ctx: ExecContext): void {
-	const zone = ctx.stack[--ctx.stackTop]!;
+	const zone = ctx.stack[--ctx.stackTop];
 	if (zone !== 0 && zone !== 1) {
 		ctx.error = `SZPS: invalid zone ${zone}`;
 		return;
@@ -254,7 +254,7 @@ export function SZPS(ctx: ExecContext): void {
 
 /** SLOOP - Set loop counter */
 export function SLOOP(ctx: ExecContext): void {
-	const count = ctx.stack[--ctx.stackTop]!;
+	const count = ctx.stack[--ctx.stackTop];
 	if (count <= 0) {
 		ctx.error = `SLOOP: invalid count ${count}`;
 		return;
@@ -264,32 +264,32 @@ export function SLOOP(ctx: ExecContext): void {
 
 /** SMD - Set minimum distance */
 export function SMD(ctx: ExecContext): void {
-	ctx.GS.minimumDistance = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.minimumDistance = ctx.stack[--ctx.stackTop];
 }
 
 /** SCVTCI - Set control value table cut-in */
 export function SCVTCI(ctx: ExecContext): void {
-	ctx.GS.controlValueCutIn = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.controlValueCutIn = ctx.stack[--ctx.stackTop];
 }
 
 /** SSWCI - Set single width cut-in */
 export function SSWCI(ctx: ExecContext): void {
-	ctx.GS.singleWidthCutIn = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.singleWidthCutIn = ctx.stack[--ctx.stackTop];
 }
 
 /** SSW - Set single width value */
 export function SSW(ctx: ExecContext): void {
-	ctx.GS.singleWidthValue = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.singleWidthValue = ctx.stack[--ctx.stackTop];
 }
 
 /** SDB - Set delta base */
 export function SDB(ctx: ExecContext): void {
-	ctx.GS.deltaBase = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.deltaBase = ctx.stack[--ctx.stackTop];
 }
 
 /** SDS - Set delta shift */
 export function SDS(ctx: ExecContext): void {
-	ctx.GS.deltaShift = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.deltaShift = ctx.stack[--ctx.stackTop];
 }
 
 // Rounding state
@@ -326,14 +326,14 @@ export function ROFF(ctx: ExecContext): void {
 
 /** SROUND - Super round */
 export function SROUND(ctx: ExecContext): void {
-	const selector = ctx.stack[--ctx.stackTop]!;
+	const selector = ctx.stack[--ctx.stackTop];
 	parseSuperRound(selector, ctx.GS);
 	ctx.GS.roundState = RoundMode.Super;
 }
 
 /** S45ROUND - Super round 45 degrees */
 export function S45ROUND(ctx: ExecContext): void {
-	const selector = ctx.stack[--ctx.stackTop]!;
+	const selector = ctx.stack[--ctx.stackTop];
 	parseSuperRound(selector, ctx.GS);
 	ctx.GS.roundState = RoundMode.Super45;
 }
@@ -354,18 +354,18 @@ export function FLIPOFF(ctx: ExecContext): void {
 
 /** SCANCTRL - Set scan conversion control */
 export function SCANCTRL(ctx: ExecContext): void {
-	ctx.GS.scanControl = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.scanControl = ctx.stack[--ctx.stackTop];
 }
 
 /** SCANTYPE - Set scan type */
 export function SCANTYPE(ctx: ExecContext): void {
-	ctx.GS.scanType = ctx.stack[--ctx.stackTop]!;
+	ctx.GS.scanType = ctx.stack[--ctx.stackTop];
 }
 
 /** INSTCTRL - Set instruction control */
 export function INSTCTRL(ctx: ExecContext): void {
-	const selector = ctx.stack[--ctx.stackTop]!;
-	const value = ctx.stack[--ctx.stackTop]!;
+	const selector = ctx.stack[--ctx.stackTop];
+	const value = ctx.stack[--ctx.stackTop];
 
 	// Bit 0: inhibit grid-fitting
 	// Bit 1: ignore CVT values
@@ -380,7 +380,7 @@ export function INSTCTRL(ctx: ExecContext): void {
 
 /** GETINFO - Get font engine info */
 export function GETINFO(ctx: ExecContext): void {
-	const selector = ctx.stack[--ctx.stackTop]!;
+	const selector = ctx.stack[--ctx.stackTop];
 	let result = 0;
 
 	// Bit 0: version (we claim version 35 = Windows 95)
@@ -406,19 +406,19 @@ export function GETINFO(ctx: ExecContext): void {
 
 /** RS - Read storage */
 export function RS(ctx: ExecContext): void {
-	const index = ctx.stack[--ctx.stackTop]!;
+	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.storageSize) {
 		ctx.error = `RS: invalid index ${index}`;
 		ctx.stack[ctx.stackTop++] = 0;
 		return;
 	}
-	ctx.stack[ctx.stackTop++] = ctx.storage[index]!;
+	ctx.stack[ctx.stackTop++] = ctx.storage[index];
 }
 
 /** WS - Write storage */
 export function WS(ctx: ExecContext): void {
-	const value = ctx.stack[--ctx.stackTop]!;
-	const index = ctx.stack[--ctx.stackTop]!;
+	const value = ctx.stack[--ctx.stackTop];
+	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.storageSize) {
 		ctx.error = `WS: invalid index ${index}`;
 		return;
@@ -428,19 +428,19 @@ export function WS(ctx: ExecContext): void {
 
 /** RCVT - Read CVT value */
 export function RCVT(ctx: ExecContext): void {
-	const index = ctx.stack[--ctx.stackTop]!;
+	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.cvtSize) {
 		ctx.error = `RCVT: invalid index ${index}`;
 		ctx.stack[ctx.stackTop++] = 0;
 		return;
 	}
-	ctx.stack[ctx.stackTop++] = ctx.cvt[index]!;
+	ctx.stack[ctx.stackTop++] = ctx.cvt[index];
 }
 
 /** WCVTP - Write CVT value in pixels */
 export function WCVTP(ctx: ExecContext): void {
-	const value = ctx.stack[--ctx.stackTop]!;
-	const index = ctx.stack[--ctx.stackTop]!;
+	const value = ctx.stack[--ctx.stackTop];
+	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.cvtSize) {
 		ctx.error = `WCVTP: invalid index ${index}`;
 		return;
@@ -450,8 +450,8 @@ export function WCVTP(ctx: ExecContext): void {
 
 /** WCVTF - Write CVT value in font units */
 export function WCVTF(ctx: ExecContext): void {
-	const value = ctx.stack[--ctx.stackTop]!;
-	const index = ctx.stack[--ctx.stackTop]!;
+	const value = ctx.stack[--ctx.stackTop];
+	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.cvtSize) {
 		ctx.error = `WCVTF: invalid index ${index}`;
 		return;
@@ -462,7 +462,7 @@ export function WCVTF(ctx: ExecContext): void {
 
 /** UTP - UnTouch Point */
 export function UTP(ctx: ExecContext): void {
-	const pointIndex = ctx.stack[--ctx.stackTop]!;
+	const pointIndex = ctx.stack[--ctx.stackTop];
 	const zone = ctx.zp0;
 
 	if (pointIndex < 0 || pointIndex >= zone.nPoints) {

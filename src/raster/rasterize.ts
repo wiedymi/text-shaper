@@ -141,9 +141,9 @@ function decomposeHintedGlyph(
 	for (let i = 0; i < xCoords.length; i++) {
 		const isEnd = i === contourEnds[contourIdx];
 		// Convert 26.6 to rasterizer format (shift left 2 for 26.8)
-		const x = ((xCoords[i]! << 2) | 0) + (offsetX << 8);
-		const y = ((-yCoords[i]! << 2) | 0) + (offsetY << 8); // Flip Y
-		const onCurve = (flags[i]! & 1) !== 0;
+		const x = ((xCoords[i] << 2) | 0) + (offsetX << 8);
+		const y = ((-yCoords[i] << 2) | 0) + (offsetY << 8); // Flip Y
+		const onCurve = (flags[i] & 1) !== 0;
 
 		if (i === contourStart) {
 			raster.moveTo(x, y);
@@ -151,9 +151,9 @@ function decomposeHintedGlyph(
 			raster.lineTo(x, y);
 		} else {
 			const nextIdx = isEnd ? contourStart : i + 1;
-			const nx = ((xCoords[nextIdx]! << 2) | 0) + (offsetX << 8);
-			const ny = ((-yCoords[nextIdx]! << 2) | 0) + (offsetY << 8);
-			const nextOn = (flags[nextIdx]! & 1) !== 0;
+			const nx = ((xCoords[nextIdx] << 2) | 0) + (offsetX << 8);
+			const ny = ((-yCoords[nextIdx] << 2) | 0) + (offsetY << 8);
+			const nextOn = (flags[nextIdx] & 1) !== 0;
 
 			if (nextOn) {
 				raster.conicTo(x, y, nx, ny);
@@ -164,8 +164,8 @@ function decomposeHintedGlyph(
 		}
 
 		if (isEnd) {
-			const sx = ((xCoords[contourStart]! << 2) | 0) + (offsetX << 8);
-			const sy = ((-yCoords[contourStart]! << 2) | 0) + (offsetY << 8);
+			const sx = ((xCoords[contourStart] << 2) | 0) + (offsetX << 8);
+			const sy = ((-yCoords[contourStart] << 2) | 0) + (offsetY << 8);
 			if (onCurve && i !== contourStart) raster.lineTo(sx, sy);
 			contourIdx++;
 			contourStart = i + 1;
@@ -326,8 +326,8 @@ function rasterizeHintedGlyph(
 		maxX = -Infinity,
 		maxY = -Infinity;
 	for (let i = 0; i < hinted.xCoords.length; i++) {
-		const x = hinted.xCoords[i]! / 64;
-		const y = hinted.yCoords[i]! / 64;
+		const x = hinted.xCoords[i] / 64;
+		const y = hinted.yCoords[i] / 64;
 		minX = Math.min(minX, x);
 		minY = Math.min(minY, y);
 		maxX = Math.max(maxX, x);

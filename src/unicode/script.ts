@@ -839,7 +839,7 @@ export function getScript(cp: number): Script {
 
 	while (left <= right) {
 		const mid = (left + right) >>> 1;
-		const range = SCRIPT_RANGES[mid]!;
+		const range = SCRIPT_RANGES[mid];
 
 		if (cp < range.start) {
 			right = mid - 1;
@@ -952,7 +952,7 @@ export function getScriptRuns(text: string): ScriptRun[] {
 	}
 
 	for (let i = 0; i < chars.length; i++) {
-		const char = chars[i]!;
+		const char = chars[i];
 		const cp = char.codePointAt(0) ?? 0;
 		let script = getScript(cp);
 
