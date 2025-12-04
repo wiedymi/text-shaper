@@ -7,14 +7,69 @@
 
 // Known table tags indexed by flag value 0-62
 const KNOWN_TAGS = [
-	"cmap", "head", "hhea", "hmtx", "maxp", "name", "OS/2", "post",
-	"cvt ", "fpgm", "glyf", "loca", "prep", "CFF ", "VORG", "EBDT",
-	"EBLC", "gasp", "hdmx", "kern", "LTSH", "PCLT", "VDMX", "vhea",
-	"vmtx", "BASE", "GDEF", "GPOS", "GSUB", "EBSC", "JSTF", "MATH",
-	"CBDT", "CBLC", "COLR", "CPAL", "SVG ", "sbix", "acnt", "avar",
-	"bdat", "bloc", "bsln", "cvar", "fdsc", "feat", "fmtx", "fvar",
-	"gvar", "hsty", "just", "lcar", "mort", "morx", "opbd", "prop",
-	"trak", "Zapf", "Silf", "Glat", "Gloc", "Feat", "Sill",
+	"cmap",
+	"head",
+	"hhea",
+	"hmtx",
+	"maxp",
+	"name",
+	"OS/2",
+	"post",
+	"cvt ",
+	"fpgm",
+	"glyf",
+	"loca",
+	"prep",
+	"CFF ",
+	"VORG",
+	"EBDT",
+	"EBLC",
+	"gasp",
+	"hdmx",
+	"kern",
+	"LTSH",
+	"PCLT",
+	"VDMX",
+	"vhea",
+	"vmtx",
+	"BASE",
+	"GDEF",
+	"GPOS",
+	"GSUB",
+	"EBSC",
+	"JSTF",
+	"MATH",
+	"CBDT",
+	"CBLC",
+	"COLR",
+	"CPAL",
+	"SVG ",
+	"sbix",
+	"acnt",
+	"avar",
+	"bdat",
+	"bloc",
+	"bsln",
+	"cvar",
+	"fdsc",
+	"feat",
+	"fmtx",
+	"fvar",
+	"gvar",
+	"hsty",
+	"just",
+	"lcar",
+	"mort",
+	"morx",
+	"opbd",
+	"prop",
+	"trak",
+	"Zapf",
+	"Silf",
+	"Glat",
+	"Gloc",
+	"Feat",
+	"Sill",
 ];
 
 interface Woff2TableEntry {
@@ -59,7 +114,11 @@ function read255UInt16(data: Uint8Array, offset: { value: number }): number {
 }
 
 /** Parse WOFF2 table directory entries */
-function parseTableDirectory(data: Uint8Array, offset: { value: number }, numTables: number): Woff2TableEntry[] {
+function parseTableDirectory(
+	data: Uint8Array,
+	offset: { value: number },
+	numTables: number,
+): Woff2TableEntry[] {
 	const tables: Woff2TableEntry[] = [];
 
 	for (let i = 0; i < numTables; i++) {
@@ -73,7 +132,7 @@ function parseTableDirectory(data: Uint8Array, offset: { value: number }, numTab
 				data[offset.value++],
 				data[offset.value++],
 				data[offset.value++],
-				data[offset.value++]
+				data[offset.value++],
 			);
 		} else {
 			tag = KNOWN_TAGS[tagIndex];
@@ -84,9 +143,10 @@ function parseTableDirectory(data: Uint8Array, offset: { value: number }, numTab
 		let transformLength = origLength;
 		// glyf/loca: transform version 0 = transformed, 3 = null transform
 		// others: transform version 0 = null transform
-		const hasTransform = (tag === "glyf" || tag === "loca")
-			? transformVersion === 0
-			: transformVersion !== 0;
+		const hasTransform =
+			tag === "glyf" || tag === "loca"
+				? transformVersion === 0
+				: transformVersion !== 0;
 
 		if (hasTransform) {
 			transformLength = readUIntBase128(data, offset);
@@ -104,7 +164,7 @@ async function decompressBrotli(data: Uint8Array): Promise<Uint8Array> {
 	if (typeof DecompressionStream !== "undefined") {
 		try {
 			const ds = new DecompressionStream("brotli" as CompressionFormat);
-			const blob = new Blob([data]);
+			const blob = new Blob([data.buffer as ArrayBuffer]);
 			const decompressedStream = blob.stream().pipeThrough(ds);
 			const result = await new Response(decompressedStream).arrayBuffer();
 			return new Uint8Array(result);
@@ -145,21 +205,32 @@ function readInt16BE(arr: Uint8Array, offset: number): number {
 
 /** Read uint32 big-endian */
 function readUint32BE(arr: Uint8Array, offset: number): number {
-	return ((arr[offset] << 24) | (arr[offset + 1] << 16) | (arr[offset + 2] << 8) | arr[offset + 3]) >>> 0;
+	return (
+		((arr[offset] << 24) |
+			(arr[offset + 1] << 16) |
+			(arr[offset + 2] << 8) |
+			arr[offset + 3]) >>>
+		0
+	);
 }
 
 /** Calculate OpenType checksum */
-function calcChecksum(data: Uint8Array, offset: number, length: number): number {
+function calcChecksum(
+	data: Uint8Array,
+	offset: number,
+	length: number,
+): number {
 	let sum = 0;
 	const nLongs = Math.ceil(length / 4);
 	for (let i = 0; i < nLongs; i++) {
 		const idx = offset + i * 4;
-		sum = (sum + (
-			((data[idx] || 0) << 24) |
-			((data[idx + 1] || 0) << 16) |
-			((data[idx + 2] || 0) << 8) |
-			(data[idx + 3] || 0)
-		)) >>> 0;
+		sum =
+			(sum +
+				(((data[idx] || 0) << 24) |
+					((data[idx + 1] || 0) << 16) |
+					((data[idx + 2] || 0) << 8) |
+					(data[idx + 3] || 0))) >>>
+			0;
 	}
 	return sum;
 }
@@ -190,29 +261,37 @@ function decodeTriplets(
 	glyphStream: Uint8Array,
 	nPoints: number,
 	flagIdx: { value: number },
-	glyphIdx: { value: number }
+	glyphIdx: { value: number },
 ): { x: number; y: number; onCurve: boolean }[] {
 	const points: { x: number; y: number; onCurve: boolean }[] = [];
-	let x = 0, y = 0;
+	let x = 0,
+		y = 0;
 
 	function withSign(flag: number, baseval: number): number {
-		return (flag & 1) ? baseval : -baseval;
+		return flag & 1 ? baseval : -baseval;
 	}
 
 	for (let i = 0; i < nPoints; i++) {
 		const flag = flagStream[flagIdx.value++];
-		const onCurve = (flag >> 7) === 0; // bit 7 clear = on curve
+		const onCurve = flag >> 7 === 0; // bit 7 clear = on curve
 		const flagValue = flag & 0x7f;
 
-		let dx = 0, dy = 0;
+		let dx = 0,
+			dy = 0;
 
 		if (flagValue < 10) {
 			// dy only, 1 byte
 			dx = 0;
-			dy = withSign(flag, ((flagValue & 14) << 7) + glyphStream[glyphIdx.value++]);
+			dy = withSign(
+				flag,
+				((flagValue & 14) << 7) + glyphStream[glyphIdx.value++],
+			);
 		} else if (flagValue < 20) {
 			// dx only, 1 byte
-			dx = withSign(flag, (((flagValue - 10) & 14) << 7) + glyphStream[glyphIdx.value++]);
+			dx = withSign(
+				flag,
+				(((flagValue - 10) & 14) << 7) + glyphStream[glyphIdx.value++],
+			);
 			dy = 0;
 		} else if (flagValue < 84) {
 			// Both in 1 byte
@@ -223,8 +302,14 @@ function decodeTriplets(
 		} else if (flagValue < 120) {
 			// Both in 2 bytes
 			const b0 = flagValue - 84;
-			dx = withSign(flag, 1 + (Math.floor(b0 / 12) << 8) + glyphStream[glyphIdx.value++]);
-			dy = withSign(flag >> 1, 1 + (((b0 % 12) >> 2) << 8) + glyphStream[glyphIdx.value++]);
+			dx = withSign(
+				flag,
+				1 + (Math.floor(b0 / 12) << 8) + glyphStream[glyphIdx.value++],
+			);
+			dy = withSign(
+				flag >> 1,
+				1 + (((b0 % 12) >> 2) << 8) + glyphStream[glyphIdx.value++],
+			);
 		} else if (flagValue < 124) {
 			// Both in 3 bytes
 			const b1 = glyphStream[glyphIdx.value++];
@@ -234,8 +319,14 @@ function decodeTriplets(
 			dy = withSign(flag >> 1, ((b2 & 0x0f) << 8) + b3);
 		} else {
 			// Both in 4 bytes
-			dx = withSign(flag, (glyphStream[glyphIdx.value++] << 8) + glyphStream[glyphIdx.value++]);
-			dy = withSign(flag >> 1, (glyphStream[glyphIdx.value++] << 8) + glyphStream[glyphIdx.value++]);
+			dx = withSign(
+				flag,
+				(glyphStream[glyphIdx.value++] << 8) + glyphStream[glyphIdx.value++],
+			);
+			dy = withSign(
+				flag >> 1,
+				(glyphStream[glyphIdx.value++] << 8) + glyphStream[glyphIdx.value++],
+			);
 		}
 
 		x += dx;
@@ -250,29 +341,43 @@ function decodeTriplets(
 function reconstructGlyfLoca(
 	glyfTransform: Uint8Array,
 	numGlyphs: number,
-	indexFormat: number
+	indexFormat: number,
 ): { glyf: Uint8Array; loca: Uint8Array } {
 	let offset = 0;
 
 	// Read transformed glyf header (per WOFF2 spec Table 1)
-	const version = readUint16BE(glyfTransform, offset); offset += 2;
+	const version = readUint16BE(glyfTransform, offset);
+	offset += 2;
 	if (version !== 0) {
 		throw new Error(`Unsupported glyf transform version: ${version}`);
 	}
-	const optionFlags = readUint16BE(glyfTransform, offset); offset += 2;
-	const numGlyphsHeader = readUint16BE(glyfTransform, offset); offset += 2;
-	const indexFormatHeader = readUint16BE(glyfTransform, offset); offset += 2;
+	const optionFlags = readUint16BE(glyfTransform, offset);
+	offset += 2;
+	const _numGlyphsHeader = readUint16BE(glyfTransform, offset);
+	offset += 2;
+	const _indexFormatHeader = readUint16BE(glyfTransform, offset);
+	offset += 2;
 
-	const nContourStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
-	const nPointsStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
-	const flagStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
-	const glyphStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
-	const compositeStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
-	const bboxStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
-	const instructionStreamSize = readUint32BE(glyfTransform, offset); offset += 4;
+	const nContourStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
+	const nPointsStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
+	const flagStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
+	const glyphStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
+	const compositeStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
+	const bboxStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
+	const instructionStreamSize = readUint32BE(glyfTransform, offset);
+	offset += 4;
 
 	// Extract streams
-	const nContourStream = glyfTransform.slice(offset, offset + nContourStreamSize);
+	const nContourStream = glyfTransform.slice(
+		offset,
+		offset + nContourStreamSize,
+	);
 	offset += nContourStreamSize;
 	const nPointsStream = glyfTransform.slice(offset, offset + nPointsStreamSize);
 	offset += nPointsStreamSize;
@@ -280,11 +385,17 @@ function reconstructGlyfLoca(
 	offset += flagStreamSize;
 	const glyphStream = glyfTransform.slice(offset, offset + glyphStreamSize);
 	offset += glyphStreamSize;
-	const compositeStream = glyfTransform.slice(offset, offset + compositeStreamSize);
+	const compositeStream = glyfTransform.slice(
+		offset,
+		offset + compositeStreamSize,
+	);
 	offset += compositeStreamSize;
 	const bboxStream = glyfTransform.slice(offset, offset + bboxStreamSize);
 	offset += bboxStreamSize;
-	const instructionStream = glyfTransform.slice(offset, offset + instructionStreamSize);
+	const instructionStream = glyfTransform.slice(
+		offset,
+		offset + instructionStreamSize,
+	);
 
 	// Stream indices
 	const nContourIdx = { value: 0 };
@@ -315,12 +426,17 @@ function reconstructGlyfLoca(
 			// Simple glyph
 			const glyphData = reconstructSimpleGlyph(
 				nContours,
-				nPointsStream, nPointsIdx,
-				flagStream, flagIdx,
-				glyphStream, glyphIdx,
-				bboxStream, bboxIdx,
-				instructionStream, instructionIdx,
-				optionFlags
+				nPointsStream,
+				nPointsIdx,
+				flagStream,
+				flagIdx,
+				glyphStream,
+				glyphIdx,
+				bboxStream,
+				bboxIdx,
+				instructionStream,
+				instructionIdx,
+				optionFlags,
 			);
 			glyphParts.push(glyphData);
 			totalGlyfSize += pad4(glyphData.length);
@@ -328,10 +444,13 @@ function reconstructGlyfLoca(
 		} else {
 			// Composite glyph (nContours === -1)
 			const glyphData = reconstructCompositeGlyph(
-				compositeStream, compositeIdx,
-				bboxStream, bboxIdx,
-				instructionStream, instructionIdx,
-				optionFlags
+				compositeStream,
+				compositeIdx,
+				bboxStream,
+				bboxIdx,
+				instructionStream,
+				instructionIdx,
+				optionFlags,
 			);
 			glyphParts.push(glyphData);
 			totalGlyfSize += pad4(glyphData.length);
@@ -348,7 +467,8 @@ function reconstructGlyfLoca(
 	}
 
 	// Build loca table
-	const locaSize = indexFormat === 0 ? (numGlyphs + 1) * 2 : (numGlyphs + 1) * 4;
+	const locaSize =
+		indexFormat === 0 ? (numGlyphs + 1) * 2 : (numGlyphs + 1) * 4;
 	const loca = new Uint8Array(locaSize);
 
 	for (let i = 0; i <= numGlyphs; i++) {
@@ -364,12 +484,17 @@ function reconstructGlyfLoca(
 
 function reconstructSimpleGlyph(
 	nContours: number,
-	nPointsStream: Uint8Array, nPointsIdx: { value: number },
-	flagStream: Uint8Array, flagIdx: { value: number },
-	glyphStream: Uint8Array, glyphIdx: { value: number },
-	bboxStream: Uint8Array, bboxIdx: { value: number },
-	instructionStream: Uint8Array, instructionIdx: { value: number },
-	optionFlags: number
+	nPointsStream: Uint8Array,
+	nPointsIdx: { value: number },
+	flagStream: Uint8Array,
+	flagIdx: { value: number },
+	glyphStream: Uint8Array,
+	glyphIdx: { value: number },
+	bboxStream: Uint8Array,
+	bboxIdx: { value: number },
+	instructionStream: Uint8Array,
+	instructionIdx: { value: number },
+	optionFlags: number,
 ): Uint8Array {
 	// Read endpoints
 	const endPtsOfContours: number[] = [];
@@ -381,17 +506,27 @@ function reconstructSimpleGlyph(
 	}
 
 	// Read point data using triplet encoding
-	const points = decodeTriplets(flagStream, glyphStream, totalPoints, flagIdx, glyphIdx);
+	const points = decodeTriplets(
+		flagStream,
+		glyphStream,
+		totalPoints,
+		flagIdx,
+		glyphIdx,
+	);
 
 	// Read/compute bbox
 	let xMin: number, yMin: number, xMax: number, yMax: number;
 	const bboxBitmap = (optionFlags & 1) === 0; // bit 0 clear = explicit bboxes stored
 
 	if (bboxBitmap && bboxIdx.value + 8 <= bboxStream.length) {
-		xMin = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
-		yMin = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
-		xMax = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
-		yMax = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
+		xMin = readInt16BE(bboxStream, bboxIdx.value);
+		bboxIdx.value += 2;
+		yMin = readInt16BE(bboxStream, bboxIdx.value);
+		bboxIdx.value += 2;
+		xMax = readInt16BE(bboxStream, bboxIdx.value);
+		bboxIdx.value += 2;
+		yMax = readInt16BE(bboxStream, bboxIdx.value);
+		bboxIdx.value += 2;
 	} else {
 		// Compute bbox
 		xMin = yMin = 0x7fff;
@@ -406,14 +541,18 @@ function reconstructSimpleGlyph(
 
 	// Read instructions - length is read from glyphStream using 255UInt16 encoding
 	const instructionLength = read255UInt16(glyphStream, glyphIdx);
-	const instructions = instructionStream.slice(instructionIdx.value, instructionIdx.value + instructionLength);
+	const instructions = instructionStream.slice(
+		instructionIdx.value,
+		instructionIdx.value + instructionLength,
+	);
 	instructionIdx.value += instructionLength;
 
 	// Encode glyph in TrueType format
 	// Convert absolute coords to deltas and encode
 	const xDeltas: number[] = [];
 	const yDeltas: number[] = [];
-	let prevX = 0, prevY = 0;
+	let prevX = 0,
+		prevY = 0;
 	for (const pt of points) {
 		xDeltas.push(pt.x - prevX);
 		yDeltas.push(pt.y - prevY);
@@ -458,25 +597,34 @@ function reconstructSimpleGlyph(
 
 	// Build glyph buffer
 	const headerSize = 10 + nContours * 2 + 2 + instructionLength;
-	const totalSize = headerSize + encodedFlags.length + encodedX.length + encodedY.length;
+	const totalSize =
+		headerSize + encodedFlags.length + encodedX.length + encodedY.length;
 	const data = new Uint8Array(totalSize);
 	let off = 0;
 
 	// Header
-	writeUint16BE(data, off, nContours); off += 2;
-	writeUint16BE(data, off, xMin & 0xffff); off += 2;
-	writeUint16BE(data, off, yMin & 0xffff); off += 2;
-	writeUint16BE(data, off, xMax & 0xffff); off += 2;
-	writeUint16BE(data, off, yMax & 0xffff); off += 2;
+	writeUint16BE(data, off, nContours);
+	off += 2;
+	writeUint16BE(data, off, xMin & 0xffff);
+	off += 2;
+	writeUint16BE(data, off, yMin & 0xffff);
+	off += 2;
+	writeUint16BE(data, off, xMax & 0xffff);
+	off += 2;
+	writeUint16BE(data, off, yMax & 0xffff);
+	off += 2;
 
 	// End points
 	for (const endPt of endPtsOfContours) {
-		writeUint16BE(data, off, endPt); off += 2;
+		writeUint16BE(data, off, endPt);
+		off += 2;
 	}
 
 	// Instructions
-	writeUint16BE(data, off, instructionLength); off += 2;
-	data.set(instructions, off); off += instructionLength;
+	writeUint16BE(data, off, instructionLength);
+	off += 2;
+	data.set(instructions, off);
+	off += instructionLength;
 
 	// Flags
 	for (const f of encodedFlags) {
@@ -497,18 +645,25 @@ function reconstructSimpleGlyph(
 }
 
 function reconstructCompositeGlyph(
-	compositeStream: Uint8Array, compositeIdx: { value: number },
-	bboxStream: Uint8Array, bboxIdx: { value: number },
-	instructionStream: Uint8Array, instructionIdx: { value: number },
-	optionFlags: number
+	compositeStream: Uint8Array,
+	compositeIdx: { value: number },
+	bboxStream: Uint8Array,
+	bboxIdx: { value: number },
+	instructionStream: Uint8Array,
+	instructionIdx: { value: number },
+	_optionFlags: number,
 ): Uint8Array {
 	const parts: number[] = [];
 
 	// Read bbox
-	const xMin = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
-	const yMin = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
-	const xMax = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
-	const yMax = readInt16BE(bboxStream, bboxIdx.value); bboxIdx.value += 2;
+	const xMin = readInt16BE(bboxStream, bboxIdx.value);
+	bboxIdx.value += 2;
+	const yMin = readInt16BE(bboxStream, bboxIdx.value);
+	bboxIdx.value += 2;
+	const xMax = readInt16BE(bboxStream, bboxIdx.value);
+	bboxIdx.value += 2;
+	const yMax = readInt16BE(bboxStream, bboxIdx.value);
+	bboxIdx.value += 2;
 
 	// Header
 	parts.push(0xff, 0xff); // nContours = -1
@@ -531,7 +686,8 @@ function reconstructCompositeGlyph(
 		parts.push((glyphIndex >> 8) & 0xff, glyphIndex & 0xff);
 
 		// Arguments
-		if (flags & 0x0001) { // ARG_1_AND_2_ARE_WORDS
+		if (flags & 0x0001) {
+			// ARG_1_AND_2_ARE_WORDS
 			parts.push(compositeStream[compositeIdx.value++]);
 			parts.push(compositeStream[compositeIdx.value++]);
 			parts.push(compositeStream[compositeIdx.value++]);
@@ -542,13 +698,18 @@ function reconstructCompositeGlyph(
 		}
 
 		// Transform
-		if (flags & 0x0008) { // WE_HAVE_A_SCALE
+		if (flags & 0x0008) {
+			// WE_HAVE_A_SCALE
 			parts.push(compositeStream[compositeIdx.value++]);
 			parts.push(compositeStream[compositeIdx.value++]);
-		} else if (flags & 0x0040) { // WE_HAVE_AN_X_AND_Y_SCALE
-			for (let i = 0; i < 4; i++) parts.push(compositeStream[compositeIdx.value++]);
-		} else if (flags & 0x0080) { // WE_HAVE_A_TWO_BY_TWO
-			for (let i = 0; i < 8; i++) parts.push(compositeStream[compositeIdx.value++]);
+		} else if (flags & 0x0040) {
+			// WE_HAVE_AN_X_AND_Y_SCALE
+			for (let i = 0; i < 4; i++)
+				parts.push(compositeStream[compositeIdx.value++]);
+		} else if (flags & 0x0080) {
+			// WE_HAVE_A_TWO_BY_TWO
+			for (let i = 0; i < 8; i++)
+				parts.push(compositeStream[compositeIdx.value++]);
 		}
 
 		hasMoreComponents = (flags & 0x0020) !== 0;
@@ -587,7 +748,10 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	const tables = parseTableDirectory(data, offset, numTables);
 
 	// Decompress all table data
-	const compressedData = data.slice(offset.value, offset.value + totalCompressedSize);
+	const compressedData = data.slice(
+		offset.value,
+		offset.value + totalCompressedSize,
+	);
 	const decompressedData = await decompressBrotli(compressedData);
 
 	// Extract individual table data
@@ -595,7 +759,10 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	let decompOffset = 0;
 
 	for (const table of tables) {
-		const tdata = decompressedData.slice(decompOffset, decompOffset + table.transformLength);
+		const tdata = decompressedData.slice(
+			decompOffset,
+			decompOffset + table.transformLength,
+		);
 		tableData.set(table.tag, tdata);
 		decompOffset += table.transformLength;
 	}
@@ -611,12 +778,16 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	const indexToLocFormat = readInt16BE(headData, 50);
 
 	// Handle glyf/loca transform
-	const glyfEntry = tables.find(t => t.tag === "glyf");
-	const locaEntry = tables.find(t => t.tag === "loca");
+	const glyfEntry = tables.find((t) => t.tag === "glyf");
+	const locaEntry = tables.find((t) => t.tag === "loca");
 
 	if (glyfEntry && glyfEntry.transformVersion === 0) {
 		const glyfTransformed = tableData.get("glyf")!;
-		const { glyf, loca } = reconstructGlyfLoca(glyfTransformed, numGlyphs, indexToLocFormat);
+		const { glyf, loca } = reconstructGlyfLoca(
+			glyfTransformed,
+			numGlyphs,
+			indexToLocFormat,
+		);
 		tableData.set("glyf", glyf);
 		tableData.set("loca", loca);
 
@@ -642,7 +813,7 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	const output = new Uint8Array(tableOffset);
 
 	// SFNT header
-	const searchRange = Math.pow(2, Math.floor(Math.log2(numTables))) * 16;
+	const searchRange = 2 ** Math.floor(Math.log2(numTables)) * 16;
 	const entrySelector = Math.floor(Math.log2(numTables));
 	const rangeShift = numTables * 16 - searchRange;
 
@@ -683,7 +854,7 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	// Fix head checksum adjustment
 	if (headOffset >= 0) {
 		const totalChecksum = calcChecksum(output, 0, output.length);
-		const checksumAdjustment = (0xB1B0AFBA - totalChecksum) >>> 0;
+		const checksumAdjustment = (0xb1b0afba - totalChecksum) >>> 0;
 		writeUint32BE(output, headOffset + 8, checksumAdjustment);
 	}
 

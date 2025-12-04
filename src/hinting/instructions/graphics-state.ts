@@ -2,8 +2,13 @@
  * Graphics state manipulation instructions
  */
 
-import { type ExecContext, RoundMode, type UnitVector, TouchFlag } from "../types.ts";
 import { parseSuperRound } from "../rounding.ts";
+import {
+	type ExecContext,
+	RoundMode,
+	TouchFlag,
+	type UnitVector,
+} from "../types.ts";
 
 // Vector instructions
 
@@ -43,7 +48,13 @@ export function SFVTCA(ctx: ExecContext, axis: 0 | 1): void {
 }
 
 /** Calculate unit vector from two points */
-function vectorFromPoints(ctx: ExecContext, p1: number, p2: number, zone1: number, zone2: number): UnitVector {
+function vectorFromPoints(
+	ctx: ExecContext,
+	p1: number,
+	p2: number,
+	zone1: number,
+	zone2: number,
+): UnitVector {
 	const z1 = zone1 === 0 ? ctx.twilight : ctx.pts;
 	const z2 = zone2 === 0 ? ctx.twilight : ctx.pts;
 
@@ -73,7 +84,7 @@ export function SPVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop]!;
 	const p1 = ctx.stack[--ctx.stackTop]!;
 
-	let vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
+	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
 
 	if (perpendicular) {
 		// Rotate 90 degrees
@@ -91,7 +102,7 @@ export function SFVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop]!;
 	const p1 = ctx.stack[--ctx.stackTop]!;
 
-	let vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
+	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
 
 	if (perpendicular) {
 		const temp = vec.x;
@@ -107,7 +118,7 @@ export function SDPVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop]!;
 	const p1 = ctx.stack[--ctx.stackTop]!;
 
-	let vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
+	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
 
 	if (perpendicular) {
 		const temp = vec.x;

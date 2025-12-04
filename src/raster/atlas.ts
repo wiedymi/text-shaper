@@ -6,16 +6,15 @@
  */
 
 import type { Font } from "../font/font.ts";
-import type { GlyphId } from "../types.ts";
-import {
-	type Bitmap,
-	type GlyphMetrics,
-	type GlyphAtlas,
-	type AtlasOptions,
-	PixelMode,
-	createBitmap,
-} from "./types.ts";
 import { rasterizeGlyph } from "./rasterize.ts";
+import {
+	type AtlasOptions,
+	type Bitmap,
+	createBitmap,
+	type GlyphAtlas,
+	type GlyphMetrics,
+	PixelMode,
+} from "./types.ts";
 
 /**
  * Shelf packing node
@@ -54,7 +53,10 @@ export function buildAtlas(
 	const scale = fontSize / font.unitsPerEm;
 
 	for (const glyphId of glyphIds) {
-		const result = rasterizeGlyph(font, glyphId, fontSize, { padding: 0, pixelMode });
+		const result = rasterizeGlyph(font, glyphId, fontSize, {
+			padding: 0,
+			pixelMode,
+		});
 		if (!result) continue;
 
 		const advance = font.advanceWidth(glyphId) * scale;
@@ -72,7 +74,11 @@ export function buildAtlas(
 	glyphData.sort((a, b) => b.bitmap.rows - a.bitmap.rows);
 
 	// Calculate required atlas size
-	const { width: atlasWidth, height: atlasHeight, placements } = packGlyphs(
+	const {
+		width: atlasWidth,
+		height: atlasHeight,
+		placements,
+	} = packGlyphs(
 		glyphData.map((g) => ({
 			width: g.bitmap.width + padding * 2,
 			height: g.bitmap.rows + padding * 2,
@@ -252,7 +258,12 @@ function packGlyphs(
 /**
  * Copy source bitmap into destination at specified position
  */
-function copyBitmap(src: Bitmap, dst: Bitmap, dstX: number, dstY: number): void {
+function copyBitmap(
+	src: Bitmap,
+	dst: Bitmap,
+	dstX: number,
+	dstY: number,
+): void {
 	const bytesPerPixel = src.pixelMode === PixelMode.LCD ? 3 : 1;
 
 	for (let y = 0; y < src.rows; y++) {

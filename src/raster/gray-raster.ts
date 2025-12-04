@@ -20,15 +20,15 @@
  * - On overflow, band is bisected and retried
  */
 
-import {
-	PIXEL_BITS,
-	ONE_PIXEL,
-	truncPixel,
-	fracPixel,
-	abs,
-} from "./fixed-point.ts";
 import { CellBuffer, PoolOverflowError } from "./cell.ts";
-import type { Bitmap, Span, FillRule } from "./types.ts";
+import {
+	abs,
+	fracPixel,
+	ONE_PIXEL,
+	PIXEL_BITS,
+	truncPixel,
+} from "./fixed-point.ts";
+import type { Bitmap, FillRule, Span } from "./types.ts";
 import { FillRule as FillRuleEnum, PixelMode } from "./types.ts";
 
 /** Maximum band bisection depth (like FreeType's 32 bands stack) */
@@ -109,16 +109,18 @@ export class GrayRaster {
 	 */
 	private renderLine(toX: number, toY: number): void {
 		let ey1 = truncPixel(this.y);
-		let ey2 = truncPixel(toY);
+		const ey2 = truncPixel(toY);
 
 		// Vertical clipping
-		if ((ey1 >= this.maxY && ey2 >= this.maxY) ||
-			(ey1 < this.minY && ey2 < this.minY)) {
+		if (
+			(ey1 >= this.maxY && ey2 >= this.maxY) ||
+			(ey1 < this.minY && ey2 < this.minY)
+		) {
 			return;
 		}
 
-		let fy1 = fracPixel(this.y);
-		let fy2 = fracPixel(toY);
+		const fy1 = fracPixel(this.y);
+		const fy2 = fracPixel(toY);
 
 		// Single scanline case
 		if (ey1 === ey2) {
@@ -131,7 +133,7 @@ export class GrayRaster {
 
 		// Vertical line - optimized path
 		if (dx === 0) {
-			const ex = truncPixel(this.x);
+			const _ex = truncPixel(this.x);
 			const twoFx = fracPixel(this.x) * 2;
 
 			let first: number;
@@ -255,7 +257,7 @@ export class GrayRaster {
 		}
 
 		// First cell
-		let delta = this.mulDiv(dy, (first - fx1), abs(dx));
+		let delta = this.mulDiv(dy, first - fx1, abs(dx));
 		this.cells.setCurrentCell(x1, ey << PIXEL_BITS);
 		this.cells.addArea(delta * (fx1 + first), delta);
 
@@ -301,7 +303,8 @@ export class GrayRaster {
 		const dy1 = cy - p0y;
 		const dx2 = toX - cx;
 		const dy2 = toY - cy;
-		const len = Math.sqrt(dx1 * dx1 + dy1 * dy1) + Math.sqrt(dx2 * dx2 + dy2 * dy2);
+		const len =
+			Math.sqrt(dx1 * dx1 + dy1 * dy1) + Math.sqrt(dx2 * dx2 + dy2 * dy2);
 
 		// At least 4 segments, more for longer curves
 		const numSegments = Math.max(4, Math.ceil(len / (ONE_PIXEL * 4)));
@@ -491,12 +494,7 @@ export class GrayRaster {
 		}
 	}
 
-	private setPixel(
-		bitmap: Bitmap,
-		row: number,
-		x: number,
-		gray: number,
-	): void {
+	private setPixel(bitmap: Bitmap, row: number, x: number, gray: number): void {
 		if (bitmap.pixelMode === PixelMode.Gray) {
 			bitmap.buffer[row + x] = gray;
 		} else if (bitmap.pixelMode === PixelMode.Mono) {
@@ -590,7 +588,11 @@ export class GrayRaster {
 					if (gray > 0) {
 						spanBuffer.push({ x, len: cell.x - x, coverage: gray });
 						if (spanBuffer.length >= MAX_GRAY_SPANS) {
-							callback(y, spanBuffer.splice(0, spanBuffer.length), userData as T);
+							callback(
+								y,
+								spanBuffer.splice(0, spanBuffer.length),
+								userData as T,
+							);
 						}
 					}
 				}
@@ -614,7 +616,11 @@ export class GrayRaster {
 			if (cover !== 0 && x < maxX) {
 				const gray = this.applyFillRule(cover, fillRule);
 				if (gray > 0) {
-					spanBuffer.push({ x, len: Math.min(maxX, this.maxX + 1) - x, coverage: gray });
+					spanBuffer.push({
+						x,
+						len: Math.min(maxX, this.maxX + 1) - x,
+						coverage: gray,
+					});
 				}
 			}
 
@@ -681,7 +687,17 @@ export class GrayRaster {
 		while (bandStack.length > 0 && depth < MAX_BAND_DEPTH) {
 			const band = bandStack.pop()!;
 
-			if (this.renderBandWithXClip(bitmap, decomposeFn, band.minY, band.maxY, band.minX, band.maxX, fillRule)) {
+			if (
+				this.renderBandWithXClip(
+					bitmap,
+					decomposeFn,
+					band.minY,
+					band.maxY,
+					band.minX,
+					band.maxX,
+					fillRule,
+				)
+			) {
 				continue; // Success
 			}
 
@@ -689,8 +705,18 @@ export class GrayRaster {
 			const midX = (band.minX + band.maxX) >> 1;
 			if (midX > band.minX) {
 				// Bisect in X dimension
-				bandStack.push({ minY: band.minY, maxY: band.maxY, minX: midX, maxX: band.maxX });
-				bandStack.push({ minY: band.minY, maxY: band.maxY, minX: band.minX, maxX: midX });
+				bandStack.push({
+					minY: band.minY,
+					maxY: band.maxY,
+					minX: midX,
+					maxX: band.maxX,
+				});
+				bandStack.push({
+					minY: band.minY,
+					maxY: band.maxY,
+					minX: band.minX,
+					maxX: midX,
+				});
 				depth++;
 				continue;
 			}
@@ -699,14 +725,26 @@ export class GrayRaster {
 			const midY = (band.minY + band.maxY) >> 1;
 			if (midY > band.minY) {
 				// Bisect in Y dimension
-				bandStack.push({ minY: midY, maxY: band.maxY, minX: band.minX, maxX: band.maxX });
-				bandStack.push({ minY: band.minY, maxY: midY, minX: band.minX, maxX: band.maxX });
+				bandStack.push({
+					minY: midY,
+					maxY: band.maxY,
+					minX: band.minX,
+					maxX: band.maxX,
+				});
+				bandStack.push({
+					minY: band.minY,
+					maxY: midY,
+					minX: band.minX,
+					maxX: band.maxX,
+				});
 				depth++;
 				continue;
 			}
 
 			// Can't bisect in either dimension - rotten glyph
-			console.warn(`Rasterizer: band overflow at (${band.minX},${band.minY}), cannot bisect further`);
+			console.warn(
+				`Rasterizer: band overflow at (${band.minX},${band.minY}), cannot bisect further`,
+			);
 		}
 	}
 
@@ -776,7 +814,13 @@ export class GrayRaster {
 					if (cover !== 0 && x < maxX) {
 						const gray = this.applyFillRule(cover, fillRule);
 						if (gray > 0) {
-							this.fillSpan(bitmap, row, Math.max(0, x), Math.min(bitmap.width, maxX), gray);
+							this.fillSpan(
+								bitmap,
+								row,
+								Math.max(0, x),
+								Math.min(bitmap.width, maxX),
+								gray,
+							);
 						}
 					}
 					break;
@@ -814,5 +858,4 @@ export class GrayRaster {
 			}
 		}
 	}
-
 }

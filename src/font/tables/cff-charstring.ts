@@ -1,5 +1,5 @@
 import type { GlyphId } from "../../types.ts";
-import type { CffTable, PrivateDict } from "./cff.ts";
+import type { CffTable } from "./cff.ts";
 import type { Cff2Table, ItemVariationStore } from "./cff2.ts";
 import type { Contour, GlyphPoint } from "./glyf.ts";
 
@@ -1003,15 +1003,25 @@ function addCubicBezier(
 
 	// Store as: cp1 (cubic=true), cp2 (cubic=true), endpoint (onCurve=true)
 	// The 'cubic' property distinguishes this from TrueType quadratic off-curve points
-	state.currentContour.push({ x: x1, y: y1, onCurve: false, cubic: true } as GlyphPoint);
-	state.currentContour.push({ x: x2, y: y2, onCurve: false, cubic: true } as GlyphPoint);
+	state.currentContour.push({
+		x: x1,
+		y: y1,
+		onCurve: false,
+		cubic: true,
+	} as GlyphPoint);
+	state.currentContour.push({
+		x: x2,
+		y: y2,
+		onCurve: false,
+		cubic: true,
+	} as GlyphPoint);
 	state.currentContour.push({ x: x3, y: y3, onCurve: true });
 
 	state.x = x3;
 	state.y = y3;
 }
 
-function approximateCubicWithQuadratics(
+function _approximateCubicWithQuadratics(
 	state: CharStringState,
 	x0: number,
 	y0: number,
@@ -1071,7 +1081,7 @@ function approximateCubicWithQuadratics(
 		const midy = (mmy1 + mmy2) / 2;
 
 		// Recurse on both halves
-		approximateCubicWithQuadratics(
+		_approximateCubicWithQuadratics(
 			state,
 			x0,
 			y0,
@@ -1083,7 +1093,7 @@ function approximateCubicWithQuadratics(
 			midy,
 			depth + 1,
 		);
-		approximateCubicWithQuadratics(
+		_approximateCubicWithQuadratics(
 			state,
 			midx,
 			midy,

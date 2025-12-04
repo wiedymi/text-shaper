@@ -128,7 +128,7 @@ export function ODD(ctx: ExecContext): void {
 	const val = ctx.stack[ctx.stackTop - 1]!;
 	// Round to nearest pixel and test bit 6
 	const rounded = (val + 32) & ~63;
-	ctx.stack[ctx.stackTop - 1] = (rounded & 64) ? 1 : 0;
+	ctx.stack[ctx.stackTop - 1] = rounded & 64 ? 1 : 0;
 }
 
 /** EVEN - Test if even (after rounding to pixels) */
@@ -136,7 +136,7 @@ export function EVEN(ctx: ExecContext): void {
 	const val = ctx.stack[ctx.stackTop - 1]!;
 	// Round to nearest pixel and test bit 6
 	const rounded = (val + 32) & ~63;
-	ctx.stack[ctx.stackTop - 1] = (rounded & 64) ? 0 : 1;
+	ctx.stack[ctx.stackTop - 1] = rounded & 64 ? 0 : 1;
 }
 
 // Logic instructions

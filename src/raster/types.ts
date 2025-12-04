@@ -2,7 +2,7 @@
  * Rasterizer types - FreeType-style bitmap rendering
  */
 
-import type { PathCommand, GlyphPath } from "../render/path.ts";
+import type { GlyphPath } from "../render/path.ts";
 
 /**
  * Pixel modes for bitmap output
@@ -62,7 +62,11 @@ export interface Span {
  * Callback for span-based rendering
  * @template T User data type passed through from render call
  */
-export type SpanFunc<T = void> = (y: number, spans: Span[], userData: T) => void;
+export type SpanFunc<T = void> = (
+	y: number,
+	spans: Span[],
+	userData: T,
+) => void;
 
 /**
  * Rasterization parameters
@@ -194,9 +198,7 @@ export function createBitmap(
 	}
 
 	const pitch =
-		pixelMode === PixelMode.Mono
-			? Math.ceil(width / 8)
-			: width * bytesPerPixel;
+		pixelMode === PixelMode.Mono ? Math.ceil(width / 8) : width * bytesPerPixel;
 
 	return {
 		buffer: new Uint8Array(pitch * height),

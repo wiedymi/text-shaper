@@ -6,7 +6,7 @@
  * rendering issues that only appear at certain sizes.
  */
 
-import { type ExecContext, type GlyphZone } from "../types.ts";
+import type { ExecContext } from "../types.ts";
 import { movePoint, touchPoint } from "./points.ts";
 
 /**

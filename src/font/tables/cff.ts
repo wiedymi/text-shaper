@@ -77,6 +77,8 @@ export interface PrivateDict {
 
 export interface FDDict extends PrivateDict {
 	fontName?: string;
+	/** Private dict offset and size [size, offset] */
+	private?: [number, number];
 	/** Local subroutines for this FD (parsed from private dict subrs offset) */
 	localSubrs?: Uint8Array[];
 }

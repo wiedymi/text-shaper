@@ -2,9 +2,13 @@
  * Decompose path commands into rasterizer calls
  */
 
-import { type PathCommand, type GlyphPath, OutlineFlags } from "../render/path.ts";
-import type { GrayRaster } from "./gray-raster.ts";
+import {
+	type GlyphPath,
+	OutlineFlags,
+	type PathCommand,
+} from "../render/path.ts";
 import { ONE_PIXEL } from "./fixed-point.ts";
+import type { GrayRaster } from "./gray-raster.ts";
 import { FillRule } from "./types.ts";
 
 /**
@@ -41,12 +45,18 @@ export function validateOutline(
 ): ValidationResult {
 	// Check for null/undefined path
 	if (!path) {
-		return { error: OutlineError.InvalidOutline, message: "Path is null or undefined" };
+		return {
+			error: OutlineError.InvalidOutline,
+			message: "Path is null or undefined",
+		};
 	}
 
 	// Check commands array exists
 	if (!path.commands) {
-		return { error: OutlineError.InvalidOutline, message: "Path commands array is missing" };
+		return {
+			error: OutlineError.InvalidOutline,
+			message: "Path commands array is missing",
+		};
 	}
 
 	// Check for empty path
@@ -74,7 +84,7 @@ export function validateOutline(
 				inContour = true;
 				contourCount++;
 				// Validate coordinates are finite numbers
-				if (!isFinite(cmd.x) || !isFinite(cmd.y)) {
+				if (!Number.isFinite(cmd.x) || !Number.isFinite(cmd.y)) {
 					return {
 						error: OutlineError.InvalidOutline,
 						message: `Invalid coordinates at command ${i}: (${cmd.x}, ${cmd.y})`,
@@ -89,7 +99,7 @@ export function validateOutline(
 						message: `Line command at ${i} without preceding moveTo`,
 					};
 				}
-				if (!isFinite(cmd.x) || !isFinite(cmd.y)) {
+				if (!Number.isFinite(cmd.x) || !Number.isFinite(cmd.y)) {
 					return {
 						error: OutlineError.InvalidOutline,
 						message: `Invalid coordinates at command ${i}`,
@@ -105,10 +115,10 @@ export function validateOutline(
 					};
 				}
 				if (
-					!isFinite(cmd.x1) ||
-					!isFinite(cmd.y1) ||
-					!isFinite(cmd.x) ||
-					!isFinite(cmd.y)
+					!Number.isFinite(cmd.x1) ||
+					!Number.isFinite(cmd.y1) ||
+					!Number.isFinite(cmd.x) ||
+					!Number.isFinite(cmd.y)
 				) {
 					return {
 						error: OutlineError.InvalidOutline,
@@ -125,12 +135,12 @@ export function validateOutline(
 					};
 				}
 				if (
-					!isFinite(cmd.x1) ||
-					!isFinite(cmd.y1) ||
-					!isFinite(cmd.x2) ||
-					!isFinite(cmd.y2) ||
-					!isFinite(cmd.x) ||
-					!isFinite(cmd.y)
+					!Number.isFinite(cmd.x1) ||
+					!Number.isFinite(cmd.y1) ||
+					!Number.isFinite(cmd.x2) ||
+					!Number.isFinite(cmd.y2) ||
+					!Number.isFinite(cmd.x) ||
+					!Number.isFinite(cmd.y)
 				) {
 					return {
 						error: OutlineError.InvalidOutline,

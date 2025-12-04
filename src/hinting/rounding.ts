@@ -4,60 +4,72 @@
  * These implement the various rounding modes used by the interpreter.
  */
 
-import { type F26Dot6, RoundMode, type GraphicsState } from "./types.ts";
+import { type F26Dot6, type GraphicsState, RoundMode } from "./types.ts";
 
 /**
  * Round to grid (nearest integer pixel)
  */
 export function roundToGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
 	if (distance >= 0) {
-		return ((distance + 32 + compensation) & -64);
+		return (distance + 32 + compensation) & -64;
 	} else {
-		return -(((-distance + 32 + compensation) & -64));
+		return -((-distance + 32 + compensation) & -64);
 	}
 }
 
 /**
  * Round to half grid (nearest half pixel)
  */
-export function roundToHalfGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
+export function roundToHalfGrid(
+	distance: F26Dot6,
+	compensation: F26Dot6,
+): F26Dot6 {
 	if (distance >= 0) {
 		return ((distance + 32 + compensation) & -64) + 32;
 	} else {
-		return -((((-distance + 32 + compensation) & -64) + 32));
+		return -(((-distance + 32 + compensation) & -64) + 32);
 	}
 }
 
 /**
  * Round to double grid (nearest half pixel boundary)
  */
-export function roundToDoubleGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
+export function roundToDoubleGrid(
+	distance: F26Dot6,
+	compensation: F26Dot6,
+): F26Dot6 {
 	if (distance >= 0) {
-		return ((distance + 16 + compensation) & -32);
+		return (distance + 16 + compensation) & -32;
 	} else {
-		return -(((-distance + 16 + compensation) & -32));
+		return -((-distance + 16 + compensation) & -32);
 	}
 }
 
 /**
  * Round down to grid (floor to pixel)
  */
-export function roundDownToGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
+export function roundDownToGrid(
+	distance: F26Dot6,
+	compensation: F26Dot6,
+): F26Dot6 {
 	if (distance >= 0) {
-		return ((distance + compensation) & -64);
+		return (distance + compensation) & -64;
 	} else {
-		return -(((compensation - distance) & -64));
+		return -((compensation - distance) & -64);
 	}
 }
 
 /**
  * Round up to grid (ceiling to pixel)
  */
-export function roundUpToGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
+export function roundUpToGrid(
+	distance: F26Dot6,
+	compensation: F26Dot6,
+): F26Dot6 {
 	if (distance >= 0) {
-		return ((distance + 63 + compensation) & -64);
+		return (distance + 63 + compensation) & -64;
 	} else {
-		return -(((63 + compensation - distance) & -64));
+		return -((63 + compensation - distance) & -64);
 	}
 }
 
@@ -82,7 +94,7 @@ export function roundSuper(
 		const val = (distance + threshold - phase + compensation) & -period;
 		return val + phase;
 	} else {
-		const val = ((-distance + threshold - phase + compensation) & -period);
+		const val = (-distance + threshold - phase + compensation) & -period;
 		return -(val + phase);
 	}
 }
@@ -98,13 +110,13 @@ export function roundSuper45(
 	// Same as super rounding but with 45-degree adjusted period
 	// Period is multiplied by sqrt(2)/2 ≈ 0.707
 	const { period, phase, threshold } = GS;
-	const period45 = Math.round(period * 46 / 64); // sqrt(2)/2 ≈ 46/64
+	const period45 = Math.round((period * 46) / 64); // sqrt(2)/2 ≈ 46/64
 
 	if (distance >= 0) {
 		const val = (distance + threshold - phase + compensation) & -period45;
 		return val + phase;
 	} else {
-		const val = ((-distance + threshold - phase + compensation) & -period45);
+		const val = (-distance + threshold - phase + compensation) & -period45;
 		return -(val + phase);
 	}
 }
@@ -188,7 +200,7 @@ export function parseSuperRound(selector: number, GS: GraphicsState): void {
  * Compensate distance for engine characteristics
  * Used with ROUND and movement instructions
  */
-export function compensate(distance: F26Dot6, GS: GraphicsState): F26Dot6 {
+export function compensate(_distance: F26Dot6, _GS: GraphicsState): F26Dot6 {
 	// Engine compensation is typically 0 for modern displays
 	// But some fonts depend on it for grid-fitting
 	return 0;

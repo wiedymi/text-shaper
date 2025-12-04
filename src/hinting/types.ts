@@ -47,7 +47,7 @@ export enum RoundMode {
 /**
  * Touch flags for points
  */
-export const enum TouchFlag {
+export enum TouchFlag {
 	X = 0x01,
 	Y = 0x02,
 	Both = 0x03,
@@ -203,8 +203,8 @@ export interface InstructionDef {
  */
 export enum CodeRange {
 	None = 0,
-	Font = 1,  // fpgm table
-	CVT = 2,   // prep table
+	Font = 1, // fpgm table
+	CVT = 2, // prep table
 	Glyph = 3, // glyph instructions
 }
 
@@ -299,7 +299,10 @@ export interface ExecContext {
 /**
  * Create an empty glyph zone
  */
-export function createGlyphZone(maxPoints: number, maxContours: number): GlyphZone {
+export function createGlyphZone(
+	maxPoints: number,
+	maxContours: number,
+): GlyphZone {
 	return {
 		nPoints: 0,
 		nContours: 0,

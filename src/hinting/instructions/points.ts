@@ -4,31 +4,27 @@
  * These are the core hinting operations that actually move glyph points.
  */
 
+import { compensate, round } from "../rounding.ts";
 import {
 	type ExecContext,
-	type GlyphZone,
 	type F26Dot6,
+	type GlyphZone,
 	type Point,
 	TouchFlag,
 } from "../types.ts";
-import { round, compensate } from "../rounding.ts";
 
 /**
  * Project a point onto the projection vector
  */
 export function project(ctx: ExecContext, p: Point): F26Dot6 {
-	return (
-		(p.x * ctx.GS.projVector.x + p.y * ctx.GS.projVector.y + 0x2000) >> 14
-	);
+	return (p.x * ctx.GS.projVector.x + p.y * ctx.GS.projVector.y + 0x2000) >> 14;
 }
 
 /**
  * Project using dual vector (for original positions)
  */
 export function dualProject(ctx: ExecContext, p: Point): F26Dot6 {
-	return (
-		(p.x * ctx.GS.dualVector.x + p.y * ctx.GS.dualVector.y + 0x2000) >> 14
-	);
+	return (p.x * ctx.GS.dualVector.x + p.y * ctx.GS.dualVector.y + 0x2000) >> 14;
 }
 
 /**
@@ -48,7 +44,7 @@ export function movePoint(
 	const pv = ctx.GS.projVector;
 
 	// Calculate dot product of freedom and projection vectors
-	const dot = ((fv.x * pv.x + fv.y * pv.y + 0x2000) >> 14);
+	const dot = (fv.x * pv.x + fv.y * pv.y + 0x2000) >> 14;
 
 	if (dot === 0) {
 		// Vectors are perpendicular, can't move
@@ -92,7 +88,11 @@ export function getOriginal(
 /**
  * Mark point as touched in the current direction
  */
-export function touchPoint(ctx: ExecContext, zone: GlyphZone, pointIndex: number): void {
+export function touchPoint(
+	ctx: ExecContext,
+	zone: GlyphZone,
+	pointIndex: number,
+): void {
 	// Set touch flag based on freedom vector direction
 	const fv = ctx.GS.freeVector;
 	if (fv.y !== 0) {
@@ -154,7 +154,7 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 	}
 
 	let cvtDistance = ctx.cvt[cvtIndex]!;
-	let currentPos = getCurrent(ctx, zone, pointIndex);
+	const currentPos = getCurrent(ctx, zone, pointIndex);
 
 	if (doRound) {
 		// Check if we should use CVT value or current position
@@ -279,7 +279,8 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	}
 
 	// Get original distance for comparison
-	let orgDist = getOriginal(ctx, zp1, pointIndex) - getOriginal(ctx, zp0, rp0);
+	const orgDist =
+		getOriginal(ctx, zp1, pointIndex) - getOriginal(ctx, zp0, rp0);
 
 	// Get CVT distance
 	let cvtDist = ctx.cvt[cvtIndex]!;
@@ -619,21 +620,11 @@ export function ISECT(ctx: ExecContext): void {
 	const zone1 = ctx.zp1;
 	const zone2 = ctx.zp2;
 
-	if (
-		a0 < 0 ||
-		a0 >= zone0.nPoints ||
-		a1 < 0 ||
-		a1 >= zone0.nPoints
-	) {
+	if (a0 < 0 || a0 >= zone0.nPoints || a1 < 0 || a1 >= zone0.nPoints) {
 		ctx.error = `ISECT: invalid line A points`;
 		return;
 	}
-	if (
-		b0 < 0 ||
-		b0 >= zone1.nPoints ||
-		b1 < 0 ||
-		b1 >= zone1.nPoints
-	) {
+	if (b0 < 0 || b0 >= zone1.nPoints || b1 < 0 || b1 >= zone1.nPoints) {
 		ctx.error = `ISECT: invalid line B points`;
 		return;
 	}

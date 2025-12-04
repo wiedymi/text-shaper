@@ -942,10 +942,7 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 /**
  * Get clip box for a glyph
  */
-export function getClipBox(
-	colr: ColrTable,
-	glyphId: GlyphId,
-): ClipBox | null {
+export function getClipBox(colr: ColrTable, glyphId: GlyphId): ClipBox | null {
 	if (!colr.clipList) return null;
 
 	for (const record of colr.clipList) {
@@ -993,7 +990,12 @@ export function getColorVariationDelta(
 		for (let j = 0; j < region.regionAxes.length && j < coords.length; j++) {
 			const axis = region.regionAxes[j]!;
 			const coord = coords[j]!;
-			scalar *= calculateAxisScalar(coord, axis.startCoord, axis.peakCoord, axis.endCoord);
+			scalar *= calculateAxisScalar(
+				coord,
+				axis.startCoord,
+				axis.peakCoord,
+				axis.endCoord,
+			);
 			if (scalar === 0) break;
 		}
 

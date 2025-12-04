@@ -5,149 +5,139 @@
  */
 
 import {
-	type ExecContext,
-	Opcode,
-	CodeRange,
-} from "./types.ts";
-
-// Import instruction implementations
-import {
-	DUP,
-	POP,
-	CLEAR,
-	SWAP,
-	DEPTH,
-	CINDEX,
-	MINDEX,
-	ROLL,
-	PUSHB,
-	PUSHW,
-	NPUSHB,
-	NPUSHW,
-} from "./instructions/stack.ts";
-
-import {
-	ADD,
-	SUB,
-	DIV,
-	MUL,
 	ABS,
-	NEG,
-	FLOOR,
+	ADD,
+	AND,
 	CEILING,
-	MAX,
-	MIN,
-	LT,
-	LTEQ,
+	DIV,
+	EQ,
+	EVEN,
+	FLOOR,
 	GT,
 	GTEQ,
-	EQ,
+	LT,
+	LTEQ,
+	MAX,
+	MIN,
+	MUL,
+	NEG,
 	NEQ,
-	ODD,
-	EVEN,
-	AND,
-	OR,
 	NOT,
+	ODD,
+	OR,
+	SUB,
 } from "./instructions/arithmetic.ts";
-
 import {
-	IF,
-	ELSE,
-	EIF,
-	JMPR,
-	JROT,
-	JROF,
-	FDEF,
-	ENDF,
 	CALL,
-	LOOPCALL,
+	EIF,
+	ELSE,
+	ENDF,
+	FDEF,
 	IDEF,
+	IF,
+	JMPR,
+	JROF,
+	JROT,
+	LOOPCALL,
 } from "./instructions/control-flow.ts";
-
 import {
-	SVTCA,
-	SPVTCA,
-	SFVTCA,
-	SPVTL,
-	SFVTL,
-	SDPVTL,
-	SPVFS,
-	SFVFS,
-	GPV,
+	DELTAC1,
+	DELTAC2,
+	DELTAC3,
+	DELTAP1,
+	DELTAP2,
+	DELTAP3,
+} from "./instructions/delta.ts";
+import {
+	FLIPOFF,
+	FLIPON,
+	GETINFO,
 	GFV,
+	GPV,
+	INSTCTRL,
+	RCVT,
+	RDTG,
+	ROFF,
+	RS,
+	RTDG,
+	RTG,
+	RTHG,
+	RUTG,
+	S45ROUND,
+	SCANCTRL,
+	SCANTYPE,
+	SCVTCI,
+	SDB,
+	SDPVTL,
+	SDS,
+	SFVFS,
+	SFVTCA,
+	SFVTL,
 	SFVTPV,
+	SLOOP,
+	SMD,
+	SPVFS,
+	SPVTCA,
+	SPVTL,
+	SROUND,
 	SRP0,
 	SRP1,
 	SRP2,
+	SSW,
+	SSWCI,
+	SVTCA,
 	SZP0,
 	SZP1,
 	SZP2,
 	SZPS,
-	SLOOP,
-	SMD,
-	SCVTCI,
-	SSWCI,
-	SSW,
-	SDB,
-	SDS,
-	RTG,
-	RTHG,
-	RTDG,
-	RDTG,
-	RUTG,
-	ROFF,
-	SROUND,
-	S45ROUND,
-	FLIPON,
-	FLIPOFF,
-	SCANCTRL,
-	SCANTYPE,
-	INSTCTRL,
-	GETINFO,
-	RS,
-	WS,
-	RCVT,
-	WCVTP,
-	WCVTF,
 	UTP,
+	WCVTF,
+	WCVTP,
+	WS,
 } from "./instructions/graphics-state.ts";
-
-import {
-	MDAP,
-	MIAP,
-	MDRP,
-	MIRP,
-	SHP,
-	SHC,
-	SHZ,
-	SHPIX,
-	IP,
-	ALIGNRP,
-	MSIRP,
-	ISECT,
-	ALIGNPTS,
-	GC,
-	SCFS,
-	MD,
-	MPPEM,
-	MPS,
-	FLIPPT,
-	FLIPRGON,
-	FLIPRGOFF,
-	ROUND,
-	NROUND,
-} from "./instructions/points.ts";
-
 import { IUP_X, IUP_Y } from "./instructions/interpolate.ts";
 
 import {
-	DELTAP1,
-	DELTAP2,
-	DELTAP3,
-	DELTAC1,
-	DELTAC2,
-	DELTAC3,
-} from "./instructions/delta.ts";
+	ALIGNPTS,
+	ALIGNRP,
+	FLIPPT,
+	FLIPRGOFF,
+	FLIPRGON,
+	GC,
+	IP,
+	ISECT,
+	MD,
+	MDAP,
+	MDRP,
+	MIAP,
+	MIRP,
+	MPPEM,
+	MPS,
+	MSIRP,
+	NROUND,
+	ROUND,
+	SCFS,
+	SHC,
+	SHP,
+	SHPIX,
+	SHZ,
+} from "./instructions/points.ts";
+// Import instruction implementations
+import {
+	CINDEX,
+	CLEAR,
+	DEPTH,
+	DUP,
+	MINDEX,
+	NPUSHB,
+	NPUSHW,
+	POP,
+	PUSHB,
+	PUSHW,
+	ROLL,
+	SWAP,
+} from "./instructions/stack.ts";
+import { CodeRange, type ExecContext, Opcode } from "./types.ts";
 
 /**
  * Execute bytecode from the current instruction pointer
@@ -173,13 +163,13 @@ export function execute(ctx: ExecContext): void {
 function executeOpcode(ctx: ExecContext, opcode: number): void {
 	// Handle PUSHB[n] (0xB0-0xB7)
 	if (opcode >= 0xb0 && opcode <= 0xb7) {
-		PUSHB(ctx, (opcode - 0xb0) + 1);
+		PUSHB(ctx, opcode - 0xb0 + 1);
 		return;
 	}
 
 	// Handle PUSHW[n] (0xB8-0xBF)
 	if (opcode >= 0xb8 && opcode <= 0xbf) {
-		PUSHW(ctx, (opcode - 0xb8) + 1);
+		PUSHW(ctx, opcode - 0xb8 + 1);
 		return;
 	}
 
@@ -720,10 +710,7 @@ export function setCodeRange(
 /**
  * Run code in a specific range
  */
-export function runProgram(
-	ctx: ExecContext,
-	range: CodeRange,
-): void {
+export function runProgram(ctx: ExecContext, range: CodeRange): void {
 	const codeRange = ctx.codeRanges.get(range);
 	if (!codeRange) {
 		return;
@@ -759,7 +746,10 @@ export function runCVTProgram(ctx: ExecContext): void {
 /**
  * Run glyph instructions
  */
-export function runGlyphProgram(ctx: ExecContext, instructions: Uint8Array): void {
+export function runGlyphProgram(
+	ctx: ExecContext,
+	instructions: Uint8Array,
+): void {
 	// Reset graphics state to default
 	ctx.GS = { ...ctx.defaultGS };
 

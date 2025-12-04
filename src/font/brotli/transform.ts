@@ -22,7 +22,7 @@ const OMIT_FIRST_4 = 15;
 const OMIT_FIRST_5 = 16;
 const OMIT_FIRST_6 = 17;
 const OMIT_FIRST_7 = 18;
-const OMIT_FIRST_8 = 19;
+const _OMIT_FIRST_8 = 19;
 const OMIT_FIRST_9 = 20;
 
 interface Transform {
@@ -31,7 +31,11 @@ interface Transform {
 	suffix: Uint8Array;
 }
 
-function makeTransform(prefix: string, transform: number, suffix: string): Transform {
+function makeTransform(
+	prefix: string,
+	transform: number,
+	suffix: string,
+): Transform {
 	const prefixBytes = new Uint8Array(prefix.length);
 	const suffixBytes = new Uint8Array(suffix.length);
 	for (let i = 0; i < prefix.length; i++) prefixBytes[i] = prefix.charCodeAt(i);
@@ -59,9 +63,9 @@ export const TRANSFORMS: Transform[] = [
 	makeTransform("", IDENTITY, " in "),
 	makeTransform("", IDENTITY, " to "),
 	makeTransform("e ", IDENTITY, " "),
-	makeTransform("", IDENTITY, "\""),
+	makeTransform("", IDENTITY, '"'),
 	makeTransform("", IDENTITY, "."),
-	makeTransform("", IDENTITY, "\">"),
+	makeTransform("", IDENTITY, '">'),
 	makeTransform("", IDENTITY, "\n"),
 	makeTransform("", OMIT_LAST_3, ""),
 	makeTransform("", IDENTITY, "]"),
@@ -106,11 +110,11 @@ export const TRANSFORMS: Transform[] = [
 	makeTransform("", OMIT_LAST_5, ""),
 	makeTransform("", OMIT_LAST_9, ""),
 	makeTransform(" ", UPPERCASE_FIRST, ", "),
-	makeTransform("", UPPERCASE_FIRST, "\""),
+	makeTransform("", UPPERCASE_FIRST, '"'),
 	makeTransform(".", IDENTITY, "("),
 	makeTransform("", UPPERCASE_ALL, " "),
-	makeTransform("", UPPERCASE_FIRST, "\">"),
-	makeTransform("", IDENTITY, "=\""),
+	makeTransform("", UPPERCASE_FIRST, '">'),
+	makeTransform("", IDENTITY, '="'),
 	makeTransform(" ", IDENTITY, "."),
 	makeTransform(".com/", IDENTITY, ""),
 	makeTransform(" the ", IDENTITY, " of the "),
@@ -121,13 +125,13 @@ export const TRANSFORMS: Transform[] = [
 	makeTransform("", UPPERCASE_FIRST, "("),
 	makeTransform("", UPPERCASE_FIRST, "."),
 	makeTransform("", IDENTITY, " not "),
-	makeTransform(" ", IDENTITY, "=\""),
+	makeTransform(" ", IDENTITY, '="'),
 	makeTransform("", IDENTITY, "er "),
 	makeTransform(" ", UPPERCASE_ALL, " "),
 	makeTransform("", IDENTITY, "al "),
 	makeTransform(" ", UPPERCASE_ALL, ""),
 	makeTransform("", IDENTITY, "='"),
-	makeTransform("", UPPERCASE_ALL, "\""),
+	makeTransform("", UPPERCASE_ALL, '"'),
 	makeTransform("", UPPERCASE_FIRST, ". "),
 	makeTransform(" ", IDENTITY, "("),
 	makeTransform("", IDENTITY, "ful "),
@@ -137,20 +141,20 @@ export const TRANSFORMS: Transform[] = [
 	makeTransform("", UPPERCASE_ALL, "'"),
 	makeTransform("", IDENTITY, "est "),
 	makeTransform(" ", UPPERCASE_FIRST, "."),
-	makeTransform("", UPPERCASE_ALL, "\">"),
+	makeTransform("", UPPERCASE_ALL, '">'),
 	makeTransform(" ", IDENTITY, "='"),
 	makeTransform("", UPPERCASE_FIRST, ","),
 	makeTransform("", IDENTITY, "ize "),
 	makeTransform("", UPPERCASE_ALL, "."),
 	makeTransform("\xc2\xa0", IDENTITY, ""),
 	makeTransform(" ", IDENTITY, ","),
-	makeTransform("", UPPERCASE_FIRST, "=\""),
-	makeTransform("", UPPERCASE_ALL, "=\""),
+	makeTransform("", UPPERCASE_FIRST, '="'),
+	makeTransform("", UPPERCASE_ALL, '="'),
 	makeTransform("", IDENTITY, "ous "),
 	makeTransform("", UPPERCASE_ALL, ", "),
 	makeTransform("", UPPERCASE_FIRST, "='"),
 	makeTransform(" ", UPPERCASE_FIRST, ","),
-	makeTransform(" ", UPPERCASE_ALL, "=\""),
+	makeTransform(" ", UPPERCASE_ALL, '="'),
 	makeTransform(" ", UPPERCASE_ALL, ", "),
 	makeTransform("", UPPERCASE_ALL, ","),
 	makeTransform("", UPPERCASE_ALL, "("),
@@ -158,7 +162,7 @@ export const TRANSFORMS: Transform[] = [
 	makeTransform(" ", UPPERCASE_ALL, "."),
 	makeTransform("", UPPERCASE_ALL, "='"),
 	makeTransform(" ", UPPERCASE_ALL, ". "),
-	makeTransform(" ", UPPERCASE_FIRST, "=\""),
+	makeTransform(" ", UPPERCASE_FIRST, '="'),
 	makeTransform(" ", UPPERCASE_ALL, "='"),
 	makeTransform(" ", UPPERCASE_FIRST, "='"),
 ];
@@ -188,7 +192,7 @@ export function transformDictionaryWord(
 	wordOffset: number,
 	len: number,
 	transformIdx: number,
-	dictionary: Uint8Array
+	dictionary: Uint8Array,
 ): number {
 	const transform = TRANSFORMS[transformIdx];
 	const t = transform.transform;
@@ -202,7 +206,7 @@ export function transformDictionaryWord(
 		dst[idx++] = transform.prefix[i];
 	}
 
-	let word = wordOffset + skip;
+	const word = wordOffset + skip;
 	let wordLen = len - skip;
 
 	if (t <= OMIT_LAST_9) {

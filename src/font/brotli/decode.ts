@@ -4,8 +4,12 @@
  * https://github.com/devongovett/brotli.js
  */
 
-import { DICTIONARY, DICTIONARY_OFFSETS_BY_LENGTH, DICTIONARY_SIZE_BITS_BY_LENGTH } from "./dictionary.ts";
 import { CONTEXT_LOOKUP, CONTEXT_LOOKUP_OFFSETS } from "./context.ts";
+import {
+	DICTIONARY,
+	DICTIONARY_OFFSETS_BY_LENGTH,
+	DICTIONARY_SIZE_BITS_BY_LENGTH,
+} from "./dictionary.ts";
 import { TRANSFORMS, transformDictionaryWord } from "./transform.ts";
 
 // Constants
@@ -23,40 +27,95 @@ const CODE_LENGTH_CODE_ORDER = new Uint8Array([
 ]);
 
 const DISTANCE_SHORT_CODE_INDEX_OFFSET = new Uint8Array([
-	3, 2, 1, 0, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2
+	3, 2, 1, 0, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2,
 ]);
 
 const DISTANCE_SHORT_CODE_VALUE_OFFSET = new Int8Array([
-	0, 0, 0, 0, -1, 1, -2, 2, -3, 3, -1, 1, -2, 2, -3, 3
+	0, 0, 0, 0, -1, 1, -2, 2, -3, 3, -1, 1, -2, 2, -3, 3,
 ]);
 
 // Prefix code tables
 const BLOCK_LENGTH_PREFIX = [
-	{ offset: 1, nbits: 2 }, { offset: 5, nbits: 2 }, { offset: 9, nbits: 2 }, { offset: 13, nbits: 2 },
-	{ offset: 17, nbits: 3 }, { offset: 25, nbits: 3 }, { offset: 33, nbits: 3 }, { offset: 41, nbits: 3 },
-	{ offset: 49, nbits: 4 }, { offset: 65, nbits: 4 }, { offset: 81, nbits: 4 }, { offset: 97, nbits: 4 },
-	{ offset: 113, nbits: 5 }, { offset: 145, nbits: 5 }, { offset: 177, nbits: 5 }, { offset: 209, nbits: 5 },
-	{ offset: 241, nbits: 6 }, { offset: 305, nbits: 6 }, { offset: 369, nbits: 7 }, { offset: 497, nbits: 8 },
-	{ offset: 753, nbits: 9 }, { offset: 1265, nbits: 10 }, { offset: 2289, nbits: 11 }, { offset: 4337, nbits: 12 },
-	{ offset: 8433, nbits: 13 }, { offset: 16625, nbits: 24 }
+	{ offset: 1, nbits: 2 },
+	{ offset: 5, nbits: 2 },
+	{ offset: 9, nbits: 2 },
+	{ offset: 13, nbits: 2 },
+	{ offset: 17, nbits: 3 },
+	{ offset: 25, nbits: 3 },
+	{ offset: 33, nbits: 3 },
+	{ offset: 41, nbits: 3 },
+	{ offset: 49, nbits: 4 },
+	{ offset: 65, nbits: 4 },
+	{ offset: 81, nbits: 4 },
+	{ offset: 97, nbits: 4 },
+	{ offset: 113, nbits: 5 },
+	{ offset: 145, nbits: 5 },
+	{ offset: 177, nbits: 5 },
+	{ offset: 209, nbits: 5 },
+	{ offset: 241, nbits: 6 },
+	{ offset: 305, nbits: 6 },
+	{ offset: 369, nbits: 7 },
+	{ offset: 497, nbits: 8 },
+	{ offset: 753, nbits: 9 },
+	{ offset: 1265, nbits: 10 },
+	{ offset: 2289, nbits: 11 },
+	{ offset: 4337, nbits: 12 },
+	{ offset: 8433, nbits: 13 },
+	{ offset: 16625, nbits: 24 },
 ];
 
 const INSERT_LENGTH_PREFIX = [
-	{ offset: 0, nbits: 0 }, { offset: 1, nbits: 0 }, { offset: 2, nbits: 0 }, { offset: 3, nbits: 0 },
-	{ offset: 4, nbits: 0 }, { offset: 5, nbits: 0 }, { offset: 6, nbits: 1 }, { offset: 8, nbits: 1 },
-	{ offset: 10, nbits: 2 }, { offset: 14, nbits: 2 }, { offset: 18, nbits: 3 }, { offset: 26, nbits: 3 },
-	{ offset: 34, nbits: 4 }, { offset: 50, nbits: 4 }, { offset: 66, nbits: 5 }, { offset: 98, nbits: 5 },
-	{ offset: 130, nbits: 6 }, { offset: 194, nbits: 7 }, { offset: 322, nbits: 8 }, { offset: 578, nbits: 9 },
-	{ offset: 1090, nbits: 10 }, { offset: 2114, nbits: 12 }, { offset: 6210, nbits: 14 }, { offset: 22594, nbits: 24 },
+	{ offset: 0, nbits: 0 },
+	{ offset: 1, nbits: 0 },
+	{ offset: 2, nbits: 0 },
+	{ offset: 3, nbits: 0 },
+	{ offset: 4, nbits: 0 },
+	{ offset: 5, nbits: 0 },
+	{ offset: 6, nbits: 1 },
+	{ offset: 8, nbits: 1 },
+	{ offset: 10, nbits: 2 },
+	{ offset: 14, nbits: 2 },
+	{ offset: 18, nbits: 3 },
+	{ offset: 26, nbits: 3 },
+	{ offset: 34, nbits: 4 },
+	{ offset: 50, nbits: 4 },
+	{ offset: 66, nbits: 5 },
+	{ offset: 98, nbits: 5 },
+	{ offset: 130, nbits: 6 },
+	{ offset: 194, nbits: 7 },
+	{ offset: 322, nbits: 8 },
+	{ offset: 578, nbits: 9 },
+	{ offset: 1090, nbits: 10 },
+	{ offset: 2114, nbits: 12 },
+	{ offset: 6210, nbits: 14 },
+	{ offset: 22594, nbits: 24 },
 ];
 
 const COPY_LENGTH_PREFIX = [
-	{ offset: 2, nbits: 0 }, { offset: 3, nbits: 0 }, { offset: 4, nbits: 0 }, { offset: 5, nbits: 0 },
-	{ offset: 6, nbits: 0 }, { offset: 7, nbits: 0 }, { offset: 8, nbits: 0 }, { offset: 9, nbits: 0 },
-	{ offset: 10, nbits: 1 }, { offset: 12, nbits: 1 }, { offset: 14, nbits: 2 }, { offset: 18, nbits: 2 },
-	{ offset: 22, nbits: 3 }, { offset: 30, nbits: 3 }, { offset: 38, nbits: 4 }, { offset: 54, nbits: 4 },
-	{ offset: 70, nbits: 5 }, { offset: 102, nbits: 5 }, { offset: 134, nbits: 6 }, { offset: 198, nbits: 7 },
-	{ offset: 326, nbits: 8 }, { offset: 582, nbits: 9 }, { offset: 1094, nbits: 10 }, { offset: 2118, nbits: 24 },
+	{ offset: 2, nbits: 0 },
+	{ offset: 3, nbits: 0 },
+	{ offset: 4, nbits: 0 },
+	{ offset: 5, nbits: 0 },
+	{ offset: 6, nbits: 0 },
+	{ offset: 7, nbits: 0 },
+	{ offset: 8, nbits: 0 },
+	{ offset: 9, nbits: 0 },
+	{ offset: 10, nbits: 1 },
+	{ offset: 12, nbits: 1 },
+	{ offset: 14, nbits: 2 },
+	{ offset: 18, nbits: 2 },
+	{ offset: 22, nbits: 3 },
+	{ offset: 30, nbits: 3 },
+	{ offset: 38, nbits: 4 },
+	{ offset: 54, nbits: 4 },
+	{ offset: 70, nbits: 5 },
+	{ offset: 102, nbits: 5 },
+	{ offset: 134, nbits: 6 },
+	{ offset: 198, nbits: 7 },
+	{ offset: 326, nbits: 8 },
+	{ offset: 582, nbits: 9 },
+	{ offset: 1094, nbits: 10 },
+	{ offset: 2118, nbits: 24 },
 ];
 
 const INSERT_RANGE_LUT = [0, 0, 8, 8, 0, 16, 8, 16, 16];
@@ -125,11 +184,17 @@ class BitReader {
 		}
 
 		const dst = this.pos & 4095;
-		const bytesRemaining = Math.min(4096, this.data.length - (this.pos & ~4095));
+		const bytesRemaining = Math.min(
+			4096,
+			this.data.length - (this.pos & ~4095),
+		);
 
 		if (bytesRemaining > 0) {
 			const srcStart = this.pos & ~4095;
-			this.buf.set(this.data.subarray(srcStart, srcStart + bytesRemaining), dst === 0 ? 0 : 4096);
+			this.buf.set(
+				this.data.subarray(srcStart, srcStart + bytesRemaining),
+				dst === 0 ? 0 : 4096,
+			);
 		}
 
 		if (bytesRemaining < 4096) {
@@ -185,7 +250,7 @@ function buildHuffmanTable(
 	tableOffset: number,
 	rootBits: number,
 	codeLengths: Uint8Array,
-	codeLengthsSize: number
+	codeLengthsSize: number,
 ): number {
 	const MAX_LENGTH = 15;
 	const count = new Int32Array(MAX_LENGTH + 1);
@@ -227,7 +292,10 @@ function buildHuffmanTable(
 	let symbol = 0;
 	for (let len = 1, step = 2; len <= rootBits; len++, step <<= 1) {
 		for (; count[len] > 0; count[len]--) {
-			const code: HuffmanCode = { bits: len & 0xff, value: sorted[symbol++] & 0xffff };
+			const code: HuffmanCode = {
+				bits: len & 0xff,
+				value: sorted[symbol++] & 0xffff,
+			};
 			replicateValue(rootTable, tableOffset + key, step, tableSize, code);
 			key = getNextKey(key, len);
 		}
@@ -248,11 +316,20 @@ function buildHuffmanTable(
 				low = key & mask;
 				rootTable[tableOffset + low] = {
 					bits: (tableBits + rootBits) & 0xff,
-					value: ((table - tableOffset) - low) & 0xffff
+					value: (table - tableOffset - low) & 0xffff,
 				};
 			}
-			const code: HuffmanCode = { bits: (len - rootBits) & 0xff, value: sorted[symbol++] & 0xffff };
-			replicateValue(rootTable, table + (key >> rootBits), step, tableSize, code);
+			const code: HuffmanCode = {
+				bits: (len - rootBits) & 0xff,
+				value: sorted[symbol++] & 0xffff,
+			};
+			replicateValue(
+				rootTable,
+				table + (key >> rootBits),
+				step,
+				tableSize,
+				code,
+			);
 			key = getNextKey(key, len);
 		}
 	}
@@ -268,14 +345,24 @@ function getNextKey(key: number, len: number): number {
 	return (key & (step - 1)) + step;
 }
 
-function replicateValue(table: HuffmanCode[], offset: number, step: number, end: number, code: HuffmanCode): void {
+function replicateValue(
+	table: HuffmanCode[],
+	offset: number,
+	step: number,
+	end: number,
+	code: HuffmanCode,
+): void {
 	do {
 		end -= step;
 		table[offset + end] = { bits: code.bits, value: code.value };
 	} while (end > 0);
 }
 
-function nextTableBitSize(count: Int32Array, len: number, rootBits: number): number {
+function nextTableBitSize(
+	count: Int32Array,
+	len: number,
+	rootBits: number,
+): number {
 	let left = 1 << (len - rootBits);
 	while (len < 15) {
 		left -= count[len];
@@ -287,10 +374,15 @@ function nextTableBitSize(count: Int32Array, len: number, rootBits: number): num
 }
 
 // Read symbol from Huffman table
-function readSymbol(table: HuffmanCode[], tableOffset: number, br: BitReader): number {
+function readSymbol(
+	table: HuffmanCode[],
+	tableOffset: number,
+	br: BitReader,
+): number {
 	br.fillBitWindow();
-	let index = tableOffset + ((br.currentVal >>> br.currentBitPos) & HUFFMAN_TABLE_MASK);
-	let nbits = table[index].bits - HUFFMAN_TABLE_BITS;
+	let index =
+		tableOffset + ((br.currentVal >>> br.currentBitPos) & HUFFMAN_TABLE_MASK);
+	const nbits = table[index].bits - HUFFMAN_TABLE_BITS;
 	if (nbits > 0) {
 		br.currentBitPos += HUFFMAN_TABLE_BITS;
 		index += table[index].value;
@@ -321,18 +413,29 @@ function decodeWindowBits(br: BitReader): number {
 }
 
 // Decode meta block length
-function decodeMetaBlockLength(br: BitReader): { length: number; isLast: boolean; isUncompressed: boolean; isMetadata: boolean } {
+function decodeMetaBlockLength(br: BitReader): {
+	length: number;
+	isLast: boolean;
+	isUncompressed: boolean;
+	isMetadata: boolean;
+} {
 	const isLast = br.readBits(1) === 1;
 	if (isLast && br.readBits(1)) {
-		return { length: 0, isLast: true, isUncompressed: false, isMetadata: false };
+		return {
+			length: 0,
+			isLast: true,
+			isUncompressed: false,
+			isMetadata: false,
+		};
 	}
 
-	let sizeNibbles = br.readBits(2) + 4;
+	const sizeNibbles = br.readBits(2) + 4;
 	if (sizeNibbles === 7) {
 		// Metadata block
 		if (br.readBits(1) !== 0) throw new Error("Invalid reserved bit");
 		const sizeBytes = br.readBits(2);
-		if (sizeBytes === 0) return { length: 0, isLast, isUncompressed: false, isMetadata: true };
+		if (sizeBytes === 0)
+			return { length: 0, isLast, isUncompressed: false, isMetadata: true };
 
 		let length = 0;
 		for (let i = 0; i < sizeBytes; i++) {
@@ -342,7 +445,12 @@ function decodeMetaBlockLength(br: BitReader): { length: number; isLast: boolean
 			}
 			length |= nextByte << (i * 8);
 		}
-		return { length: length + 1, isLast, isUncompressed: false, isMetadata: true };
+		return {
+			length: length + 1,
+			isLast,
+			isUncompressed: false,
+			isMetadata: true,
+		};
 	}
 
 	let length = 0;
@@ -364,7 +472,7 @@ function readHuffmanCodeLengths(
 	codeLengthCodeLengths: Uint8Array,
 	numSymbols: number,
 	codeLengths: Uint8Array,
-	br: BitReader
+	br: BitReader,
 ): void {
 	const DEFAULT_CODE_LENGTH = 8;
 	const CODE_LENGTH_REPEAT_CODE = 16;
@@ -443,7 +551,7 @@ function readHuffmanCode(
 	alphabetSize: number,
 	tables: HuffmanCode[],
 	tableOffset: number,
-	br: BitReader
+	br: BitReader,
 ): number {
 	const codeLengths = new Uint8Array(alphabetSize);
 
@@ -489,10 +597,22 @@ function readHuffmanCode(
 		let numCodes = 0;
 
 		const huff: HuffmanCode[] = [
-			{ bits: 2, value: 0 }, { bits: 2, value: 4 }, { bits: 2, value: 3 }, { bits: 3, value: 2 },
-			{ bits: 2, value: 0 }, { bits: 2, value: 4 }, { bits: 2, value: 3 }, { bits: 4, value: 1 },
-			{ bits: 2, value: 0 }, { bits: 2, value: 4 }, { bits: 2, value: 3 }, { bits: 3, value: 2 },
-			{ bits: 2, value: 0 }, { bits: 2, value: 4 }, { bits: 2, value: 3 }, { bits: 4, value: 5 }
+			{ bits: 2, value: 0 },
+			{ bits: 2, value: 4 },
+			{ bits: 2, value: 3 },
+			{ bits: 3, value: 2 },
+			{ bits: 2, value: 0 },
+			{ bits: 2, value: 4 },
+			{ bits: 2, value: 3 },
+			{ bits: 4, value: 1 },
+			{ bits: 2, value: 0 },
+			{ bits: 2, value: 4 },
+			{ bits: 2, value: 3 },
+			{ bits: 3, value: 2 },
+			{ bits: 2, value: 0 },
+			{ bits: 2, value: 4 },
+			{ bits: 2, value: 3 },
+			{ bits: 4, value: 5 },
 		];
 
 		for (let i = simpleCodeOrSkip; i < CODE_LENGTH_CODES && space > 0; i++) {
@@ -512,10 +632,21 @@ function readHuffmanCode(
 			throw new Error("Invalid code length codes");
 		}
 
-		readHuffmanCodeLengths(codeLengthCodeLengths, alphabetSize, codeLengths, br);
+		readHuffmanCodeLengths(
+			codeLengthCodeLengths,
+			alphabetSize,
+			codeLengths,
+			br,
+		);
 	}
 
-	return buildHuffmanTable(tables, tableOffset, HUFFMAN_TABLE_BITS, codeLengths, alphabetSize);
+	return buildHuffmanTable(
+		tables,
+		tableOffset,
+		HUFFMAN_TABLE_BITS,
+		codeLengths,
+		alphabetSize,
+	);
 }
 
 // Huffman tree group
@@ -523,7 +654,10 @@ class HuffmanTreeGroup {
 	codes: HuffmanCode[] = [];
 	htrees: Uint32Array;
 
-	constructor(public alphabetSize: number, public numHTrees: number) {
+	constructor(
+		public alphabetSize: number,
+		public numHTrees: number,
+	) {
 		this.htrees = new Uint32Array(numHTrees);
 		const maxSize = this.getMaxTableSize();
 		for (let i = 0; i < numHTrees + numHTrees * maxSize; i++) {
@@ -534,7 +668,7 @@ class HuffmanTreeGroup {
 	private getMaxTableSize(): number {
 		const sizes = [
 			256, 402, 436, 468, 500, 534, 566, 598, 630, 662, 694, 726, 758, 790, 822,
-			854, 886, 920, 952, 984, 1016, 1048, 1080
+			854, 886, 920, 952, 984, 1016, 1048, 1080,
 		];
 		const idx = (this.alphabetSize + 31) >>> 5;
 		return sizes[Math.min(idx, sizes.length - 1)];
@@ -544,14 +678,22 @@ class HuffmanTreeGroup {
 		let next = 0;
 		for (let i = 0; i < this.numHTrees; i++) {
 			this.htrees[i] = next;
-			const tableSize = readHuffmanCode(this.alphabetSize, this.codes, next, br);
+			const tableSize = readHuffmanCode(
+				this.alphabetSize,
+				this.codes,
+				next,
+				br,
+			);
 			next += tableSize;
 		}
 	}
 }
 
 // Decode context map
-function decodeContextMap(contextMapSize: number, br: BitReader): { numHTrees: number; contextMap: Uint8Array } {
+function decodeContextMap(
+	contextMapSize: number,
+	br: BitReader,
+): { numHTrees: number; contextMap: Uint8Array } {
 	br.readMoreInput();
 	const numHTrees = decodeVarLenUint8(br) + 1;
 	const contextMap = new Uint8Array(contextMapSize);
@@ -573,7 +715,7 @@ function decodeContextMap(contextMapSize: number, br: BitReader): { numHTrees: n
 
 	readHuffmanCode(numHTrees + maxRunLengthPrefix, table, 0, br);
 
-	for (let i = 0; i < contextMapSize;) {
+	for (let i = 0; i < contextMapSize; ) {
 		br.readMoreInput();
 		const code = readSymbol(table, 0, br);
 		if (code === 0) {
@@ -607,14 +749,22 @@ function decodeContextMap(contextMapSize: number, br: BitReader): { numHTrees: n
 }
 
 // Read block length
-function readBlockLength(table: HuffmanCode[], tableOffset: number, br: BitReader): number {
+function readBlockLength(
+	table: HuffmanCode[],
+	tableOffset: number,
+	br: BitReader,
+): number {
 	const code = readSymbol(table, tableOffset, br);
 	const prefix = BLOCK_LENGTH_PREFIX[code];
 	return prefix.offset + br.readBits(prefix.nbits);
 }
 
 // Translate short distance codes
-function translateShortCodes(code: number, ringBuffer: number[], index: number): number {
+function translateShortCodes(
+	code: number,
+	ringBuffer: number[],
+	index: number,
+): number {
 	if (code < NUM_DISTANCE_SHORT_CODES) {
 		const idx = (index + DISTANCE_SHORT_CODE_INDEX_OFFSET[code]) & 3;
 		return ringBuffer[idx] + DISTANCE_SHORT_CODE_VALUE_OFFSET[code];
@@ -696,9 +846,23 @@ export function decompress(data: Uint8Array): Uint8Array {
 		for (let i = 0; i < 3; i++) {
 			numBlockTypes[i] = decodeVarLenUint8(br) + 1;
 			if (numBlockTypes[i] >= 2) {
-				readHuffmanCode(numBlockTypes[i] + 2, blockTypeTrees, i * MAX_HUFFMAN_TABLE_SIZE, br);
-				readHuffmanCode(NUM_BLOCK_LENGTH_CODES, blockLenTrees, i * MAX_HUFFMAN_TABLE_SIZE, br);
-				blockLength[i] = readBlockLength(blockLenTrees, i * MAX_HUFFMAN_TABLE_SIZE, br);
+				readHuffmanCode(
+					numBlockTypes[i] + 2,
+					blockTypeTrees,
+					i * MAX_HUFFMAN_TABLE_SIZE,
+					br,
+				);
+				readHuffmanCode(
+					NUM_BLOCK_LENGTH_CODES,
+					blockLenTrees,
+					i * MAX_HUFFMAN_TABLE_SIZE,
+					br,
+				);
+				blockLength[i] = readBlockLength(
+					blockLenTrees,
+					i * MAX_HUFFMAN_TABLE_SIZE,
+					br,
+				);
 				blockTypeRbIndex[i] = 1;
 			}
 		}
@@ -706,9 +870,11 @@ export function decompress(data: Uint8Array): Uint8Array {
 		br.readMoreInput();
 
 		const distancePostfixBits = br.readBits(2);
-		const numDirectDistanceCodes = NUM_DISTANCE_SHORT_CODES + (br.readBits(4) << distancePostfixBits);
+		const numDirectDistanceCodes =
+			NUM_DISTANCE_SHORT_CODES + (br.readBits(4) << distancePostfixBits);
 		const distancePostfixMask = (1 << distancePostfixBits) - 1;
-		const numDistanceCodes = numDirectDistanceCodes + (48 << distancePostfixBits);
+		const numDistanceCodes =
+			numDirectDistanceCodes + (48 << distancePostfixBits);
 
 		const contextModes = new Uint8Array(numBlockTypes[0]);
 		for (let i = 0; i < numBlockTypes[0]; i++) {
@@ -722,7 +888,7 @@ export function decompress(data: Uint8Array): Uint8Array {
 		const hgroup = [
 			new HuffmanTreeGroup(NUM_LITERAL_CODES, literalContextMap.numHTrees),
 			new HuffmanTreeGroup(NUM_INSERT_AND_COPY_CODES, numBlockTypes[1]),
-			new HuffmanTreeGroup(numDistanceCodes, distContextMap.numHTrees)
+			new HuffmanTreeGroup(numDistanceCodes, distContextMap.numHTrees),
 		];
 
 		for (let i = 0; i < 3; i++) {
@@ -754,7 +920,11 @@ export function decompress(data: Uint8Array): Uint8Array {
 				blockType[1] = bt;
 				blockTypeRb[2 + (blockTypeRbIndex[1] & 1)] = bt;
 				blockTypeRbIndex[1]++;
-				blockLength[1] = readBlockLength(blockLenTrees, MAX_HUFFMAN_TABLE_SIZE, br);
+				blockLength[1] = readBlockLength(
+					blockLenTrees,
+					MAX_HUFFMAN_TABLE_SIZE,
+					br,
+				);
 				htreeCommand = hgroup[1].htrees[blockType[1]];
 			}
 			blockLength[1]--;
@@ -770,8 +940,12 @@ export function decompress(data: Uint8Array): Uint8Array {
 
 			const insertCode = INSERT_RANGE_LUT[rangeIdx] + ((cmdCode >> 3) & 7);
 			const copyCode = COPY_RANGE_LUT[rangeIdx] + (cmdCode & 7);
-			const insertLength = INSERT_LENGTH_PREFIX[insertCode].offset + br.readBits(INSERT_LENGTH_PREFIX[insertCode].nbits);
-			const copyLength = COPY_LENGTH_PREFIX[copyCode].offset + br.readBits(COPY_LENGTH_PREFIX[copyCode].nbits);
+			const insertLength =
+				INSERT_LENGTH_PREFIX[insertCode].offset +
+				br.readBits(INSERT_LENGTH_PREFIX[insertCode].nbits);
+			const copyLength =
+				COPY_LENGTH_PREFIX[copyCode].offset +
+				br.readBits(COPY_LENGTH_PREFIX[copyCode].nbits);
 
 			prevByte1 = ringBuffer[(pos - 1) & ringBufferMask];
 			prevByte2 = ringBuffer[(pos - 2) & ringBufferMask];
@@ -802,13 +976,19 @@ export function decompress(data: Uint8Array): Uint8Array {
 					contextLookupOffset2 = CONTEXT_LOOKUP_OFFSETS[contextMode + 1];
 				}
 
-				const context = CONTEXT_LOOKUP[contextLookupOffset1 + prevByte1] |
+				const context =
+					CONTEXT_LOOKUP[contextLookupOffset1 + prevByte1] |
 					CONTEXT_LOOKUP[contextLookupOffset2 + prevByte2];
-				const literalHtreeIndex = literalContextMap.contextMap[contextMapSlice + context];
+				const literalHtreeIndex =
+					literalContextMap.contextMap[contextMapSlice + context];
 				blockLength[0]--;
 
 				prevByte2 = prevByte1;
-				prevByte1 = readSymbol(hgroup[0].codes, hgroup[0].htrees[literalHtreeIndex], br);
+				prevByte1 = readSymbol(
+					hgroup[0].codes,
+					hgroup[0].htrees[literalHtreeIndex],
+					br,
+				);
 				ringBuffer[pos & ringBufferMask] = prevByte1;
 				if ((pos & ringBufferMask) === ringBufferMask) {
 					output.push(...ringBuffer.slice(0, ringBufferSize));
@@ -823,7 +1003,11 @@ export function decompress(data: Uint8Array): Uint8Array {
 				br.readMoreInput();
 				if (blockLength[2] === 0) {
 					// Decode block type for distances
-					const typeCode = readSymbol(blockTypeTrees, 2 * MAX_HUFFMAN_TABLE_SIZE, br);
+					const typeCode = readSymbol(
+						blockTypeTrees,
+						2 * MAX_HUFFMAN_TABLE_SIZE,
+						br,
+					);
 					let bt: number;
 					if (typeCode === 0) {
 						bt = blockTypeRb[4 + (blockTypeRbIndex[2] & 1)];
@@ -836,14 +1020,23 @@ export function decompress(data: Uint8Array): Uint8Array {
 					blockType[2] = bt;
 					blockTypeRb[4 + (blockTypeRbIndex[2] & 1)] = bt;
 					blockTypeRbIndex[2]++;
-					blockLength[2] = readBlockLength(blockLenTrees, 2 * MAX_HUFFMAN_TABLE_SIZE, br);
+					blockLength[2] = readBlockLength(
+						blockLenTrees,
+						2 * MAX_HUFFMAN_TABLE_SIZE,
+						br,
+					);
 					distContextMapSlice = blockType[2] << 2;
 				}
 				blockLength[2]--;
 
 				const context = (copyLength > 4 ? 3 : copyLength - 2) & 0xff;
-				const distHtreeIndex = distContextMap.contextMap[distContextMapSlice + context];
-				distanceCode = readSymbol(hgroup[2].codes, hgroup[2].htrees[distHtreeIndex], br);
+				const distHtreeIndex =
+					distContextMap.contextMap[distContextMapSlice + context];
+				distanceCode = readSymbol(
+					hgroup[2].codes,
+					hgroup[2].htrees[distHtreeIndex],
+					br,
+				);
 
 				if (distanceCode >= numDirectDistanceCodes) {
 					distanceCode -= numDirectDistanceCodes;
@@ -851,8 +1044,10 @@ export function decompress(data: Uint8Array): Uint8Array {
 					distanceCode >>= distancePostfixBits;
 					const nbits = (distanceCode >> 1) + 1;
 					const offset = ((2 + (distanceCode & 1)) << nbits) - 4;
-					distanceCode = numDirectDistanceCodes +
-						((offset + br.readBits(nbits)) << distancePostfixBits) + postfix;
+					distanceCode =
+						numDirectDistanceCodes +
+						((offset + br.readBits(nbits)) << distancePostfixBits) +
+						postfix;
 				}
 			}
 
@@ -882,7 +1077,12 @@ export function decompress(data: Uint8Array): Uint8Array {
 
 					if (transformIdx < TRANSFORMS.length) {
 						const len = transformDictionaryWord(
-							ringBuffer, copyDst, wordOffset, copyLength, transformIdx, DICTIONARY
+							ringBuffer,
+							copyDst,
+							wordOffset,
+							copyLength,
+							transformIdx,
+							DICTIONARY,
 						);
 						copyDst += len;
 						pos += len;
@@ -910,7 +1110,8 @@ export function decompress(data: Uint8Array): Uint8Array {
 				}
 
 				for (let j = 0; j < copyLength; j++) {
-					ringBuffer[pos & ringBufferMask] = ringBuffer[(pos - distance) & ringBufferMask];
+					ringBuffer[pos & ringBufferMask] =
+						ringBuffer[(pos - distance) & ringBufferMask];
 					if ((pos & ringBufferMask) === ringBufferMask) {
 						output.push(...ringBuffer.slice(0, ringBufferSize));
 					}

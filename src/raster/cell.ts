@@ -7,7 +7,7 @@
  * Uses pool-based allocation with overflow detection for bounded memory.
  */
 
-import { truncPixel } from "./fixed-point.ts";
+import { PIXEL_BITS, truncPixel } from "./fixed-point.ts";
 
 /** Default pool size (matches FreeType's FT_MAX_GRAY_POOL) */
 const DEFAULT_POOL_SIZE = 2048;
@@ -178,7 +178,11 @@ export class CellBuffer {
 		const py = truncPixel(y);
 
 		// Check if we're already at this cell
-		if (this.currentCellIndex >= 0 && this.currentX === px && this.currentY === py) {
+		if (
+			this.currentCellIndex >= 0 &&
+			this.currentX === px &&
+			this.currentY === py
+		) {
 			return;
 		}
 
@@ -324,7 +328,7 @@ export class CellBuffer {
 	 */
 	getArea(): number {
 		if (this.currentCellIndex >= 0) {
-			return this.pool[this.currentCellIndex]!.area;
+			return this.pool[this.currentCellIndex]?.area;
 		}
 		return 0;
 	}
@@ -334,7 +338,7 @@ export class CellBuffer {
 	 */
 	getCover(): number {
 		if (this.currentCellIndex >= 0) {
-			return this.pool[this.currentCellIndex]!.cover;
+			return this.pool[this.currentCellIndex]?.cover;
 		}
 		return 0;
 	}
@@ -352,7 +356,7 @@ export class CellBuffer {
 		let cellIndex = this.ycells[rowIndex]!;
 		while (cellIndex !== this.nullCellIndex) {
 			cells.push(this.pool[cellIndex]!);
-			cellIndex = this.pool[cellIndex]!.next;
+			cellIndex = this.pool[cellIndex]?.next;
 		}
 		return cells;
 	}
@@ -369,7 +373,7 @@ export class CellBuffer {
 			const cells: Cell[] = [];
 			while (cellIndex !== this.nullCellIndex) {
 				cells.push(this.pool[cellIndex]!);
-				cellIndex = this.pool[cellIndex]!.next;
+				cellIndex = this.pool[cellIndex]?.next;
 			}
 			if (cells.length > 0) {
 				yield { y, cells };
@@ -387,7 +391,7 @@ export class CellBuffer {
 		let cellIndex = this.ycells[rowIndex]!;
 		while (cellIndex !== this.nullCellIndex) {
 			yield this.pool[cellIndex]!;
-			cellIndex = this.pool[cellIndex]!.next;
+			cellIndex = this.pool[cellIndex]?.next;
 		}
 	}
 

@@ -88,14 +88,7 @@ function interpolateUntouched(
 			if (zone.tags[i]! & touchFlag) {
 				// Found touched point - interpolate between prevTouched and i
 				if (prevTouched !== i) {
-					interpolateRange(
-						zone,
-						prevTouched,
-						i,
-						contourStart,
-						contourEnd,
-						isX,
-					);
+					interpolateRange(zone, prevTouched, i, contourStart, contourEnd, isX);
 				}
 				prevTouched = i;
 			}
@@ -119,10 +112,10 @@ function interpolateRange(
 	isX: boolean,
 ): void {
 	// Get original and current positions of reference points
-	const org1 = isX ? zone.org[p1]!.x : zone.org[p1]!.y;
-	const org2 = isX ? zone.org[p2]!.x : zone.org[p2]!.y;
-	const cur1 = isX ? zone.cur[p1]!.x : zone.cur[p1]!.y;
-	const cur2 = isX ? zone.cur[p2]!.x : zone.cur[p2]!.y;
+	const org1 = isX ? zone.org[p1]?.x : zone.org[p1]?.y;
+	const org2 = isX ? zone.org[p2]?.x : zone.org[p2]?.y;
+	const cur1 = isX ? zone.cur[p1]?.x : zone.cur[p1]?.y;
+	const cur2 = isX ? zone.cur[p2]?.x : zone.cur[p2]?.y;
 
 	// Ensure org1 <= org2 for interpolation
 	let lo_org: number, hi_org: number;
@@ -148,15 +141,15 @@ function interpolateRange(
 	if (i > contourEnd) i = contourStart;
 
 	while (i !== p2) {
-		const org = isX ? zone.org[i]!.x : zone.org[i]!.y;
+		const org = isX ? zone.org[i]?.x : zone.org[i]?.y;
 		let newPos: number;
 
 		if (org <= lo_org) {
 			// Point is below/left of both references - shift by lo movement
-			newPos = (isX ? zone.cur[i]!.x : zone.cur[i]!.y) + (lo_cur - lo_org);
+			newPos = (isX ? zone.cur[i]?.x : zone.cur[i]?.y) + (lo_cur - lo_org);
 		} else if (org >= hi_org) {
 			// Point is above/right of both references - shift by hi movement
-			newPos = (isX ? zone.cur[i]!.x : zone.cur[i]!.y) + (hi_cur - hi_org);
+			newPos = (isX ? zone.cur[i]?.x : zone.cur[i]?.y) + (hi_cur - hi_org);
 		} else {
 			// Point is between references - interpolate
 			if (orgRange !== 0) {

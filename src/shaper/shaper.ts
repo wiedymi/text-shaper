@@ -138,8 +138,16 @@ export function shape(
 	const features = options.features ?? [];
 
 	// Get axis coordinates from face for feature variations
-	const axisCoords = face.normalizedCoords.length > 0 ? face.normalizedCoords : null;
-	const plan = createShapePlan(font, script, language, direction, features, axisCoords);
+	const axisCoords =
+		face.normalizedCoords.length > 0 ? face.normalizedCoords : null;
+	const plan = createShapePlan(
+		font,
+		script,
+		language,
+		direction,
+		features,
+		axisCoords,
+	);
 
 	const glyphBuffer = new GlyphBuffer();
 	glyphBuffer.direction = buffer.direction;

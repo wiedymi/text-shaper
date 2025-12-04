@@ -7,12 +7,11 @@
  * 2. FIR filtering to reduce color fringing
  */
 
-import type { Bitmap } from "./types.ts";
-import { PixelMode, createBitmap } from "./types.ts";
+import type { GlyphPath } from "../render/path.ts";
 import { GrayRaster } from "./gray-raster.ts";
 import { decomposePath } from "./outline-decompose.ts";
-import type { GlyphPath } from "../render/path.ts";
-import { ONE_PIXEL } from "./fixed-point.ts";
+import type { Bitmap } from "./types.ts";
+import { createBitmap, PixelMode } from "./types.ts";
 
 /**
  * LCD filter weights for reducing color fringing
@@ -57,7 +56,16 @@ export function rasterizeLcd(
 	const isVertical = mode === LcdMode.RGB_V || mode === LcdMode.BGR_V;
 
 	if (isVertical) {
-		return rasterizeLcdVertical(path, width, height, scale, offsetX, offsetY, mode, filterWeights);
+		return rasterizeLcdVertical(
+			path,
+			width,
+			height,
+			scale,
+			offsetX,
+			offsetY,
+			mode,
+			filterWeights,
+		);
 	}
 
 	// Render at 3x width
@@ -142,7 +150,12 @@ function applyLcdFilterHorizontal(
 			const r2 = src.buffer[srcRow + subX]!;
 			const r3 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1]! : 0;
 			const r4 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2]! : 0;
-			const rv = Math.min(255, Math.round((r0 * w0 + r1 * w1 + r2 * w2 + r3 * w3 + r4 * w4) / weightSum));
+			const rv = Math.min(
+				255,
+				Math.round(
+					(r0 * w0 + r1 * w1 + r2 * w2 + r3 * w3 + r4 * w4) / weightSum,
+				),
+			);
 
 			// Green (middle subpixel)
 			const g0 = subX - 1 >= 0 ? src.buffer[srcRow + subX - 1]! : 0;
@@ -150,7 +163,12 @@ function applyLcdFilterHorizontal(
 			const g2 = subX + 1 < src.width ? src.buffer[srcRow + subX + 1]! : 0;
 			const g3 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2]! : 0;
 			const g4 = subX + 3 < src.width ? src.buffer[srcRow + subX + 3]! : 0;
-			const gv = Math.min(255, Math.round((g0 * w0 + g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4) / weightSum));
+			const gv = Math.min(
+				255,
+				Math.round(
+					(g0 * w0 + g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4) / weightSum,
+				),
+			);
 
 			// Blue/Red (last subpixel)
 			const b0 = src.buffer[srcRow + subX]!;
@@ -158,7 +176,12 @@ function applyLcdFilterHorizontal(
 			const b2 = subX + 2 < src.width ? src.buffer[srcRow + subX + 2]! : 0;
 			const b3 = subX + 3 < src.width ? src.buffer[srcRow + subX + 3]! : 0;
 			const b4 = subX + 4 < src.width ? src.buffer[srcRow + subX + 4]! : 0;
-			const bv = Math.min(255, Math.round((b0 * w0 + b1 * w1 + b2 * w2 + b3 * w3 + b4 * w4) / weightSum));
+			const bv = Math.min(
+				255,
+				Math.round(
+					(b0 * w0 + b1 * w1 + b2 * w2 + b3 * w3 + b4 * w4) / weightSum,
+				),
+			);
 
 			// Pack RGB
 			const dstIdx = dstRow + x * 3;
@@ -196,25 +219,49 @@ function applyLcdFilterVertical(
 			const r0 = subY - 2 >= 0 ? src.buffer[(subY - 2) * src.pitch + x]! : 0;
 			const r1 = subY - 1 >= 0 ? src.buffer[(subY - 1) * src.pitch + x]! : 0;
 			const r2 = src.buffer[subY * src.pitch + x]!;
-			const r3 = subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
-			const r4 = subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
-			const rv = Math.min(255, Math.round((r0 * w0 + r1 * w1 + r2 * w2 + r3 * w3 + r4 * w4) / weightSum));
+			const r3 =
+				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
+			const r4 =
+				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
+			const rv = Math.min(
+				255,
+				Math.round(
+					(r0 * w0 + r1 * w1 + r2 * w2 + r3 * w3 + r4 * w4) / weightSum,
+				),
+			);
 
 			// Green (middle subpixel row)
 			const g0 = subY - 1 >= 0 ? src.buffer[(subY - 1) * src.pitch + x]! : 0;
 			const g1 = src.buffer[subY * src.pitch + x]!;
-			const g2 = subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
-			const g3 = subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
-			const g4 = subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x]! : 0;
-			const gv = Math.min(255, Math.round((g0 * w0 + g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4) / weightSum));
+			const g2 =
+				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
+			const g3 =
+				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
+			const g4 =
+				subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x]! : 0;
+			const gv = Math.min(
+				255,
+				Math.round(
+					(g0 * w0 + g1 * w1 + g2 * w2 + g3 * w3 + g4 * w4) / weightSum,
+				),
+			);
 
 			// Blue/Red (last subpixel row)
 			const b0 = src.buffer[subY * src.pitch + x]!;
-			const b1 = subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
-			const b2 = subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
-			const b3 = subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x]! : 0;
-			const b4 = subY + 4 < src.rows ? src.buffer[(subY + 4) * src.pitch + x]! : 0;
-			const bv = Math.min(255, Math.round((b0 * w0 + b1 * w1 + b2 * w2 + b3 * w3 + b4 * w4) / weightSum));
+			const b1 =
+				subY + 1 < src.rows ? src.buffer[(subY + 1) * src.pitch + x]! : 0;
+			const b2 =
+				subY + 2 < src.rows ? src.buffer[(subY + 2) * src.pitch + x]! : 0;
+			const b3 =
+				subY + 3 < src.rows ? src.buffer[(subY + 3) * src.pitch + x]! : 0;
+			const b4 =
+				subY + 4 < src.rows ? src.buffer[(subY + 4) * src.pitch + x]! : 0;
+			const bv = Math.min(
+				255,
+				Math.round(
+					(b0 * w0 + b1 * w1 + b2 * w2 + b3 * w3 + b4 * w4) / weightSum,
+				),
+			);
 
 			// Pack RGB
 			const dstIdx = dstRow + x * 3;
@@ -268,5 +315,5 @@ export function lcdToRGBA(
 }
 
 function blendChannel(bg: number, fg: number, alpha: number): number {
-	return Math.round(bg + (fg - bg) * alpha / 255);
+	return Math.round(bg + ((fg - bg) * alpha) / 255);
 }

@@ -18,6 +18,7 @@ function isWoff(buffer: ArrayBuffer): boolean {
 	const view = new DataView(buffer);
 	return view.getUint32(0, false) === WOFF_MAGIC;
 }
+
 import { type AvarTable, parseAvar } from "./tables/avar.ts";
 import { type BaseTable, parseBase } from "./tables/base.ts";
 import {
@@ -27,11 +28,17 @@ import {
 	parseCblc,
 } from "./tables/cbdt.ts";
 import { type CffTable, parseCff } from "./tables/cff.ts";
+import {
+	executeCff2CharString,
+	executeCffCharString,
+} from "./tables/cff-charstring.ts";
 import { type Cff2Table, parseCff2 } from "./tables/cff2.ts";
 import { type CmapTable, getGlyphId, parseCmap } from "./tables/cmap.ts";
 import { type ColrTable, parseColr } from "./tables/colr.ts";
 import { type CpalTable, parseCpal } from "./tables/cpal.ts";
+import { type FeatTable, parseFeat } from "./tables/feat.ts";
 import { type FvarTable, parseFvar } from "./tables/fvar.ts";
+import { type GaspTable, parseGasp } from "./tables/gasp.ts";
 import { type GdefTable, parseGdef } from "./tables/gdef.ts";
 import {
 	type Contour,
@@ -43,15 +50,19 @@ import {
 	parseGlyf,
 	parseGlyph,
 } from "./tables/glyf.ts";
-import {
-	executeCffCharString,
-	executeCff2CharString,
-} from "./tables/cff-charstring.ts";
 import { type GposTable, parseGpos } from "./tables/gpos.ts";
 import { type GsubTable, parseGsub } from "./tables/gsub.ts";
 import { type GvarTable, parseGvar } from "./tables/gvar.ts";
 import { type HeadTable, parseHead } from "./tables/head.ts";
 import { type HheaTable, parseHhea } from "./tables/hhea.ts";
+import {
+	type CvtTable,
+	type FpgmTable,
+	type PrepTable,
+	parseCvt,
+	parseFpgm,
+	parsePrep,
+} from "./tables/hinting.ts";
 import {
 	getAdvanceWidth,
 	getLeftSideBearing,
@@ -76,7 +87,6 @@ import {
 	isTrueType,
 	parseFontDirectory,
 } from "./tables/sfnt.ts";
-import { parseFeat, type FeatTable } from "./tables/feat.ts";
 import { parseStat, type StatTable } from "./tables/stat.ts";
 import { parseSvg, type SvgTable } from "./tables/svg.ts";
 import { parseTrak, type TrakTable } from "./tables/trak.ts";
@@ -84,15 +94,6 @@ import { parseVhea, type VheaTable } from "./tables/vhea.ts";
 import { parseVmtx, type VmtxTable } from "./tables/vmtx.ts";
 import { parseVorg, type VorgTable } from "./tables/vorg.ts";
 import { parseVvar, type VvarTable } from "./tables/vvar.ts";
-import {
-	parseFpgm,
-	parsePrep,
-	parseCvt,
-	type FpgmTable,
-	type PrepTable,
-	type CvtTable,
-} from "./tables/hinting.ts";
-import { parseGasp, type GaspTable } from "./tables/gasp.ts";
 
 /** Font loading options */
 export interface FontLoadOptions {
@@ -161,20 +162,29 @@ export class Font {
 	/** Load font from ArrayBuffer (sync - does not support WOFF2) */
 	static load(buffer: ArrayBuffer, options?: FontLoadOptions): Font {
 		if (isWoff2(buffer)) {
-			throw new Error("WOFF2 requires async loading. Use Font.loadAsync() instead.");
+			throw new Error(
+				"WOFF2 requires async loading. Use Font.loadAsync() instead.",
+			);
 		}
 		if (isWoff(buffer)) {
-			throw new Error("WOFF format is not supported. Please use TTF, OTF, or WOFF2.");
+			throw new Error(
+				"WOFF format is not supported. Please use TTF, OTF, or WOFF2.",
+			);
 		}
 		return new Font(buffer, options);
 	}
 
 	/** Load font from ArrayBuffer with WOFF2 support (async) */
-	static async loadAsync(buffer: ArrayBuffer, options?: FontLoadOptions): Promise<Font> {
+	static async loadAsync(
+		buffer: ArrayBuffer,
+		options?: FontLoadOptions,
+	): Promise<Font> {
 		if (isWoff2(buffer)) {
 			buffer = await woff2ToSfnt(buffer);
 		} else if (isWoff(buffer)) {
-			throw new Error("WOFF format is not supported. Please use TTF, OTF, or WOFF2.");
+			throw new Error(
+				"WOFF format is not supported. Please use TTF, OTF, or WOFF2.",
+			);
 		}
 		return new Font(buffer, options);
 	}
@@ -654,7 +664,9 @@ export class Font {
 
 	/** Does this font have TrueType hinting? */
 	get hasHinting(): boolean {
-		return this.isTrueType && (this.hasTable(Tags.fpgm) || this.hasTable(Tags.prep));
+		return (
+			this.isTrueType && (this.hasTable(Tags.fpgm) || this.hasTable(Tags.prep))
+		);
 	}
 
 	// Glyph operations

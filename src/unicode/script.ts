@@ -944,7 +944,7 @@ export function getScriptRuns(text: string): ScriptRun[] {
 
 	let currentScript: Script | null = null;
 	let runStart = 0;
-	let charIndex = 0;
+	const _charIndex = 0;
 
 	const chars: string[] = [];
 	for (const char of text) {
@@ -966,7 +966,11 @@ export function getScriptRuns(text: string): ScriptRun[] {
 		if (currentScript === null) {
 			currentScript = script;
 			runStart = i;
-		} else if (script !== currentScript && script !== Script.Common && script !== Script.Inherited) {
+		} else if (
+			script !== currentScript &&
+			script !== Script.Common &&
+			script !== Script.Inherited
+		) {
 			// End current run
 			runs.push({
 				script: currentScript,

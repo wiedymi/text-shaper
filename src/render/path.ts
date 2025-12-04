@@ -52,7 +52,7 @@ export interface GlyphPath {
 export function contourToPath(contour: Contour): PathCommand[] {
 	if (contour.length === 0) return [];
 
-	const commands: PathCommand[] = [];
+	const _commands: PathCommand[] = [];
 
 	// Check if this contour uses cubic beziers (CFF font)
 	const hasCubic = contour.some((p) => p.cubic);

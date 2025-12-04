@@ -3,30 +3,28 @@
  */
 
 import type { Font } from "../font/font.ts";
+import {
+	createHintingEngine,
+	type GlyphOutline,
+	type HintedGlyph,
+	type HintingEngine,
+	hintGlyph,
+	loadCVTProgram,
+	loadFontProgram,
+	setSize,
+} from "../hinting/programs.ts";
+import { type GlyphPath, getGlyphPath } from "../render/path.ts";
 import type { GlyphId } from "../types.ts";
-import type { SimpleGlyph, CompositeGlyph } from "../font/tables/glyf.ts";
-import { getGlyphPath, type GlyphPath } from "../render/path.ts";
 import { GrayRaster } from "./gray-raster.ts";
 import { decomposePath, getPathBounds } from "./outline-decompose.ts";
 import {
 	type Bitmap,
+	createBitmap,
+	FillRule,
+	PixelMode,
 	type RasterizedGlyph,
 	type RasterizeOptions,
-	PixelMode,
-	FillRule,
-	createBitmap,
-	clearBitmap,
 } from "./types.ts";
-import {
-	type HintingEngine,
-	type GlyphOutline,
-	type HintedGlyph,
-	createHintingEngine,
-	loadFontProgram,
-	loadCVTProgram,
-	setSize,
-	hintGlyph,
-} from "../hinting/programs.ts";
 
 /** Cached hinting engines per font */
 const hintingEngineCache = new WeakMap<Font, HintingEngine>();
@@ -41,12 +39,13 @@ function getHintingEngine(font: Font): HintingEngine | null {
 	const cvt = font.cvtTable;
 	const cvtValues = cvt ? new Int32Array(cvt.values) : undefined;
 
+	const maxp = font.maxp;
 	engine = createHintingEngine(
 		font.unitsPerEm,
-		font.maxp.maxStackElements || 256,
-		font.maxp.maxStorage || 64,
-		font.maxp.maxFunctionDefs || 64,
-		font.maxp.maxTwilightPoints || 16,
+		"maxStackElements" in maxp ? maxp.maxStackElements : 256,
+		"maxStorage" in maxp ? maxp.maxStorage : 64,
+		"maxFunctionDefs" in maxp ? maxp.maxFunctionDefs : 64,
+		"maxTwilightPoints" in maxp ? maxp.maxTwilightPoints : 16,
 		cvtValues,
 	);
 
@@ -101,7 +100,8 @@ function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
 			if (!compGlyph || compGlyph.type !== "simple") continue;
 
 			const [a, b, c, d] = component.transform;
-			const ox = component.arg1, oy = component.arg2;
+			const ox = component.arg1,
+				oy = component.arg2;
 			let pointOffset = xCoords.length;
 
 			for (const contour of compGlyph.contours) {
@@ -135,7 +135,8 @@ function decomposeHintedGlyph(
 	offsetY: number,
 ): void {
 	const { xCoords, yCoords, flags, contourEnds } = hinted;
-	let contourIdx = 0, contourStart = 0;
+	let contourIdx = 0,
+		contourStart = 0;
 
 	for (let i = 0; i < xCoords.length; i++) {
 		const isEnd = i === contourEnds[contourIdx];
@@ -202,8 +203,14 @@ export function rasterizePath(
 
 	// Use band processing for large glyphs to ensure bounded memory
 	if (height > BAND_PROCESSING_THRESHOLD) {
-		const decomposeFn = () => decomposePath(raster, path, scale, offsetX, offsetY, flipY);
-		raster.renderWithBands(bitmap, decomposeFn, { minY: 0, maxY: height }, fillRule);
+		const decomposeFn = () =>
+			decomposePath(raster, path, scale, offsetX, offsetY, flipY);
+		raster.renderWithBands(
+			bitmap,
+			decomposeFn,
+			{ minY: 0, maxY: height },
+			fillRule,
+		);
 	} else {
 		// Small glyph - render in single pass with full height band
 		raster.setBandBounds(0, height);
@@ -235,7 +242,13 @@ export function rasterizeGlyph(
 
 	// Try hinted rendering if requested
 	if (useHinting && font.hasHinting) {
-		const result = rasterizeHintedGlyph(font, glyphId, fontSize, padding, pixelMode);
+		const result = rasterizeHintedGlyph(
+			font,
+			glyphId,
+			fontSize,
+			padding,
+			pixelMode,
+		);
 		if (result) return result;
 	}
 
@@ -308,7 +321,10 @@ function rasterizeHintedGlyph(
 	if (hinted.error || hinted.xCoords.length === 0) return null;
 
 	// Calculate bounds from hinted coordinates (26.6 fixed point)
-	let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+	let minX = Infinity,
+		minY = Infinity,
+		maxX = -Infinity,
+		maxY = -Infinity;
 	for (let i = 0; i < hinted.xCoords.length; i++) {
 		const x = hinted.xCoords[i]! / 64;
 		const y = hinted.yCoords[i]! / 64;
@@ -318,12 +334,14 @@ function rasterizeHintedGlyph(
 		maxY = Math.max(maxY, y);
 	}
 
-	if (!isFinite(minX)) {
+	if (!Number.isFinite(minX)) {
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
 	}
 
-	const bMinX = Math.floor(minX), bMinY = Math.floor(minY);
-	const bMaxX = Math.ceil(maxX), bMaxY = Math.ceil(maxY);
+	const bMinX = Math.floor(minX),
+		bMinY = Math.floor(minY);
+	const bMaxX = Math.ceil(maxX),
+		bMaxY = Math.ceil(maxY);
 	const width = bMaxX - bMinX + padding * 2;
 	const height = bMaxY - bMinY + padding * 2;
 
@@ -505,11 +523,11 @@ export function bitmapToGray(bitmap: Bitmap): Uint8Array {
 // Re-export types
 export {
 	type Bitmap,
+	clearBitmap,
+	createBitmap,
+	FillRule,
+	PixelMode,
 	type RasterizedGlyph,
 	type RasterizeOptions,
 	type Span,
-	PixelMode,
-	FillRule,
-	createBitmap,
-	clearBitmap,
 } from "./types.ts";

@@ -8,19 +8,17 @@
  */
 
 import {
-	type ExecContext,
-	type GlyphZone,
-	type Point,
+	runCVTProgram,
+	runFontProgram,
+	runGlyphProgram,
+	setCodeRange,
+} from "./interpreter.ts";
+import {
+	CodeRange,
 	createExecContext,
 	createGlyphZone,
-	CodeRange,
+	type ExecContext,
 } from "./types.ts";
-import {
-	setCodeRange,
-	runFontProgram,
-	runCVTProgram,
-	runGlyphProgram,
-} from "./interpreter.ts";
 
 /**
  * Hinting engine for a font
@@ -224,7 +222,7 @@ export function hintGlyph(
 	for (let i = 0; i < nPoints; i++) {
 		if (outline.xCoords[i]! < xMin) xMin = outline.xCoords[i]!;
 	}
-	if (!isFinite(xMin)) xMin = 0;
+	if (!Number.isFinite(xMin)) xMin = 0;
 
 	const lsb = outline.lsb ?? 0;
 	const advW = outline.advanceWidth ?? 0;
@@ -292,8 +290,8 @@ export function hintGlyph(
 	const yCoords = new Array<number>(nPoints);
 
 	for (let i = 0; i < nPoints; i++) {
-		xCoords[i] = zone.cur[i]!.x;
-		yCoords[i] = zone.cur[i]!.y;
+		xCoords[i] = zone.cur[i]?.x;
+		yCoords[i] = zone.cur[i]?.y;
 	}
 
 	return {

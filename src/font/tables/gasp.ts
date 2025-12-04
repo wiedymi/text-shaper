@@ -73,7 +73,7 @@ export function getGaspBehavior(gasp: GaspTable, ppem: number): number {
 
 	// Above all ranges - use last range or default to all features
 	if (gasp.ranges.length > 0) {
-		return gasp.ranges[gasp.ranges.length - 1]!.behavior;
+		return gasp.ranges[gasp.ranges.length - 1]?.behavior;
 	}
 
 	return GaspFlag.GridFit | GaspFlag.DoGray;

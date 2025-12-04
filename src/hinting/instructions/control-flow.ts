@@ -2,7 +2,7 @@
  * Control flow instructions
  */
 
-import { type ExecContext, type FunctionDef, CodeRange } from "../types.ts";
+import type { ExecContext } from "../types.ts";
 
 /** IF - Conditional branch */
 export function IF(ctx: ExecContext): void {
@@ -45,10 +45,10 @@ export function IF(ctx: ExecContext): void {
 			default:
 				if (opcode >= 0xb0 && opcode <= 0xb7) {
 					// PUSHB[n]
-					ctx.IP += (opcode - 0xb0) + 1;
+					ctx.IP += opcode - 0xb0 + 1;
 				} else if (opcode >= 0xb8 && opcode <= 0xbf) {
 					// PUSHW[n]
-					ctx.IP += ((opcode - 0xb8) + 1) * 2;
+					ctx.IP += (opcode - 0xb8 + 1) * 2;
 				}
 		}
 	}
@@ -82,9 +82,9 @@ export function ELSE(ctx: ExecContext): void {
 				break;
 			default:
 				if (opcode >= 0xb0 && opcode <= 0xb7) {
-					ctx.IP += (opcode - 0xb0) + 1;
+					ctx.IP += opcode - 0xb0 + 1;
 				} else if (opcode >= 0xb8 && opcode <= 0xbf) {
-					ctx.IP += ((opcode - 0xb8) + 1) * 2;
+					ctx.IP += (opcode - 0xb8 + 1) * 2;
 				}
 		}
 	}
@@ -154,9 +154,9 @@ export function FDEF(ctx: ExecContext): void {
 		} else if (opcode === 0x41) {
 			ctx.IP += 1 + ctx.code[ctx.IP]! * 2;
 		} else if (opcode >= 0xb0 && opcode <= 0xb7) {
-			ctx.IP += (opcode - 0xb0) + 1;
+			ctx.IP += opcode - 0xb0 + 1;
 		} else if (opcode >= 0xb8 && opcode <= 0xbf) {
-			ctx.IP += ((opcode - 0xb8) + 1) * 2;
+			ctx.IP += (opcode - 0xb8 + 1) * 2;
 		}
 	}
 
@@ -304,9 +304,9 @@ export function IDEF(ctx: ExecContext): void {
 		} else if (op === 0x41) {
 			ctx.IP += 1 + ctx.code[ctx.IP]! * 2;
 		} else if (op >= 0xb0 && op <= 0xb7) {
-			ctx.IP += (op - 0xb0) + 1;
+			ctx.IP += op - 0xb0 + 1;
 		} else if (op >= 0xb8 && op <= 0xbf) {
-			ctx.IP += ((op - 0xb8) + 1) * 2;
+			ctx.IP += (op - 0xb8 + 1) * 2;
 		}
 	}
 

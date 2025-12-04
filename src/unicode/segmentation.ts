@@ -78,13 +78,25 @@ export function getGraphemeBreakProperty(cp: number): GraphemeBreakProperty {
 	if (cp === 0x200d) return GraphemeBreakProperty.ZWJ;
 
 	// Regional Indicator
-	if (cp >= 0x1f1e0 && cp <= 0x1f1ff) return GraphemeBreakProperty.Regional_Indicator;
+	if (cp >= 0x1f1e0 && cp <= 0x1f1ff)
+		return GraphemeBreakProperty.Regional_Indicator;
 
 	// Prepend
-	if (cp === 0x0600 || cp === 0x0601 || cp === 0x0602 || cp === 0x0603 ||
-		cp === 0x0604 || cp === 0x0605 || cp === 0x06dd || cp === 0x070f ||
-		cp === 0x0890 || cp === 0x0891 || cp === 0x08e2 || cp === 0x110bd ||
-		cp === 0x110cd)
+	if (
+		cp === 0x0600 ||
+		cp === 0x0601 ||
+		cp === 0x0602 ||
+		cp === 0x0603 ||
+		cp === 0x0604 ||
+		cp === 0x0605 ||
+		cp === 0x06dd ||
+		cp === 0x070f ||
+		cp === 0x0890 ||
+		cp === 0x0891 ||
+		cp === 0x08e2 ||
+		cp === 0x110bd ||
+		cp === 0x110cd
+	)
 		return GraphemeBreakProperty.Prepend;
 
 	// Hangul L (Leading consonants)
@@ -107,16 +119,26 @@ export function getGraphemeBreakProperty(cp: number): GraphemeBreakProperty {
 	}
 
 	// Extended Pictographic (Emoji)
-	if (cp >= 0x1f300 && cp <= 0x1f9ff) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x1fa00 && cp <= 0x1faff) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x2600 && cp <= 0x26ff) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x2700 && cp <= 0x27bf) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp === 0x00a9 || cp === 0x00ae) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x2300 && cp <= 0x23ff) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x1f000 && cp <= 0x1f02f) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x1f0a0 && cp <= 0x1f0ff) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x1f100 && cp <= 0x1f1ff) return GraphemeBreakProperty.Extended_Pictographic;
-	if (cp >= 0x1f200 && cp <= 0x1f2ff) return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1f300 && cp <= 0x1f9ff)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1fa00 && cp <= 0x1faff)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x2600 && cp <= 0x26ff)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x2700 && cp <= 0x27bf)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp === 0x00a9 || cp === 0x00ae)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x2300 && cp <= 0x23ff)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1f000 && cp <= 0x1f02f)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1f0a0 && cp <= 0x1f0ff)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1f100 && cp <= 0x1f1ff)
+		return GraphemeBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1f200 && cp <= 0x1f2ff)
+		return GraphemeBreakProperty.Extended_Pictographic;
 
 	// Spacing Mark
 	if (cp >= 0x0903 && cp <= 0x0903) return GraphemeBreakProperty.SpacingMark;
@@ -399,7 +421,13 @@ export function getWordBreakProperty(cp: number): WordBreakProperty {
 	// CR, LF, Newline
 	if (cp === 0x000d) return WordBreakProperty.CR;
 	if (cp === 0x000a) return WordBreakProperty.LF;
-	if (cp === 0x000b || cp === 0x000c || cp === 0x0085 || cp === 0x2028 || cp === 0x2029)
+	if (
+		cp === 0x000b ||
+		cp === 0x000c ||
+		cp === 0x0085 ||
+		cp === 0x2028 ||
+		cp === 0x2029
+	)
 		return WordBreakProperty.Newline;
 
 	// ZWJ
@@ -414,13 +442,18 @@ export function getWordBreakProperty(cp: number): WordBreakProperty {
 	if (cp === 0xfeff) return WordBreakProperty.Format;
 
 	// Regional Indicator
-	if (cp >= 0x1f1e0 && cp <= 0x1f1ff) return WordBreakProperty.Regional_Indicator;
+	if (cp >= 0x1f1e0 && cp <= 0x1f1ff)
+		return WordBreakProperty.Regional_Indicator;
 
 	// Extended Pictographic
-	if (cp >= 0x1f300 && cp <= 0x1f9ff) return WordBreakProperty.Extended_Pictographic;
-	if (cp >= 0x1fa00 && cp <= 0x1faff) return WordBreakProperty.Extended_Pictographic;
-	if (cp >= 0x2600 && cp <= 0x26ff) return WordBreakProperty.Extended_Pictographic;
-	if (cp >= 0x2700 && cp <= 0x27bf) return WordBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1f300 && cp <= 0x1f9ff)
+		return WordBreakProperty.Extended_Pictographic;
+	if (cp >= 0x1fa00 && cp <= 0x1faff)
+		return WordBreakProperty.Extended_Pictographic;
+	if (cp >= 0x2600 && cp <= 0x26ff)
+		return WordBreakProperty.Extended_Pictographic;
+	if (cp >= 0x2700 && cp <= 0x27bf)
+		return WordBreakProperty.Extended_Pictographic;
 
 	// Hebrew Letter
 	if (cp >= 0x05d0 && cp <= 0x05ea) return WordBreakProperty.Hebrew_Letter;
@@ -428,7 +461,13 @@ export function getWordBreakProperty(cp: number): WordBreakProperty {
 
 	// Katakana
 	if (cp >= 0x30a0 && cp <= 0x30ff) return WordBreakProperty.Katakana;
-	if (cp === 0x3031 || cp === 0x3032 || cp === 0x3033 || cp === 0x3034 || cp === 0x3035)
+	if (
+		cp === 0x3031 ||
+		cp === 0x3032 ||
+		cp === 0x3033 ||
+		cp === 0x3034 ||
+		cp === 0x3035
+	)
 		return WordBreakProperty.Katakana;
 	if (cp === 0x309b || cp === 0x309c) return WordBreakProperty.Katakana;
 	if (cp >= 0x31f0 && cp <= 0x31ff) return WordBreakProperty.Katakana;
@@ -527,7 +566,8 @@ export function getWordBreakProperty(cp: number): WordBreakProperty {
 	// WSegSpace
 	if (cp === 0x0020) return WordBreakProperty.WSegSpace;
 	if (cp === 0x1680) return WordBreakProperty.WSegSpace;
-	if (cp >= 0x2000 && cp <= 0x200a && cp !== 0x2007) return WordBreakProperty.WSegSpace;
+	if (cp >= 0x2000 && cp <= 0x200a && cp !== 0x2007)
+		return WordBreakProperty.WSegSpace;
 	if (cp === 0x205f) return WordBreakProperty.WSegSpace;
 	if (cp === 0x3000) return WordBreakProperty.WSegSpace;
 
@@ -593,7 +633,9 @@ export interface GraphemeBoundaries {
 /**
  * Find grapheme cluster boundaries in codepoints
  */
-export function findGraphemeBoundaries(codepoints: number[]): GraphemeBoundaries {
+export function findGraphemeBoundaries(
+	codepoints: number[],
+): GraphemeBoundaries {
 	const len = codepoints.length;
 	const properties: GraphemeBreakProperty[] = [];
 	const boundaries: number[] = [];
@@ -618,7 +660,10 @@ export function findGraphemeBoundaries(codepoints: number[]): GraphemeBoundaries
 		let shouldBreak = true;
 
 		// GB3: Do not break between a CR and LF
-		if (prev === GraphemeBreakProperty.CR && curr === GraphemeBreakProperty.LF) {
+		if (
+			prev === GraphemeBreakProperty.CR &&
+			curr === GraphemeBreakProperty.LF
+		) {
 			shouldBreak = false;
 		}
 		// GB4: Break after controls
@@ -656,13 +701,17 @@ export function findGraphemeBoundaries(codepoints: number[]): GraphemeBoundaries
 		}
 		// GB8
 		else if (
-			(prev === GraphemeBreakProperty.LVT || prev === GraphemeBreakProperty.T) &&
+			(prev === GraphemeBreakProperty.LVT ||
+				prev === GraphemeBreakProperty.T) &&
 			curr === GraphemeBreakProperty.T
 		) {
 			shouldBreak = false;
 		}
 		// GB9: Do not break before extending characters or ZWJ
-		else if (curr === GraphemeBreakProperty.Extend || curr === GraphemeBreakProperty.ZWJ) {
+		else if (
+			curr === GraphemeBreakProperty.Extend ||
+			curr === GraphemeBreakProperty.ZWJ
+		) {
 			shouldBreak = false;
 		}
 		// GB9a: Do not break before SpacingMarks
@@ -674,13 +723,18 @@ export function findGraphemeBoundaries(codepoints: number[]): GraphemeBoundaries
 			shouldBreak = false;
 		}
 		// GB11: Do not break within emoji modifier sequences or emoji ZWJ sequences
-		else if (inExtendedPictographicSequence && prev === GraphemeBreakProperty.ZWJ &&
-			curr === GraphemeBreakProperty.Extended_Pictographic) {
+		else if (
+			inExtendedPictographicSequence &&
+			prev === GraphemeBreakProperty.ZWJ &&
+			curr === GraphemeBreakProperty.Extended_Pictographic
+		) {
 			shouldBreak = false;
 		}
 		// GB12-13: Do not break within emoji flag sequences
-		else if (prev === GraphemeBreakProperty.Regional_Indicator &&
-			curr === GraphemeBreakProperty.Regional_Indicator) {
+		else if (
+			prev === GraphemeBreakProperty.Regional_Indicator &&
+			curr === GraphemeBreakProperty.Regional_Indicator
+		) {
 			// Only break after even number of RIs
 			if (riCount % 2 === 1) {
 				shouldBreak = false;
@@ -690,7 +744,10 @@ export function findGraphemeBoundaries(codepoints: number[]): GraphemeBoundaries
 		// Track extended pictographic state
 		if (curr === GraphemeBreakProperty.Extended_Pictographic) {
 			inExtendedPictographicSequence = true;
-		} else if (curr !== GraphemeBreakProperty.Extend && curr !== GraphemeBreakProperty.ZWJ) {
+		} else if (
+			curr !== GraphemeBreakProperty.Extend &&
+			curr !== GraphemeBreakProperty.ZWJ
+		) {
 			inExtendedPictographicSequence = false;
 		}
 
@@ -766,66 +823,90 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 			shouldBreak = true;
 		}
 		// WB3c: Do not break within emoji ZWJ sequences
-		else if (prev === WordBreakProperty.ZWJ &&
-			curr === WordBreakProperty.Extended_Pictographic) {
+		else if (
+			prev === WordBreakProperty.ZWJ &&
+			curr === WordBreakProperty.Extended_Pictographic
+		) {
 			shouldBreak = false;
 		}
 		// WB3d: Keep horizontal whitespace together
-		else if (prev === WordBreakProperty.WSegSpace &&
-			curr === WordBreakProperty.WSegSpace) {
+		else if (
+			prev === WordBreakProperty.WSegSpace &&
+			curr === WordBreakProperty.WSegSpace
+		) {
 			shouldBreak = false;
 		}
 		// WB4: Ignore Format and Extend characters
-		else if (curr === WordBreakProperty.Format ||
+		else if (
+			curr === WordBreakProperty.Format ||
 			curr === WordBreakProperty.Extend ||
-			curr === WordBreakProperty.ZWJ) {
+			curr === WordBreakProperty.ZWJ
+		) {
 			shouldBreak = false;
 		}
 		// WB5: Do not break between most letters
 		else if (
-			(prev === WordBreakProperty.ALetter || prev === WordBreakProperty.Hebrew_Letter) &&
-			(curr === WordBreakProperty.ALetter || curr === WordBreakProperty.Hebrew_Letter)
+			(prev === WordBreakProperty.ALetter ||
+				prev === WordBreakProperty.Hebrew_Letter) &&
+			(curr === WordBreakProperty.ALetter ||
+				curr === WordBreakProperty.Hebrew_Letter)
 		) {
 			shouldBreak = false;
 		}
 		// WB6-7: Do not break letters across certain punctuation
 		else if (
-			(prev === WordBreakProperty.ALetter || prev === WordBreakProperty.Hebrew_Letter) &&
-			(curr === WordBreakProperty.MidLetter || curr === WordBreakProperty.MidNumLet || curr === WordBreakProperty.Single_Quote)
+			(prev === WordBreakProperty.ALetter ||
+				prev === WordBreakProperty.Hebrew_Letter) &&
+			(curr === WordBreakProperty.MidLetter ||
+				curr === WordBreakProperty.MidNumLet ||
+				curr === WordBreakProperty.Single_Quote)
 		) {
 			// Look ahead
 			if (i + 1 < len) {
 				const next = properties[i + 1]!;
-				if (next === WordBreakProperty.ALetter || next === WordBreakProperty.Hebrew_Letter) {
+				if (
+					next === WordBreakProperty.ALetter ||
+					next === WordBreakProperty.Hebrew_Letter
+				) {
 					shouldBreak = false;
 				}
 			}
 		}
 		// WB8-10: Do not break within sequences of digits
-		else if (prev === WordBreakProperty.Numeric && curr === WordBreakProperty.Numeric) {
+		else if (
+			prev === WordBreakProperty.Numeric &&
+			curr === WordBreakProperty.Numeric
+		) {
 			shouldBreak = false;
 		} else if (
-			(prev === WordBreakProperty.ALetter || prev === WordBreakProperty.Hebrew_Letter) &&
+			(prev === WordBreakProperty.ALetter ||
+				prev === WordBreakProperty.Hebrew_Letter) &&
 			curr === WordBreakProperty.Numeric
 		) {
 			shouldBreak = false;
 		} else if (
 			prev === WordBreakProperty.Numeric &&
-			(curr === WordBreakProperty.ALetter || curr === WordBreakProperty.Hebrew_Letter)
+			(curr === WordBreakProperty.ALetter ||
+				curr === WordBreakProperty.Hebrew_Letter)
 		) {
 			shouldBreak = false;
 		}
 		// WB11-12: Do not break within sequences with numeric separators
 		else if (
 			prev === WordBreakProperty.Numeric &&
-			(curr === WordBreakProperty.MidNum || curr === WordBreakProperty.MidNumLet || curr === WordBreakProperty.Single_Quote)
+			(curr === WordBreakProperty.MidNum ||
+				curr === WordBreakProperty.MidNumLet ||
+				curr === WordBreakProperty.Single_Quote)
 		) {
 			if (i + 1 < len && properties[i + 1] === WordBreakProperty.Numeric) {
 				shouldBreak = false;
 			}
 		}
 		// WB13: Do not break between Katakana
-		else if (prev === WordBreakProperty.Katakana && curr === WordBreakProperty.Katakana) {
+		else if (
+			prev === WordBreakProperty.Katakana &&
+			curr === WordBreakProperty.Katakana
+		) {
 			shouldBreak = false;
 		}
 		// WB13a-b: ExtendNumLet binding
@@ -848,8 +929,10 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 			shouldBreak = false;
 		}
 		// WB15-16: Do not break within emoji flag sequences
-		else if (prev === WordBreakProperty.Regional_Indicator &&
-			curr === WordBreakProperty.Regional_Indicator) {
+		else if (
+			prev === WordBreakProperty.Regional_Indicator &&
+			curr === WordBreakProperty.Regional_Indicator
+		) {
 			if (riCount % 2 === 1) {
 				shouldBreak = false;
 			}
@@ -922,10 +1005,12 @@ export function splitWords(text: string): string[] {
 		let hasContent = false;
 		for (let j = start; j < end; j++) {
 			const prop = properties[j]!;
-			if (prop !== WordBreakProperty.WSegSpace &&
+			if (
+				prop !== WordBreakProperty.WSegSpace &&
 				prop !== WordBreakProperty.CR &&
 				prop !== WordBreakProperty.LF &&
-				prop !== WordBreakProperty.Newline) {
+				prop !== WordBreakProperty.Newline
+			) {
 				hasContent = true;
 				break;
 			}
@@ -954,7 +1039,9 @@ export function countGraphemes(text: string): number {
 /**
  * Analyze grapheme boundaries for glyph infos
  */
-export function analyzeGraphemesForGlyphs(infos: GlyphInfo[]): GraphemeBoundaries {
+export function analyzeGraphemesForGlyphs(
+	infos: GlyphInfo[],
+): GraphemeBoundaries {
 	const codepoints = infos.map((info) => info.codepoint);
 	return findGraphemeBoundaries(codepoints);
 }

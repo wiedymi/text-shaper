@@ -2,14 +2,14 @@ import type { Font } from "../font/font.ts";
 import type { AnyGposLookup, GposTable } from "../font/tables/gpos.ts";
 import type { AnyGsubLookup, GsubTable } from "../font/tables/gsub.ts";
 import {
+	type FeatureVariations,
+	findMatchingFeatureVariation,
+} from "../layout/structures/feature-variations.ts";
+import {
 	findLangSys,
 	findScript,
 	getFeature,
 } from "../layout/structures/layout-common.ts";
-import {
-	type FeatureVariations,
-	findMatchingFeatureVariation,
-} from "../layout/structures/feature-variations.ts";
 import type { Tag, uint16 } from "../types.ts";
 import { tag, tagToString } from "../types.ts";
 
@@ -67,7 +67,9 @@ function getCacheKey(
 		.map((f) => `${tagToString(f.tag)}:${f.enabled ? "1" : "0"}`)
 		.sort()
 		.join(",");
-	const coordsKey = axisCoords ? axisCoords.map(c => c.toFixed(4)).join(",") : "";
+	const coordsKey = axisCoords
+		? axisCoords.map((c) => c.toFixed(4)).join(",")
+		: "";
 	return `${script}|${language || ""}|${direction}|${featuresKey}|${coordsKey}`;
 }
 
@@ -80,7 +82,13 @@ export function getOrCreateShapePlan(
 	userFeatures: ShapeFeature[] = [],
 	axisCoords: number[] | null = null,
 ): ShapePlan {
-	const cacheKey = getCacheKey(script, language, direction, userFeatures, axisCoords);
+	const cacheKey = getCacheKey(
+		script,
+		language,
+		direction,
+		userFeatures,
+		axisCoords,
+	);
 
 	// Get or create font's cache map
 	let fontCache = shapePlanCache.get(font);
@@ -127,7 +135,14 @@ export function createShapePlan(
 	axisCoords: number[] | null = null,
 ): ShapePlan {
 	// Use caching by default
-	return getOrCreateShapePlan(font, script, language, direction, userFeatures, axisCoords);
+	return getOrCreateShapePlan(
+		font,
+		script,
+		language,
+		direction,
+		userFeatures,
+		axisCoords,
+	);
 }
 
 /** Create a shape plan without caching */
@@ -218,16 +233,22 @@ function collectLookups<T extends { lookups: unknown[] }>(
 	if (!langSys) return [];
 
 	// Get feature variations substitutions if applicable
-	const featureVariations = (gsub as { featureVariations?: FeatureVariations }).featureVariations;
-	const matchingVariation = featureVariations && axisCoords
-		? findMatchingFeatureVariation(featureVariations, axisCoords)
-		: null;
+	const featureVariations = (gsub as { featureVariations?: FeatureVariations })
+		.featureVariations;
+	const matchingVariation =
+		featureVariations && axisCoords
+			? findMatchingFeatureVariation(featureVariations, axisCoords)
+			: null;
 
 	// Build a map of feature indices to their substituted lookup lists
 	const featureSubstitutions = new Map<uint16, uint16[]>();
 	if (matchingVariation) {
-		for (const subst of matchingVariation.featureTableSubstitution.substitutions) {
-			featureSubstitutions.set(subst.featureIndex, subst.alternateFeature.lookupListIndices);
+		for (const subst of matchingVariation.featureTableSubstitution
+			.substitutions) {
+			featureSubstitutions.set(
+				subst.featureIndex,
+				subst.alternateFeature.lookupListIndices,
+			);
 		}
 	}
 
@@ -236,7 +257,9 @@ function collectLookups<T extends { lookups: unknown[] }>(
 		const feature = getFeature(gsub.featureList, langSys.requiredFeatureIndex);
 		if (feature) {
 			// Check if this feature has a substitution
-			const substitutedLookups = featureSubstitutions.get(langSys.requiredFeatureIndex);
+			const substitutedLookups = featureSubstitutions.get(
+				langSys.requiredFeatureIndex,
+			);
 			const lookups = substitutedLookups ?? feature.feature.lookupListIndices;
 			for (const lookupIndex of lookups) {
 				lookupIndices.add(lookupIndex);
@@ -252,7 +275,8 @@ function collectLookups<T extends { lookups: unknown[] }>(
 		if (enabledFeatures.has(featureRecord.featureTag)) {
 			// Check if this feature has a substitution
 			const substitutedLookups = featureSubstitutions.get(featureIndex);
-			const lookups = substitutedLookups ?? featureRecord.feature.lookupListIndices;
+			const lookups =
+				substitutedLookups ?? featureRecord.feature.lookupListIndices;
 			for (const lookupIndex of lookups) {
 				lookupIndices.add(lookupIndex);
 			}
