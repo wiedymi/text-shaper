@@ -3,7 +3,7 @@
  * Port of bidi-js brackets.js
  */
 
-import data from "./brackets.data.ts";
+import data from "./brackets.gen.ts";
 import { parseCharacterMap } from "./parse-character-map.ts";
 
 let openToClose: Map<string, string> | null = null;

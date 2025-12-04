@@ -3,7 +3,7 @@
  * Port of bidi-js charTypes.js
  */
 
-import DATA from "./char-types.data.ts";
+import DATA from "./char-types.gen.ts";
 
 export const TYPES: Record<string, number> = {};
 export const TYPES_TO_NAMES: Record<number, string> = {};

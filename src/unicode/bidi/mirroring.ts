@@ -3,7 +3,7 @@
  * Port of bidi-js mirroring.js
  */
 
-import data from "./mirroring.data.ts";
+import data from "./mirroring.gen.ts";
 import { parseCharacterMap } from "./parse-character-map.ts";
 
 let mirrorMap: Map<string, string> | null = null;
