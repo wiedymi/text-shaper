@@ -11,6 +11,11 @@ function parseFeature(featureStr: string): ShapeFeature {
 	if (featureStr.startsWith("-")) {
 		return feature(featureStr.slice(1), false);
 	}
+	// Handle "kern=1" format
+	if (featureStr.includes("=")) {
+		const [tagStr, value] = featureStr.split("=");
+		return feature(tagStr!, Number(value) !== 0);
+	}
 	return feature(featureStr, true);
 }
 
@@ -2570,10 +2575,10 @@ describe("Real fonts with specific GSUB/GPOS lookup types", () => {
 			const result = shape(arialUnicode, buffer, { script: "arab" });
 			expect(result.length).toBeGreaterThan(0);
 
-			// Check positioning applied
+			// Check positioning applied - offsets should be numbers (could be 0 or have values)
 			for (const { position } of result) {
-				expect(typeof position.xOffset).toBe("undefined");
-				expect(typeof position.yOffset).toBe("undefined");
+				expect(typeof position.xOffset).toBe("number");
+				expect(typeof position.yOffset).toBe("number");
 			}
 		});
 

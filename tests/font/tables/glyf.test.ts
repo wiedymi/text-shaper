@@ -34,7 +34,7 @@ function createMockTupleHeader(
 		variationDataSize: 0,
 		tupleIndex: 0,
 		serializedData: new Uint8Array(0),
-		peakTuple: opts.peakTuple ?? [1.0],
+		peakTuple: "peakTuple" in opts ? opts.peakTuple! : [1.0],
 		intermediateStartTuple: opts.intermediateStartTuple ?? null,
 		intermediateEndTuple: opts.intermediateEndTuple ?? null,
 		pointNumbers: opts.pointNumbers ?? null,
