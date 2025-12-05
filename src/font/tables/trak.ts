@@ -37,6 +37,7 @@ export interface TrackTableEntry {
  * Parse trak table
  */
 export function parseTrak(reader: Reader): TrakTable {
+	const tableReader = reader; // Keep reference to table start for offset resolution
 	const version = reader.uint32() / 65536; // Fixed 16.16
 	const format = reader.uint16();
 	const horizOffset = reader.offset16();
@@ -47,11 +48,11 @@ export function parseTrak(reader: Reader): TrakTable {
 	let vertData: TrackData | null = null;
 
 	if (horizOffset !== 0) {
-		horizData = parseTrackData(reader.sliceFrom(horizOffset));
+		horizData = parseTrackData(reader.sliceFrom(horizOffset), tableReader);
 	}
 
 	if (vertOffset !== 0) {
-		vertData = parseTrackData(reader.sliceFrom(vertOffset));
+		vertData = parseTrackData(reader.sliceFrom(vertOffset), tableReader);
 	}
 
 	return {
@@ -62,7 +63,7 @@ export function parseTrak(reader: Reader): TrakTable {
 	};
 }
 
-function parseTrackData(reader: Reader): TrackData {
+function parseTrackData(reader: Reader, tableReader: Reader): TrackData {
 	const nTracks = reader.uint16();
 	const nSizes = reader.uint16();
 	const sizeTableOffset = reader.offset32();
@@ -84,16 +85,17 @@ function parseTrackData(reader: Reader): TrackData {
 	}
 
 	// Read per-size tracking values for each track
+	// Note: offsets are relative to table start, not trackData start
 	for (const entry of trackTable) {
-		const trackReader = reader.sliceFrom(entry.offset);
+		const trackReader = tableReader.sliceFrom(entry.offset);
 		entry.perSizeTracking = [];
 		for (let i = 0; i < nSizes; i++) {
 			entry.perSizeTracking.push(trackReader.int16());
 		}
 	}
 
-	// Read size table
-	const sizeReader = reader.sliceFrom(sizeTableOffset);
+	// Read size table (offset is relative to table start, not trackData start)
+	const sizeReader = tableReader.sliceFrom(sizeTableOffset);
 	const sizeTable: number[] = [];
 	for (let i = 0; i < nSizes; i++) {
 		sizeTable.push(sizeReader.int32() / 65536); // Fixed 16.16

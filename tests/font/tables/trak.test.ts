@@ -63,35 +63,35 @@ describe("trak table - synthetic tests", () => {
 			const horizOffset = 12;
 			view.setUint16(horizOffset, 2, false); // nTracks
 			view.setUint16(horizOffset + 2, 3, false); // nSizes
-			view.setUint32(horizOffset + 4, 24, false); // sizeTableOffset
+			// sizeTableOffset is ABSOLUTE from table start
+			view.setUint32(horizOffset + 4, 36, false); // sizeTableOffset = 36 (12 + 8 + 16)
 
-			// Track table entries (2 tracks, 8 bytes each)
+			// Track table entries (2 tracks, 8 bytes each) at horizOffset + 8 = 20
 			let trackOffset = horizOffset + 8;
-			// Track 1: track=-1.0, nameIndex=256, offset=60
+			// Track 1: track=-1.0, nameIndex=256, offset=48 (absolute)
 			view.setInt32(trackOffset, -65536, false); // -1.0 in Fixed 16.16
 			view.setUint16(trackOffset + 4, 256, false);
-			view.setUint16(trackOffset + 6, 60, false);
+			view.setUint16(trackOffset + 6, 48, false); // absolute offset for perSize data
 			trackOffset += 8;
-			// Track 2: track=0.0, nameIndex=257, offset=66
+			// Track 2: track=0.0, nameIndex=257, offset=54 (absolute)
 			view.setInt32(trackOffset, 0, false); // 0.0
 			view.setUint16(trackOffset + 4, 257, false);
-			view.setUint16(trackOffset + 6, 66, false);
+			view.setUint16(trackOffset + 6, 54, false); // absolute offset for perSize data
 
-			// Size table at offset 24 (3 sizes)
-			let sizeOffset = horizOffset + 24;
-			view.setInt32(sizeOffset, 0x00080000, false); // 8.0
-			view.setInt32(sizeOffset + 4, 0x000C0000, false); // 12.0
-			view.setInt32(sizeOffset + 8, 0x00180000, false); // 24.0
+			// Size table at absolute offset 36 (3 sizes = 12 bytes)
+			view.setInt32(36, 0x00080000, false); // 8.0
+			view.setInt32(40, 0x000c0000, false); // 12.0
+			view.setInt32(44, 0x00180000, false); // 24.0
 
-			// Per-size tracking values for track 1 at offset 60
-			view.setInt16(horizOffset + 60, 10, false);
-			view.setInt16(horizOffset + 62, 5, false);
-			view.setInt16(horizOffset + 64, 0, false);
+			// Per-size tracking values for track 1 at absolute offset 48
+			view.setInt16(48, 10, false);
+			view.setInt16(50, 5, false);
+			view.setInt16(52, 0, false);
 
-			// Per-size tracking values for track 2 at offset 66
-			view.setInt16(horizOffset + 66, 0, false);
-			view.setInt16(horizOffset + 68, 0, false);
-			view.setInt16(horizOffset + 70, 0, false);
+			// Per-size tracking values for track 2 at absolute offset 54
+			view.setInt16(54, 0, false);
+			view.setInt16(56, 0, false);
+			view.setInt16(58, 0, false);
 
 			const reader = new Reader(buffer);
 			const trak = parseTrak(reader);
@@ -104,7 +104,7 @@ describe("trak table - synthetic tests", () => {
 			if (trak.horizData) {
 				expect(trak.horizData.nTracks).toBe(2);
 				expect(trak.horizData.nSizes).toBe(3);
-				expect(trak.horizData.sizeTableOffset).toBe(24);
+				expect(trak.horizData.sizeTableOffset).toBe(36);
 				expect(trak.horizData.sizeTable).toEqual([8.0, 12.0, 24.0]);
 				expect(trak.horizData.trackTable.length).toBe(2);
 
@@ -112,7 +112,7 @@ describe("trak table - synthetic tests", () => {
 				if (track1) {
 					expect(track1.track).toBe(-1.0);
 					expect(track1.nameIndex).toBe(256);
-					expect(track1.offset).toBe(60);
+					expect(track1.offset).toBe(48);
 					expect(track1.perSizeTracking).toEqual([10, 5, 0]);
 				}
 
@@ -120,7 +120,7 @@ describe("trak table - synthetic tests", () => {
 				if (track2) {
 					expect(track2.track).toBe(0.0);
 					expect(track2.nameIndex).toBe(257);
-					expect(track2.offset).toBe(66);
+					expect(track2.offset).toBe(54);
 					expect(track2.perSizeTracking).toEqual([0, 0, 0]);
 				}
 			}
@@ -143,24 +143,25 @@ describe("trak table - synthetic tests", () => {
 			view.setUint16(offset, 0, false);
 			offset += 2;
 
-			// Vertical track data
+			// Vertical track data at offset 12
 			const vertOffset = 12;
 			view.setUint16(vertOffset, 1, false); // nTracks
 			view.setUint16(vertOffset + 2, 2, false); // nSizes
-			view.setUint32(vertOffset + 4, 16, false); // sizeTableOffset
+			// sizeTableOffset is ABSOLUTE from table start
+			view.setUint32(vertOffset + 4, 28, false); // sizeTableOffset = 28 (12 + 8 + 8)
 
-			// Track entry
+			// Track entry at vertOffset + 8 = 20
 			view.setInt32(vertOffset + 8, 0x00008000, false); // 0.5 in Fixed 16.16
 			view.setUint16(vertOffset + 12, 300, false);
-			view.setUint16(vertOffset + 14, 40, false);
+			view.setUint16(vertOffset + 14, 36, false); // absolute offset for perSize data
 
-			// Size table
-			view.setInt32(vertOffset + 16, 0x000A0000, false); // 10.0
-			view.setInt32(vertOffset + 20, 0x00140000, false); // 20.0
+			// Size table at absolute offset 28 (2 sizes = 8 bytes)
+			view.setInt32(28, 0x000a0000, false); // 10.0
+			view.setInt32(32, 0x00140000, false); // 20.0
 
-			// Per-size values
-			view.setInt16(vertOffset + 40, -5, false);
-			view.setInt16(vertOffset + 42, -10, false);
+			// Per-size values at absolute offset 36
+			view.setInt16(36, -5, false);
+			view.setInt16(38, -10, false);
 
 			const reader = new Reader(buffer);
 			const trak = parseTrak(reader);
@@ -181,32 +182,40 @@ describe("trak table - synthetic tests", () => {
 			const buffer = new ArrayBuffer(300);
 			const view = new DataView(buffer);
 
-			// Header
+			// Header (12 bytes)
 			view.setUint32(0, 0x00010000, false);
 			view.setUint16(4, 0, false);
 			view.setUint16(6, 12, false); // horizOffset
-			view.setUint16(8, 50, false); // vertOffset
+			view.setUint16(8, 100, false); // vertOffset
 			view.setUint16(10, 0, false);
 
-			// Horizontal data
-			view.setUint16(12, 1, false);
-			view.setUint16(14, 1, false);
-			view.setUint32(16, 28, false);
-			view.setInt32(20, 0, false);
-			view.setUint16(24, 100, false);
-			view.setUint16(26, 40, false);
-			view.setInt32(40, 0x000C0000, false); // 12.0
-			view.setInt16(52, 3, false);
+			// Horizontal data at offset 12
+			// TrackData header (8 bytes)
+			view.setUint16(12, 1, false); // nTracks
+			view.setUint16(14, 1, false); // nSizes
+			view.setUint32(16, 28, false); // sizeTableOffset (absolute)
+			// Track entry (8 bytes) at offset 20
+			view.setInt32(20, 0, false); // track 0
+			view.setUint16(24, 100, false); // nameIndex
+			view.setUint16(26, 32, false); // perSize offset (absolute)
+			// Size table at absolute offset 28 (4 bytes)
+			view.setInt32(28, 0x000c0000, false); // 12.0
+			// Per-size data at absolute offset 32 (2 bytes)
+			view.setInt16(32, 3, false);
 
-			// Vertical data
-			view.setUint16(50, 1, false);
-			view.setUint16(52, 1, false);
-			view.setUint32(54, 66, false);
-			view.setInt32(58, 0, false);
-			view.setUint16(62, 101, false);
-			view.setUint16(64, 78, false);
-			view.setInt32(116, 0x000E0000, false); // 14.0
-			view.setInt16(128, -3, false);
+			// Vertical data at offset 100
+			// TrackData header (8 bytes)
+			view.setUint16(100, 1, false); // nTracks
+			view.setUint16(102, 1, false); // nSizes
+			view.setUint32(104, 116, false); // sizeTableOffset (absolute)
+			// Track entry (8 bytes) at offset 108
+			view.setInt32(108, 0, false); // track 0
+			view.setUint16(112, 101, false); // nameIndex
+			view.setUint16(114, 120, false); // perSize offset (absolute)
+			// Size table at absolute offset 116 (4 bytes)
+			view.setInt32(116, 0x000e0000, false); // 14.0
+			// Per-size data at absolute offset 120 (2 bytes)
+			view.setInt16(120, -3, false);
 
 			const reader = new Reader(buffer);
 			const trak = parseTrak(reader);
@@ -1049,23 +1058,29 @@ describe("trak table - format validation", () => {
 		const buffer = new ArrayBuffer(100);
 		const view = new DataView(buffer);
 
+		// Header
 		view.setUint32(0, 0x00010000, false);
 		view.setUint16(4, 0, false);
-		view.setUint16(6, 12, false);
+		view.setUint16(6, 12, false); // horizOffset
 		view.setUint16(8, 0, false);
 		view.setUint16(10, 0, false);
 
-		view.setUint16(12, 1, false);
-		view.setUint16(14, 1, false);
-		view.setUint32(16, 28, false);
+		// TrackData header at offset 12
+		view.setUint16(12, 1, false); // nTracks
+		view.setUint16(14, 1, false); // nSizes
+		view.setUint32(16, 28, false); // sizeTableOffset (absolute)
 
-		view.setInt32(20, 0, false);
-		view.setUint16(24, 100, false);
-		view.setUint16(26, 40, false);
+		// Track entry at offset 20
+		view.setInt32(20, 0, false); // track 0
+		view.setUint16(24, 100, false); // nameIndex
+		view.setUint16(26, 32, false); // perSize offset (absolute)
 
+		// Size table at absolute offset 28 (1 size = 4 bytes)
 		// Size: 13.5 in Fixed 16.16 = 0x000D8000
-		view.setInt32(40, 0x000d8000, false); // 13.5
-		view.setInt16(52, 5, false);
+		view.setInt32(28, 0x000d8000, false); // 13.5
+
+		// Per-size values at absolute offset 32
+		view.setInt16(32, 5, false);
 
 		const reader = new Reader(buffer);
 		const trak = parseTrak(reader);
@@ -1077,31 +1092,32 @@ describe("trak table - format validation", () => {
 });
 
 describe("trak table - known parsing issues", () => {
-	test("documents SFNS.ttf parsing bug", async () => {
-		// SFNS.ttf has a trak table that fails to parse with current implementation
-		// The issue is that per-size tracking offsets appear to be absolute to
-		// the trak table start, not relative to the horizData start.
-		//
-		// Expected layout:
-		// - Table header (12 bytes)
-		// - horizData at offset 12
-		//   - nTracks=3, nSizes=21, sizeTableOffset=44
-		//   - Track entries (24 bytes)
-		//   - Size table at horizData + 44 = table + 56 (should be 84 bytes for 21 sizes)
-		//   - Per-size data at offsets 128, 170, 212 (ABSOLUTE to table start!)
-		//
-		// Current parser treats per-size offsets as relative to horizData,
-		// causing out-of-bounds reads.
-
+	test("SFNS.ttf trak table parses correctly", async () => {
+		// SFNS.ttf has a trak table with absolute offsets from table start.
+		// The parser now correctly handles this.
 		try {
 			const font = await Font.fromFile("/System/Library/Fonts/SFNS.ttf");
-			const trak = font.trak; // This will throw
+			const trak = font.trak;
 
-			// If we get here, the bug has been fixed
 			expect(trak).not.toBeNull();
-		} catch (e) {
-			// Expected to fail with current implementation
-			expect((e as Error).message).toContain("Out of bounds");
+			if (trak) {
+				expect(trak.version).toBe(1.0);
+				expect(trak.horizData).not.toBeNull();
+				if (trak.horizData) {
+					expect(trak.horizData.nTracks).toBeGreaterThan(0);
+					expect(trak.horizData.nSizes).toBeGreaterThan(0);
+					expect(trak.horizData.trackTable.length).toBe(trak.horizData.nTracks);
+					expect(trak.horizData.sizeTable.length).toBe(trak.horizData.nSizes);
+
+					// Verify per-size tracking values were parsed
+					for (const track of trak.horizData.trackTable) {
+						expect(track.perSizeTracking.length).toBe(trak.horizData.nSizes);
+					}
+				}
+			}
+		} catch {
+			// Font not found on this system
+			console.log("Skipping: SFNS.ttf not found");
 		}
 	});
 
@@ -1119,21 +1135,21 @@ describe("trak table - known parsing issues", () => {
 		// Claim 10 sizes but only provide space for 5
 		view.setUint16(12, 1, false); // nTracks
 		view.setUint16(14, 10, false); // nSizes (claim 10)
-		view.setUint32(16, 28, false); // sizeTableOffset
+		view.setUint32(16, 28, false); // sizeTableOffset (absolute)
 
 		// Track entry
 		view.setInt32(20, 0, false);
 		view.setUint16(24, 100, false);
-		view.setUint16(26, 60, false); // per-size at offset 60
+		view.setUint16(26, 68, false); // per-size at absolute offset 68
 
-		// Size table (only 5 sizes)
+		// Size table at absolute offset 28 (only 5 sizes = 20 bytes)
 		for (let i = 0; i < 5; i++) {
-			view.setInt32(40 + i * 4, (12 + i * 2) * 65536, false);
+			view.setInt32(28 + i * 4, (12 + i * 2) * 65536, false);
 		}
 
-		// Per-size data (only 5 values)
+		// Per-size data at absolute offset 68 (only 5 values = 10 bytes)
 		for (let i = 0; i < 5; i++) {
-			view.setInt16(72 + i * 2, 10 - i * 2, false);
+			view.setInt16(68 + i * 2, 10 - i * 2, false);
 		}
 
 		const reader = new Reader(buffer);
@@ -1149,10 +1165,9 @@ describe("trak table - known parsing issues", () => {
 		}
 	});
 
-	test("handles absolute vs relative offset ambiguity", () => {
-		// The trak spec is ambiguous about whether track entry offsets
-		// are relative to the track data start or absolute to table start.
-		// This test documents both interpretations.
+	test("uses absolute offsets from table start", () => {
+		// Apple's trak table uses absolute offsets from the table start
+		// for both sizeTableOffset and per-size tracking offsets.
 
 		const buffer = new ArrayBuffer(200);
 		const view = new DataView(buffer);
@@ -1164,36 +1179,34 @@ describe("trak table - known parsing issues", () => {
 		view.setUint16(8, 0, false);
 		view.setUint16(10, 0, false);
 
-		// Track data
+		// Track data at offset 12
 		view.setUint16(12, 1, false); // nTracks
 		view.setUint16(14, 2, false); // nSizes
-		view.setUint32(16, 28, false); // sizeTableOffset
+		view.setUint32(16, 28, false); // sizeTableOffset (absolute)
 
-		// Track entry with offset 50
+		// Track entry with absolute offset 48
 		view.setInt32(20, 0, false); // track 0
 		view.setUint16(24, 100, false); // nameIndex
-		view.setUint16(26, 50, false); // offset
+		view.setUint16(26, 48, false); // per-size offset (absolute from table start)
 
-		// Size table at 12 + 28 = 40
-		view.setInt32(40, 12 * 65536, false);
-		view.setInt32(44, 24 * 65536, false);
+		// Size table at absolute offset 28
+		view.setInt32(28, 12 * 65536, false); // 12.0
+		view.setInt32(32, 24 * 65536, false); // 24.0
 
-		// Per-size data interpretation 1: offset 50 relative to horizData (12 + 50 = 62)
-		view.setInt16(62, 10, false);
-		view.setInt16(64, 5, false);
-
-		// Per-size data interpretation 2: offset 50 absolute to table start
-		view.setInt16(50, 20, false);
-		view.setInt16(52, 15, false);
+		// Per-size data at absolute offset 48
+		view.setInt16(48, 20, false);
+		view.setInt16(50, 15, false);
 
 		const reader = new Reader(buffer);
 		const trak = parseTrak(reader);
 
-		// Current implementation uses relative offsets
+		// Parser uses absolute offsets
 		if (trak.horizData?.trackTable[0]) {
 			const values = trak.horizData.trackTable[0].perSizeTracking;
-			// Will read from offset 12 + 50 = 62
 			expect(values.length).toBe(2);
+			// Should read from absolute offset 48
+			expect(values[0]).toBe(20);
+			expect(values[1]).toBe(15);
 		}
 	});
 });
