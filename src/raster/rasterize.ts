@@ -531,3 +531,41 @@ export {
 	type RasterizeOptions,
 	type Span,
 } from "./types.ts";
+
+// Re-export stroker
+export {
+	strokePath,
+	type LineCap,
+	type LineJoin,
+	type StrokerOptions,
+} from "./stroker.ts";
+
+// Re-export SDF
+export { renderSdf, type SdfOptions } from "./sdf.ts";
+
+// Re-export bitmap utilities
+export {
+	emboldenBitmap,
+	convertBitmap,
+	blendBitmap,
+	copyBitmap,
+	resizeBitmap,
+} from "./bitmap-utils.ts";
+
+// Re-export synthetic effects
+export {
+	condensePath,
+	emboldenPath,
+	obliquePath,
+	transformPath,
+} from "./synth.ts";
+
+// Re-export bbox
+export {
+	type BBox,
+	evaluateCubic,
+	evaluateQuadratic,
+	getCubicExtrema,
+	getExactBounds,
+	getQuadraticExtrema,
+} from "./bbox.ts";

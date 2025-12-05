@@ -309,6 +309,22 @@ export function pathToSVG(
 }
 
 /**
+ * Render options for stroke/fill
+ */
+export interface RenderOptions {
+	flipY?: boolean;
+	scale?: number;
+	offsetX?: number;
+	offsetY?: number;
+	fill?: string;
+	stroke?: string;
+	strokeWidth?: number;
+	lineCap?: CanvasLineCap;
+	lineJoin?: CanvasLineJoin;
+	miterLimit?: number;
+}
+
+/**
  * Render path commands to a Canvas 2D context
  */
 export function pathToCanvas(
@@ -371,26 +387,39 @@ export function pathToCanvas(
 export function glyphToSVG(
 	font: Font,
 	glyphId: GlyphId,
-	options?: { fontSize?: number; fill?: string },
+	options?: {
+		fontSize?: number;
+		fill?: string;
+		stroke?: string;
+		strokeWidth?: number;
+	},
 ): string | null {
 	const path = getGlyphPath(font, glyphId);
 	if (!path) return null;
 
 	const fontSize = options?.fontSize ?? 100;
 	const fill = options?.fill ?? "currentColor";
+	const stroke = options?.stroke;
+	const strokeWidth = options?.strokeWidth ?? 1;
 	const scale = fontSize / font.unitsPerEm;
 
 	const bounds = path.bounds;
 	if (!bounds) return null;
 
-	const width = Math.ceil((bounds.xMax - bounds.xMin) * scale);
-	const height = Math.ceil((bounds.yMax - bounds.yMin) * scale);
-	const viewBox = `${bounds.xMin} ${-bounds.yMax} ${bounds.xMax - bounds.xMin} ${bounds.yMax - bounds.yMin}`;
+	// Add stroke width to bounds for proper sizing
+	const strokePadding = stroke ? strokeWidth / 2 : 0;
+	const width = Math.ceil((bounds.xMax - bounds.xMin) * scale + strokePadding * 2);
+	const height = Math.ceil((bounds.yMax - bounds.yMin) * scale + strokePadding * 2);
+	const viewBox = `${bounds.xMin - strokePadding} ${-bounds.yMax - strokePadding} ${bounds.xMax - bounds.xMin + strokePadding * 2} ${bounds.yMax - bounds.yMin + strokePadding * 2}`;
 
 	const pathData = pathToSVG(path, { flipY: true, scale: 1 });
 
+	const strokeAttr = stroke
+		? ` stroke="${stroke}" stroke-width="${strokeWidth}"`
+		: "";
+
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-  <path d="${pathData}" fill="${fill}"/>
+  <path d="${pathData}" fill="${fill}"${strokeAttr}/>
 </svg>`;
 }
 
@@ -409,16 +438,33 @@ export function renderShapedText(
 	ctx: CanvasRenderingContext2D,
 	font: Font,
 	glyphs: ShapedGlyph[],
-	options?: { fontSize?: number; x?: number; y?: number; fill?: string },
+	options?: {
+		fontSize?: number;
+		x?: number;
+		y?: number;
+		fill?: string;
+		stroke?: string;
+		strokeWidth?: number;
+		lineCap?: CanvasLineCap;
+		lineJoin?: CanvasLineJoin;
+	},
 ): void {
 	const fontSize = options?.fontSize ?? 16;
 	const startX = options?.x ?? 0;
 	const startY = options?.y ?? 0;
 	const fill = options?.fill ?? "black";
+	const stroke = options?.stroke;
+	const strokeWidth = options?.strokeWidth ?? 1;
 
 	const scale = fontSize / font.unitsPerEm;
 
 	ctx.fillStyle = fill;
+	if (stroke) {
+		ctx.strokeStyle = stroke;
+		ctx.lineWidth = strokeWidth * scale;
+		if (options?.lineCap) ctx.lineCap = options.lineCap;
+		if (options?.lineJoin) ctx.lineJoin = options.lineJoin;
+	}
 
 	let x = startX;
 	let y = startY;
@@ -433,7 +479,8 @@ export function renderShapedText(
 				offsetX: x + glyph.xOffset * scale,
 				offsetY: y - glyph.yOffset * scale,
 			});
-			ctx.fill();
+			if (fill !== "none") ctx.fill();
+			if (stroke) ctx.stroke();
 		}
 
 		x += glyph.xAdvance * scale;
@@ -447,10 +494,19 @@ export function renderShapedText(
 export function shapedTextToSVG(
 	font: Font,
 	glyphs: ShapedGlyph[],
-	options?: { fontSize?: number; fill?: string },
+	options?: {
+		fontSize?: number;
+		fill?: string;
+		stroke?: string;
+		strokeWidth?: number;
+		lineCap?: "butt" | "round" | "square";
+		lineJoin?: "miter" | "round" | "bevel";
+	},
 ): string {
 	const fontSize = options?.fontSize ?? 100;
 	const fill = options?.fill ?? "currentColor";
+	const stroke = options?.stroke;
+	const strokeWidth = options?.strokeWidth ?? 1;
 	const scale = fontSize / font.unitsPerEm;
 
 	const paths: string[] = [];
@@ -524,12 +580,18 @@ export function shapedTextToSVG(
 		return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
 	}
 
-	const width = Math.ceil(maxX - minX);
-	const height = Math.ceil(maxY - minY);
-	const viewBox = `${Math.floor(minX)} ${Math.floor(minY)} ${width} ${height}`;
+	// Add stroke padding to bounds
+	const strokePadding = stroke ? strokeWidth / 2 : 0;
+	const width = Math.ceil(maxX - minX + strokePadding * 2);
+	const height = Math.ceil(maxY - minY + strokePadding * 2);
+	const viewBox = `${Math.floor(minX - strokePadding)} ${Math.floor(minY - strokePadding)} ${width} ${height}`;
+
+	const strokeAttr = stroke
+		? ` stroke="${stroke}" stroke-width="${strokeWidth}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
+		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-  <path d="${paths.join(" ")}" fill="${fill}"/>
+  <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}/>
 </svg>`;
 }
 
@@ -581,16 +643,33 @@ export function renderShapedTextWithVariation(
 	font: Font,
 	glyphs: ShapedGlyph[],
 	axisCoords: number[],
-	options?: { fontSize?: number; x?: number; y?: number; fill?: string },
+	options?: {
+		fontSize?: number;
+		x?: number;
+		y?: number;
+		fill?: string;
+		stroke?: string;
+		strokeWidth?: number;
+		lineCap?: CanvasLineCap;
+		lineJoin?: CanvasLineJoin;
+	},
 ): void {
 	const fontSize = options?.fontSize ?? 16;
 	const startX = options?.x ?? 0;
 	const startY = options?.y ?? 0;
 	const fill = options?.fill ?? "black";
+	const stroke = options?.stroke;
+	const strokeWidth = options?.strokeWidth ?? 1;
 
 	const scale = fontSize / font.unitsPerEm;
 
 	ctx.fillStyle = fill;
+	if (stroke) {
+		ctx.strokeStyle = stroke;
+		ctx.lineWidth = strokeWidth * scale;
+		if (options?.lineCap) ctx.lineCap = options.lineCap;
+		if (options?.lineJoin) ctx.lineJoin = options.lineJoin;
+	}
 
 	let x = startX;
 	let y = startY;
@@ -605,7 +684,8 @@ export function renderShapedTextWithVariation(
 				offsetX: x + glyph.xOffset * scale,
 				offsetY: y - glyph.yOffset * scale,
 			});
-			ctx.fill();
+			if (fill !== "none") ctx.fill();
+			if (stroke) ctx.stroke();
 		}
 
 		x += glyph.xAdvance * scale;
@@ -620,10 +700,19 @@ export function shapedTextToSVGWithVariation(
 	font: Font,
 	glyphs: ShapedGlyph[],
 	axisCoords: number[],
-	options?: { fontSize?: number; fill?: string },
+	options?: {
+		fontSize?: number;
+		fill?: string;
+		stroke?: string;
+		strokeWidth?: number;
+		lineCap?: "butt" | "round" | "square";
+		lineJoin?: "miter" | "round" | "bevel";
+	},
 ): string {
 	const fontSize = options?.fontSize ?? 100;
 	const fill = options?.fill ?? "currentColor";
+	const stroke = options?.stroke;
+	const strokeWidth = options?.strokeWidth ?? 1;
 	const scale = fontSize / font.unitsPerEm;
 
 	const paths: string[] = [];
@@ -695,12 +784,18 @@ export function shapedTextToSVGWithVariation(
 		return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
 	}
 
-	const width = Math.ceil(maxX - minX);
-	const height = Math.ceil(maxY - minY);
-	const viewBox = `${Math.floor(minX)} ${Math.floor(minY)} ${width} ${height}`;
+	// Add stroke padding to bounds
+	const strokePadding = stroke ? strokeWidth / 2 : 0;
+	const width = Math.ceil(maxX - minX + strokePadding * 2);
+	const height = Math.ceil(maxY - minY + strokePadding * 2);
+	const viewBox = `${Math.floor(minX - strokePadding)} ${Math.floor(minY - strokePadding)} ${width} ${height}`;
+
+	const strokeAttr = stroke
+		? ` stroke="${stroke}" stroke-width="${strokeWidth}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
+		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-  <path d="${paths.join(" ")}" fill="${fill}"/>
+  <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}/>
 </svg>`;
 }
 
