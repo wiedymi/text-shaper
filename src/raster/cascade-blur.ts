@@ -15,6 +15,7 @@
  * Traditional Gaussian: O(r) per pixel where r is radius
  */
 
+import { gaussianBlur } from "./blur.ts";
 import { type Bitmap, PixelMode } from "./types.ts";
 
 const PI = Math.PI;
@@ -396,12 +397,28 @@ function blurVert(
 }
 
 /**
+ * Cascade blur for RGBA bitmaps - uses gaussianBlur which handles multi-channel
+ * For RGBA, we fall back to the standard gaussian blur since cascade is optimized
+ * for single-channel grayscale bitmaps.
+ */
+function cascadeBlurRGBA(
+	bitmap: Bitmap,
+	radiusX: number,
+	radiusY: number,
+): Bitmap {
+	// For RGBA, use the standard gaussianBlur which handles multi-channel correctly
+	// Use average of radiusX and radiusY since gaussianBlur only supports single radius
+	const avgRadius = (radiusX + radiusY) / 2;
+	return gaussianBlur(bitmap, avgRadius);
+}
+
+/**
  * Cascade Gaussian blur with asymmetric X/Y radii
  *
- * @param bitmap Input bitmap (modified in-place)
+ * @param bitmap Input bitmap
  * @param radiusX Blur radius along X axis
  * @param radiusY Blur radius along Y axis (defaults to radiusX)
- * @returns Modified bitmap with new dimensions (expands by blur radius)
+ * @returns New bitmap with blur applied (dimensions may change)
  */
 export function cascadeBlur(
 	bitmap: Bitmap,
@@ -412,13 +429,15 @@ export function cascadeBlur(
 		return bitmap;
 	}
 
-	// Convert radius to variance (r² = σ²)
-	// Standard: radius ≈ 3σ, so σ = radius/3, σ² = radius²/9
-	// But for visual consistency with simple blur, use radius directly
+	// Handle RGBA bitmaps - fall back to gaussianBlur which handles multi-channel
+	if (bitmap.pixelMode === PixelMode.RGBA) {
+		return cascadeBlurRGBA(bitmap, radiusX, radiusY);
+	}
+
+	// Grayscale cascade blur implementation
 	const r2x = radiusX * radiusX;
 	const r2y = radiusY * radiusY;
 
-	// Find best blur method for each dimension
 	const blurX = findBestMethod(r2x);
 	const blurY = findBestMethod(r2y);
 
@@ -533,14 +552,23 @@ export function fastGaussianBlur(bitmap: Bitmap, radius: number): Bitmap {
  * Adaptive blur that chooses the best algorithm based on radius
  * - For small radii (≤ 3): uses simple separable Gaussian (more precise)
  * - For large radii (> 3): uses cascade algorithm (faster)
+ *
+ * @param bitmap Input bitmap
+ * @param radiusX Horizontal blur radius in pixels
+ * @param radiusY Vertical blur radius in pixels (defaults to radiusX)
  */
 export function adaptiveBlur(
 	bitmap: Bitmap,
-	radius: number,
-	simpleBlur: (bm: Bitmap, r: number) => Bitmap,
+	radiusX: number,
+	radiusY?: number,
 ): Bitmap {
-	if (radius <= 3) {
-		return simpleBlur(bitmap, radius);
+	const ry = radiusY ?? radiusX;
+	const maxRadius = Math.max(radiusX, ry);
+
+	if (maxRadius <= 3) {
+		// For small radii, use simple Gaussian (more precise for small kernels)
+		// gaussianBlur only supports single radius, use average
+		return gaussianBlur(bitmap, (radiusX + ry) / 2);
 	}
-	return cascadeBlur(bitmap, radius);
+	return cascadeBlur(bitmap, radiusX, ry);
 }

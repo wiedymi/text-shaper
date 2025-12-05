@@ -822,11 +822,11 @@ Automatically choose optimal blur algorithm based on radius.
 function adaptiveBlur(
   bitmap: Bitmap,
   radiusX: number,
-  radiusY: number
+  radiusY?: number  // defaults to radiusX
 ): Bitmap
 ```
 
-Uses simple separable Gaussian for small radii (≤ 3) and cascade algorithm for large radii (> 3).
+Uses simple separable Gaussian for small radii (≤ 3) and cascade algorithm for large radii (> 3). If `radiusY` is omitted, uses `radiusX` for both dimensions.
 
 ## Asymmetric Stroke
 

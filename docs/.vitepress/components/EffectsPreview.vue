@@ -13,7 +13,9 @@ const zoom = ref(2)
 
 // Blur controls
 const blurRadius = ref(4)
-const blurType = ref<'gaussian' | 'box'>('gaussian')
+const blurRadiusY = ref(4)
+const blurType = ref<'gaussian' | 'box' | 'cascade' | 'adaptive'>('gaussian')
+const asymmetricBlur = ref(false)
 
 // Gradient controls
 const gradientType = ref<'linear' | 'radial'>('linear')
@@ -64,6 +66,8 @@ async function renderEffect() {
 			rasterizePathWithGradient,
 			bitmapToRGBA,
 			PixelMode,
+			cascadeBlur,
+			adaptiveBlur,
 		} = await import('text-shaper')
 
 		const codepoint = character.value.codePointAt(0) || 0
@@ -96,9 +100,19 @@ async function renderEffect() {
 			bearingX = result.bearingX
 			bearingY = result.bearingY
 
-			// Copy and blur
+			// Copy and blur based on type
 			const copy = copyBitmap(result.bitmap)
-			bitmap = blurBitmap(copy, blurRadius.value, blurType.value === 'gaussian')
+			const radiusX = blurRadius.value
+			const radiusY = asymmetricBlur.value ? blurRadiusY.value : blurRadius.value
+
+			if (blurType.value === 'cascade') {
+				bitmap = cascadeBlur(copy, radiusX, radiusY)
+			} else if (blurType.value === 'adaptive') {
+				bitmap = adaptiveBlur(copy, radiusX, radiusY)
+			} else {
+				// gaussian or box - use blurBitmap (doesn't support asymmetric)
+				bitmap = blurBitmap(copy, blurRadius.value, blurType.value === 'gaussian')
+			}
 
 		} else if (effectType.value === 'gradient') {
 			// Get path in font units
@@ -268,7 +282,16 @@ async function renderEffect() {
 
 			// Blur the gradient bitmap
 			const copy = copyBitmap(gradientBitmap)
-			bitmap = blurBitmap(copy, blurRadius.value, blurType.value === 'gaussian')
+			const radiusX = blurRadius.value
+			const radiusY = asymmetricBlur.value ? blurRadiusY.value : blurRadius.value
+
+			if (blurType.value === 'cascade') {
+				bitmap = cascadeBlur(copy, radiusX, radiusY)
+			} else if (blurType.value === 'adaptive') {
+				bitmap = adaptiveBlur(copy, radiusX, radiusY)
+			} else {
+				bitmap = blurBitmap(copy, blurRadius.value, blurType.value === 'gaussian')
+			}
 		}
 
 		bitmapInfo.value = {
@@ -355,7 +378,9 @@ watch(
 		fontSize,
 		effectType,
 		blurRadius,
+		blurRadiusY,
 		blurType,
+		asymmetricBlur,
 		gradientType,
 		startColor,
 		endColor,
@@ -418,11 +443,6 @@ function applyColorPreset(preset: { start: string; end: string }) {
 				<div class="section-divider">Blur Settings</div>
 
 				<div class="input-row">
-					<label>Blur Radius: {{ blurRadius }}</label>
-					<input v-model.number="blurRadius" type="range" min="0" max="20" step="0.5" />
-				</div>
-
-				<div class="input-row">
 					<label>Blur Type</label>
 					<div class="mode-toggle">
 						<button :class="{ active: blurType === 'gaussian' }" @click="blurType = 'gaussian'">
@@ -431,7 +451,37 @@ function applyColorPreset(preset: { start: string; end: string }) {
 						<button :class="{ active: blurType === 'box' }" @click="blurType = 'box'">
 							Box
 						</button>
+						<button :class="{ active: blurType === 'cascade' }" @click="blurType = 'cascade'">
+							Cascade
+						</button>
+						<button :class="{ active: blurType === 'adaptive' }" @click="blurType = 'adaptive'">
+							Adaptive
+						</button>
 					</div>
+				</div>
+
+				<div class="input-row">
+					<label>Blur Radius{{ asymmetricBlur ? ' X' : '' }}: {{ blurRadius }}</label>
+					<input v-model.number="blurRadius" type="range" min="0" max="50" step="0.5" />
+				</div>
+
+				<div v-if="blurType === 'cascade' || blurType === 'adaptive'" class="input-row">
+					<label class="checkbox-label">
+						<input type="checkbox" v-model="asymmetricBlur" />
+						Asymmetric (separate X/Y radii)
+					</label>
+				</div>
+
+				<div v-if="asymmetricBlur && (blurType === 'cascade' || blurType === 'adaptive')" class="input-row">
+					<label>Blur Radius Y: {{ blurRadiusY }}</label>
+					<input v-model.number="blurRadiusY" type="range" min="0" max="50" step="0.5" />
+				</div>
+
+				<div class="blur-info">
+					<p v-if="blurType === 'gaussian'">Standard Gaussian blur - high quality, O(n) per pixel.</p>
+					<p v-else-if="blurType === 'box'">Box blur - fast, uniform kernel.</p>
+					<p v-else-if="blurType === 'cascade'">Cascade blur - O(1) per pixel using pyramid scaling. Best for large radii.</p>
+					<p v-else-if="blurType === 'adaptive'">Adaptive - uses Gaussian for small radii, Cascade for large.</p>
 				</div>
 			</template>
 
@@ -685,6 +735,31 @@ function applyColorPreset(preset: { start: string; end: string }) {
 	border-radius: 4px;
 	font-size: 13px;
 	color: var(--vp-c-text-2);
+}
+
+.blur-info {
+	padding: 10px 12px;
+	background: var(--vp-c-bg-soft);
+	border-radius: 4px;
+	font-size: 13px;
+}
+
+.blur-info p {
+	margin: 0;
+	color: var(--vp-c-text-2);
+}
+
+.checkbox-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	cursor: pointer;
+	font-weight: normal !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+	width: 16px;
+	height: 16px;
 }
 
 .preview-section {
