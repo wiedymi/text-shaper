@@ -136,10 +136,17 @@ async function rasterize() {
   }
 }
 
-watch([character, fontSize, pixelMode, hinting, zoom, () => props.font], rasterize)
+watch(
+  [character, fontSize, pixelMode, hinting, zoom],
+  () => rasterize()
+)
 
-onMounted(async () => {
-  await nextTick()
+watch(
+  () => props.font,
+  () => nextTick(() => rasterize())
+)
+
+onMounted(() => {
   rasterize()
 })
 </script>

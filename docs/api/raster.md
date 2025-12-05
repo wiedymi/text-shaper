@@ -534,6 +534,124 @@ function resizeBitmap(
 ): Bitmap
 ```
 
+## Blur Filters
+
+### blurBitmap
+
+Apply blur filter to a bitmap in-place.
+
+```typescript
+function blurBitmap(
+  bitmap: Bitmap,
+  radius: number,
+  type?: "gaussian" | "box"
+): Bitmap
+```
+
+Modifies the bitmap in-place and returns it. Default type is `"gaussian"`. Works with all pixel modes (Mono is converted to Gray first).
+
+### gaussianBlur
+
+Gaussian blur using separable 2-pass algorithm.
+
+```typescript
+function gaussianBlur(bitmap: Bitmap, radius: number): Bitmap
+```
+
+High-quality blur that uses a Gaussian kernel. The separable implementation performs horizontal pass followed by vertical pass for efficiency. Modifies bitmap in-place.
+
+### boxBlur
+
+Box blur using running sum for O(1) per pixel.
+
+```typescript
+function boxBlur(bitmap: Bitmap, radius: number): Bitmap
+```
+
+Fast blur using uniform kernel weights. Uses running sum technique for constant-time per-pixel performance regardless of radius. Modifies bitmap in-place.
+
+### createGaussianKernel
+
+Generate 1D Gaussian kernel weights.
+
+```typescript
+function createGaussianKernel(radius: number): Float32Array
+```
+
+Creates a normalized Gaussian kernel using the function `exp(-x²/(2σ²))` where σ = radius. Kernel extends to 2*radius on each side, capturing >99% of the Gaussian distribution. Weights are normalized to sum to 1.0.
+
+## Gradient Fill
+
+### Types
+
+```typescript
+interface ColorStop {
+  offset: number;  // 0.0 to 1.0
+  color: [number, number, number, number];  // RGBA 0-255
+}
+
+interface LinearGradient {
+  type: "linear";
+  x0: number;      // Start X coordinate
+  y0: number;      // Start Y coordinate
+  x1: number;      // End X coordinate
+  y1: number;      // End Y coordinate
+  stops: ColorStop[];
+}
+
+interface RadialGradient {
+  type: "radial";
+  cx: number;      // Center X coordinate
+  cy: number;      // Center Y coordinate
+  radius: number;  // Gradient radius
+  stops: ColorStop[];
+}
+
+type Gradient = LinearGradient | RadialGradient;
+```
+
+### rasterizePathWithGradient
+
+Rasterize a path with gradient fill.
+
+```typescript
+function rasterizePathWithGradient(
+  path: GlyphPath,
+  gradient: Gradient,
+  options: RasterizeOptions
+): Bitmap
+```
+
+Rasterizes the path to get a coverage mask, then fills it with the specified gradient. Returns an RGBA bitmap where the alpha channel is modulated by the coverage and gradient opacity.
+
+### createGradientBitmap
+
+Create a bitmap filled with gradient.
+
+```typescript
+function createGradientBitmap(
+  width: number,
+  height: number,
+  gradient: Gradient
+): Bitmap
+```
+
+Creates an RGBA bitmap filled with the specified gradient pattern (no path mask).
+
+### interpolateGradient
+
+Get interpolated color at position in gradient.
+
+```typescript
+function interpolateGradient(
+  gradient: Gradient,
+  x: number,
+  y: number
+): [number, number, number, number]
+```
+
+Computes the RGBA color at pixel coordinates `(x, y)` within the gradient. For linear gradients, projects the point onto the gradient line. For radial gradients, computes distance from center. Clamps to [0,1] range and interpolates between color stops.
+
 ## Synthetic Effects
 
 ### obliquePath

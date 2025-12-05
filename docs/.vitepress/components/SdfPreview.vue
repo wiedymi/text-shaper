@@ -40,27 +40,27 @@ async function renderSdfPreview() {
       return
     }
 
-    // Get the glyph path
+    // Get the glyph path (in font units)
     const path = getGlyphPath(props.font, glyphId)
-    if (!path) {
+    if (!path || !path.bounds) {
       error.value = 'Failed to get glyph path'
       sdfInfo.value = null
       return
     }
 
-    // Calculate scale and bounds
+    // Calculate scale (font units to pixels)
     const scale = fontSize.value / props.font.unitsPerEm
-    const bounds = getPathBounds(path, scale)
 
-    if (!bounds) {
-      error.value = 'Failed to get path bounds'
-      sdfInfo.value = null
-      return
-    }
+    // Get bounds in font units and scale them
+    const bounds = path.bounds
+    const scaledMinX = bounds.xMin * scale
+    const scaledMaxX = bounds.xMax * scale
+    const scaledMinY = bounds.yMin * scale
+    const scaledMaxY = bounds.yMax * scale
 
     const padding = spread.value
-    const width = Math.ceil(bounds.maxX - bounds.minX) + padding * 2
-    const height = Math.ceil(bounds.maxY - bounds.minY) + padding * 2
+    const width = Math.ceil(scaledMaxX - scaledMinX) + padding * 2
+    const height = Math.ceil(scaledMaxY - scaledMinY) + padding * 2
 
     if (width <= 0 || height <= 0) {
       error.value = 'Invalid glyph dimensions'
@@ -68,8 +68,12 @@ async function renderSdfPreview() {
       return
     }
 
-    const offsetX = -bounds.minX + padding
-    const offsetY = -bounds.minY + padding
+    // offsetX/offsetY are in pixels, applied after scaling
+    // With flipY: y_pixel = -y_font * scale + offsetY
+    // We want yMax (top) to map to padding: padding = -yMax * scale + offsetY
+    // So offsetY = padding + yMax * scale = padding + scaledMaxY
+    const offsetX = -scaledMinX + padding
+    const offsetY = padding + scaledMaxY
 
     // Render SDF
     const bitmap = renderSdf(path, {
@@ -155,50 +159,6 @@ async function renderSdfPreview() {
   }
 }
 
-// Simple bounds calculation for path
-function getPathBounds(path: any, scale: number) {
-  let minX = Infinity
-  let minY = Infinity
-  let maxX = -Infinity
-  let maxY = -Infinity
-  let currentX = 0
-  let currentY = 0
-
-  for (const cmd of path.commands) {
-    switch (cmd.type) {
-      case 'M':
-      case 'L':
-        currentX = cmd.x * scale
-        currentY = cmd.y * scale
-        minX = Math.min(minX, currentX)
-        minY = Math.min(minY, currentY)
-        maxX = Math.max(maxX, currentX)
-        maxY = Math.max(maxY, currentY)
-        break
-      case 'Q':
-        minX = Math.min(minX, cmd.x1 * scale, cmd.x * scale)
-        minY = Math.min(minY, cmd.y1 * scale, cmd.y * scale)
-        maxX = Math.max(maxX, cmd.x1 * scale, cmd.x * scale)
-        maxY = Math.max(maxY, cmd.y1 * scale, cmd.y * scale)
-        currentX = cmd.x * scale
-        currentY = cmd.y * scale
-        break
-      case 'C':
-        minX = Math.min(minX, cmd.x1 * scale, cmd.x2 * scale, cmd.x * scale)
-        minY = Math.min(minY, cmd.y1 * scale, cmd.y2 * scale, cmd.y * scale)
-        maxX = Math.max(maxX, cmd.x1 * scale, cmd.x2 * scale, cmd.x * scale)
-        maxY = Math.max(maxY, cmd.y1 * scale, cmd.y2 * scale, cmd.y * scale)
-        currentX = cmd.x * scale
-        currentY = cmd.y * scale
-        break
-    }
-  }
-
-  if (minX === Infinity) return null
-
-  return { minX, minY, maxX, maxY }
-}
-
 // Convert SDF bitmap to RGBA for visualization
 function sdfToRGBA(bitmap: any, colorized: boolean): Uint8Array {
   const rgba = new Uint8Array(bitmap.width * bitmap.rows * 4)
@@ -238,10 +198,17 @@ function sdfToRGBA(bitmap: any, colorized: boolean): Uint8Array {
   return rgba
 }
 
-watch([character, fontSize, spread, zoom, showColorized, () => props.font], renderSdfPreview)
+watch(
+  [character, fontSize, spread, zoom, showColorized],
+  () => renderSdfPreview()
+)
 
-onMounted(async () => {
-  await nextTick()
+watch(
+  () => props.font,
+  () => nextTick(() => renderSdfPreview())
+)
+
+onMounted(() => {
   renderSdfPreview()
 })
 </script>

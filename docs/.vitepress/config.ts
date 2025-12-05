@@ -7,6 +7,8 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig({
   title: "TextShaper",
   description: "Pure TypeScript text shaping engine with OpenType layout, TrueType hinting, and FreeType-style rasterization",
+  ignoreDeadLinks: true,
+  srcExclude: ['**/reference/**', '**/node_modules/**'],
   vite: {
     resolve: {
       alias: {

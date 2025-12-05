@@ -11,29 +11,20 @@ import GlyphInspector from '../.vitepress/components/GlyphInspector.vue'
 import RasterPreview from '../.vitepress/components/RasterPreview.vue'
 import SdfPreview from '../.vitepress/components/SdfPreview.vue'
 import SyntheticEffects from '../.vitepress/components/SyntheticEffects.vue'
+import EffectsPreview from '../.vitepress/components/EffectsPreview.vue'
 
 const font = ref(null)
 const fontName = ref('')
-const activeTab = ref('shaping')
 
 function handleFontLoaded(loadedFont, name) {
   font.value = loadedFont
   fontName.value = name
 }
-
-const tabs = [
-  { id: 'shaping', label: 'Text Shaping' },
-  { id: 'variable', label: 'Variable Fonts' },
-  { id: 'glyph', label: 'Glyph Inspector' },
-  { id: 'raster', label: 'Rasterization' },
-  { id: 'sdf', label: 'SDF Rendering' },
-  { id: 'effects', label: 'Synthetic Effects' },
-]
 </script>
 
 # Playground
 
-Test TextShaper's functionality directly in your browser. Load a font and explore text shaping, variable font controls, glyph inspection, and rasterization.
+Test TextShaper's functionality directly in your browser. Load a font and explore all features below.
 
 ## Load a Font
 
@@ -47,27 +38,52 @@ Test TextShaper's functionality directly in your browser. Load a font and explor
   </span>
 </div>
 
-## Explore
+## Text Shaping
 
-<div class="tabs">
-  <button
-    v-for="tab in tabs"
-    :key="tab.id"
-    :class="{ active: activeTab === tab.id }"
-    @click="activeTab = tab.id"
-  >
-    {{ tab.label }}
-  </button>
+Shape text with OpenType features and see glyph positioning.
+
+<ShapingPlayground :font="font" :font-name="fontName" />
+
+## Variable Fonts
+
+<div v-if="font && font.isVariable">
+Adjust variation axes to see how the font responds.
+</div>
+<div v-else class="info-box">
+Load a variable font to explore axis controls.
 </div>
 
-<div class="tab-content">
-  <ShapingPlayground v-if="activeTab === 'shaping'" :font="font" :font-name="fontName" />
-  <VariableFontPlayground v-else-if="activeTab === 'variable'" :font="font" :font-name="fontName" />
-  <GlyphInspector v-else-if="activeTab === 'glyph'" :font="font" :font-name="fontName" />
-  <RasterPreview v-else-if="activeTab === 'raster'" :font="font" :font-name="fontName" />
-  <SdfPreview v-else-if="activeTab === 'sdf'" :font="font" :font-name="fontName" />
-  <SyntheticEffects v-else-if="activeTab === 'effects'" :font="font" :font-name="fontName" />
-</div>
+<VariableFontPlayground :font="font" :font-name="fontName" />
+
+## Glyph Inspector
+
+Inspect individual glyphs, their outlines, and metrics.
+
+<GlyphInspector :font="font" :font-name="fontName" />
+
+## Rasterization
+
+Preview glyph rasterization with different settings.
+
+<RasterPreview :font="font" :font-name="fontName" />
+
+## SDF Rendering
+
+Signed Distance Field rendering for GPU text.
+
+<SdfPreview :font="font" :font-name="fontName" />
+
+## Synthetic Effects
+
+Apply synthetic bold, italic, and condensed transformations.
+
+<SyntheticEffects :font="font" :font-name="fontName" />
+
+## Blur & Gradients
+
+Apply blur filters and gradient fills to glyphs.
+
+<EffectsPreview :font="font" :font-name="fontName" />
 
 <style>
 .font-loaded {
@@ -83,36 +99,12 @@ Test TextShaper's functionality directly in your browser. Load a font and explor
   margin-left: 4px;
 }
 
-.tabs {
-  display: flex;
-  gap: 0;
-  margin-top: 24px;
-  border-bottom: 2px solid var(--vp-c-border);
-}
-
-.tabs button {
-  padding: 12px 20px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
+.info-box {
+  padding: 12px 16px;
+  background: var(--vp-c-bg-soft);
+  border-radius: 8px;
   color: var(--vp-c-text-2);
-  transition: all 0.2s;
-}
-
-.tabs button:hover {
-  color: var(--vp-c-text-1);
-}
-
-.tabs button.active {
-  color: var(--vp-c-brand);
-  border-bottom-color: var(--vp-c-brand);
-}
-
-.tab-content {
-  padding: 24px 0;
+  font-size: 14px;
+  margin-bottom: 16px;
 }
 </style>

@@ -16,6 +16,8 @@ export enum PixelMode {
 	LCD = 2,
 	/** 24-bit LCD subpixel vertical RGB */
 	LCD_V = 3,
+	/** 32-bit RGBA, 4 bytes per pixel */
+	RGBA = 4,
 }
 
 /**
@@ -194,6 +196,9 @@ export function createBitmap(
 		case PixelMode.LCD:
 		case PixelMode.LCD_V:
 			bytesPerPixel = 3;
+			break;
+		case PixelMode.RGBA:
+			bytesPerPixel = 4;
 			break;
 	}
 

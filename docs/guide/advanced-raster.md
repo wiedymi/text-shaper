@@ -216,6 +216,101 @@ const copy = copyBitmap(bitmap);
 const resized = resizeBitmap(bitmap, 128, 128);
 ```
 
+## Blur Effects
+
+Post-process bitmaps with blur for effects like glow and soft shadows.
+
+```typescript
+import { rasterizeGlyph, blurBitmap, copyBitmap, blendBitmap } from "text-shaper";
+
+// Rasterize glyph
+const result = rasterizeGlyph(font, glyphId, 48);
+
+if (result) {
+  // Create glow effect
+  const glow = copyBitmap(result.bitmap);
+  blurBitmap(glow, 8, "gaussian"); // Soft blur
+
+  // Composite: glow behind original
+  blendBitmap(output, glow, x - 4, y - 4, 0.5);      // Offset glow
+  blendBitmap(output, result.bitmap, x, y, 1.0);     // Sharp text on top
+}
+```
+
+### Gaussian vs Box Blur
+
+- **Gaussian**: Smooth, natural falloff. Best for shadows and glow effects.
+- **Box**: Uniform averaging, faster. Good for motion blur or when speed matters.
+
+```typescript
+import { blurBitmap } from "text-shaper";
+
+// Gaussian blur - smooth and natural
+blurBitmap(bitmap, 5, "gaussian");
+
+// Box blur - faster but less smooth
+blurBitmap(bitmap, 5, "box");
+```
+
+The blur radius controls the spread. Higher values create softer, more diffuse effects but require more computation.
+
+## Gradient Text
+
+Fill glyphs with gradients instead of solid colors.
+
+```typescript
+import { getGlyphPath, rasterizePathWithGradient } from "text-shaper";
+
+const path = getGlyphPath(font, glyphId);
+
+// Rainbow gradient
+const gradient = {
+  type: "linear",
+  x0: 0,
+  y0: 0,
+  x1: 100,
+  y1: 0,
+  stops: [
+    { offset: 0.0, color: [255, 0, 0, 255] },   // Red
+    { offset: 0.5, color: [0, 255, 0, 255] },   // Green
+    { offset: 1.0, color: [0, 0, 255, 255] },   // Blue
+  ],
+};
+
+const bitmap = rasterizePathWithGradient(path, gradient, {
+  width: 100,
+  height: 100,
+  scale: 0.1,
+  offsetX: 10,
+  offsetY: 80,
+});
+```
+
+### Radial Gradient
+
+```typescript
+const radial = {
+  type: "radial",
+  cx: 50,
+  cy: 50,
+  radius: 50,
+  stops: [
+    { offset: 0, color: [255, 255, 255, 255] }, // White center
+    { offset: 1, color: [0, 0, 0, 0] },         // Transparent edge
+  ],
+};
+
+const bitmap = rasterizePathWithGradient(path, radial, {
+  width: 100,
+  height: 100,
+  scale: 0.1,
+  offsetX: 10,
+  offsetY: 80,
+});
+```
+
+Gradient coordinates are in pixel space relative to the bitmap. Color stops define the gradient transition, with offset values from 0.0 to 1.0.
+
 ## Exact Bounding Boxes
 
 Standard bounding boxes only consider control points, which can overestimate the actual glyph bounds. Exact bounds include bezier curve extrema for tighter bounds.

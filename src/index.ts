@@ -276,12 +276,48 @@ export {
 	rasterizePath,
 	rasterizeText,
 } from "./raster/rasterize.ts";
+// SDF rendering
+export { renderSdf, type SdfOptions } from "./raster/sdf.ts";
+// Bitmap utilities
+export {
+	copyBitmap,
+	convertBitmap,
+	blendBitmap,
+	resizeBitmap,
+	emboldenBitmap,
+} from "./raster/bitmap-utils.ts";
+// Blur filters
+export {
+	blurBitmap,
+	gaussianBlur,
+	boxBlur,
+	createGaussianKernel,
+} from "./raster/blur.ts";
+// Gradient fill
+export {
+	rasterizePathWithGradient,
+	createGradientBitmap,
+	interpolateGradient,
+	type ColorStop as GradientColorStop,
+	type LinearGradient,
+	type RadialGradient,
+	type Gradient,
+} from "./raster/gradient.ts";
 // Synthetic effects
 export {
 	obliquePath,
 	emboldenPath,
 	condensePath,
 } from "./raster/synth.ts";
+// Exact bounding box
+export { getExactBounds } from "./raster/bbox.ts";
+// Stroker
+export {
+	strokePath,
+	type StrokerOptions,
+	type LineCap,
+	type LineJoin,
+} from "./raster/stroker.ts";
 // Rasterization
 export type {
 	Bitmap,

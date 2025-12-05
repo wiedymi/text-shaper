@@ -569,3 +569,22 @@ export {
 	getExactBounds,
 	getQuadraticExtrema,
 } from "./bbox.ts";
+
+// Re-export blur filters
+export {
+	blurBitmap,
+	gaussianBlur,
+	boxBlur,
+	createGaussianKernel,
+} from "./blur.ts";
+
+// Re-export gradient
+export {
+	createGradientBitmap,
+	interpolateGradient,
+	rasterizePathWithGradient,
+	type ColorStop,
+	type Gradient,
+	type LinearGradient,
+	type RadialGradient,
+} from "./gradient.ts";
