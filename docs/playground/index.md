@@ -9,6 +9,8 @@ import ShapingPlayground from '../.vitepress/components/ShapingPlayground.vue'
 import VariableFontPlayground from '../.vitepress/components/VariableFontPlayground.vue'
 import GlyphInspector from '../.vitepress/components/GlyphInspector.vue'
 import RasterPreview from '../.vitepress/components/RasterPreview.vue'
+import SdfPreview from '../.vitepress/components/SdfPreview.vue'
+import SyntheticEffects from '../.vitepress/components/SyntheticEffects.vue'
 
 const font = ref(null)
 const fontName = ref('')
@@ -24,6 +26,8 @@ const tabs = [
   { id: 'variable', label: 'Variable Fonts' },
   { id: 'glyph', label: 'Glyph Inspector' },
   { id: 'raster', label: 'Rasterization' },
+  { id: 'sdf', label: 'SDF Rendering' },
+  { id: 'effects', label: 'Synthetic Effects' },
 ]
 </script>
 
@@ -61,6 +65,8 @@ Test TextShaper's functionality directly in your browser. Load a font and explor
   <VariableFontPlayground v-else-if="activeTab === 'variable'" :font="font" :font-name="fontName" />
   <GlyphInspector v-else-if="activeTab === 'glyph'" :font="font" :font-name="fontName" />
   <RasterPreview v-else-if="activeTab === 'raster'" :font="font" :font-name="fontName" />
+  <SdfPreview v-else-if="activeTab === 'sdf'" :font="font" :font-name="fontName" />
+  <SyntheticEffects v-else-if="activeTab === 'effects'" :font="font" :font-name="fontName" />
 </div>
 
 <style>

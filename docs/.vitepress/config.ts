@@ -45,7 +45,8 @@ export default defineConfig({
             { text: 'Complex Scripts', link: '/guide/complex-scripts' },
             { text: 'Unicode Processing', link: '/guide/unicode' },
             { text: 'Rendering', link: '/guide/rendering' },
-            { text: 'Rasterization', link: '/guide/rasterization' }
+            { text: 'Rasterization', link: '/guide/rasterization' },
+            { text: 'Advanced Rasterization', link: '/guide/advanced-raster' }
           ]
         }
       ],

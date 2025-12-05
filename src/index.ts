@@ -276,6 +276,12 @@ export {
 	rasterizePath,
 	rasterizeText,
 } from "./raster/rasterize.ts";
+// Synthetic effects
+export {
+	obliquePath,
+	emboldenPath,
+	condensePath,
+} from "./raster/synth.ts";
 // Rasterization
 export type {
 	Bitmap,

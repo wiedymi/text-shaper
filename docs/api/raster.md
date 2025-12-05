@@ -391,3 +391,279 @@ Apply hinting to a glyph outline.
 ```typescript
 function hintGlyph(engine: HintingEngine, outline: GlyphOutline): HintedGlyph
 ```
+
+## Stroke Support
+
+### LineCap
+
+```typescript
+type LineCap = "butt" | "round" | "square"
+```
+
+Line cap styles for path stroking:
+- `butt`: Flat cap at the endpoint (default)
+- `round`: Rounded semicircular cap
+- `square`: Square cap extending beyond the endpoint
+
+### LineJoin
+
+```typescript
+type LineJoin = "miter" | "round" | "bevel"
+```
+
+Line join styles for path stroking:
+- `miter`: Sharp corner extending to a point (default)
+- `round`: Rounded arc at the join
+- `bevel`: Flat diagonal corner
+
+### StrokerOptions
+
+```typescript
+interface StrokerOptions {
+  width: number;        // Stroke width in font units
+  lineCap?: LineCap;    // Line cap style (default: "butt")
+  lineJoin?: LineJoin;  // Line join style (default: "miter")
+  miterLimit?: number;  // Miter limit for miter joins (default: 4)
+}
+```
+
+### strokePath
+
+Convert a path outline into a stroked outline that can be filled.
+
+```typescript
+function strokePath(path: GlyphPath, options: StrokerOptions): GlyphPath
+```
+
+Generates two borders (inside and outside) by offsetting the original path by half the stroke width in both directions. Based on FreeType's stroking algorithm.
+
+## SDF Rendering
+
+### SdfOptions
+
+```typescript
+interface SdfOptions {
+  width: number;     // Width in pixels
+  height: number;    // Height in pixels
+  scale: number;     // Scale factor (font units to pixels)
+  offsetX?: number;  // X offset in pixels
+  offsetY?: number;  // Y offset in pixels
+  flipY?: boolean;   // Flip Y axis (default: false)
+  spread?: number;   // Distance field radius in pixels (default: 8)
+}
+```
+
+### renderSdf
+
+Render a glyph path as a signed distance field (SDF).
+
+```typescript
+function renderSdf(path: GlyphPath, options: SdfOptions): Bitmap
+```
+
+For each pixel, computes the shortest distance to the outline. Positive values are inside the outline, negative are outside. Values are normalized to 0-255 range where:
+- `0` = `-spread` (far outside)
+- `128` = edge boundary
+- `255` = `+spread` (far inside)
+
+SDF textures enable GPU text rendering at any scale with smooth edges and effects like outlines, shadows, and glows.
+
+## Bitmap Utilities
+
+### emboldenBitmap
+
+Make a bitmap bolder by dilating pixel values.
+
+```typescript
+function emboldenBitmap(
+  bitmap: Bitmap,
+  xStrength: number,
+  yStrength: number
+): Bitmap
+```
+
+Spreads coverage in horizontal and vertical directions to make text appear bolder. Works with all pixel modes (Mono, Gray, LCD).
+
+### convertBitmap
+
+Convert bitmap between pixel modes.
+
+```typescript
+function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap
+```
+
+Supported conversions:
+- Gray ↔ Mono (threshold at 128)
+- Gray → LCD / LCD_V
+- Mono → LCD / LCD_V
+- LCD → Gray (average RGB channels)
+
+### blendBitmap
+
+Alpha blend source bitmap onto destination bitmap.
+
+```typescript
+function blendBitmap(
+  dst: Bitmap,
+  src: Bitmap,
+  x: number,
+  y: number,
+  opacity: number
+): void
+```
+
+Blends `src` onto `dst` at position `(x, y)` with specified opacity (0-1). Only works with grayscale bitmaps. Modifies `dst` in place.
+
+### copyBitmap
+
+Create a deep copy of a bitmap.
+
+```typescript
+function copyBitmap(bitmap: Bitmap): Bitmap
+```
+
+### resizeBitmap
+
+Resize bitmap using nearest-neighbor interpolation.
+
+```typescript
+function resizeBitmap(
+  bitmap: Bitmap,
+  newWidth: number,
+  newHeight: number
+): Bitmap
+```
+
+## Synthetic Effects
+
+### obliquePath
+
+Apply oblique (slant/italic) transformation to a path.
+
+```typescript
+function obliquePath(path: GlyphPath, slant: number): GlyphPath
+```
+
+Creates fake italic by slanting the glyph. The `slant` parameter is the tangent of the slant angle (0.2 ≈ 12 degrees, typical italic).
+
+Transform: `x' = x + y * slant`, `y' = y`
+
+### emboldenPath
+
+Embolden (make bolder) a path by offsetting the outline.
+
+```typescript
+function emboldenPath(path: GlyphPath, strength: number): GlyphPath
+```
+
+Creates fake bold by offsetting each contour outward. The `strength` parameter is the offset in font units (positive = bolder, negative = thinner).
+
+### condensePath
+
+Apply horizontal scaling to a path.
+
+```typescript
+function condensePath(path: GlyphPath, factor: number): GlyphPath
+```
+
+Scales the glyph horizontally. Use `factor < 1` for narrower (condensed) glyphs, `factor > 1` for wider (expanded) glyphs.
+
+Transform: `x' = x * factor`, `y' = y`
+
+### transformPath
+
+Apply general 2D affine transformation to a path.
+
+```typescript
+function transformPath(
+  path: GlyphPath,
+  matrix: [number, number, number, number, number, number]
+): GlyphPath
+```
+
+Applies a 2D transformation matrix `[a, b, c, d, e, f]` to the path.
+
+Transform: `x' = a*x + c*y + e`, `y' = b*x + d*y + f`
+
+## Exact Bounding Box
+
+### BBox
+
+```typescript
+interface BBox {
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+}
+```
+
+### getExactBounds
+
+Calculate exact bounding box for a path including bezier extrema.
+
+```typescript
+function getExactBounds(path: GlyphPath): BBox | null
+```
+
+Unlike simple bounds that only consider control points, this finds the actual extrema of bezier curves by solving for where the derivative equals zero.
+
+### getQuadraticExtrema
+
+Find t values where a quadratic bezier has extrema.
+
+```typescript
+function getQuadraticExtrema(
+  p0: number,
+  p1: number,
+  p2: number
+): number[]
+```
+
+Returns array of t values in [0,1] where the quadratic bezier curve has minimum or maximum values.
+
+### getCubicExtrema
+
+Find t values where a cubic bezier has extrema.
+
+```typescript
+function getCubicExtrema(
+  p0: number,
+  p1: number,
+  p2: number,
+  p3: number
+): number[]
+```
+
+Returns array of t values in [0,1] where the cubic bezier curve has minimum or maximum values.
+
+### evaluateQuadratic
+
+Evaluate quadratic bezier at parameter t.
+
+```typescript
+function evaluateQuadratic(
+  p0: number,
+  p1: number,
+  p2: number,
+  t: number
+): number
+```
+
+Evaluates `B(t) = (1-t)²p0 + 2(1-t)t*p1 + t²p2` for a single dimension.
+
+### evaluateCubic
+
+Evaluate cubic bezier at parameter t.
+
+```typescript
+function evaluateCubic(
+  p0: number,
+  p1: number,
+  p2: number,
+  p3: number,
+  t: number
+): number
+```
+
+Evaluates `B(t) = (1-t)³p0 + 3(1-t)²t*p1 + 3(1-t)t²p2 + t³p3` for a single dimension.

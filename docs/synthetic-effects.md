@@ -2,6 +2,23 @@
 
 The `src/raster/synth.ts` module provides functions for applying synthetic transformations to glyph outlines. These are useful when a font doesn't have native bold, italic, or condensed variants.
 
+<script setup>
+import { ref } from 'vue'
+import FontPicker from './.vitepress/components/FontPicker.vue'
+import SyntheticEffects from './.vitepress/components/SyntheticEffects.vue'
+
+const selectedFont = ref(null)
+const fontName = ref('')
+
+function handleFontChange({ font, name }) {
+  selectedFont.value = font
+  fontName.value = name
+}
+</script>
+
+<FontPicker @font-change="handleFontChange" />
+<SyntheticEffects :font="selectedFont" :fontName="fontName" />
+
 ## Functions
 
 ### `obliquePath(path: GlyphPath, slant: number): GlyphPath`
