@@ -481,7 +481,8 @@ describe("Control Flow Instructions", () => {
 			expect(ctx.callStack[0]!.callerIP).toBe(1);
 			expect(ctx.callStack[0]!.callerRange).toBe(CodeRange.Glyph); // Caller was in Glyph range
 			expect(ctx.IP).toBe(0);
-			expect(ctx.currentRange).toBe(CodeRange.Font); // Function is in Font range
+			// Check function is in Font range (using number comparison to avoid TS narrowing)
+			expect(+ctx.currentRange).toBe(+CodeRange.Font);
 		});
 
 		test("CALL errors on invalid function number", () => {
@@ -538,7 +539,8 @@ describe("Control Flow Instructions", () => {
 
 			expect(ctx.callStackTop).toBe(0);
 			expect(ctx.IP).toBe(10);
-			expect(ctx.currentRange).toBe(CodeRange.Glyph); // Restored to caller's range
+			// Check restored to caller's range (using number comparison to avoid TS narrowing)
+			expect(+ctx.currentRange).toBe(+CodeRange.Glyph);
 		});
 
 		test("ENDF errors when not in function", () => {

@@ -70,7 +70,9 @@ export class CellBuffer {
 
 	/** Clip bounds in pixels */
 	private clipMinX: number = -Infinity;
+	private clipMinY: number = -Infinity;
 	private clipMaxX: number = Infinity;
+	private clipMaxY: number = Infinity;
 
 	/** Null cell index (sentinel at end of pool) */
 	private nullCellIndex: number;
@@ -184,10 +186,12 @@ export class CellBuffer {
 			return;
 		}
 
-		// Check clipping (use band bounds for Y)
+		// Check clipping (use both band bounds and clip bounds for Y)
 		if (
 			py < this.bandMinY ||
 			py >= this.bandMaxY ||
+			py < this.clipMinY ||
+			py >= this.clipMaxY ||
 			px < this.clipMinX ||
 			px >= this.clipMaxX
 		) {

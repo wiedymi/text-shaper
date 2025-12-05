@@ -254,7 +254,11 @@ export function emboldenPath(path: GlyphPath, strength: number): GlyphPath {
 
 		// Convert back to commands
 		if (offsetContour.length > 0) {
-			commands.push({ type: "M", x: offsetContour[0].x, y: offsetContour[0].y });
+			commands.push({
+				type: "M",
+				x: offsetContour[0].x,
+				y: offsetContour[0].y,
+			});
 			for (let i = 1; i < offsetContour.length; i++) {
 				commands.push({
 					type: "L",

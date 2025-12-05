@@ -2,8 +2,8 @@
  * Bitmap blur filters - Gaussian and Box blur
  */
 
-import { convertBitmap, copyBitmap } from "./bitmap-utils.ts";
-import { PixelMode, type Bitmap } from "./types.ts";
+import { convertBitmap } from "./bitmap-utils.ts";
+import { type Bitmap, PixelMode } from "./types.ts";
 
 /**
  * Generate 1D Gaussian kernel
@@ -130,7 +130,10 @@ export function gaussianBlur(bitmap: Bitmap, radius: number): Bitmap {
 
 	// Determine channels based on pixel mode
 	let channels = 1;
-	if (bitmap.pixelMode === PixelMode.LCD || bitmap.pixelMode === PixelMode.LCD_V) {
+	if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
 		channels = 3;
 	} else if (bitmap.pixelMode === PixelMode.RGBA) {
 		channels = 4;
@@ -183,14 +186,17 @@ export function boxBlur(bitmap: Bitmap, radius: number): Bitmap {
 
 	// Determine channels based on pixel mode
 	let channels = 1;
-	if (bitmap.pixelMode === PixelMode.LCD || bitmap.pixelMode === PixelMode.LCD_V) {
+	if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
 		channels = 3;
 	} else if (bitmap.pixelMode === PixelMode.RGBA) {
 		channels = 4;
 	}
 
 	const iRadius = Math.floor(radius);
-	const kernelSize = iRadius * 2 + 1;
+	const _kernelSize = iRadius * 2 + 1;
 
 	// Create temporary buffer
 	const temp = new Uint8Array(bitmap.buffer.length);

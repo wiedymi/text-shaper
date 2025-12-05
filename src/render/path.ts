@@ -408,8 +408,12 @@ export function glyphToSVG(
 
 	// Add stroke width to bounds for proper sizing
 	const strokePadding = stroke ? strokeWidth / 2 : 0;
-	const width = Math.ceil((bounds.xMax - bounds.xMin) * scale + strokePadding * 2);
-	const height = Math.ceil((bounds.yMax - bounds.yMin) * scale + strokePadding * 2);
+	const width = Math.ceil(
+		(bounds.xMax - bounds.xMin) * scale + strokePadding * 2,
+	);
+	const height = Math.ceil(
+		(bounds.yMax - bounds.yMin) * scale + strokePadding * 2,
+	);
 	const viewBox = `${bounds.xMin - strokePadding} ${-bounds.yMax - strokePadding} ${bounds.xMax - bounds.xMin + strokePadding * 2} ${bounds.yMax - bounds.yMin + strokePadding * 2}`;
 
 	const pathData = pathToSVG(path, { flipY: true, scale: 1 });

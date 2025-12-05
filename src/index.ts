@@ -269,6 +269,33 @@ export {
 	findMatchingFeatureVariation,
 	getSubstitutedLookups,
 } from "./layout/structures/feature-variations.ts";
+// Exact bounding box
+export { getExactBounds } from "./raster/bbox.ts";
+// Bitmap utilities
+export {
+	blendBitmap,
+	convertBitmap,
+	copyBitmap,
+	emboldenBitmap,
+	resizeBitmap,
+} from "./raster/bitmap-utils.ts";
+// Blur filters
+export {
+	blurBitmap,
+	boxBlur,
+	createGaussianKernel,
+	gaussianBlur,
+} from "./raster/blur.ts";
+// Gradient fill
+export {
+	type ColorStop as GradientColorStop,
+	createGradientBitmap,
+	type Gradient,
+	interpolateGradient,
+	type LinearGradient,
+	type RadialGradient,
+	rasterizePathWithGradient,
+} from "./raster/gradient.ts";
 export {
 	bitmapToGray,
 	bitmapToRGBA,
@@ -278,46 +305,19 @@ export {
 } from "./raster/rasterize.ts";
 // SDF rendering
 export { renderSdf, type SdfOptions } from "./raster/sdf.ts";
-// Bitmap utilities
-export {
-	copyBitmap,
-	convertBitmap,
-	blendBitmap,
-	resizeBitmap,
-	emboldenBitmap,
-} from "./raster/bitmap-utils.ts";
-// Blur filters
-export {
-	blurBitmap,
-	gaussianBlur,
-	boxBlur,
-	createGaussianKernel,
-} from "./raster/blur.ts";
-// Gradient fill
-export {
-	rasterizePathWithGradient,
-	createGradientBitmap,
-	interpolateGradient,
-	type ColorStop as GradientColorStop,
-	type LinearGradient,
-	type RadialGradient,
-	type Gradient,
-} from "./raster/gradient.ts";
-// Synthetic effects
-export {
-	obliquePath,
-	emboldenPath,
-	condensePath,
-} from "./raster/synth.ts";
-// Exact bounding box
-export { getExactBounds } from "./raster/bbox.ts";
 // Stroker
 export {
-	strokePath,
-	type StrokerOptions,
 	type LineCap,
 	type LineJoin,
+	type StrokerOptions,
+	strokePath,
 } from "./raster/stroker.ts";
+// Synthetic effects
+export {
+	condensePath,
+	emboldenPath,
+	obliquePath,
+} from "./raster/synth.ts";
 // Rasterization
 export type {
 	Bitmap,

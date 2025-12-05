@@ -2,7 +2,7 @@
  * Bitmap manipulation utilities
  */
 
-import { createBitmap, PixelMode, type Bitmap } from "./types.ts";
+import { type Bitmap, createBitmap, PixelMode } from "./types.ts";
 
 /**
  * Embolden a bitmap by dilating pixel values
@@ -24,8 +24,16 @@ export function emboldenBitmap(
 			for (let x = 0; x < bitmap.width; x++) {
 				let maxVal = 0;
 
-				for (let dy = -Math.floor(yStrength); dy <= Math.ceil(yStrength); dy++) {
-					for (let dx = -Math.floor(xStrength); dx <= Math.ceil(xStrength); dx++) {
+				for (
+					let dy = -Math.floor(yStrength);
+					dy <= Math.ceil(yStrength);
+					dy++
+				) {
+					for (
+						let dx = -Math.floor(xStrength);
+						dx <= Math.ceil(xStrength);
+						dx++
+					) {
 						const sx = x + dx;
 						const sy = y + dy;
 
@@ -44,8 +52,16 @@ export function emboldenBitmap(
 			for (let x = 0; x < bitmap.width; x++) {
 				let hasSet = false;
 
-				for (let dy = -Math.floor(yStrength); dy <= Math.ceil(yStrength); dy++) {
-					for (let dx = -Math.floor(xStrength); dx <= Math.ceil(xStrength); dx++) {
+				for (
+					let dy = -Math.floor(yStrength);
+					dy <= Math.ceil(yStrength);
+					dy++
+				) {
+					for (
+						let dx = -Math.floor(xStrength);
+						dx <= Math.ceil(xStrength);
+						dx++
+					) {
 						const sx = x + dx;
 						const sy = y + dy;
 
@@ -69,13 +85,26 @@ export function emboldenBitmap(
 				}
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.LCD || bitmap.pixelMode === PixelMode.LCD_V) {
+	} else if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
 		for (let y = 0; y < bitmap.rows; y++) {
 			for (let x = 0; x < bitmap.width; x++) {
-				let maxR = 0, maxG = 0, maxB = 0;
+				let maxR = 0,
+					maxG = 0,
+					maxB = 0;
 
-				for (let dy = -Math.floor(yStrength); dy <= Math.ceil(yStrength); dy++) {
-					for (let dx = -Math.floor(xStrength); dx <= Math.ceil(xStrength); dx++) {
+				for (
+					let dy = -Math.floor(yStrength);
+					dy <= Math.ceil(yStrength);
+					dy++
+				) {
+					for (
+						let dx = -Math.floor(xStrength);
+						dx <= Math.ceil(xStrength);
+						dx++
+					) {
 						const sx = x + dx;
 						const sy = y + dy;
 
@@ -120,7 +149,10 @@ export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 				}
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.Mono && targetMode === PixelMode.Gray) {
+	} else if (
+		bitmap.pixelMode === PixelMode.Mono &&
+		targetMode === PixelMode.Gray
+	) {
 		for (let y = 0; y < bitmap.rows; y++) {
 			for (let x = 0; x < bitmap.width; x++) {
 				const byteIdx = y * bitmap.pitch + (x >> 3);
@@ -129,7 +161,10 @@ export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 				result.buffer[y * result.pitch + x] = bit ? 255 : 0;
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.Gray && targetMode === PixelMode.LCD) {
+	} else if (
+		bitmap.pixelMode === PixelMode.Gray &&
+		targetMode === PixelMode.LCD
+	) {
 		for (let y = 0; y < bitmap.rows; y++) {
 			for (let x = 0; x < bitmap.width; x++) {
 				const gray = bitmap.buffer[y * bitmap.pitch + x] ?? 0;
@@ -139,7 +174,10 @@ export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 				result.buffer[dstIdx + 2] = gray;
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.Mono && targetMode === PixelMode.LCD) {
+	} else if (
+		bitmap.pixelMode === PixelMode.Mono &&
+		targetMode === PixelMode.LCD
+	) {
 		for (let y = 0; y < bitmap.rows; y++) {
 			for (let x = 0; x < bitmap.width; x++) {
 				const byteIdx = y * bitmap.pitch + (x >> 3);
@@ -152,7 +190,10 @@ export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 				result.buffer[dstIdx + 2] = val;
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.Gray && targetMode === PixelMode.LCD_V) {
+	} else if (
+		bitmap.pixelMode === PixelMode.Gray &&
+		targetMode === PixelMode.LCD_V
+	) {
 		for (let y = 0; y < bitmap.rows; y++) {
 			for (let x = 0; x < bitmap.width; x++) {
 				const gray = bitmap.buffer[y * bitmap.pitch + x] ?? 0;
@@ -162,7 +203,10 @@ export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 				result.buffer[dstIdx + 2] = gray;
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.LCD && targetMode === PixelMode.Gray) {
+	} else if (
+		bitmap.pixelMode === PixelMode.LCD &&
+		targetMode === PixelMode.Gray
+	) {
 		for (let y = 0; y < bitmap.rows; y++) {
 			for (let x = 0; x < bitmap.width; x++) {
 				const srcIdx = y * bitmap.pitch + x * 3;
@@ -246,7 +290,8 @@ export function resizeBitmap(
 			for (let x = 0; x < newWidth; x++) {
 				const sx = Math.floor(x * xRatio);
 				const sy = Math.floor(y * yRatio);
-				result.buffer[y * result.pitch + x] = bitmap.buffer[sy * bitmap.pitch + sx] ?? 0;
+				result.buffer[y * result.pitch + x] =
+					bitmap.buffer[sy * bitmap.pitch + sx] ?? 0;
 			}
 		}
 	} else if (bitmap.pixelMode === PixelMode.Mono) {
@@ -266,7 +311,10 @@ export function resizeBitmap(
 				}
 			}
 		}
-	} else if (bitmap.pixelMode === PixelMode.LCD || bitmap.pixelMode === PixelMode.LCD_V) {
+	} else if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
 		for (let y = 0; y < newHeight; y++) {
 			for (let x = 0; x < newWidth; x++) {
 				const sx = Math.floor(x * xRatio);

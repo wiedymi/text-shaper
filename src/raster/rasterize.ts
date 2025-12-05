@@ -520,6 +520,56 @@ export function bitmapToGray(bitmap: Bitmap): Uint8Array {
 	return gray;
 }
 
+// Re-export bbox
+export {
+	type BBox,
+	evaluateCubic,
+	evaluateQuadratic,
+	getCubicExtrema,
+	getExactBounds,
+	getQuadraticExtrema,
+} from "./bbox.ts";
+// Re-export bitmap utilities
+export {
+	blendBitmap,
+	convertBitmap,
+	copyBitmap,
+	emboldenBitmap,
+	resizeBitmap,
+} from "./bitmap-utils.ts";
+// Re-export blur filters
+export {
+	blurBitmap,
+	boxBlur,
+	createGaussianKernel,
+	gaussianBlur,
+} from "./blur.ts";
+// Re-export gradient
+export {
+	type ColorStop,
+	createGradientBitmap,
+	type Gradient,
+	interpolateGradient,
+	type LinearGradient,
+	type RadialGradient,
+	rasterizePathWithGradient,
+} from "./gradient.ts";
+// Re-export SDF
+export { renderSdf, type SdfOptions } from "./sdf.ts";
+// Re-export stroker
+export {
+	type LineCap,
+	type LineJoin,
+	type StrokerOptions,
+	strokePath,
+} from "./stroker.ts";
+// Re-export synthetic effects
+export {
+	condensePath,
+	emboldenPath,
+	obliquePath,
+	transformPath,
+} from "./synth.ts";
 // Re-export types
 export {
 	type Bitmap,
@@ -531,60 +581,3 @@ export {
 	type RasterizeOptions,
 	type Span,
 } from "./types.ts";
-
-// Re-export stroker
-export {
-	strokePath,
-	type LineCap,
-	type LineJoin,
-	type StrokerOptions,
-} from "./stroker.ts";
-
-// Re-export SDF
-export { renderSdf, type SdfOptions } from "./sdf.ts";
-
-// Re-export bitmap utilities
-export {
-	emboldenBitmap,
-	convertBitmap,
-	blendBitmap,
-	copyBitmap,
-	resizeBitmap,
-} from "./bitmap-utils.ts";
-
-// Re-export synthetic effects
-export {
-	condensePath,
-	emboldenPath,
-	obliquePath,
-	transformPath,
-} from "./synth.ts";
-
-// Re-export bbox
-export {
-	type BBox,
-	evaluateCubic,
-	evaluateQuadratic,
-	getCubicExtrema,
-	getExactBounds,
-	getQuadraticExtrema,
-} from "./bbox.ts";
-
-// Re-export blur filters
-export {
-	blurBitmap,
-	gaussianBlur,
-	boxBlur,
-	createGaussianKernel,
-} from "./blur.ts";
-
-// Re-export gradient
-export {
-	createGradientBitmap,
-	interpolateGradient,
-	rasterizePathWithGradient,
-	type ColorStop,
-	type Gradient,
-	type LinearGradient,
-	type RadialGradient,
-} from "./gradient.ts";

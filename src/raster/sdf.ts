@@ -11,7 +11,7 @@
  * 3. Normalize and encode to 0-255 (128 = on the edge)
  */
 
-import type { GlyphPath, PathCommand } from "../render/path.ts";
+import type { GlyphPath } from "../render/path.ts";
 import { type Bitmap, createBitmap, PixelMode } from "./types.ts";
 
 /**
@@ -315,7 +315,7 @@ function isPointInside(px: number, py: number, edges: Edge[]): boolean {
 
 			// Ray casting: cast horizontal ray to the right from (px, py)
 			// Check if it crosses this edge
-			if ((p0.y > py) !== (p1.y > py)) {
+			if (p0.y > py !== p1.y > py) {
 				// Edge crosses the horizontal line at y = py
 				const slope = (p1.x - p0.x) / (p1.y - p0.y);
 				const x = p0.x + slope * (py - p0.y);

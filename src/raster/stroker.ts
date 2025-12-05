@@ -162,7 +162,7 @@ function addJoin(
 	const nextPerp = perp(nextDir);
 	const sign = outer ? 1 : -1;
 
-	const prevOffset: Point = {
+	const _prevOffset: Point = {
 		x: point.x + prevPerp.x * radius * sign,
 		y: point.y + prevPerp.y * radius * sign,
 	};
@@ -217,7 +217,6 @@ function addJoin(
 			}
 			break;
 		}
-		case "bevel":
 		default:
 			commands.push({ type: "L", x: nextOffset.x, y: nextOffset.y });
 			break;
@@ -233,7 +232,7 @@ function strokeContour(
 ): PathCommand[] {
 	if (points.length < 2) return [];
 
-	const { width, lineCap, lineJoin, miterLimit } = options;
+	const { width, lineJoin, miterLimit } = options;
 	const radius = width / 2;
 
 	const commands: PathCommand[] = [];
@@ -380,7 +379,7 @@ function strokeOpenPath(
 	}
 
 	// End cap
-	const negLastDir: Vector = { x: -lastDir.x, y: -lastDir.y };
+	const _negLastDir: Vector = { x: -lastDir.x, y: -lastDir.y };
 	switch (lineCap) {
 		case "round":
 			addRoundCap(commands, lastPoint, lastDir, radius, true);
@@ -388,7 +387,6 @@ function strokeOpenPath(
 		case "square":
 			addSquareCap(commands, lastPoint, lastDir, radius);
 			break;
-		case "butt":
 		default: {
 			const lastPerp = perp(lastDir);
 			commands.push({
@@ -437,7 +435,6 @@ function strokeOpenPath(
 		case "square":
 			addSquareCap(commands, firstPoint, negFirstDir, radius);
 			break;
-		case "butt":
 		default:
 			// Already at the right position, close the path
 			break;
@@ -452,7 +449,9 @@ function strokeOpenPath(
  * Extract points from path commands
  * Returns an array of contours, each contour is an array of points
  */
-function extractContours(path: GlyphPath): { points: Point[]; closed: boolean }[] {
+function extractContours(
+	path: GlyphPath,
+): { points: Point[]; closed: boolean }[] {
 	const contours: { points: Point[]; closed: boolean }[] = [];
 	let currentContour: Point[] = [];
 
@@ -475,10 +474,8 @@ function extractContours(path: GlyphPath): { points: Point[]; closed: boolean }[
 					for (let i = 1; i <= steps; i++) {
 						const t = i / steps;
 						const ti = 1 - t;
-						const x =
-							ti * ti * last.x + 2 * ti * t * cmd.x1 + t * t * cmd.x;
-						const y =
-							ti * ti * last.y + 2 * ti * t * cmd.y1 + t * t * cmd.y;
+						const x = ti * ti * last.x + 2 * ti * t * cmd.x1 + t * t * cmd.x;
+						const y = ti * ti * last.y + 2 * ti * t * cmd.y1 + t * t * cmd.y;
 						currentContour.push({ x, y });
 					}
 				}

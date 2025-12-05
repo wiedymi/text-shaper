@@ -6,9 +6,9 @@ import type { GlyphPath } from "../render/path.ts";
 import { rasterizePath } from "./rasterize.ts";
 import {
 	type Bitmap,
-	type RasterizeOptions,
-	PixelMode,
 	createBitmap,
+	PixelMode,
+	type RasterizeOptions,
 } from "./types.ts";
 
 /**
