@@ -36,6 +36,11 @@ export function parseSvg(reader: Reader): SvgTable {
 	const listReader = reader.sliceFrom(svgDocumentListOffset);
 	const numEntries = listReader.uint16();
 
+	// No entries: return empty table
+	if (numEntries === 0) {
+		return { version, documentRecords: [] };
+	}
+
 	// Read document index entries
 	const entries: {
 		startGlyphID: uint16;
@@ -145,15 +150,20 @@ function decompressGzip(data: Uint8Array): Uint8Array {
 export async function decompressSvgDocument(data: Uint8Array): Promise<string> {
 	const decoder = new TextDecoder("utf-8");
 
-	// Check for gzip magic bytes
-	if (data[0] === 0x1f && data[1] === 0x8b) {
-		if (typeof DecompressionStream !== "undefined") {
+	// Not enough bytes or no magic -> plain decode
+	if (data.length < 2 || data[0] !== 0x1f || data[1] !== 0x8b) {
+		return decoder.decode(data);
+	}
+
+	// Try gzip decompress; on any failure, fall back to plain decode
+	if (typeof DecompressionStream !== "undefined") {
+		try {
 			const stream = new DecompressionStream("gzip");
 			const writer = stream.writable.getWriter();
 			const reader = stream.readable.getReader();
 
-			writer.write(data as unknown as BufferSource);
-			writer.close();
+			await writer.write(data as unknown as BufferSource);
+			await writer.close();
 
 			const chunks: Uint8Array[] = [];
 			let result = await reader.read();
@@ -171,6 +181,8 @@ export async function decompressSvgDocument(data: Uint8Array): Promise<string> {
 			}
 
 			return decoder.decode(decompressed);
+		} catch {
+			// fall through to plain decode
 		}
 	}
 

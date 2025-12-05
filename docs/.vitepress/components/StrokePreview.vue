@@ -68,16 +68,32 @@ async function renderStroke() {
 
 		let xMin = Infinity, yMin = Infinity, xMax = -Infinity, yMax = -Infinity;
 		for (const b of [outerBounds, innerBounds, fillBounds]) {
-			if (b) {
-				xMin = Math.min(xMin, b.xMin * scale);
-				yMin = Math.min(yMin, b.yMin * scale);
-				xMax = Math.max(xMax, b.xMax * scale);
-				yMax = Math.max(yMax, b.yMax * scale);
+			if (!b) continue;
+			if (
+				!Number.isFinite(b.xMin) ||
+				!Number.isFinite(b.yMin) ||
+				!Number.isFinite(b.xMax) ||
+				!Number.isFinite(b.yMax)
+			) {
+				continue; // skip malformed bounds
 			}
+			xMin = Math.min(xMin, b.xMin * scale);
+			yMin = Math.min(yMin, b.yMin * scale);
+			xMax = Math.max(xMax, b.xMax * scale);
+			yMax = Math.max(yMax, b.yMax * scale);
 		}
 
-		if (!Number.isFinite(xMin)) {
-			error.value = "Empty bounds";
+		if (
+			!Number.isFinite(xMin) ||
+			!Number.isFinite(yMin) ||
+			!Number.isFinite(xMax) ||
+			!Number.isFinite(yMax) ||
+			xMin === Infinity ||
+			yMin === Infinity ||
+			xMax === -Infinity ||
+			yMax === -Infinity
+		) {
+			error.value = "Empty or invalid bounds after stroke.";
 			return;
 		}
 
@@ -86,6 +102,20 @@ async function renderStroke() {
 		const height = Math.ceil(yMax - yMin) + padding * 2;
 		const offsetX = -xMin + padding;
 		const offsetY = yMax + padding;
+
+		// Safety guard to avoid freezing the page on extreme joins/borders
+		if (
+			!Number.isFinite(width) ||
+			!Number.isFinite(height) ||
+			width <= 0 ||
+			height <= 0 ||
+			width * height > 4_000_000 ||
+			width > 4096 ||
+			height > 4096
+		) {
+			error.value = "Resulting bitmap is too large to preview.";
+			return;
+		}
 
 		// Create RGBA result bitmap
 		const result = createBitmap(width, height, PixelMode.RGBA);

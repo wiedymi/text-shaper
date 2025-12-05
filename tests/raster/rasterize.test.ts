@@ -11,8 +11,10 @@ import {
 	FillRule,
 	createBitmap,
 	clearBitmap,
+	createBottomUpBitmap,
 	type Bitmap,
 } from "../../src/raster/rasterize.ts";
+import { GrayRaster } from "../../src/raster/gray-raster.ts";
 
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
 
@@ -364,6 +366,40 @@ describe("raster/rasterize", () => {
 				expect(result.bitmap.pixelMode).toBe(PixelMode.Mono);
 			}
 		});
+
+		test("supports PixelMode.RGBA", () => {
+			const glyphId = font.glyphId("A".codePointAt(0)!);
+			if (!glyphId) return;
+
+			const result = rasterizeGlyph(font, glyphId, 32, {
+				pixelMode: PixelMode.RGBA,
+			});
+
+			if (result) {
+				expect(result.bitmap.pixelMode).toBe(PixelMode.RGBA);
+				expect(result.bitmap.buffer.some((v) => v !== 0)).toBe(true);
+				expect(result.bitmap.buffer.length).toBe(
+					result.bitmap.width * result.bitmap.rows * 4,
+				);
+			}
+		});
+
+		test("supports PixelMode.LCD_V", () => {
+			const glyphId = font.glyphId("A".codePointAt(0)!);
+			if (!glyphId) return;
+
+			const result = rasterizeGlyph(font, glyphId, 32, {
+				pixelMode: PixelMode.LCD_V,
+			});
+
+			if (result) {
+				expect(result.bitmap.pixelMode).toBe(PixelMode.LCD_V);
+				expect(result.bitmap.buffer.some((v) => v !== 0)).toBe(true);
+				expect(result.bitmap.buffer.length).toBe(
+					result.bitmap.width * result.bitmap.rows * 3,
+				);
+			}
+		});
 	});
 
 	describe("rasterizeText", () => {
@@ -557,6 +593,29 @@ describe("raster/rasterize", () => {
 			expect(rgba[12]).toBe(223);
 			expect(rgba[15]).toBe(255); // A = opaque
 		});
+
+		test("copies RGBA bitmap respecting pitch and bottom-up orientation", () => {
+			const bitmap: Bitmap = {
+				// Row 1 (top) stored at bytes 8-15, row 0 (bottom) at bytes 0-7
+				buffer: new Uint8Array([
+					110, 111, 112, 113, 120, 121, 122, 123, // bottom row
+					10, 11, 12, 13, 20, 21, 22, 23, // top row
+				]),
+				width: 2,
+				rows: 2,
+				pitch: -8,
+				pixelMode: PixelMode.RGBA,
+				numGrays: 256,
+			};
+
+			const rgba = bitmapToRGBA(bitmap);
+			expect(rgba.length).toBe(2 * 2 * 4);
+
+			// Top-left pixel should come from buffer indices 8..11
+			expect(rgba.slice(0, 4)).toEqual(new Uint8Array([10, 11, 12, 13]));
+			// Bottom-left pixel should come from buffer indices 0..3
+			expect(rgba.slice(8, 12)).toEqual(new Uint8Array([110, 111, 112, 113]));
+		});
 	});
 
 	describe("bitmapToGray", () => {
@@ -631,6 +690,42 @@ describe("raster/rasterize", () => {
 			for (let i = 0; i < gray.length; i++) {
 				expect(gray[i]).toBe(0);
 			}
+		});
+
+		test("converts RGBA bitmap to Gray using alpha with bottom-up pitch", () => {
+			const bitmap: Bitmap = {
+				buffer: new Uint8Array([
+					1, 2, 3, 4, 5, 6, 7, 8, // bottom row alphas 4,8
+					9, 10, 11, 12, 13, 14, 15, 16, // top row alphas 12,16
+				]),
+				width: 2,
+				rows: 2,
+				pitch: -8,
+				pixelMode: PixelMode.RGBA,
+				numGrays: 256,
+			};
+
+			const gray = bitmapToGray(bitmap);
+			expect(gray).toEqual(new Uint8Array([12, 16, 4, 8]));
+		});
+
+		test("converts LCD_V bitmap to Gray by averaging subpixels", () => {
+			const bitmap: Bitmap = {
+				buffer: new Uint8Array([
+					255, 0, 0, // pixel 0 (bright red)
+					0, 255, 0, // pixel 1 (green)
+				]),
+				width: 2,
+				rows: 1,
+				pitch: 6,
+				pixelMode: PixelMode.LCD_V,
+				numGrays: 256,
+			};
+
+			const gray = bitmapToGray(bitmap);
+			expect(gray.length).toBe(2);
+			expect(gray[0]).toBe(Math.round((255 + 0 + 0) / 3));
+			expect(gray[1]).toBe(Math.round((0 + 255 + 0) / 3));
 		});
 	});
 
@@ -889,6 +984,44 @@ describe("raster/rasterize", () => {
 
 			expect(bitmap.width).toBe(60);
 			expect(bitmap.rows).toBe(257);
+		});
+
+		test("continues splitting beyond 32 overflows", () => {
+			type RenderBandWithXClip = (
+				bitmap: Bitmap,
+				decomposeFn: () => void,
+				minY: number,
+				maxY: number,
+				minX: number,
+				maxX: number,
+				fillRule: FillRule,
+			) => boolean;
+
+			const raster = new GrayRaster();
+
+			let calls = 0;
+
+			const overrideRender: RenderBandWithXClip = () => {
+				calls++;
+				return calls >= 40;
+			};
+
+			// Force overflow until we have at least 40 attempts
+			Object.defineProperty(raster, "renderBandWithXClip", {
+				value: overrideRender,
+			});
+
+			const bitmap = createBitmap(1024, 1024, PixelMode.Gray);
+			raster.setClip(0, 0, bitmap.width, bitmap.rows);
+
+			raster.renderWithBands(
+				bitmap,
+				() => {},
+				{ minY: 0, maxY: 1024 },
+				FillRule.NonZero,
+			);
+
+			expect(calls).toBeGreaterThanOrEqual(40);
 		});
 	});
 

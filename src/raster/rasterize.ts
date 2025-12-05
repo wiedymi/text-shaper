@@ -445,14 +445,19 @@ export function bitmapToRGBA(bitmap: Bitmap): Uint8Array {
 	// bitmap.width is always the pixel width
 	// For LCD mode, pitch = width * 3 (3 bytes per pixel for R, G, B subpixels)
 	const isLCD = bitmap.pixelMode === PixelMode.LCD;
+	const isLCDV = bitmap.pixelMode === PixelMode.LCD_V;
 	const rgba = new Uint8Array(bitmap.width * bitmap.rows * 4);
+	const pitch = bitmap.pitch;
+	const absPitch = Math.abs(pitch);
+	const origin = pitch < 0 ? (bitmap.rows - 1) * absPitch : 0;
 
 	for (let y = 0; y < bitmap.rows; y++) {
+		const srcRow = origin + y * pitch;
 		for (let x = 0; x < bitmap.width; x++) {
 			const dstIdx = (y * bitmap.width + x) * 4;
 
 			if (bitmap.pixelMode === PixelMode.Gray) {
-				const srcIdx = y * bitmap.pitch + x;
+				const srcIdx = srcRow + x;
 				const alpha = bitmap.buffer[srcIdx] ?? 0;
 				// Black text on white background
 				rgba[dstIdx] = 255 - alpha;
@@ -460,16 +465,16 @@ export function bitmapToRGBA(bitmap: Bitmap): Uint8Array {
 				rgba[dstIdx + 2] = 255 - alpha;
 				rgba[dstIdx + 3] = 255;
 			} else if (bitmap.pixelMode === PixelMode.Mono) {
-				const byteIdx = y * bitmap.pitch + (x >> 3);
+				const byteIdx = srcRow + (x >> 3);
 				const bitIdx = 7 - (x & 7);
 				const alpha = ((bitmap.buffer[byteIdx] ?? 0) >> bitIdx) & 1 ? 255 : 0;
 				rgba[dstIdx] = 255 - alpha;
 				rgba[dstIdx + 1] = 255 - alpha;
 				rgba[dstIdx + 2] = 255 - alpha;
 				rgba[dstIdx + 3] = 255;
-			} else if (isLCD) {
-				// LCD: 3 bytes per pixel (R, G, B subpixel coverage)
-				const srcIdx = y * bitmap.pitch + x * 3;
+			} else if (isLCD || isLCDV) {
+				// LCD/LCD_V: 3 bytes per pixel (R, G, B subpixel coverage)
+				const srcIdx = srcRow + x * 3;
 				const r = bitmap.buffer[srcIdx] ?? 0;
 				const g = bitmap.buffer[srcIdx + 1] ?? 0;
 				const b = bitmap.buffer[srcIdx + 2] ?? 0;
@@ -478,9 +483,15 @@ export function bitmapToRGBA(bitmap: Bitmap): Uint8Array {
 				rgba[dstIdx + 1] = 255 - g;
 				rgba[dstIdx + 2] = 255 - b;
 				rgba[dstIdx + 3] = 255;
+			} else if (bitmap.pixelMode === PixelMode.RGBA) {
+				const srcIdx = srcRow + x * 4;
+				rgba[dstIdx] = bitmap.buffer[srcIdx] ?? 0;
+				rgba[dstIdx + 1] = bitmap.buffer[srcIdx + 1] ?? 0;
+				rgba[dstIdx + 2] = bitmap.buffer[srcIdx + 2] ?? 0;
+				rgba[dstIdx + 3] = bitmap.buffer[srcIdx + 3] ?? 0;
 			} else {
-				// Fallback for other modes
-				const srcIdx = y * bitmap.pitch + x;
+				// Fallback for other modes (treat as gray mask)
+				const srcIdx = srcRow + x;
 				const alpha = bitmap.buffer[srcIdx] ?? 0;
 				rgba[dstIdx] = 255 - alpha;
 				rgba[dstIdx + 1] = 255 - alpha;
@@ -502,17 +513,34 @@ export function bitmapToGray(bitmap: Bitmap): Uint8Array {
 	}
 
 	const gray = new Uint8Array(bitmap.width * bitmap.rows);
+	const pitch = bitmap.pitch;
+	const absPitch = Math.abs(pitch);
+	const origin = pitch < 0 ? (bitmap.rows - 1) * absPitch : 0;
 
 	for (let y = 0; y < bitmap.rows; y++) {
+		const srcRow = origin + y * pitch;
 		for (let x = 0; x < bitmap.width; x++) {
 			const dstIdx = y * bitmap.width + x;
 
 			if (bitmap.pixelMode === PixelMode.Gray) {
-				gray[dstIdx] = bitmap.buffer[y * bitmap.pitch + x] ?? 0;
+				gray[dstIdx] = bitmap.buffer[srcRow + x] ?? 0;
 			} else if (bitmap.pixelMode === PixelMode.Mono) {
-				const byteIdx = y * bitmap.pitch + (x >> 3);
+				const byteIdx = srcRow + (x >> 3);
 				const bitIdx = 7 - (x & 7);
 				gray[dstIdx] = ((bitmap.buffer[byteIdx] ?? 0) >> bitIdx) & 1 ? 255 : 0;
+			} else if (
+				bitmap.pixelMode === PixelMode.LCD ||
+				bitmap.pixelMode === PixelMode.LCD_V
+			) {
+				const srcIdx = srcRow + x * 3;
+				const r = bitmap.buffer[srcIdx] ?? 0;
+				const g = bitmap.buffer[srcIdx + 1] ?? 0;
+				const b = bitmap.buffer[srcIdx + 2] ?? 0;
+				gray[dstIdx] = Math.round((r + g + b) / 3);
+			} else if (bitmap.pixelMode === PixelMode.RGBA) {
+				const srcIdx = srcRow + x * 4;
+				// Use alpha as coverage
+				gray[dstIdx] = bitmap.buffer[srcIdx + 3] ?? 0;
 			}
 		}
 	}
@@ -575,6 +603,7 @@ export {
 	type Bitmap,
 	clearBitmap,
 	createBitmap,
+	createBottomUpBitmap,
 	FillRule,
 	PixelMode,
 	type RasterizedGlyph,

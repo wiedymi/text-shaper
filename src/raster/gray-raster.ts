@@ -481,15 +481,27 @@ export class GrayRaster {
 					bitmap.buffer[byteIdx] |= 1 << bitIdx;
 				}
 			}
-		} else if (bitmap.pixelMode === PixelMode.LCD) {
-			// LCD mode: 3 bytes per pixel (RGB subpixels)
+		} else if (
+			bitmap.pixelMode === PixelMode.LCD ||
+			bitmap.pixelMode === PixelMode.LCD_V
+		) {
+			// LCD/LCD_V: 3 bytes per pixel (RGB subpixels)
 			// For now, write same coverage to all 3 subpixels
-			// A proper implementation would use subpixel positioning
+			// A proper implementation would use subpixel positioning/orientation
 			for (let x = start; x < end; x++) {
 				const idx = row + x * 3;
 				bitmap.buffer[idx] = gray;
 				bitmap.buffer[idx + 1] = gray;
 				bitmap.buffer[idx + 2] = gray;
+			}
+		} else if (bitmap.pixelMode === PixelMode.RGBA) {
+			// RGBA: encode coverage in alpha, leave RGB black (mask texture)
+			for (let x = start; x < end; x++) {
+				const idx = row + x * 4;
+				bitmap.buffer[idx] = 0;
+				bitmap.buffer[idx + 1] = 0;
+				bitmap.buffer[idx + 2] = 0;
+				bitmap.buffer[idx + 3] = gray;
 			}
 		}
 	}
@@ -503,12 +515,21 @@ export class GrayRaster {
 				const bitIdx = 7 - (x & 7);
 				bitmap.buffer[byteIdx] |= 1 << bitIdx;
 			}
-		} else if (bitmap.pixelMode === PixelMode.LCD) {
-			// LCD mode: 3 bytes per pixel (RGB subpixels)
+		} else if (
+			bitmap.pixelMode === PixelMode.LCD ||
+			bitmap.pixelMode === PixelMode.LCD_V
+		) {
+			// LCD/LCD_V: 3 bytes per pixel (RGB subpixels)
 			const idx = row + x * 3;
 			bitmap.buffer[idx] = gray;
 			bitmap.buffer[idx + 1] = gray;
 			bitmap.buffer[idx + 2] = gray;
+		} else if (bitmap.pixelMode === PixelMode.RGBA) {
+			const idx = row + x * 4;
+			bitmap.buffer[idx] = 0;
+			bitmap.buffer[idx + 1] = 0;
+			bitmap.buffer[idx + 2] = 0;
+			bitmap.buffer[idx + 3] = gray;
 		}
 	}
 
@@ -670,6 +691,7 @@ export class GrayRaster {
 			maxY: number;
 			minX: number;
 			maxX: number;
+			depth: number;
 		}> = [];
 
 		// Initial bands (full X range for each Y band)
@@ -679,12 +701,12 @@ export class GrayRaster {
 				maxY: Math.min(y + bandHeight, bounds.maxY),
 				minX: xMin,
 				maxX: xMax,
+				depth: 0,
 			});
 		}
 
 		// Process bands with 2D bisection on overflow
-		let depth = 0;
-		while (bandStack.length > 0 && depth < MAX_BAND_DEPTH) {
+		while (bandStack.length > 0) {
 			const band = bandStack.pop();
 			if (!band) break;
 
@@ -703,6 +725,15 @@ export class GrayRaster {
 			}
 
 			// Overflow - try X bisection first (like FreeType), then Y
+			const bandDepth = band.depth;
+			if (bandDepth >= MAX_BAND_DEPTH) {
+				console.warn(
+					`Rasterizer: band overflow at (${band.minX},${band.minY}), depth limit reached`,
+				);
+				continue;
+			}
+
+			const childDepth = bandDepth + 1;
 			const midX = (band.minX + band.maxX) >> 1;
 			if (midX > band.minX) {
 				// Bisect in X dimension
@@ -711,14 +742,15 @@ export class GrayRaster {
 					maxY: band.maxY,
 					minX: midX,
 					maxX: band.maxX,
+					depth: childDepth,
 				});
 				bandStack.push({
 					minY: band.minY,
 					maxY: band.maxY,
 					minX: band.minX,
 					maxX: midX,
+					depth: childDepth,
 				});
-				depth++;
 				continue;
 			}
 
@@ -731,14 +763,15 @@ export class GrayRaster {
 					maxY: band.maxY,
 					minX: band.minX,
 					maxX: band.maxX,
+					depth: childDepth,
 				});
 				bandStack.push({
 					minY: band.minY,
 					maxY: midY,
 					minX: band.minX,
 					maxX: band.maxX,
+					depth: childDepth,
 				});
-				depth++;
 				continue;
 			}
 

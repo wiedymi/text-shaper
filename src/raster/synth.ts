@@ -8,6 +8,47 @@
 
 import type { GlyphPath, PathCommand } from "../render/path.ts";
 
+function computeBounds(commands: PathCommand[]): {
+	xMin: number;
+	yMin: number;
+	xMax: number;
+	yMax: number;
+} | null {
+	let xMin = Infinity;
+	let yMin = Infinity;
+	let xMax = -Infinity;
+	let yMax = -Infinity;
+
+	for (const cmd of commands) {
+		switch (cmd.type) {
+			case "M":
+			case "L":
+				xMin = Math.min(xMin, cmd.x);
+				xMax = Math.max(xMax, cmd.x);
+				yMin = Math.min(yMin, cmd.y);
+				yMax = Math.max(yMax, cmd.y);
+				break;
+			case "Q":
+				xMin = Math.min(xMin, cmd.x, cmd.x1);
+				xMax = Math.max(xMax, cmd.x, cmd.x1);
+				yMin = Math.min(yMin, cmd.y, cmd.y1);
+				yMax = Math.max(yMax, cmd.y, cmd.y1);
+				break;
+			case "C":
+				xMin = Math.min(xMin, cmd.x, cmd.x1, cmd.x2);
+				xMax = Math.max(xMax, cmd.x, cmd.x1, cmd.x2);
+				yMin = Math.min(yMin, cmd.y, cmd.y1, cmd.y2);
+				yMax = Math.max(yMax, cmd.y, cmd.y1, cmd.y2);
+				break;
+			case "Z":
+				break;
+		}
+	}
+
+	if (!Number.isFinite(xMin)) return null;
+	return { xMin, yMin, xMax, yMax };
+}
+
 /**
  * Apply oblique (slant/italic) transformation to a path
  *
@@ -57,19 +98,7 @@ export function obliquePath(path: GlyphPath, slant: number): GlyphPath {
 	}
 
 	// Update bounds
-	let bounds = path.bounds;
-	if (bounds) {
-		// After oblique transform, min/max x changes based on y values
-		const xMin = bounds.xMin + bounds.yMin * slant;
-		const xMax = bounds.xMax + bounds.yMax * slant;
-
-		bounds = {
-			xMin: Math.min(xMin, bounds.xMin + bounds.yMax * slant),
-			yMin: bounds.yMin,
-			xMax: Math.max(xMax, bounds.xMax + bounds.yMin * slant),
-			yMax: bounds.yMax,
-		};
-	}
+	const bounds = computeBounds(commands);
 
 	return { commands, bounds, flags: path.flags };
 }
@@ -142,23 +171,7 @@ export function transformPath(
 	}
 
 	// Update bounds
-	let bounds = path.bounds;
-	if (bounds) {
-		// Transform all four corners and find new bounds
-		const corners = [
-			transformPoint(bounds.xMin, bounds.yMin),
-			transformPoint(bounds.xMax, bounds.yMin),
-			transformPoint(bounds.xMin, bounds.yMax),
-			transformPoint(bounds.xMax, bounds.yMax),
-		];
-
-		bounds = {
-			xMin: Math.min(...corners.map((p) => p.x)),
-			yMin: Math.min(...corners.map((p) => p.y)),
-			xMax: Math.max(...corners.map((p) => p.x)),
-			yMax: Math.max(...corners.map((p) => p.y)),
-		};
-	}
+	const bounds = computeBounds(commands);
 
 	return { commands, bounds, flags: path.flags };
 }

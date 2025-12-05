@@ -78,11 +78,18 @@ async function renderTransform() {
 		}
 
 		const padding = 10;
-		const width = Math.ceil(bounds.xMax - bounds.xMin) + padding * 2;
-		const height = Math.ceil(bounds.yMax - bounds.yMin) + padding * 2;
+		const extraLeft = translateX.value < 0 ? -translateX.value : 0;
+		const extraRight = translateX.value > 0 ? translateX.value : 0;
+		const extraTop = translateY.value < 0 ? -translateY.value : 0;
+		const extraBottom = translateY.value > 0 ? translateY.value : 0;
 
-		const offsetX = -bounds.xMin + padding + translateX.value;
-		const offsetY = bounds.yMax + padding + translateY.value;
+		const width =
+			Math.ceil(bounds.xMax - bounds.xMin) + padding * 2 + extraLeft + extraRight;
+		const height =
+			Math.ceil(bounds.yMax - bounds.yMin) + padding * 2 + extraTop + extraBottom;
+
+		const offsetX = -bounds.xMin + padding + extraLeft;
+		const offsetY = bounds.yMax + padding + extraTop + translateY.value;
 
 		const bitmap = rasterizePath(transformed, {
 			width,
