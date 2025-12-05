@@ -785,3 +785,241 @@ function evaluateCubic(
 ```
 
 Evaluates `B(t) = (1-t)³p0 + 3(1-t)²t*p1 + 3(1-t)t²p2 + t³p3` for a single dimension.
+
+## Cascade Blur
+
+High-performance blur for large radii using pyramid scaling algorithm.
+
+### cascadeBlur
+
+Apply blur with independent X and Y radii using cascade algorithm.
+
+```typescript
+function cascadeBlur(
+  bitmap: Bitmap,
+  radiusX: number,
+  radiusY: number
+): Bitmap
+```
+
+Uses scale-down/blur/scale-up pyramid approach for O(1) per-pixel performance regardless of blur radius. Ideal for radii > 3 pixels.
+
+### fastGaussianBlur
+
+Gaussian blur using cascade algorithm.
+
+```typescript
+function fastGaussianBlur(bitmap: Bitmap, radius: number): Bitmap
+```
+
+Convenience wrapper for cascadeBlur with equal X/Y radii.
+
+### adaptiveBlur
+
+Automatically choose optimal blur algorithm based on radius.
+
+```typescript
+function adaptiveBlur(
+  bitmap: Bitmap,
+  radiusX: number,
+  radiusY: number
+): Bitmap
+```
+
+Uses simple separable Gaussian for small radii (≤ 3) and cascade algorithm for large radii (> 3).
+
+## Asymmetric Stroke
+
+Generate stroked outlines with independent X and Y border widths.
+
+### AsymmetricStrokeOptions
+
+```typescript
+interface AsymmetricStrokeOptions {
+  xBorder: number;     // Horizontal stroke width in font units
+  yBorder: number;     // Vertical stroke width in font units
+  lineJoin?: LineJoin; // Join style: "miter" | "round" | "bevel"
+  miterLimit?: number; // Miter limit for miter joins (default: 4)
+}
+```
+
+### strokeAsymmetric
+
+Generate separate outer and inner stroked paths.
+
+```typescript
+function strokeAsymmetric(
+  path: GlyphPath,
+  options: AsymmetricStrokeOptions
+): { outer: GlyphPath; inner: GlyphPath }
+```
+
+Returns two paths: outer border (expanded outward) and inner border (contracted inward). Useful for outline effects where you need separate control over each border.
+
+### strokeAsymmetricCombined
+
+Generate combined stroked path (outer - inner hole).
+
+```typescript
+function strokeAsymmetricCombined(
+  path: GlyphPath,
+  options: AsymmetricStrokeOptions
+): GlyphPath
+```
+
+Returns a single path representing the stroke region (outer contour with inner as a hole). When filled, produces a hollow stroke effect.
+
+### strokeUniform
+
+Convenience function for uniform stroke width.
+
+```typescript
+function strokeUniform(
+  path: GlyphPath,
+  width: number,
+  lineJoin?: LineJoin,
+  miterLimit?: number
+): GlyphPath
+```
+
+Strokes with equal X and Y border widths.
+
+## Bitmap Compositing
+
+Operations for combining and manipulating bitmaps.
+
+### addBitmaps
+
+Add source bitmap values to destination (additive blend).
+
+```typescript
+function addBitmaps(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX: number,
+  srcY: number
+): void
+```
+
+Result: `dst = clamp(dst + src, 0, 255)`. Modifies dst in place.
+
+### mulBitmaps
+
+Multiply source and destination bitmap values.
+
+```typescript
+function mulBitmaps(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX: number,
+  srcY: number
+): void
+```
+
+Result: `dst = (dst * src) / 255`. Used for masking operations.
+
+### subBitmaps
+
+Subtract source from destination (subtractive blend).
+
+```typescript
+function subBitmaps(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX: number,
+  srcY: number
+): void
+```
+
+Result: `dst = clamp(dst - src, 0, 255)`. Used for outline effects.
+
+### compositeBitmaps
+
+Porter-Duff "over" compositing.
+
+```typescript
+function compositeBitmaps(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX: number,
+  srcY: number
+): void
+```
+
+Result: `dst = src + dst * (1 - src_alpha)`. Standard alpha blending.
+
+### maxBitmaps
+
+Maximum of source and destination values.
+
+```typescript
+function maxBitmaps(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX: number,
+  srcY: number
+): void
+```
+
+Result: `dst = max(dst, src)`. Useful for combining coverage masks.
+
+### shiftBitmap
+
+Shift bitmap by integer pixel offset.
+
+```typescript
+function shiftBitmap(
+  bitmap: Bitmap,
+  dx: number,
+  dy: number
+): Bitmap
+```
+
+Returns new bitmap shifted by (dx, dy) pixels.
+
+### padBitmap
+
+Add padding around a bitmap.
+
+```typescript
+function padBitmap(
+  bitmap: Bitmap,
+  padLeft: number,
+  padRight: number,
+  padTop: number,
+  padBottom: number
+): Bitmap
+```
+
+Returns new bitmap with specified padding on each side.
+
+### expandToFit
+
+Expand bitmap to fit both source and destination at given offset.
+
+```typescript
+function expandToFit(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX: number,
+  srcY: number
+): {
+  expanded: Bitmap;
+  dstOffsetX: number;
+  dstOffsetY: number;
+  srcOffsetX: number;
+  srcOffsetY: number;
+}
+```
+
+Creates a new bitmap large enough to contain both dst and src at the specified position, returning offsets for positioning both.
+
+### fixOutline
+
+Clean up outline artifacts from subtractive operations.
+
+```typescript
+function fixOutline(bitmap: Bitmap): void
+```
+
+Removes isolated bright pixels that can appear after subtracting inner from outer stroke bitmaps.

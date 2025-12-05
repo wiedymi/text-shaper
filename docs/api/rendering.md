@@ -414,3 +414,168 @@ async function renderVariableText() {
   }
 }
 ```
+
+## Outline Transforms
+
+Geometric transformations for glyph paths.
+
+### Matrix Types
+
+```typescript
+// 2D affine transform: [a, b, c, d, tx, ty]
+// | a  c  tx |
+// | b  d  ty |
+// | 0  0  1  |
+type Matrix2D = [number, number, number, number, number, number];
+
+// 3D homogeneous transform (3x3 for 2D perspective)
+// | m00  m01  m02 |
+// | m10  m11  m12 |
+// | m20  m21  m22 |
+type Matrix3x3 = [
+  number, number, number,
+  number, number, number,
+  number, number, number
+];
+
+interface BoundingBox {
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+}
+
+interface ControlBox {
+  xMin: number;
+  yMin: number;
+  xMax: number;
+  yMax: number;
+}
+```
+
+### Matrix Creation
+
+```typescript
+// Identity matrices
+function identity2D(): Matrix2D
+function identity3x3(): Matrix3x3
+
+// 2D transforms
+function translate2D(tx: number, ty: number): Matrix2D
+function scale2D(sx: number, sy: number): Matrix2D
+function rotate2D(angle: number): Matrix2D
+function shear2D(shx: number, shy: number): Matrix2D
+
+// 3D perspective
+function perspectiveMatrix(
+  fov: number,
+  aspect: number,
+  near: number,
+  far: number
+): Matrix3x3
+
+// Matrix multiplication
+function multiply2D(a: Matrix2D, b: Matrix2D): Matrix2D
+function multiply3x3(a: Matrix3x3, b: Matrix3x3): Matrix3x3
+```
+
+### Point Transforms
+
+```typescript
+function transformPoint2D(
+  x: number,
+  y: number,
+  m: Matrix2D
+): { x: number; y: number }
+
+function transformPoint3x3(
+  x: number,
+  y: number,
+  m: Matrix3x3
+): { x: number; y: number }
+```
+
+### Outline Transforms
+
+```typescript
+// Scale outline by factors
+function scaleOutline(
+  path: GlyphPath,
+  scaleX: number,
+  scaleY: number
+): GlyphPath
+
+// Scale by power of 2 (optimized)
+function scaleOutlinePow2(path: GlyphPath, level: number): GlyphPath
+
+// Rotate 90° counter-clockwise
+function rotateOutline90(path: GlyphPath): GlyphPath
+
+// General rotation
+function rotateOutline(path: GlyphPath, angle: number): GlyphPath
+
+// Translate
+function translateOutline(
+  path: GlyphPath,
+  dx: number,
+  dy: number
+): GlyphPath
+
+// 2D affine transform
+function transformOutline2D(path: GlyphPath, m: Matrix2D): GlyphPath
+
+// 3D perspective transform
+function transformOutline3D(path: GlyphPath, m: Matrix3x3): GlyphPath
+
+// Italicize (shear transform)
+function italicizeOutline(path: GlyphPath, slant: number): GlyphPath
+```
+
+### Bounds Computation
+
+```typescript
+// Control box (bounds of control points only)
+function computeControlBox(path: GlyphPath): ControlBox
+
+// Tight bounds (actual curve extrema)
+function computeTightBounds(path: GlyphPath): BoundingBox
+```
+
+### Path Utilities
+
+```typescript
+// Deep clone a path
+function clonePath(path: GlyphPath): GlyphPath
+
+// Combine multiple paths into one
+function combinePaths(...paths: GlyphPath[]): GlyphPath
+```
+
+### Example: Text Effects
+
+```typescript
+import {
+  getGlyphPath,
+  transformOutline2D,
+  scale2D,
+  rotate2D,
+  multiply2D,
+  rasterizePath
+} from "typeshaper";
+
+// Rotate and scale a glyph
+const path = getGlyphPath(font, glyphId);
+if (path) {
+  const transform = multiply2D(
+    rotate2D(Math.PI / 6),  // 30 degree rotation
+    scale2D(1.5, 1.5)       // 150% scale
+  );
+
+  const transformed = transformOutline2D(path, transform);
+  const bitmap = rasterizePath(transformed, {
+    width: 200,
+    height: 200,
+    scale: 0.1
+  });
+}
+```

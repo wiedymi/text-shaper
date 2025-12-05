@@ -10,8 +10,11 @@ import VariableFontPlayground from '../.vitepress/components/VariableFontPlaygro
 import GlyphInspector from '../.vitepress/components/GlyphInspector.vue'
 import RasterPreview from '../.vitepress/components/RasterPreview.vue'
 import SdfPreview from '../.vitepress/components/SdfPreview.vue'
+import MsdfPreview from '../.vitepress/components/MsdfPreview.vue'
 import SyntheticEffects from '../.vitepress/components/SyntheticEffects.vue'
 import EffectsPreview from '../.vitepress/components/EffectsPreview.vue'
+import TransformPreview from '../.vitepress/components/TransformPreview.vue'
+import StrokePreview from '../.vitepress/components/StrokePreview.vue'
 
 const font = ref(null)
 const fontName = ref('')
@@ -73,6 +76,12 @@ Signed Distance Field rendering for GPU text.
 
 <SdfPreview :font="font" :font-name="fontName" />
 
+## MSDF Rendering
+
+Multi-channel Signed Distance Field for sharp corners at any scale.
+
+<MsdfPreview :font="font" :font-name="fontName" />
+
 ## Synthetic Effects
 
 Apply synthetic bold, italic, and condensed transformations.
@@ -84,6 +93,18 @@ Apply synthetic bold, italic, and condensed transformations.
 Apply blur filters and gradient fills to glyphs.
 
 <EffectsPreview :font="font" :font-name="fontName" />
+
+## Outline Transforms
+
+Apply 2D transformations (rotation, scale, shear) to glyph outlines.
+
+<TransformPreview :font="font" :font-name="fontName" />
+
+## Asymmetric Stroke
+
+Generate stroked outlines with independent X and Y border widths.
+
+<StrokePreview :font="font" :font-name="fontName" />
 
 <style>
 .font-loaded {

@@ -332,3 +332,388 @@ export function resizeBitmap(
 
 	return result;
 }
+
+/**
+ * Add two bitmaps together (additive blend)
+ * Result: dst = clamp(dst + src, 0, 255)
+ * Used for combining glyph with shadow/glow
+ */
+export function addBitmaps(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number = 0,
+	srcY: number = 0,
+): void {
+	if (dst.pixelMode !== PixelMode.Gray || src.pixelMode !== PixelMode.Gray) {
+		return;
+	}
+
+	const startX = Math.max(0, -srcX);
+	const startY = Math.max(0, -srcY);
+	const endX = Math.min(src.width, dst.width - srcX);
+	const endY = Math.min(src.rows, dst.rows - srcY);
+
+	for (let sy = startY; sy < endY; sy++) {
+		const dy = srcY + sy;
+		if (dy < 0 || dy >= dst.rows) continue;
+
+		for (let sx = startX; sx < endX; sx++) {
+			const dx = srcX + sx;
+			if (dx < 0 || dx >= dst.width) continue;
+
+			const srcVal = src.buffer[sy * src.pitch + sx] ?? 0;
+			const dstVal = dst.buffer[dy * dst.pitch + dx] ?? 0;
+			dst.buffer[dy * dst.pitch + dx] = Math.min(255, srcVal + dstVal);
+		}
+	}
+}
+
+/**
+ * Multiply two bitmaps (multiplicative blend)
+ * Result: dst = (dst * src) / 255
+ * Used for masking operations
+ */
+export function mulBitmaps(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number = 0,
+	srcY: number = 0,
+): void {
+	if (dst.pixelMode !== PixelMode.Gray || src.pixelMode !== PixelMode.Gray) {
+		return;
+	}
+
+	const startX = Math.max(0, -srcX);
+	const startY = Math.max(0, -srcY);
+	const endX = Math.min(src.width, dst.width - srcX);
+	const endY = Math.min(src.rows, dst.rows - srcY);
+
+	for (let sy = startY; sy < endY; sy++) {
+		const dy = srcY + sy;
+		if (dy < 0 || dy >= dst.rows) continue;
+
+		for (let sx = startX; sx < endX; sx++) {
+			const dx = srcX + sx;
+			if (dx < 0 || dx >= dst.width) continue;
+
+			const srcVal = src.buffer[sy * src.pitch + sx] ?? 0;
+			const dstVal = dst.buffer[dy * dst.pitch + dx] ?? 0;
+			// Use integer math for speed: (a * b + 127) / 255 ≈ (a * b) >> 8
+			dst.buffer[dy * dst.pitch + dx] = Math.floor(
+				(srcVal * dstVal + 127) / 255,
+			);
+		}
+	}
+}
+
+/**
+ * Subtract src from dst (subtractive blend)
+ * Result: dst = clamp(dst - src, 0, 255)
+ * Used for outline effects
+ */
+export function subBitmaps(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number = 0,
+	srcY: number = 0,
+): void {
+	if (dst.pixelMode !== PixelMode.Gray || src.pixelMode !== PixelMode.Gray) {
+		return;
+	}
+
+	const startX = Math.max(0, -srcX);
+	const startY = Math.max(0, -srcY);
+	const endX = Math.min(src.width, dst.width - srcX);
+	const endY = Math.min(src.rows, dst.rows - srcY);
+
+	for (let sy = startY; sy < endY; sy++) {
+		const dy = srcY + sy;
+		if (dy < 0 || dy >= dst.rows) continue;
+
+		for (let sx = startX; sx < endX; sx++) {
+			const dx = srcX + sx;
+			if (dx < 0 || dx >= dst.width) continue;
+
+			const srcVal = src.buffer[sy * src.pitch + sx] ?? 0;
+			const dstVal = dst.buffer[dy * dst.pitch + dx] ?? 0;
+			dst.buffer[dy * dst.pitch + dx] = Math.max(0, dstVal - srcVal);
+		}
+	}
+}
+
+/**
+ * Alpha composite src over dst using src as alpha
+ * Result: dst = src + dst * (1 - src/255)
+ * Standard Porter-Duff "over" operation
+ */
+export function compositeBitmaps(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number = 0,
+	srcY: number = 0,
+): void {
+	if (dst.pixelMode !== PixelMode.Gray || src.pixelMode !== PixelMode.Gray) {
+		return;
+	}
+
+	const startX = Math.max(0, -srcX);
+	const startY = Math.max(0, -srcY);
+	const endX = Math.min(src.width, dst.width - srcX);
+	const endY = Math.min(src.rows, dst.rows - srcY);
+
+	for (let sy = startY; sy < endY; sy++) {
+		const dy = srcY + sy;
+		if (dy < 0 || dy >= dst.rows) continue;
+
+		for (let sx = startX; sx < endX; sx++) {
+			const dx = srcX + sx;
+			if (dx < 0 || dx >= dst.width) continue;
+
+			const srcVal = src.buffer[sy * src.pitch + sx] ?? 0;
+			const dstVal = dst.buffer[dy * dst.pitch + dx] ?? 0;
+			// src + dst * (255 - src) / 255
+			const result = srcVal + Math.floor((dstVal * (255 - srcVal) + 127) / 255);
+			dst.buffer[dy * dst.pitch + dx] = Math.min(255, result);
+		}
+	}
+}
+
+/**
+ * Shift bitmap position by integer offset
+ * Creates a new bitmap with the content shifted
+ */
+export function shiftBitmap(
+	bitmap: Bitmap,
+	shiftX: number,
+	shiftY: number,
+): Bitmap {
+	const result = createBitmap(bitmap.width, bitmap.rows, bitmap.pixelMode);
+
+	if (bitmap.pixelMode === PixelMode.Gray) {
+		for (let y = 0; y < bitmap.rows; y++) {
+			const sy = y - shiftY;
+			if (sy < 0 || sy >= bitmap.rows) continue;
+
+			for (let x = 0; x < bitmap.width; x++) {
+				const sx = x - shiftX;
+				if (sx < 0 || sx >= bitmap.width) continue;
+
+				result.buffer[y * result.pitch + x] =
+					bitmap.buffer[sy * bitmap.pitch + sx] ?? 0;
+			}
+		}
+	} else if (bitmap.pixelMode === PixelMode.Mono) {
+		for (let y = 0; y < bitmap.rows; y++) {
+			const sy = y - shiftY;
+			if (sy < 0 || sy >= bitmap.rows) continue;
+
+			for (let x = 0; x < bitmap.width; x++) {
+				const sx = x - shiftX;
+				if (sx < 0 || sx >= bitmap.width) continue;
+
+				const srcByteIdx = sy * bitmap.pitch + (sx >> 3);
+				const srcBitIdx = 7 - (sx & 7);
+				const bit = ((bitmap.buffer[srcByteIdx] ?? 0) >> srcBitIdx) & 1;
+
+				if (bit) {
+					const dstByteIdx = y * result.pitch + (x >> 3);
+					const dstBitIdx = 7 - (x & 7);
+					result.buffer[dstByteIdx] |= 1 << dstBitIdx;
+				}
+			}
+		}
+	} else if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
+		for (let y = 0; y < bitmap.rows; y++) {
+			const sy = y - shiftY;
+			if (sy < 0 || sy >= bitmap.rows) continue;
+
+			for (let x = 0; x < bitmap.width; x++) {
+				const sx = x - shiftX;
+				if (sx < 0 || sx >= bitmap.width) continue;
+
+				const srcIdx = sy * bitmap.pitch + sx * 3;
+				const dstIdx = y * result.pitch + x * 3;
+
+				result.buffer[dstIdx] = bitmap.buffer[srcIdx] ?? 0;
+				result.buffer[dstIdx + 1] = bitmap.buffer[srcIdx + 1] ?? 0;
+				result.buffer[dstIdx + 2] = bitmap.buffer[srcIdx + 2] ?? 0;
+			}
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Fix outline bitmap by removing glyph interior
+ * Used when you want only the border, not the filled shape
+ * Result: outline = outline - glyph (where glyph coverage > threshold)
+ */
+export function fixOutline(
+	outlineBitmap: Bitmap,
+	glyphBitmap: Bitmap,
+	glyphX: number = 0,
+	glyphY: number = 0,
+	threshold: number = 128,
+): void {
+	if (
+		outlineBitmap.pixelMode !== PixelMode.Gray ||
+		glyphBitmap.pixelMode !== PixelMode.Gray
+	) {
+		return;
+	}
+
+	const startX = Math.max(0, -glyphX);
+	const startY = Math.max(0, -glyphY);
+	const endX = Math.min(glyphBitmap.width, outlineBitmap.width - glyphX);
+	const endY = Math.min(glyphBitmap.rows, outlineBitmap.rows - glyphY);
+
+	for (let gy = startY; gy < endY; gy++) {
+		const oy = glyphY + gy;
+		if (oy < 0 || oy >= outlineBitmap.rows) continue;
+
+		for (let gx = startX; gx < endX; gx++) {
+			const ox = glyphX + gx;
+			if (ox < 0 || ox >= outlineBitmap.width) continue;
+
+			const glyphVal = glyphBitmap.buffer[gy * glyphBitmap.pitch + gx] ?? 0;
+			if (glyphVal >= threshold) {
+				// Zero out outline where glyph is solid
+				outlineBitmap.buffer[oy * outlineBitmap.pitch + ox] = 0;
+			}
+		}
+	}
+}
+
+/**
+ * Maximum blend: take the maximum of two bitmaps
+ * Result: dst = max(dst, src)
+ * Used for combining multiple layers
+ */
+export function maxBitmaps(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number = 0,
+	srcY: number = 0,
+): void {
+	if (dst.pixelMode !== PixelMode.Gray || src.pixelMode !== PixelMode.Gray) {
+		return;
+	}
+
+	const startX = Math.max(0, -srcX);
+	const startY = Math.max(0, -srcY);
+	const endX = Math.min(src.width, dst.width - srcX);
+	const endY = Math.min(src.rows, dst.rows - srcY);
+
+	for (let sy = startY; sy < endY; sy++) {
+		const dy = srcY + sy;
+		if (dy < 0 || dy >= dst.rows) continue;
+
+		for (let sx = startX; sx < endX; sx++) {
+			const dx = srcX + sx;
+			if (dx < 0 || dx >= dst.width) continue;
+
+			const srcVal = src.buffer[sy * src.pitch + sx] ?? 0;
+			const dstVal = dst.buffer[dy * dst.pitch + dx] ?? 0;
+			dst.buffer[dy * dst.pitch + dx] = Math.max(srcVal, dstVal);
+		}
+	}
+}
+
+/**
+ * Create a padded copy of a bitmap with extra space around edges
+ * Useful before blur operations to prevent edge artifacts
+ */
+export function padBitmap(
+	bitmap: Bitmap,
+	padLeft: number,
+	padTop: number,
+	padRight: number,
+	padBottom: number,
+): Bitmap {
+	const newWidth = bitmap.width + padLeft + padRight;
+	const newHeight = bitmap.rows + padTop + padBottom;
+	const result = createBitmap(newWidth, newHeight, bitmap.pixelMode);
+
+	if (bitmap.pixelMode === PixelMode.Gray) {
+		for (let y = 0; y < bitmap.rows; y++) {
+			for (let x = 0; x < bitmap.width; x++) {
+				result.buffer[(y + padTop) * result.pitch + (x + padLeft)] =
+					bitmap.buffer[y * bitmap.pitch + x] ?? 0;
+			}
+		}
+	} else if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
+		for (let y = 0; y < bitmap.rows; y++) {
+			for (let x = 0; x < bitmap.width; x++) {
+				const srcIdx = y * bitmap.pitch + x * 3;
+				const dstIdx = (y + padTop) * result.pitch + (x + padLeft) * 3;
+				result.buffer[dstIdx] = bitmap.buffer[srcIdx] ?? 0;
+				result.buffer[dstIdx + 1] = bitmap.buffer[srcIdx + 1] ?? 0;
+				result.buffer[dstIdx + 2] = bitmap.buffer[srcIdx + 2] ?? 0;
+			}
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Create an expanded bitmap that can contain both dst and src
+ * Returns the expanded bitmap and the offsets for both original bitmaps
+ */
+export function expandToFit(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number,
+	srcY: number,
+): {
+	expanded: Bitmap;
+	dstOffsetX: number;
+	dstOffsetY: number;
+	srcOffsetX: number;
+	srcOffsetY: number;
+} {
+	// Calculate bounds
+	const dstLeft = 0;
+	const dstTop = 0;
+	const dstRight = dst.width;
+	const dstBottom = dst.rows;
+
+	const srcLeft = srcX;
+	const srcTop = srcY;
+	const srcRight = srcX + src.width;
+	const srcBottom = srcY + src.rows;
+
+	const left = Math.min(dstLeft, srcLeft);
+	const top = Math.min(dstTop, srcTop);
+	const right = Math.max(dstRight, srcRight);
+	const bottom = Math.max(dstBottom, srcBottom);
+
+	const newWidth = right - left;
+	const newHeight = bottom - top;
+
+	const expanded = createBitmap(newWidth, newHeight, dst.pixelMode);
+
+	const dstOffsetX = dstLeft - left;
+	const dstOffsetY = dstTop - top;
+	const srcOffsetX = srcLeft - left;
+	const srcOffsetY = srcTop - top;
+
+	// Copy dst to expanded
+	if (dst.pixelMode === PixelMode.Gray) {
+		for (let y = 0; y < dst.rows; y++) {
+			for (let x = 0; x < dst.width; x++) {
+				expanded.buffer[(y + dstOffsetY) * expanded.pitch + (x + dstOffsetX)] =
+					dst.buffer[y * dst.pitch + x] ?? 0;
+			}
+		}
+	}
+
+	return { expanded, dstOffsetX, dstOffsetY, srcOffsetX, srcOffsetY };
+}

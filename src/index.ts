@@ -269,15 +269,40 @@ export {
 	findMatchingFeatureVariation,
 	getSubstitutedLookups,
 } from "./layout/structures/feature-variations.ts";
+// Asymmetric stroke (independent x/y border widths)
+export {
+	type AsymmetricStrokeOptions,
+	strokeAsymmetric,
+	strokeAsymmetricCombined,
+	strokeUniform,
+} from "./raster/asymmetric-stroke.ts";
+// Texture atlas for GPU rendering
+export {
+	atlasToAlpha,
+	atlasToRGBA,
+	buildAsciiAtlas,
+	buildAtlas,
+	buildStringAtlas,
+	getGlyphUV,
+} from "./raster/atlas.ts";
 // Exact bounding box
 export { getExactBounds } from "./raster/bbox.ts";
 // Bitmap utilities
 export {
+	addBitmaps,
 	blendBitmap,
+	compositeBitmaps,
 	convertBitmap,
 	copyBitmap,
 	emboldenBitmap,
+	expandToFit,
+	fixOutline,
+	maxBitmaps,
+	mulBitmaps,
+	padBitmap,
 	resizeBitmap,
+	shiftBitmap,
+	subBitmaps,
 } from "./raster/bitmap-utils.ts";
 // Blur filters
 export {
@@ -286,6 +311,12 @@ export {
 	createGaussianKernel,
 	gaussianBlur,
 } from "./raster/blur.ts";
+// Cascade blur (high-performance for large radii)
+export {
+	adaptiveBlur,
+	cascadeBlur,
+	fastGaussianBlur,
+} from "./raster/cascade-blur.ts";
 // Gradient fill
 export {
 	type ColorStop as GradientColorStop,
@@ -296,6 +327,24 @@ export {
 	type RadialGradient,
 	rasterizePathWithGradient,
 } from "./raster/gradient.ts";
+// MSDF (Multi-channel Signed Distance Field) rendering
+export {
+	assignEdgeColors,
+	buildMsdfAsciiAtlas,
+	buildMsdfAtlas,
+	buildMsdfStringAtlas,
+	type MsdfEdge,
+	type MsdfOptions,
+	median,
+	msdfAtlasToRGB,
+	msdfAtlasToRGBA,
+	type Point as MsdfPoint,
+	renderMsdf,
+	type SignedDistanceResult,
+	signedDistanceToCubic,
+	signedDistanceToLine,
+	signedDistanceToQuadratic,
+} from "./raster/msdf.ts";
 export {
 	bitmapToGray,
 	bitmapToRGBA,
@@ -313,14 +362,13 @@ export {
 	strokePath,
 } from "./raster/stroker.ts";
 // Synthetic effects
-export {
-	condensePath,
-	emboldenPath,
-	obliquePath,
-} from "./raster/synth.ts";
+export { condensePath, emboldenPath, obliquePath } from "./raster/synth.ts";
 // Rasterization
 export type {
 	Bitmap,
+	GlyphAtlas,
+	GlyphMetrics,
+	MsdfAtlasOptions,
 	RasterizedGlyph,
 	RasterizeOptions,
 	Span,
@@ -331,6 +379,37 @@ export {
 	FillRule,
 	PixelMode,
 } from "./raster/types.ts";
+// Outline transforms
+export {
+	type BoundingBox,
+	type ControlBox,
+	clonePath,
+	combinePaths,
+	computeControlBox,
+	computeTightBounds,
+	identity2D,
+	identity3x3,
+	italicizeOutline,
+	type Matrix2D,
+	type Matrix3x3,
+	multiply2D,
+	multiply3x3,
+	perspectiveMatrix,
+	rotate2D,
+	rotateOutline,
+	rotateOutline90,
+	scale2D,
+	scaleOutline,
+	scaleOutlinePow2,
+	shear2D,
+	transformOutline2D,
+	transformOutline3D,
+	transformPoint2D,
+	transformPoint3x3,
+	translate2D,
+	translateOutline,
+	updateMinTransformedX,
+} from "./render/outline-transform.ts";
 // Rendering utilities
 export type { GlyphPath, PathCommand, ShapedGlyph } from "./render/path.ts";
 export {

@@ -178,6 +178,22 @@ export interface AtlasOptions {
 }
 
 /**
+ * Options for building an MSDF atlas
+ */
+export interface MsdfAtlasOptions {
+	/** Font size in pixels (size of each glyph cell in the atlas) */
+	fontSize: number;
+	/** Padding between glyphs */
+	padding?: number;
+	/** Maximum atlas width */
+	maxWidth?: number;
+	/** Maximum atlas height */
+	maxHeight?: number;
+	/** SDF spread/radius in pixels (default: 4) */
+	spread?: number;
+}
+
+/**
  * Create an empty bitmap
  */
 export function createBitmap(
