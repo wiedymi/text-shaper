@@ -293,8 +293,8 @@ export function rasterizePath(
 		flipY = true,
 	} = options;
 
-	// Create bitmap with shared buffer
-	const bitmap = createBitmapShared(width, height, pixelMode);
+	// Create bitmap (non-shared since this is a public API and callers keep references)
+	const bitmap = createBitmap(width, height, pixelMode);
 
 	// Reuse shared rasterizer
 	const raster = getSharedRaster();
@@ -453,8 +453,8 @@ function rasterizeHintedGlyph(
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
 	}
 
-	// Use shared bitmap buffer
-	const bitmap = createBitmapShared(width, height, pixelMode);
+	// Render to shared buffer first, then copy to output bitmap
+	const tempBitmap = createBitmapShared(width, height, pixelMode);
 
 	// Reuse shared rasterizer
 	const raster = getSharedRaster();
@@ -465,7 +465,11 @@ function rasterizeHintedGlyph(
 	const offsetY = height - 1 + bMinY - padding;
 
 	decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
-	raster.sweep(bitmap, FillRule.NonZero);
+	raster.sweep(tempBitmap, FillRule.NonZero);
+
+	// Copy to owned buffer (shared buffer will be reused on next call)
+	const bitmap = createBitmap(width, height, pixelMode);
+	bitmap.buffer.set(tempBitmap.buffer);
 
 	return {
 		bitmap,

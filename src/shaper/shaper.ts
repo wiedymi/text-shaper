@@ -534,10 +534,25 @@ function applySingleSubstLookup(
 	lookup: SingleSubstLookup,
 ): void {
 	const infos = buffer.infos;
-	for (let i = 0; i < infos.length; i++) {
-		const info = infos[i]!;
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+	const len = infos.length;
 
+	// FAST PATH: No skip checking needed
+	if (lookup.flag === 0 || !font.gdef) {
+		for (let i = 0; i < len; i++) {
+			const info = infos[i]!;
+			const replacement = applySingleSubst(lookup, info.glyphId);
+			if (replacement !== null) {
+				info.glyphId = replacement;
+			}
+		}
+		return;
+	}
+
+	// WITH SKIP: Need to check each glyph
+	const skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	for (let i = 0; i < len; i++) {
+		if (skip[i]) continue;
+		const info = infos[i]!;
 		const replacement = applySingleSubst(lookup, info.glyphId);
 		if (replacement !== null) {
 			info.glyphId = replacement;
@@ -635,19 +650,30 @@ function applyLigatureSubstLookup(
 	buffer: GlyphBuffer,
 	lookup: LigatureSubstLookup,
 ): void {
+	const infos = buffer.infos;
+	const len = infos.length;
+	const needsSkipCheck = lookup.flag !== 0 && font.gdef !== null;
+
+	// Pre-compute skip markers only if needed
+	let skip: Uint8Array | null = null;
+	if (needsSkipCheck) {
+		skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	}
+
 	let i = 0;
-	while (i < buffer.infos.length) {
+	while (i < len) {
 		// Skip deleted glyphs
 		if (buffer.isDeleted(i)) {
 			i++;
 			continue;
 		}
-		const info = buffer.infos[i];
+		const info = infos[i];
 		if (!info) {
 			i++;
 			continue;
 		}
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) {
+		// Use pre-computed skip markers
+		if (skip && skip[i]) {
 			i++;
 			continue;
 		}
@@ -657,12 +683,13 @@ function applyLigatureSubstLookup(
 		_ligMatchIndices[0] = i;
 		_ligMatchGlyphs[0] = info.glyphId;
 
-		for (let j = i + 1; j < buffer.infos.length && matchLen < 16; j++) {
+		for (let j = i + 1; j < len && matchLen < 16; j++) {
 			// Skip deleted glyphs
 			if (buffer.isDeleted(j)) continue;
-			const nextInfo = buffer.infos[j];
+			const nextInfo = infos[j];
 			if (!nextInfo) continue;
-			if (shouldSkipGlyph(font, nextInfo.glyphId, lookup.flag)) continue;
+			// Use pre-computed skip markers
+			if (skip && skip[j]) continue;
 			_ligMatchIndices[matchLen] = j;
 			_ligMatchGlyphs[matchLen] = nextInfo.glyphId;
 			matchLen++;
@@ -683,7 +710,7 @@ function applyLigatureSubstLookup(
 			for (let k = 1; k < result.consumed; k++) {
 				const idx = _ligMatchIndices[k];
 				if (idx !== undefined) {
-					const targetInfo = buffer.infos[idx];
+					const targetInfo = infos[idx];
 					if (targetInfo) {
 						info.cluster = Math.min(info.cluster, targetInfo.cluster);
 					}
@@ -703,11 +730,20 @@ function applyContextSubstLookup(
 	lookup: ContextSubstLookup,
 	plan: ShapePlan,
 ): void {
+	const infos = buffer.infos;
+	const len = infos.length;
+
+	// Pre-compute skip markers only if needed
+	let skip: Uint8Array | null = null;
+	if (lookup.flag !== 0 && font.gdef !== null) {
+		skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	}
+
 	// Context substitution - matches input sequence and applies nested lookups
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i];
+	for (let i = 0; i < len; i++) {
+		const info = infos[i];
 		if (!info) continue;
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		if (skip && skip[i]) continue;
 
 		for (const subtable of lookup.subtables) {
 			let matched = false;
@@ -758,10 +794,19 @@ function applyChainingContextSubstLookup(
 	lookup: ChainingContextSubstLookup,
 	plan: ShapePlan,
 ): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i];
+	const infos = buffer.infos;
+	const len = infos.length;
+
+	// Pre-compute skip markers only if needed
+	let skip: Uint8Array | null = null;
+	if (lookup.flag !== 0 && font.gdef !== null) {
+		skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	}
+
+	for (let i = 0; i < len; i++) {
+		const info = infos[i];
 		if (!info) continue;
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		if (skip && skip[i]) continue;
 
 		for (const subtable of lookup.subtables) {
 			let matched = false;
@@ -1307,12 +1352,13 @@ function applySinglePosLookup(
 ): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
+	const len = infos.length;
 
-	for (let i = 0; i < infos.length; i++) {
+	// Helper to apply single positioning at index i
+	const applySingle = (i: number) => {
 		const info = infos[i]!;
 		const pos = positions[i];
-		if (!pos) continue;
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		if (!pos) return;
 
 		for (const subtable of lookup.subtables) {
 			const coverageIndex = subtable.coverage.get(info.glyphId);
@@ -1330,6 +1376,21 @@ function applySinglePosLookup(
 			}
 			break;
 		}
+	};
+
+	// FAST PATH: No skip checking needed
+	if (lookup.flag === 0 || !font.gdef) {
+		for (let i = 0; i < len; i++) {
+			applySingle(i);
+		}
+		return;
+	}
+
+	// WITH SKIP: Need to check each glyph
+	const skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	for (let i = 0; i < len; i++) {
+		if (skip[i]) continue;
+		applySingle(i);
 	}
 }
 
@@ -1340,20 +1401,38 @@ function applyPairPosLookup(
 ): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
+	const len = infos.length;
 
-	for (let i = 0; i < infos.length - 1; i++) {
-		const info1 = infos[i]!;
-		if (shouldSkipGlyph(font, info1.glyphId, lookup.flag)) continue;
+	// FAST PATH: No skip checking needed (no GDEF or no filtering flags)
+	// This handles simple Latin text with no marks - O(n) with zero allocation
+	if (lookup.flag === 0 || !font.gdef) {
+		for (let i = 0; i < len - 1; i++) {
+			const info1 = infos[i]!;
+			const info2 = infos[i + 1]!;
 
-		// Find next non-skipped glyph
-		let j = i + 1;
-		while (j < infos.length) {
-			const nextInfo = infos[j]!;
-			if (!shouldSkipGlyph(font, nextInfo.glyphId, lookup.flag)) break;
-			j++;
+			const kern = getKerning(lookup, info1.glyphId, info2.glyphId);
+			if (kern) {
+				const pos1 = positions[i];
+				const pos2 = positions[i + 1];
+				if (pos1) pos1.xAdvance += kern.xAdvance1;
+				if (pos2) pos2.xAdvance += kern.xAdvance2;
+			}
 		}
-		if (j >= infos.length) break;
+		return;
+	}
 
+	// OPTIMIZED PATH: With skip markers - O(n) with precomputed arrays
+	// Used for complex text with marks that need to be skipped
+	const skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	const nextNonSkip = buildNextNonSkipArray(skip, len);
+
+	for (let i = 0; i < len - 1; i++) {
+		if (skip[i]) continue;
+
+		const j = nextNonSkip[i];
+		if (j < 0) break;
+
+		const info1 = infos[i]!;
 		const info2 = infos[j]!;
 
 		const kern = getKerning(lookup, info1.glyphId, info2.glyphId);
@@ -1373,22 +1452,12 @@ function applyCursivePosLookup(
 ): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
+	const len = infos.length;
 
-	// Cursive attachment - connect exit anchor of one glyph to entry anchor of next
-	for (let i = 0; i < infos.length - 1; i++) {
+	// Helper to apply cursive positioning between glyphs at i and j
+	const applyCursive = (i: number, j: number) => {
 		const info1 = infos[i]!;
-		if (shouldSkipGlyph(font, info1.glyphId, lookup.flag)) continue;
-
-		// Find next non-skipped glyph
-		let j = i + 1;
-		while (j < infos.length) {
-			const nextInfo = infos[j]!;
-			if (!shouldSkipGlyph(font, nextInfo.glyphId, lookup.flag)) break;
-			j++;
-		}
-		if (j >= infos.length) break;
-
-		const info2 = infos[j]!
+		const info2 = infos[j]!;
 
 		for (const subtable of lookup.subtables) {
 			const exitIndex = subtable.coverage.get(info1.glyphId);
@@ -1401,11 +1470,9 @@ function applyCursivePosLookup(
 
 			if (!exitRecord?.exitAnchor || !entryRecord?.entryAnchor) continue;
 
-			// Calculate offset to align anchors
 			const exitAnchor = exitRecord.exitAnchor;
 			const entryAnchor = entryRecord.entryAnchor;
 
-			// Adjust position of second glyph
 			const pos2 = positions[j];
 			if (pos2) {
 				pos2.yOffset = exitAnchor.yCoordinate - entryAnchor.yCoordinate;
@@ -1413,6 +1480,27 @@ function applyCursivePosLookup(
 
 			break;
 		}
+	};
+
+	// FAST PATH: No skip checking needed
+	if (lookup.flag === 0 || !font.gdef) {
+		for (let i = 0; i < len - 1; i++) {
+			applyCursive(i, i + 1);
+		}
+		return;
+	}
+
+	// OPTIMIZED PATH: With skip markers
+	const skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	const nextNonSkip = buildNextNonSkipArray(skip, len);
+
+	for (let i = 0; i < len - 1; i++) {
+		if (skip[i]) continue;
+
+		const j = nextNonSkip[i];
+		if (j < 0) break;
+
+		applyCursive(i, j);
 	}
 }
 
