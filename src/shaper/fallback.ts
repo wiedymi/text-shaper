@@ -6,6 +6,41 @@ import { GlyphClass } from "../types.ts";
 import { getCombiningClass } from "../unicode/normalize.ts";
 
 /**
+ * Quick check if text has any potential marks based on codepoints.
+ * Uses fast O(1) checks for common non-mark ranges.
+ */
+function hasAnyMarks(infos: GlyphInfo[]): boolean {
+	for (let i = 0; i < infos.length; i++) {
+		const cp = infos[i]!.codepoint;
+		// Fast check: most scripts have no combining marks
+		// Only check getCombiningClass for potential mark ranges
+		if (cp >= 0x0300 && cp < 0x0370) return true; // Latin combining
+		if (cp >= 0x0591 && cp < 0x05c8) return true; // Hebrew
+		if (cp >= 0x0610 && cp < 0x0900) return true; // Arabic and extended
+		if (cp >= 0x093c && cp < 0x0970) return true; // Devanagari marks
+		if (cp >= 0x09bc && cp < 0x09ff) return true; // Bengali marks
+		if (cp >= 0x0a3c && cp < 0x0a75) return true; // Gurmukhi marks
+		if (cp >= 0x0abc && cp < 0x0aff) return true; // Gujarati marks
+		if (cp >= 0x0b3c && cp < 0x0b70) return true; // Oriya marks
+		if (cp >= 0x0bcd && cp < 0x0bd8) return true; // Tamil marks
+		if (cp >= 0x0c4d && cp < 0x0c70) return true; // Telugu marks
+		if (cp >= 0x0cbc && cp < 0x0cff) return true; // Kannada marks
+		if (cp >= 0x0d4d && cp < 0x0d70) return true; // Malayalam marks
+		if (cp >= 0x0dca && cp < 0x0df5) return true; // Sinhala marks
+		if (cp >= 0x0e31 && cp < 0x0e50) return true; // Thai marks
+		if (cp >= 0x0eb1 && cp < 0x0ed0) return true; // Lao marks
+		if (cp >= 0x0f18 && cp < 0x0f88) return true; // Tibetan marks
+		if (cp >= 0x1037 && cp < 0x103b) return true; // Myanmar marks
+		if (cp >= 0x1ab0 && cp < 0x1b00) return true; // Combining Extended
+		if (cp >= 0x1dc0 && cp < 0x1e00) return true; // Combining Supplement
+		if (cp >= 0x302a && cp < 0x3030) return true; // Hangul combining
+		if (cp >= 0x3099 && cp < 0x309b) return true; // Kana voicing
+		if (cp >= 0xfe20 && cp < 0xfe30) return true; // Combining Half Marks
+	}
+	return false;
+}
+
+/**
  * Fallback mark positioning when GPOS is not available
  * Uses combining class information to position marks
  */
@@ -14,12 +49,25 @@ export function applyFallbackMarkPositioning(
 	infos: GlyphInfo[],
 	positions: GlyphPosition[],
 ): void {
-	for (let i = 0; i < infos.length; i++) {
-		const info = infos[i];
-		const pos = positions[i];
-		if (!info || !pos) continue;
+	// Fast path: skip entirely if no marks detected
+	if (!hasAnyMarks(infos)) return;
 
-		const glyphClass = font.gdef ? getGlyphClass(font.gdef, info.glyphId) : 0;
+	// Cache glyph classes to avoid repeated GDEF lookups
+	const glyphClassCache = new Map<GlyphId, number>();
+	const getClass = (glyphId: GlyphId): number => {
+		let cls = glyphClassCache.get(glyphId);
+		if (cls === undefined) {
+			cls = font.gdef ? getGlyphClass(font.gdef, glyphId) : 0;
+			glyphClassCache.set(glyphId, cls);
+		}
+		return cls;
+	};
+
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
+		const pos = positions[i]!;
+
+		const glyphClass = getClass(info.glyphId);
 		const ccc = getCombiningClass(info.codepoint);
 
 		// Skip if not a mark
@@ -28,12 +76,8 @@ export function applyFallbackMarkPositioning(
 		// Find the base glyph
 		let baseIndex = -1;
 		for (let j = i - 1; j >= 0; j--) {
-			const prevInfo = infos[j];
-			if (!prevInfo) continue;
-
-			const prevClass = font.gdef
-				? getGlyphClass(font.gdef, prevInfo.glyphId)
-				: 0;
+			const prevInfo = infos[j]!;
+			const prevClass = getClass(prevInfo.glyphId);
 			const prevCcc = getCombiningClass(prevInfo.codepoint);
 
 			if (prevClass === GlyphClass.Base || (prevClass === 0 && prevCcc === 0)) {
@@ -44,9 +88,8 @@ export function applyFallbackMarkPositioning(
 
 		if (baseIndex < 0) continue;
 
-		const baseInfo = infos[baseIndex];
-		const basePos = positions[baseIndex];
-		if (!baseInfo || !basePos) continue;
+		const baseInfo = infos[baseIndex]!;
+		const basePos = positions[baseIndex]!;
 
 		// Get base glyph metrics
 		const baseAdvance = font.advanceWidth(baseInfo.glyphId);

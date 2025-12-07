@@ -41,11 +41,21 @@ export interface Point {
 export type EdgeColor = 0 | 1 | 2;
 
 /**
- * An edge with color assignment
+ * Bounding box for edge culling
+ */
+interface EdgeBounds {
+	minX: number;
+	maxX: number;
+	minY: number;
+	maxY: number;
+}
+
+/**
+ * An edge with color assignment and bounding box
  */
 export type MsdfEdge =
-	| { type: "line"; p0: Point; p1: Point; color: EdgeColor }
-	| { type: "quadratic"; p0: Point; p1: Point; p2: Point; color: EdgeColor }
+	| { type: "line"; p0: Point; p1: Point; color: EdgeColor } & EdgeBounds
+	| { type: "quadratic"; p0: Point; p1: Point; p2: Point; color: EdgeColor } & EdgeBounds
 	| {
 			type: "cubic";
 			p0: Point;
@@ -53,7 +63,7 @@ export type MsdfEdge =
 			p2: Point;
 			p3: Point;
 			color: EdgeColor;
-	  };
+	  } & EdgeBounds;
 
 /**
  * Signed distance result with parameter t
@@ -113,12 +123,8 @@ export function signedDistanceToLine(
 	let t = ((px - p0.x) * dx + (py - p0.y) * dy) / lenSq;
 	t = Math.max(0, Math.min(1, t));
 
-	// Closest point on segment
-	const closestX = p0.x + t * dx;
-	const closestY = p0.y + t * dy;
-
 	// Unsigned distance
-	const dist = Math.sqrt((px - closestX) ** 2 + (py - closestY) ** 2);
+	const dist = Math.sqrt((px - p0.x - t * dx) ** 2 + (py - p0.y - t * dy) ** 2);
 
 	// Sign: use cross product to determine which side of line
 	// Cross product: (p1 - p0) x (point - p0) = dx * (py - p0.y) - dy * (px - p0.x)
@@ -126,6 +132,24 @@ export function signedDistanceToLine(
 	const sign = cross >= 0 ? 1 : -1;
 
 	return { distance: sign * dist, t };
+}
+
+/**
+ * Compute unsigned distance from point to line segment (faster version)
+ */
+function unsignedDistanceToLine(
+	px: number,
+	py: number,
+	p0: Point,
+	p1: Point,
+): number {
+	const dx = p1.x - p0.x;
+	const dy = p1.y - p0.y;
+	const lenSq = dx * dx + dy * dy;
+	if (lenSq < 1e-10) return Math.sqrt((px - p0.x) ** 2 + (py - p0.y) ** 2);
+	let t = ((px - p0.x) * dx + (py - p0.y) * dy) / lenSq;
+	t = Math.max(0, Math.min(1, t));
+	return Math.sqrt((px - p0.x - t * dx) ** 2 + (py - p0.y - t * dy) ** 2);
 }
 
 /**
@@ -145,41 +169,19 @@ export function signedDistanceToQuadratic(
 	// Coefficients for the quadratic bezier
 	const ax = p0.x - 2 * p1.x + p2.x;
 	const ay = p0.y - 2 * p1.y + p2.y;
-	const _bx = 2 * (p1.x - p0.x);
-	const _by = 2 * (p1.y - p0.y);
-	const cx = p0.x - px;
-	const cy = p0.y - py;
 
-	// Find roots of the derivative of distance squared
-	// d/dt |B(t) - P|² = 0
-	// This gives a cubic equation in t
+	let minDist = Math.min(
+		Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2),
+		Math.sqrt((p2.x - px) ** 2 + (p2.y - py) ** 2),
+	);
+	let minT = minDist === Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2) ? 0 : 1;
 
-	let minDist = Infinity;
-	let minT = 0;
-	let minSign = 1;
-
-	// Check endpoints
-	const dist0 = Math.sqrt(cx * cx + cy * cy);
-	if (dist0 < minDist) {
-		minDist = dist0;
-		minT = 0;
-	}
-
-	const ex = p2.x - px;
-	const ey = p2.y - py;
-	const dist1 = Math.sqrt(ex * ex + ey * ey);
-	if (dist1 < minDist) {
-		minDist = dist1;
-		minT = 1;
-	}
-
-	// Sample and refine with Newton-Raphson
-	const samples = 8;
-	for (let i = 1; i < samples; i++) {
-		let t = i / samples;
+	// Sample and refine with Newton-Raphson (reduced samples and iterations)
+	for (let i = 1; i < 6; i++) {
+		let t = i / 6;
 
 		// Newton-Raphson iterations
-		for (let iter = 0; iter < 4; iter++) {
+		for (let iter = 0; iter < 3; iter++) {
 			const ti = 1 - t;
 
 			// B(t)
@@ -190,24 +192,17 @@ export function signedDistanceToQuadratic(
 			const dx = 2 * (ti * (p1.x - p0.x) + t * (p2.x - p1.x));
 			const dy = 2 * (ti * (p1.y - p0.y) + t * (p2.y - p1.y));
 
-			// B''(t) = 2(P0 - 2P1 + P2)
-			const ddx = 2 * ax;
-			const ddy = 2 * ay;
-
 			// f(t) = (B(t) - P) · B'(t)
 			const vx = bx_t - px;
 			const vy = by_t - py;
 			const f = vx * dx + vy * dy;
 
 			// f'(t) = B'(t) · B'(t) + (B(t) - P) · B''(t)
-			const df = dx * dx + dy * dy + vx * ddx + vy * ddy;
+			const df = dx * dx + dy * dy + vx * 2 * ax + vy * 2 * ay;
 
 			if (Math.abs(df) < 1e-10) break;
 
-			const dt = f / df;
-			t = Math.max(0, Math.min(1, t - dt));
-
-			if (Math.abs(dt) < 1e-6) break;
+			t = Math.max(0, Math.min(1, t - f / df));
 		}
 
 		// Evaluate distance at this t
@@ -232,9 +227,51 @@ export function signedDistanceToQuadratic(
 
 	// Cross product of tangent and (point - curve)
 	const cross = tangentX * (py - by_t) - tangentY * (px - bx_t);
-	minSign = cross >= 0 ? 1 : -1;
+	const minSign = cross >= 0 ? 1 : -1;
 
 	return { distance: minSign * minDist, t: minT };
+}
+
+/**
+ * Compute unsigned distance from point to quadratic bezier curve (faster version)
+ */
+function unsignedDistanceToQuadratic(
+	px: number,
+	py: number,
+	p0: Point,
+	p1: Point,
+	p2: Point,
+): number {
+	const ax = p0.x - 2 * p1.x + p2.x;
+	const ay = p0.y - 2 * p1.y + p2.y;
+
+	let minDist = Math.min(
+		Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2),
+		Math.sqrt((p2.x - px) ** 2 + (p2.y - py) ** 2),
+	);
+
+	for (let i = 1; i < 6; i++) {
+		let t = i / 6;
+		for (let iter = 0; iter < 3; iter++) {
+			const ti = 1 - t;
+			const bx = ti * ti * p0.x + 2 * ti * t * p1.x + t * t * p2.x;
+			const by = ti * ti * p0.y + 2 * ti * t * p1.y + t * t * p2.y;
+			const dx = 2 * (ti * (p1.x - p0.x) + t * (p2.x - p1.x));
+			const dy = 2 * (ti * (p1.y - p0.y) + t * (p2.y - p1.y));
+			const vx = bx - px;
+			const vy = by - py;
+			const df = dx * dx + dy * dy + vx * 2 * ax + vy * 2 * ay;
+			if (Math.abs(df) < 1e-10) break;
+			t = Math.max(0, Math.min(1, t - (vx * dx + vy * dy) / df));
+		}
+		const ti = 1 - t;
+		const dist = Math.sqrt(
+			(ti * ti * p0.x + 2 * ti * t * p1.x + t * t * p2.x - px) ** 2 +
+				(ti * ti * p0.y + 2 * ti * t * p1.y + t * t * p2.y - py) ** 2,
+		);
+		if (dist < minDist) minDist = dist;
+	}
+	return minDist;
 }
 
 /**
@@ -251,30 +288,18 @@ export function signedDistanceToCubic(
 ): SignedDistanceResult {
 	// Cubic bezier: B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
 
-	let minDist = Infinity;
-	let minT = 0;
-	let minSign = 1;
+	let minDist = Math.min(
+		Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2),
+		Math.sqrt((p3.x - px) ** 2 + (p3.y - py) ** 2),
+	);
+	let minT = minDist === Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2) ? 0 : 1;
 
-	// Check endpoints
-	const dist0 = Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2);
-	if (dist0 < minDist) {
-		minDist = dist0;
-		minT = 0;
-	}
-
-	const dist1 = Math.sqrt((p3.x - px) ** 2 + (p3.y - py) ** 2);
-	if (dist1 < minDist) {
-		minDist = dist1;
-		minT = 1;
-	}
-
-	// Sample and refine with Newton-Raphson
-	const samples = 10;
-	for (let i = 1; i < samples; i++) {
-		let t = i / samples;
+	// Sample and refine with Newton-Raphson (reduced samples and iterations)
+	for (let i = 1; i < 6; i++) {
+		let t = i / 6;
 
 		// Newton-Raphson iterations
-		for (let iter = 0; iter < 5; iter++) {
+		for (let iter = 0; iter < 3; iter++) {
 			const ti = 1 - t;
 			const ti2 = ti * ti;
 			const ti3 = ti2 * ti;
@@ -313,10 +338,7 @@ export function signedDistanceToCubic(
 
 			if (Math.abs(df) < 1e-10) break;
 
-			const dt = f / df;
-			t = Math.max(0, Math.min(1, t - dt));
-
-			if (Math.abs(dt) < 1e-6) break;
+			t = Math.max(0, Math.min(1, t - f / df));
 		}
 
 		// Evaluate distance at this t
@@ -361,9 +383,67 @@ export function signedDistanceToCubic(
 
 	// Cross product of tangent and (point - curve)
 	const cross = tangentX * (py - by_t) - tangentY * (px - bx_t);
-	minSign = cross >= 0 ? 1 : -1;
+	const minSign = cross >= 0 ? 1 : -1;
 
 	return { distance: minSign * minDist, t: minT };
+}
+
+/**
+ * Compute unsigned distance from point to cubic bezier curve (faster version)
+ */
+function unsignedDistanceToCubic(
+	px: number,
+	py: number,
+	p0: Point,
+	p1: Point,
+	p2: Point,
+	p3: Point,
+): number {
+	let minDist = Math.min(
+		Math.sqrt((p0.x - px) ** 2 + (p0.y - py) ** 2),
+		Math.sqrt((p3.x - px) ** 2 + (p3.y - py) ** 2),
+	);
+
+	for (let i = 1; i < 6; i++) {
+		let t = i / 6;
+		for (let iter = 0; iter < 3; iter++) {
+			const ti = 1 - t;
+			const ti2 = ti * ti;
+			const ti3 = ti2 * ti;
+			const t2 = t * t;
+			const t3 = t2 * t;
+			const bx = ti3 * p0.x + 3 * ti2 * t * p1.x + 3 * ti * t2 * p2.x + t3 * p3.x;
+			const by = ti3 * p0.y + 3 * ti2 * t * p1.y + 3 * ti * t2 * p2.y + t3 * p3.y;
+			const dx =
+				3 * ti2 * (p1.x - p0.x) +
+				6 * ti * t * (p2.x - p1.x) +
+				3 * t2 * (p3.x - p2.x);
+			const dy =
+				3 * ti2 * (p1.y - p0.y) +
+				6 * ti * t * (p2.y - p1.y) +
+				3 * t2 * (p3.y - p2.y);
+			const ddx =
+				6 * ti * (p2.x - 2 * p1.x + p0.x) + 6 * t * (p3.x - 2 * p2.x + p1.x);
+			const ddy =
+				6 * ti * (p2.y - 2 * p1.y + p0.y) + 6 * t * (p3.y - 2 * p2.y + p1.y);
+			const vx = bx - px;
+			const vy = by - py;
+			const df = dx * dx + dy * dy + vx * ddx + vy * ddy;
+			if (Math.abs(df) < 1e-10) break;
+			t = Math.max(0, Math.min(1, t - (vx * dx + vy * dy) / df));
+		}
+		const ti = 1 - t;
+		const ti2 = ti * ti;
+		const ti3 = ti2 * ti;
+		const t2 = t * t;
+		const t3 = t2 * t;
+		const dist = Math.sqrt(
+			(ti3 * p0.x + 3 * ti2 * t * p1.x + 3 * ti * t2 * p2.x + t3 * p3.x - px) ** 2 +
+				(ti3 * p0.y + 3 * ti2 * t * p1.y + 3 * ti * t2 * p2.y + t3 * p3.y - py) ** 2,
+		);
+		if (dist < minDist) minDist = dist;
+	}
+	return minDist;
 }
 
 /**
@@ -548,6 +628,10 @@ function extractEdges(
 							p0: currentPoint,
 							p1,
 							color: 0,
+							minX: Math.min(currentPoint.x, p1.x),
+							maxX: Math.max(currentPoint.x, p1.x),
+							minY: Math.min(currentPoint.y, p1.y),
+							maxY: Math.max(currentPoint.y, p1.y),
 						});
 					}
 					currentPoint = p1;
@@ -564,6 +648,10 @@ function extractEdges(
 						p1,
 						p2,
 						color: 0,
+						minX: Math.min(currentPoint.x, p1.x, p2.x),
+						maxX: Math.max(currentPoint.x, p1.x, p2.x),
+						minY: Math.min(currentPoint.y, p1.y, p2.y),
+						maxY: Math.max(currentPoint.y, p1.y, p2.y),
 					});
 					currentPoint = p2;
 				}
@@ -581,6 +669,10 @@ function extractEdges(
 						p2,
 						p3,
 						color: 0,
+						minX: Math.min(currentPoint.x, p1.x, p2.x, p3.x),
+						maxX: Math.max(currentPoint.x, p1.x, p2.x, p3.x),
+						minY: Math.min(currentPoint.y, p1.y, p2.y, p3.y),
+						maxY: Math.max(currentPoint.y, p1.y, p2.y, p3.y),
 					});
 					currentPoint = p3;
 				}

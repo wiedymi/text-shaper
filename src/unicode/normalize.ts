@@ -17,15 +17,47 @@ export enum NormalizationMode {
 /**
  * Canonical Combining Class (ccc) for combining marks
  * Based on Unicode 15.0
+ *
+ * Optimized with early-exit for common non-combining ranges:
+ * - Basic Latin (0000-007F)
+ * - Latin-1 Supplement (0080-00FF)
+ * - Latin Extended-A/B (0100-024F)
+ * - IPA Extensions (0250-02AF)
+ * - Spacing Modifier Letters (02B0-02FF) - most are spacing
+ * - Greek and Coptic (0370-03FF) - base chars only
+ * - Cyrillic (0400-04FF)
+ * - Cyrillic Supplement (0500-052F)
+ * - CJK ranges (3000+)
+ * - Hangul (AC00-D7AF)
  */
 export function getCombiningClass(cp: number): number {
-	// Common combining classes
-	// 0 = Not_Reordered (base characters, most characters)
-	// 1 = Overlay
-	// 7 = Nukta
-	// 8 = Kana_Voicing
-	// 9 = Virama
-	// 200-240 = Various marks
+	// FAST PATH: Most common scripts have no combining marks
+	// Check ranges that are guaranteed CCC 0 first
+
+	// Basic Latin, Latin-1, Latin Extended (0000-024F) - no combining marks
+	if (cp < 0x0300) return 0;
+
+	// Greek base characters (0370-03FF) and Cyrillic (0400-052F)
+	// Skip the combining diacritical marks range (0300-036F)
+	if (cp >= 0x0370 && cp < 0x0530) return 0;
+
+	// CJK and East Asian scripts (3000+) - no combining marks in base ranges
+	if (cp >= 0x3000) {
+		// Hangul syllables (AC00-D7AF) - precomposed, no combining
+		if (cp >= 0xac00 && cp <= 0xd7af) return 0;
+		// CJK Unified Ideographs and related (4E00-9FFF, 3400-4DBF, etc.)
+		if (cp >= 0x4e00 && cp <= 0x9fff) return 0;
+		if (cp >= 0x3400 && cp <= 0x4dbf) return 0;
+		// Hiragana/Katakana (3040-30FF) - base chars
+		if (cp >= 0x3040 && cp < 0x3099) return 0;
+		if (cp >= 0x309b && cp <= 0x30ff) return 0;
+		// Bopomofo, CJK symbols
+		if (cp >= 0x3100 && cp <= 0x312f) return 0;
+		if (cp >= 0x3200 && cp <= 0x32ff) return 0;
+	}
+
+	// General combining marks (0300-036F) - check this range
+	if (cp >= 0x0300 && cp <= 0x036f) return getLatinCcc(cp);
 
 	// Hebrew combining marks (0591-05BD, 05BF, 05C1-05C2, 05C4-05C5, 05C7)
 	if (cp >= 0x0591 && cp <= 0x05bd) return getHebrewCcc(cp);
@@ -114,8 +146,7 @@ export function getCombiningClass(cp: number): number {
 	if (cp >= 0x302a && cp <= 0x302f) return getHangulCcc(cp);
 	if (cp >= 0x3099 && cp <= 0x309a) return 8; // Kana voicing
 
-	// General combining marks (0300-036F)
-	if (cp >= 0x0300 && cp <= 0x036f) return getLatinCcc(cp);
+	// Note: General combining marks (0300-036F) already handled in fast path above
 
 	// Combining Diacritical Marks Extended (1AB0-1AFF)
 	if (cp >= 0x1ab0 && cp <= 0x1aff) return getCdmeClass(cp);

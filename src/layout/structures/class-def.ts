@@ -61,9 +61,9 @@ class ClassDefFormat2 implements ClassDef {
 			totalGlyphs += range.endGlyphId - range.startGlyphId + 1;
 		}
 
-		// Use hash map for small-medium tables (< 2000 glyphs) for O(1) lookup
-		// Larger tables stick with binary search to avoid memory overhead
-		if (totalGlyphs < 2000) {
+		// Use hash map for small-large tables (< 10000 glyphs) for O(1) lookup
+		// Very large tables stick with binary search to avoid memory overhead
+		if (totalGlyphs < 10000) {
 			this.glyphMap = new Map();
 			for (let i = 0; i < ranges.length; i++) {
 				const range = ranges[i]!;
