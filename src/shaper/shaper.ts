@@ -96,6 +96,7 @@ import {
 } from "./fallback.ts";
 import {
 	createShapePlan,
+	getOrCreateShapePlan,
 	type ShapeFeature,
 	type ShapePlan,
 } from "./shape-plan.ts";
@@ -300,7 +301,8 @@ export function shapeInto(
 	// Get axis coordinates from face for feature variations
 	const axisCoords =
 		face.normalizedCoords.length > 0 ? face.normalizedCoords : null;
-	const plan = createShapePlan(
+	// Use cached shape plan for repeated shaping with same parameters
+	const plan = getOrCreateShapePlan(
 		font,
 		script,
 		language,
@@ -315,9 +317,11 @@ export function shapeInto(
 	glyphBuffer.script = script;
 	glyphBuffer.language = language;
 
-	// Use pooled object initialization
-	glyphBuffer.initFromCodepoints(buffer.codepoints, buffer.clusters, (cp) =>
-		font.glyphId(cp),
+	// Use pooled object initialization - inline glyphId lookup to avoid closure
+	glyphBuffer.initFromCodepointsWithFont(
+		buffer.codepoints,
+		buffer.clusters,
+		font,
 	);
 
 	// Pre-shaping: Apply complex script analysis

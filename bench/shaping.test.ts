@@ -1,6 +1,6 @@
 import { describe, test, beforeAll, expect } from "bun:test"
 import { measure, printComparison, loadFontBuffer, loadTextFile, type BenchResult } from "./utils"
-import { Font, shape, UnicodeBuffer } from "../src"
+import { Font, shape, shapeInto, UnicodeBuffer, GlyphBuffer } from "../src"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 const TEXTS_DIR = "reference/rustybuzz/benches/texts"
@@ -214,12 +214,15 @@ describe("Text Shaping Benchmark", () => {
 
 					const results: BenchResult[] = []
 
-					// text-shaper
+					// text-shaper with shapeInto (buffer reuse)
+					const uBuffer = new UnicodeBuffer()
+					const gBuffer = GlyphBuffer.withCapacity(256)
 					results.push(
 						measure("text-shaper", () => {
-							const buffer = new UnicodeBuffer()
-							buffer.addStr(text)
-							shape(font, buffer)
+							uBuffer.clear()
+							uBuffer.addStr(text)
+							gBuffer.reset()
+							shapeInto(font, uBuffer, gBuffer)
 						}),
 					)
 
@@ -268,12 +271,15 @@ describe("Text Shaping Benchmark", () => {
 
 					const results: BenchResult[] = []
 
-					// text-shaper
+					// text-shaper with shapeInto (buffer reuse)
+					const uBuffer = new UnicodeBuffer()
+					const gBuffer = GlyphBuffer.withCapacity(256)
 					results.push(
 						measure("text-shaper", () => {
-							const buffer = new UnicodeBuffer()
-							buffer.addStr(text)
-							shape(font, buffer)
+							uBuffer.clear()
+							uBuffer.addStr(text)
+							gBuffer.reset()
+							shapeInto(font, uBuffer, gBuffer)
 						}),
 					)
 
@@ -309,11 +315,14 @@ describe("Text Shaping Benchmark", () => {
 
 			const results: BenchResult[] = []
 
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(512)
 			results.push(
 				measure("text-shaper", () => {
-					const buffer = new UnicodeBuffer()
-					buffer.addStr(text)
-					shape(font, buffer)
+					uBuffer.clear()
+					uBuffer.addStr(text)
+					gBuffer.reset()
+					shapeInto(font, uBuffer, gBuffer)
 				}),
 			)
 
@@ -344,11 +353,14 @@ describe("Text Shaping Benchmark", () => {
 
 			const results: BenchResult[] = []
 
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(2048)
 			results.push(
 				measure("text-shaper", () => {
-					const buffer = new UnicodeBuffer()
-					buffer.addStr(text)
-					shape(font, buffer)
+					uBuffer.clear()
+					uBuffer.addStr(text)
+					gBuffer.reset()
+					shapeInto(font, uBuffer, gBuffer)
 				}),
 			)
 
@@ -391,11 +403,14 @@ describe("Text Shaping Benchmark", () => {
 
 			const results: BenchResult[] = []
 
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(1024)
 			results.push(
 				measure("text-shaper", () => {
-					const buffer = new UnicodeBuffer()
-					buffer.addStr(text)
-					shape(variableFont, buffer)
+					uBuffer.clear()
+					uBuffer.addStr(text)
+					gBuffer.reset()
+					shapeInto(variableFont, uBuffer, gBuffer)
 				}),
 			)
 

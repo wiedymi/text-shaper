@@ -1,3 +1,4 @@
+import type { Font } from "../font/font.ts";
 import {
 	Direction,
 	type GlyphId,
@@ -71,11 +72,16 @@ export class GlyphBuffer {
 		getGlyphId: (codepoint: number) => number,
 	): void {
 		const len = codepoints.length;
+		const poolLen = this._infoPool.length;
 
-		// Expand pools if needed
-		while (this._infoPool.length < len) {
-			this._infoPool.push({ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 });
-			this._posPool.push({ xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 });
+		// Expand pools if needed - batch allocate for efficiency
+		if (poolLen < len) {
+			// Pre-allocate to avoid repeated push calls
+			const needed = len - poolLen;
+			for (let i = 0; i < needed; i++) {
+				this._infoPool.push({ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 });
+				this._posPool.push({ xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 });
+			}
 		}
 
 		// Reuse pooled objects
@@ -86,6 +92,52 @@ export class GlyphBuffer {
 			const codepoint = codepoints[i]!;
 			const info = this._infoPool[i]!;
 			info.glyphId = getGlyphId(codepoint);
+			info.cluster = clusters[i]!;
+			info.mask = 0xffffffff;
+			info.codepoint = codepoint;
+			this.infos[i] = info;
+
+			const pos = this._posPool[i]!;
+			pos.xAdvance = 0;
+			pos.yAdvance = 0;
+			pos.xOffset = 0;
+			pos.yOffset = 0;
+			this.positions[i] = pos;
+		}
+
+		this._deleted = null;
+		this._deletedCount = 0;
+	}
+
+	/**
+	 * Initialize from codepoints with direct font access (no closure).
+	 * This is faster than initFromCodepoints for hot paths.
+	 */
+	initFromCodepointsWithFont(
+		codepoints: ArrayLike<number>,
+		clusters: ArrayLike<number>,
+		font: Font,
+	): void {
+		const len = codepoints.length;
+		const poolLen = this._infoPool.length;
+
+		// Expand pools if needed - batch allocate for efficiency
+		if (poolLen < len) {
+			const needed = len - poolLen;
+			for (let i = 0; i < needed; i++) {
+				this._infoPool.push({ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 });
+				this._posPool.push({ xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 });
+			}
+		}
+
+		// Reuse pooled objects
+		this.infos.length = len;
+		this.positions.length = len;
+
+		for (let i = 0; i < len; i++) {
+			const codepoint = codepoints[i]!;
+			const info = this._infoPool[i]!;
+			info.glyphId = font.glyphId(codepoint);
 			info.cluster = clusters[i]!;
 			info.mask = 0xffffffff;
 			info.codepoint = codepoint;

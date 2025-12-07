@@ -562,7 +562,12 @@ export {
 	type ShapePlan,
 } from "./shaper/shape-plan.ts";
 // Shaper
-export { type FontLike, type ShapeOptions, shape } from "./shaper/shaper.ts";
+export {
+	type FontLike,
+	type ShapeOptions,
+	shape,
+	shapeInto,
+} from "./shaper/shaper.ts";
 export * from "./types.ts";
 // BiDi processing (UAX #9)
 export {
