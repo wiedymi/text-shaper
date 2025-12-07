@@ -16,38 +16,38 @@ const benchmarks: Benchmark[] = [
 	{
 		title: "Font loading",
 		results: [
-			{ name: "text-shaper", value: 225100, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 59180, unit: "ops/s" },
-			{ name: "opentype.js", value: 217, unit: "ops/s" },
+			{ name: "text-shaper", value: 226910, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 56550, unit: "ops/s" },
+			{ name: "opentype.js", value: 218, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Glyph path extraction",
 		results: [
-			{ name: "text-shaper", value: 881110, unit: "ops/s" },
-			{ name: "opentype.js", value: 84600, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 48660, unit: "ops/s" },
+			{ name: "text-shaper", value: 870820, unit: "ops/s" },
+			{ name: "opentype.js", value: 91000, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 43420, unit: "ops/s" },
 		],
 	},
 	{
 		title: "English shaping (701 chars)",
 		results: [
-			{ name: "harfbuzzjs", value: 7520, unit: "ops/s" },
-			{ name: "text-shaper", value: 4950, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 7370, unit: "ops/s" },
+			{ name: "text-shaper", value: 4870, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Myanmar shaping (729 chars)",
 		results: [
-			{ name: "text-shaper", value: 8350, unit: "ops/s" },
+			{ name: "text-shaper", value: 9530, unit: "ops/s" },
 			{ name: "harfbuzzjs", value: 1020, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Rasterization @ 96px",
 		results: [
-			{ name: "text-shaper", value: 12430, unit: "ops/s" },
-			{ name: "freetype2", value: 2570, unit: "ops/s" },
+			{ name: "text-shaper", value: 11110, unit: "ops/s" },
+			{ name: "freetype2", value: 2630, unit: "ops/s" },
 		],
 	},
 ]

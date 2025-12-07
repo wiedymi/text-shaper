@@ -1476,6 +1476,8 @@ function applyGposLookup(
 			applyCursivePosLookup(font, buffer, lookup, hasMarks);
 			break;
 		case GposLookupType.MarkToBase:
+			// Skip mark-to-base if no marks in buffer - O(1) check saves full buffer scan
+			if (!hasMarks) break;
 			applyMarkBasePosLookup(
 				font,
 				buffer,
@@ -1485,6 +1487,8 @@ function applyGposLookup(
 			);
 			break;
 		case GposLookupType.MarkToLigature:
+			// Skip mark-to-ligature if no marks in buffer
+			if (!hasMarks) break;
 			applyMarkLigaturePosLookup(
 				font,
 				buffer,
@@ -1494,6 +1498,8 @@ function applyGposLookup(
 			);
 			break;
 		case GposLookupType.MarkToMark:
+			// Skip mark-to-mark if no marks in buffer
+			if (!hasMarks) break;
 			applyMarkMarkPosLookup(font, buffer, lookup, glyphClassCache);
 			break;
 		case GposLookupType.Context:
@@ -1531,11 +1537,46 @@ function applySinglePosLookup(
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
-
+	const digest = lookup.digest;
 	const subtables = lookup.subtables;
+
+	// FAST PATH: No skip checking needed (no flags, no GDEF, or no marks in buffer)
+	// IgnoreMarks (0x10) is useless if there are no marks
+	const needsSkip = hasMarks && lookup.flag !== 0 && font.gdef !== null;
+
+	// Optimized fast path: single subtable format 1 (common case)
+	if (subtables.length === 1 && !needsSkip) {
+		const subtable = subtables[0]!;
+		if (subtable.format === 1 && subtable.value) {
+			const value = subtable.value;
+			const hasX = value.xPlacement !== undefined && value.xPlacement !== 0;
+			const hasY = value.yPlacement !== undefined && value.yPlacement !== 0;
+			const hasXAdv = value.xAdvance !== undefined && value.xAdvance !== 0;
+			const hasYAdv = value.yAdvance !== undefined && value.yAdvance !== 0;
+
+			// Skip entirely if all values are zero
+			if (!hasX && !hasY && !hasXAdv && !hasYAdv) return;
+
+			for (let i = 0; i < len; i++) {
+				const info = infos[i]!;
+				// Fast digest check before expensive Coverage lookup
+				if (!digest.mayHave(info.glyphId)) continue;
+				if (subtable.coverage.get(info.glyphId) === null) continue;
+				const pos = positions[i]!;
+				if (hasX) pos.xOffset += value.xPlacement!;
+				if (hasY) pos.yOffset += value.yPlacement!;
+				if (hasXAdv) pos.xAdvance += value.xAdvance!;
+				if (hasYAdv) pos.yAdvance += value.yAdvance!;
+			}
+			return;
+		}
+	}
+
 	// Helper to apply single positioning at index i
 	const applySingle = (i: number) => {
 		const info = infos[i]!;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) return;
 		const pos = positions[i];
 		if (!pos) return;
 
@@ -1558,9 +1599,6 @@ function applySinglePosLookup(
 		}
 	};
 
-	// FAST PATH: No skip checking needed (no flags, no GDEF, or no marks in buffer)
-	// IgnoreMarks (0x10) is useless if there are no marks
-	const needsSkip = hasMarks && lookup.flag !== 0 && font.gdef !== null;
 	if (!needsSkip) {
 		for (let i = 0; i < len; i++) {
 			applySingle(i);
@@ -1694,9 +1732,17 @@ function applyMarkBasePosLookup(
 	glyphClassCache: GlyphClassCache,
 	baseIndexArray: Int16Array,
 ): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const markInfo = buffer.infos[i];
+	const digest = lookup.digest;
+	const infos = buffer.infos;
+	const positions = buffer.positions;
+	const subtables = lookup.subtables;
+
+	for (let i = 0; i < infos.length; i++) {
+		const markInfo = infos[i];
 		if (!markInfo) continue;
+
+		// Fast digest check before expensive glyph class lookup
+		if (!digest.mayHave(markInfo.glyphId)) continue;
 
 		// Must be a mark glyph
 		if (
@@ -1709,10 +1755,9 @@ function applyMarkBasePosLookup(
 		const baseIndex = baseIndexArray[i];
 		if (baseIndex < 0) continue;
 
-		const baseInfo = buffer.infos[baseIndex];
+		const baseInfo = infos[baseIndex];
 		if (!baseInfo) continue;
 
-		const subtables = lookup.subtables;
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
 			const markCoverageIndex = subtable.markCoverage.get(markInfo.glyphId);
@@ -1731,8 +1776,8 @@ function applyMarkBasePosLookup(
 			const markAnchor = markRecord.markAnchor;
 
 			// Position mark relative to base
-			const markPos = buffer.positions[i];
-			const basePos = buffer.positions[baseIndex];
+			const markPos = positions[i];
+			const basePos = positions[baseIndex];
 			if (!markPos || !basePos) continue;
 
 			markPos.xOffset =
@@ -1756,9 +1801,17 @@ function applyMarkLigaturePosLookup(
 	glyphClassCache: GlyphClassCache,
 	baseIndexArray: Int16Array,
 ): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const markInfo = buffer.infos[i];
+	const digest = lookup.digest;
+	const infos = buffer.infos;
+	const positions = buffer.positions;
+	const subtables = lookup.subtables;
+
+	for (let i = 0; i < infos.length; i++) {
+		const markInfo = infos[i];
 		if (!markInfo) continue;
+
+		// Fast digest check before expensive glyph class lookup
+		if (!digest.mayHave(markInfo.glyphId)) continue;
 
 		if (
 			getCachedGlyphClass(font, markInfo.glyphId, glyphClassCache) !==
@@ -1770,7 +1823,7 @@ function applyMarkLigaturePosLookup(
 		const ligIndex = baseIndexArray[i];
 		if (ligIndex < 0) continue;
 
-		const ligInfo = buffer.infos[ligIndex];
+		const ligInfo = infos[ligIndex];
 		if (!ligInfo) continue;
 
 		// Must be a ligature
@@ -1783,7 +1836,7 @@ function applyMarkLigaturePosLookup(
 		// Count intervening marks to determine component index
 		let componentIndex = 0;
 		for (let j = ligIndex + 1; j < i; j++) {
-			const midInfo = buffer.infos[j];
+			const midInfo = infos[j];
 			if (
 				midInfo &&
 				getCachedGlyphClass(font, midInfo.glyphId, glyphClassCache) ===
@@ -1793,7 +1846,6 @@ function applyMarkLigaturePosLookup(
 			}
 		}
 
-		const subtables = lookup.subtables;
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
 			const markCoverageIndex = subtable.markCoverage.get(markInfo.glyphId);
@@ -1818,8 +1870,8 @@ function applyMarkLigaturePosLookup(
 			if (!ligAnchor) continue;
 
 			const markAnchor = markRecord.markAnchor;
-			const markPos = buffer.positions[i];
-			const ligPos = buffer.positions[ligIndex];
+			const markPos = positions[i];
+			const ligPos = positions[ligIndex];
 			if (!markPos || !ligPos) continue;
 
 			markPos.xOffset =
@@ -1840,9 +1892,17 @@ function applyMarkMarkPosLookup(
 	lookup: MarkMarkPosLookup,
 	glyphClassCache: GlyphClassCache,
 ): void {
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const mark1Info = buffer.infos[i];
+	const digest = lookup.digest;
+	const infos = buffer.infos;
+	const positions = buffer.positions;
+	const subtables = lookup.subtables;
+
+	for (let i = 0; i < infos.length; i++) {
+		const mark1Info = infos[i];
 		if (!mark1Info) continue;
+
+		// Fast digest check before expensive glyph class lookup
+		if (!digest.mayHave(mark1Info.glyphId)) continue;
 
 		if (
 			getCachedGlyphClass(font, mark1Info.glyphId, glyphClassCache) !==
@@ -1853,7 +1913,7 @@ function applyMarkMarkPosLookup(
 		// Find preceding mark (mark2) - must be immediately preceding
 		let mark2Index = -1;
 		if (i > 0) {
-			const prevInfo = buffer.infos[i - 1];
+			const prevInfo = infos[i - 1];
 			if (prevInfo) {
 				const prevClass = getCachedGlyphClass(
 					font,
@@ -1867,10 +1927,9 @@ function applyMarkMarkPosLookup(
 		}
 
 		if (mark2Index < 0) continue;
-		const mark2Info = buffer.infos[mark2Index];
+		const mark2Info = infos[mark2Index];
 		if (!mark2Info) continue;
 
-		const subtables = lookup.subtables;
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
 			const mark1CoverageIndex = subtable.mark1Coverage.get(mark1Info.glyphId);
@@ -1887,8 +1946,8 @@ function applyMarkMarkPosLookup(
 			if (!mark2Anchor) continue;
 
 			const mark1Anchor = mark1Record.markAnchor;
-			const mark1Pos = buffer.positions[i];
-			const mark2Pos = buffer.positions[mark2Index];
+			const mark1Pos = positions[i];
+			const mark2Pos = positions[mark2Index];
 			if (!mark1Pos || !mark2Pos) continue;
 
 			mark1Pos.xOffset =
