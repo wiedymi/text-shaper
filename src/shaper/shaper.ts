@@ -316,10 +316,8 @@ export function shapeInto(
 	glyphBuffer.language = language;
 
 	// Use pooled object initialization
-	glyphBuffer.initFromCodepoints(
-		buffer.codepoints,
-		buffer.clusters,
-		(cp) => font.glyphId(cp),
+	glyphBuffer.initFromCodepoints(buffer.codepoints, buffer.clusters, (cp) =>
+		font.glyphId(cp),
 	);
 
 	// Pre-shaping: Apply complex script analysis
@@ -1118,7 +1116,7 @@ function matchChainingFormat1(
 	if (!chainRuleSet) return null;
 
 	for (let r = 0; r < chainRuleSet.length; r++) {
-		const rule = chainRuleSet[r]!
+		const rule = chainRuleSet[r]!;
 		// Check backtrack (reversed order, before startIndex)
 		if (
 			!matchGlyphSequenceBackward(
@@ -2151,7 +2149,7 @@ function matchChainingContextPosFormat1(
 	if (!chainRuleSet) return null;
 
 	for (let r = 0; r < chainRuleSet.length; r++) {
-		const rule = chainRuleSet[r]!
+		const rule = chainRuleSet[r]!;
 		// Check backtrack (reversed order, before startIndex)
 		if (
 			!matchGlyphSequenceBackward(

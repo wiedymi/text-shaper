@@ -180,15 +180,16 @@ function createShapePlanInternal(
 	const enabledFeatures = new Set<Tag>();
 
 	// Add default features
-	for (const feat of DEFAULT_GSUB_FEATURES) {
-		enabledFeatures.add(tag(feat));
+	for (let i = 0; i < DEFAULT_GSUB_FEATURES.length; i++) {
+		enabledFeatures.add(tag(DEFAULT_GSUB_FEATURES[i]!));
 	}
-	for (const feat of DEFAULT_GPOS_FEATURES) {
-		enabledFeatures.add(tag(feat));
+	for (let i = 0; i < DEFAULT_GPOS_FEATURES.length; i++) {
+		enabledFeatures.add(tag(DEFAULT_GPOS_FEATURES[i]!));
 	}
 
 	// Apply user features
-	for (const feat of userFeatures) {
+	for (let i = 0; i < userFeatures.length; i++) {
+		const feat = userFeatures[i]!;
 		if (feat.enabled) {
 			enabledFeatures.add(feat.tag);
 		} else {

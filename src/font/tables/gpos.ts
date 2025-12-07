@@ -587,7 +587,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseSinglePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Single, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GposLookupType.Single,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GposLookupType.Pair: {
@@ -595,7 +600,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parsePairPos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Pair, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GposLookupType.Pair,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GposLookupType.Cursive: {
@@ -603,7 +613,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseCursivePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Cursive, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GposLookupType.Cursive,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GposLookupType.MarkToBase: {
@@ -611,7 +626,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseMarkBasePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.MarkToBase, ...baseProps, subtables, digest: buildMarkDigest(subtables) };
+			return {
+				type: GposLookupType.MarkToBase,
+				...baseProps,
+				subtables,
+				digest: buildMarkDigest(subtables),
+			};
 		}
 
 		case GposLookupType.MarkToLigature: {
@@ -619,7 +639,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseMarkLigaturePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.MarkToLigature, ...baseProps, subtables, digest: buildMarkDigest(subtables) };
+			return {
+				type: GposLookupType.MarkToLigature,
+				...baseProps,
+				subtables,
+				digest: buildMarkDigest(subtables),
+			};
 		}
 
 		case GposLookupType.MarkToMark: {
@@ -632,7 +657,12 @@ function parseExtensionLookup(
 			for (const st of subtables) {
 				digest.addCoverage(st.mark1Coverage);
 			}
-			return { type: GposLookupType.MarkToMark, ...baseProps, subtables, digest };
+			return {
+				type: GposLookupType.MarkToMark,
+				...baseProps,
+				subtables,
+				digest,
+			};
 		}
 
 		case GposLookupType.Context: {
@@ -662,7 +692,12 @@ function parseExtensionLookup(
 					digest.addCoverage(st.inputCoverages[0]);
 				}
 			}
-			return { type: GposLookupType.ChainingContext, ...baseProps, subtables, digest };
+			return {
+				type: GposLookupType.ChainingContext,
+				...baseProps,
+				subtables,
+				digest,
+			};
 		}
 
 		default:

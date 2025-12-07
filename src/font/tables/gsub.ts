@@ -288,7 +288,10 @@ function parseGsubLookup(
 			return parseExtensionLookup(reader, subtableOffsets, baseProps);
 
 		case GsubLookupType.ReverseChainingSingle: {
-			const subtables = parseReverseChainingSingleSubst(reader, subtableOffsets);
+			const subtables = parseReverseChainingSingleSubst(
+				reader,
+				subtableOffsets,
+			);
 			return {
 				type: GsubLookupType.ReverseChainingSingle,
 				...baseProps,
@@ -527,7 +530,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseSingleSubst(ext.reader, [0]));
 			}
-			return { type: GsubLookupType.Single, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GsubLookupType.Single,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GsubLookupType.Multiple: {
@@ -535,7 +543,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseMultipleSubst(ext.reader, [0]));
 			}
-			return { type: GsubLookupType.Multiple, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GsubLookupType.Multiple,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GsubLookupType.Alternate: {
@@ -543,7 +556,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseAlternateSubst(ext.reader, [0]));
 			}
-			return { type: GsubLookupType.Alternate, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GsubLookupType.Alternate,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GsubLookupType.Ligature: {
@@ -551,7 +569,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseLigatureSubst(ext.reader, [0]));
 			}
-			return { type: GsubLookupType.Ligature, ...baseProps, subtables, digest: buildDigest(subtables) };
+			return {
+				type: GsubLookupType.Ligature,
+				...baseProps,
+				subtables,
+				digest: buildDigest(subtables),
+			};
 		}
 
 		case GsubLookupType.Context: {
@@ -581,7 +604,12 @@ function parseExtensionLookup(
 					digest.addCoverage(st.inputCoverages[0]);
 				}
 			}
-			return { type: GsubLookupType.ChainingContext, ...baseProps, subtables, digest };
+			return {
+				type: GsubLookupType.ChainingContext,
+				...baseProps,
+				subtables,
+				digest,
+			};
 		}
 
 		case GsubLookupType.ReverseChainingSingle: {
