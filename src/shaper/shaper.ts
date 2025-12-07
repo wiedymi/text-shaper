@@ -122,9 +122,19 @@ function getFont(fontLike: FontLike): Font {
 	return fontLike instanceof Face ? fontLike.font : fontLike;
 }
 
-/** Get Face (create if needed) */
+/** Cached Face per Font for avoiding allocation overhead */
+const _faceCache = new WeakMap<Font, Face>();
+
+/** Get Face (cached for non-variable fonts) */
 function getFace(fontLike: FontLike): Face {
-	return fontLike instanceof Face ? fontLike : new Face(fontLike);
+	if (fontLike instanceof Face) return fontLike;
+	// Cache Face per Font to avoid allocation per shape
+	let face = _faceCache.get(fontLike);
+	if (!face) {
+		face = new Face(fontLike);
+		_faceCache.set(fontLike, face);
+	}
+	return face;
 }
 
 /**
@@ -202,16 +212,18 @@ function buildNextNonSkipArray(skip: SkipMarkers, length: number): Int16Array {
 /**
  * Pre-computed base glyph index array for O(1) mark-to-base lookup.
  * baseIndex[i] = index of the base/ligature glyph for mark at position i, or -1.
+ * Also returns whether any marks were found in the buffer.
  */
 function buildBaseIndexArray(
 	buffer: GlyphBuffer,
 	glyphClassCache: GlyphClassCache,
 	font: Font,
-): Int16Array {
+): { baseIndex: Int16Array; hasMarks: boolean } {
 	const baseIndex = new Int16Array(buffer.infos.length);
 	baseIndex.fill(-1);
 
 	let lastBaseIndex = -1;
+	let hasMarks = false;
 
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const info = buffer.infos[i];
@@ -226,10 +238,26 @@ function buildBaseIndexArray(
 		} else if (cls === GlyphClass.Mark) {
 			// This is a mark, point to the last base
 			baseIndex[i] = lastBaseIndex;
+			hasMarks = true;
 		}
 	}
 
-	return baseIndex;
+	return { baseIndex, hasMarks };
+}
+
+// Reusable GlyphBuffer pool for shapeInto
+const _glyphBufferPool: GlyphBuffer[] = [];
+const MAX_POOL_SIZE = 8;
+
+/**
+ * Return a GlyphBuffer to the pool for reuse.
+ * Call this when done with a buffer from shape() to reduce allocations.
+ */
+export function releaseBuffer(buffer: GlyphBuffer): void {
+	if (_glyphBufferPool.length < MAX_POOL_SIZE) {
+		buffer.reset();
+		_glyphBufferPool.push(buffer);
+	}
 }
 
 /**
@@ -241,6 +269,26 @@ export function shape(
 	buffer: UnicodeBuffer,
 	options: ShapeOptions = {},
 ): GlyphBuffer {
+	// Try to get a pooled buffer
+	let glyphBuffer = _glyphBufferPool.pop();
+	if (!glyphBuffer) {
+		glyphBuffer = GlyphBuffer.withCapacity(64);
+	}
+
+	shapeInto(fontLike, buffer, glyphBuffer, options);
+	return glyphBuffer;
+}
+
+/**
+ * Shape text into an existing GlyphBuffer (zero-allocation hot path).
+ * Use this for maximum performance when shaping repeatedly.
+ */
+export function shapeInto(
+	fontLike: FontLike,
+	buffer: UnicodeBuffer,
+	glyphBuffer: GlyphBuffer,
+	options: ShapeOptions = {},
+): void {
 	const font = getFont(fontLike);
 	const face = getFace(fontLike);
 
@@ -261,29 +309,18 @@ export function shape(
 		axisCoords,
 	);
 
-	const glyphBuffer = new GlyphBuffer();
+	// Reset and reuse buffer
+	glyphBuffer.reset();
 	glyphBuffer.direction = buffer.direction;
 	glyphBuffer.script = script;
 	glyphBuffer.language = language;
 
-	// Convert codepoints to initial glyph infos (pre-allocate for better performance)
-	const codepoints = buffer.codepoints;
-	const clusters = buffer.clusters;
-	const len = codepoints.length;
-	const infos: GlyphInfo[] = new Array(len);
-	for (let i = 0; i < len; i++) {
-		const codepoint = codepoints[i]!;
-		const cluster = clusters[i]!;
-		const glyphId = font.glyphId(codepoint);
-		infos[i] = {
-			glyphId,
-			cluster,
-			mask: 0xffffffff,
-			codepoint,
-		};
-	}
-
-	glyphBuffer.initFromInfos(infos);
+	// Use pooled object initialization
+	glyphBuffer.initFromCodepoints(
+		buffer.codepoints,
+		buffer.clusters,
+		(cp) => font.glyphId(cp),
+	);
 
 	// Pre-shaping: Apply complex script analysis
 	preShape(glyphBuffer, script);
@@ -318,8 +355,6 @@ export function shape(
 	if (direction === "rtl") {
 		glyphBuffer.reverse();
 	}
-
-	return glyphBuffer;
 }
 
 // Pre-shaping for complex scripts
@@ -409,9 +444,10 @@ function detectAndApplyComplexShaping(infos: GlyphInfo[]): void {
 	if (infos.length === 0) return;
 
 	// Sample first few codepoints to detect script
-	const sample = infos.slice(0, Math.min(10, infos.length));
+	const sampleLen = Math.min(10, infos.length);
 
-	for (const info of sample) {
+	for (let s = 0; s < sampleLen; s++) {
+		const info = infos[s]!;
 		const cp = info.codepoint;
 
 		// Arabic range
@@ -482,8 +518,9 @@ function detectAndApplyComplexShaping(infos: GlyphInfo[]): void {
 // GSUB application
 
 function applyGsub(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
-	for (const { lookup } of plan.gsubLookups) {
-		applyGsubLookup(font, buffer, lookup, plan);
+	const lookups = plan.gsubLookups;
+	for (let i = 0; i < lookups.length; i++) {
+		applyGsubLookup(font, buffer, lookups[i]!.lookup, plan);
 	}
 	// Compact buffer after all GSUB lookups to remove marked-deleted glyphs
 	buffer.compact();
@@ -607,7 +644,9 @@ function applyMultipleSubstLookup(
 		}
 
 		let applied = false;
-		for (const subtable of lookup.subtables) {
+		const subtables = lookup.subtables;
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const coverageIndex = subtable.coverage.get(info.glyphId);
 			if (coverageIndex === null) continue;
 
@@ -654,17 +693,21 @@ function applyAlternateSubstLookup(
 ): void {
 	// Alternate substitution allows selecting from multiple alternates
 	// By default, use the first alternate (index 0)
-	for (const info of buffer.infos) {
+	const infos = buffer.infos;
+	const subtables = lookup.subtables;
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const coverageIndex = subtable.coverage.get(info.glyphId);
 			if (coverageIndex === null) continue;
 
 			const alternateSet = subtable.alternateSets[coverageIndex];
 			if (!alternateSet || alternateSet.length === 0) continue;
 
-			const [firstAlternate] = alternateSet;
+			const firstAlternate = alternateSet[0];
 			if (firstAlternate === undefined) continue;
 
 			// Use first alternate by default
@@ -775,12 +818,14 @@ function applyContextSubstLookup(
 	}
 
 	// Context substitution - matches input sequence and applies nested lookups
+	const subtables = lookup.subtables;
 	for (let i = 0; i < len; i++) {
 		const info = infos[i];
 		if (!info) continue;
 		if (skip?.[i]) continue;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			let matched = false;
 			let lookupRecords: SequenceLookupRecord[] = [];
 
@@ -838,12 +883,14 @@ function applyChainingContextSubstLookup(
 		skip = precomputeSkipMarkers(font, buffer, lookup.flag);
 	}
 
+	const subtables = lookup.subtables;
 	for (let i = 0; i < len; i++) {
 		const info = infos[i];
 		if (!info) continue;
 		if (skip?.[i]) continue;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			let matched = false;
 			let lookupRecords: SequenceLookupRecord[] = [];
 
@@ -891,33 +938,34 @@ function applyReverseChainingSingleSubstLookup(
 	buffer: GlyphBuffer,
 	lookup: ReverseChainingSingleSubstLookup,
 ): void {
+	const infos = buffer.infos;
+	const subtables = lookup.subtables;
 	// Process in reverse order
-	for (let i = buffer.infos.length - 1; i >= 0; i--) {
-		const info = buffer.infos[i];
+	for (let i = infos.length - 1; i >= 0; i--) {
+		const info = infos[i];
 		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const coverageIndex = subtable.coverage.get(info.glyphId);
 			if (coverageIndex === null) continue;
 
 			// Check backtrack (glyphs after current in reverse order)
 			let backtrackMatch = true;
 			let backtrackPos = i + 1;
-			for (const backCov of subtable.backtrackCoverages) {
+			const backtrackCoverages = subtable.backtrackCoverages;
+			for (let b = 0; b < backtrackCoverages.length; b++) {
+				const backCov = backtrackCoverages[b]!;
 				while (
-					backtrackPos < buffer.infos.length &&
-					shouldSkipGlyph(
-						font,
-						buffer.infos[backtrackPos]?.glyphId,
-						lookup.flag,
-					)
+					backtrackPos < infos.length &&
+					shouldSkipGlyph(font, infos[backtrackPos]?.glyphId, lookup.flag)
 				) {
 					backtrackPos++;
 				}
 				if (
-					backtrackPos >= buffer.infos.length ||
-					backCov.get(buffer.infos[backtrackPos]?.glyphId) === null
+					backtrackPos >= infos.length ||
+					backCov.get(infos[backtrackPos]?.glyphId) === null
 				) {
 					backtrackMatch = false;
 					break;
@@ -929,20 +977,18 @@ function applyReverseChainingSingleSubstLookup(
 			// Check lookahead (glyphs before current)
 			let lookaheadMatch = true;
 			let lookaheadPos = i - 1;
-			for (const lookCov of subtable.lookaheadCoverages) {
+			const lookaheadCoverages = subtable.lookaheadCoverages;
+			for (let l = 0; l < lookaheadCoverages.length; l++) {
+				const lookCov = lookaheadCoverages[l]!;
 				while (
 					lookaheadPos >= 0 &&
-					shouldSkipGlyph(
-						font,
-						buffer.infos[lookaheadPos]?.glyphId,
-						lookup.flag,
-					)
+					shouldSkipGlyph(font, infos[lookaheadPos]?.glyphId, lookup.flag)
 				) {
 					lookaheadPos--;
 				}
 				if (
 					lookaheadPos < 0 ||
-					lookCov.get(buffer.infos[lookaheadPos]?.glyphId) === null
+					lookCov.get(infos[lookaheadPos]?.glyphId) === null
 				) {
 					lookaheadMatch = false;
 					break;
@@ -979,7 +1025,8 @@ function matchContextFormat1(
 	const ruleSet = subtable.ruleSets[coverageIndex];
 	if (!ruleSet) return null;
 
-	for (const rule of ruleSet) {
+	for (let r = 0; r < ruleSet.length; r++) {
+		const rule = ruleSet[r]!;
 		if (
 			matchGlyphSequence(
 				font,
@@ -1011,7 +1058,8 @@ function matchContextFormat2(
 	const classRuleSet = subtable.classRuleSets[firstClass];
 	if (!classRuleSet) return null;
 
-	for (const rule of classRuleSet) {
+	for (let r = 0; r < classRuleSet.length; r++) {
+		const rule = classRuleSet[r]!;
 		if (
 			matchClassSequence(
 				font,
@@ -1036,16 +1084,19 @@ function matchContextFormat3(
 	subtable: ContextSubstFormat3,
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
+	const coverages = subtable.coverages;
 	let pos = startIndex;
-	for (const coverage of subtable.coverages) {
+	for (let c = 0; c < coverages.length; c++) {
+		const coverage = coverages[c]!;
 		while (
-			pos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[pos]?.glyphId, lookupFlag)
+			pos < infos.length &&
+			shouldSkipGlyph(font, infos[pos]?.glyphId, lookupFlag)
 		) {
 			pos++;
 		}
-		if (pos >= buffer.infos.length) return false;
-		if (coverage.get(buffer.infos[pos]?.glyphId) === null) return false;
+		if (pos >= infos.length) return false;
+		if (coverage.get(infos[pos]?.glyphId) === null) return false;
 		pos++;
 	}
 	return true;
@@ -1066,7 +1117,8 @@ function matchChainingFormat1(
 	const chainRuleSet = subtable.chainRuleSets[coverageIndex];
 	if (!chainRuleSet) return null;
 
-	for (const rule of chainRuleSet) {
+	for (let r = 0; r < chainRuleSet.length; r++) {
+		const rule = chainRuleSet[r]!
 		// Check backtrack (reversed order, before startIndex)
 		if (
 			!matchGlyphSequenceBackward(
@@ -1139,7 +1191,8 @@ function matchChainingFormat2(
 	const chainClassRuleSet = subtable.chainClassRuleSets[firstClass];
 	if (!chainClassRuleSet) return null;
 
-	for (const rule of chainClassRuleSet) {
+	for (let r = 0; r < chainClassRuleSet.length; r++) {
+		const rule = chainClassRuleSet[r]!;
 		// Check backtrack classes (reversed order)
 		if (
 			!matchClassSequenceBackward(
@@ -1169,11 +1222,12 @@ function matchChainingFormat2(
 		}
 
 		// Find where input ends
+		const infos = buffer.infos;
 		let inputEnd = startIndex + 1;
 		for (let i = 0; i < rule.inputClasses.length; i++) {
 			while (
-				inputEnd < buffer.infos.length &&
-				shouldSkipGlyph(font, buffer.infos[inputEnd]?.glyphId, lookupFlag)
+				inputEnd < infos.length &&
+				shouldSkipGlyph(font, infos[inputEnd]?.glyphId, lookupFlag)
 			) {
 				inputEnd++;
 			}
@@ -1207,47 +1261,52 @@ function matchChainingFormat3(
 	subtable: ChainingContextFormat3,
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
 	// Check backtrack (in reverse order, before startIndex)
 	let backtrackPos = startIndex - 1;
-	for (const coverage of subtable.backtrackCoverages) {
+	const backtrackCoverages = subtable.backtrackCoverages;
+	for (let b = 0; b < backtrackCoverages.length; b++) {
+		const coverage = backtrackCoverages[b]!;
 		while (
 			backtrackPos >= 0 &&
-			shouldSkipGlyph(font, buffer.infos[backtrackPos]?.glyphId, lookupFlag)
+			shouldSkipGlyph(font, infos[backtrackPos]?.glyphId, lookupFlag)
 		) {
 			backtrackPos--;
 		}
 		if (backtrackPos < 0) return false;
-		if (coverage.get(buffer.infos[backtrackPos]?.glyphId) === null)
-			return false;
+		if (coverage.get(infos[backtrackPos]?.glyphId) === null) return false;
 		backtrackPos--;
 	}
 
 	// Check input sequence
 	let inputPos = startIndex;
-	for (const coverage of subtable.inputCoverages) {
+	const inputCoverages = subtable.inputCoverages;
+	for (let i = 0; i < inputCoverages.length; i++) {
+		const coverage = inputCoverages[i]!;
 		while (
-			inputPos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[inputPos]?.glyphId, lookupFlag)
+			inputPos < infos.length &&
+			shouldSkipGlyph(font, infos[inputPos]?.glyphId, lookupFlag)
 		) {
 			inputPos++;
 		}
-		if (inputPos >= buffer.infos.length) return false;
-		if (coverage.get(buffer.infos[inputPos]?.glyphId) === null) return false;
+		if (inputPos >= infos.length) return false;
+		if (coverage.get(infos[inputPos]?.glyphId) === null) return false;
 		inputPos++;
 	}
 
 	// Check lookahead
 	let lookaheadPos = inputPos;
-	for (const coverage of subtable.lookaheadCoverages) {
+	const lookaheadCoverages = subtable.lookaheadCoverages;
+	for (let l = 0; l < lookaheadCoverages.length; l++) {
+		const coverage = lookaheadCoverages[l]!;
 		while (
-			lookaheadPos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[lookaheadPos]?.glyphId, lookupFlag)
+			lookaheadPos < infos.length &&
+			shouldSkipGlyph(font, infos[lookaheadPos]?.glyphId, lookupFlag)
 		) {
 			lookaheadPos++;
 		}
-		if (lookaheadPos >= buffer.infos.length) return false;
-		if (coverage.get(buffer.infos[lookaheadPos]?.glyphId) === null)
-			return false;
+		if (lookaheadPos >= infos.length) return false;
+		if (coverage.get(infos[lookaheadPos]?.glyphId) === null) return false;
 		lookaheadPos++;
 	}
 
@@ -1329,12 +1388,26 @@ function initializePositions(face: Face, buffer: GlyphBuffer): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
-	// Direct assignment is faster than method call
+	const hmtx = face.font.hmtx;
+	const hMetrics = hmtx.hMetrics;
+	const hMetricsLen = hMetrics.length;
+	const lastAdvance = hMetrics[hMetricsLen - 1]?.advanceWidth ?? 0;
+	const isVariable = face.normalizedCoords.length > 0;
+
+	// Fast path for non-variable fonts - inline array access
+	if (!isVariable) {
+		for (let i = 0; i < len; i++) {
+			const gid = infos[i]!.glyphId;
+			positions[i]!.xAdvance =
+				gid < hMetricsLen ? (hMetrics[gid]?.advanceWidth ?? 0) : lastAdvance;
+		}
+		return;
+	}
+
+	// Variable font path - use Face for delta calculation
 	for (let i = 0; i < len; i++) {
 		const info = infos[i]!;
-		const pos = positions[i]!;
-		// Use Face.advanceWidth to include variable font deltas
-		pos.xAdvance = face.advanceWidth(info.glyphId);
+		positions[i]!.xAdvance = face.advanceWidth(info.glyphId);
 	}
 }
 
@@ -1364,17 +1437,23 @@ function applyGpos(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 	// Create glyph class cache for efficient mark positioning
 	const glyphClassCache: GlyphClassCache = new Map();
 
-	// Pre-compute base index array for O(1) mark-to-base lookup
-	const baseIndexArray = buildBaseIndexArray(buffer, glyphClassCache, font);
+	// Pre-compute base index array and detect marks in a single pass
+	const { baseIndex: baseIndexArray, hasMarks } = buildBaseIndexArray(
+		buffer,
+		glyphClassCache,
+		font,
+	);
 
-	for (const { lookup } of plan.gposLookups) {
+	const lookups = plan.gposLookups;
+	for (let i = 0; i < lookups.length; i++) {
 		applyGposLookup(
 			font,
 			buffer,
-			lookup,
+			lookups[i]!.lookup,
 			plan,
 			glyphClassCache,
 			baseIndexArray,
+			hasMarks,
 		);
 	}
 }
@@ -1386,16 +1465,17 @@ function applyGposLookup(
 	plan: ShapePlan,
 	glyphClassCache: GlyphClassCache,
 	baseIndexArray: Int16Array,
+	hasMarks: boolean,
 ): void {
 	switch (lookup.type) {
 		case GposLookupType.Single:
-			applySinglePosLookup(font, buffer, lookup);
+			applySinglePosLookup(font, buffer, lookup, hasMarks);
 			break;
 		case GposLookupType.Pair:
-			applyPairPosLookup(font, buffer, lookup);
+			applyPairPosLookup(font, buffer, lookup, hasMarks);
 			break;
 		case GposLookupType.Cursive:
-			applyCursivePosLookup(font, buffer, lookup);
+			applyCursivePosLookup(font, buffer, lookup, hasMarks);
 			break;
 		case GposLookupType.MarkToBase:
 			applyMarkBasePosLookup(
@@ -1426,6 +1506,7 @@ function applyGposLookup(
 				plan,
 				glyphClassCache,
 				baseIndexArray,
+				hasMarks,
 			);
 			break;
 		case GposLookupType.ChainingContext:
@@ -1436,6 +1517,7 @@ function applyGposLookup(
 				plan,
 				glyphClassCache,
 				baseIndexArray,
+				hasMarks,
 			);
 			break;
 		// Extension (type 9) is unwrapped during parsing - no runtime case needed
@@ -1446,18 +1528,21 @@ function applySinglePosLookup(
 	font: Font,
 	buffer: GlyphBuffer,
 	lookup: SinglePosLookup,
+	hasMarks: boolean,
 ): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
 
+	const subtables = lookup.subtables;
 	// Helper to apply single positioning at index i
 	const applySingle = (i: number) => {
 		const info = infos[i]!;
 		const pos = positions[i];
 		if (!pos) return;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const coverageIndex = subtable.coverage.get(info.glyphId);
 			if (coverageIndex === null) continue;
 
@@ -1475,8 +1560,10 @@ function applySinglePosLookup(
 		}
 	};
 
-	// FAST PATH: No skip checking needed
-	if (lookup.flag === 0 || !font.gdef) {
+	// FAST PATH: No skip checking needed (no flags, no GDEF, or no marks in buffer)
+	// IgnoreMarks (0x10) is useless if there are no marks
+	const needsSkip = hasMarks && lookup.flag !== 0 && font.gdef !== null;
+	if (!needsSkip) {
 		for (let i = 0; i < len; i++) {
 			applySingle(i);
 		}
@@ -1495,15 +1582,17 @@ function applyPairPosLookup(
 	font: Font,
 	buffer: GlyphBuffer,
 	lookup: PairPosLookup,
+	hasMarks: boolean,
 ): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
 	const digest = lookup.digest;
 
-	// FAST PATH: No skip checking needed (no GDEF or no filtering flags)
-	// This handles simple Latin text with no marks - O(n) with zero allocation
-	if (lookup.flag === 0 || !font.gdef) {
+	// FAST PATH: No skip checking needed (no flags, no GDEF, or no marks to skip)
+	// This handles simple Latin text - O(n) with zero allocation
+	const needsSkip = hasMarks && lookup.flag !== 0 && font.gdef !== null;
+	if (!needsSkip) {
 		for (let i = 0; i < len - 1; i++) {
 			const info1 = infos[i]!;
 			// Fast digest check before expensive Coverage lookup
@@ -1541,17 +1630,20 @@ function applyCursivePosLookup(
 	font: Font,
 	buffer: GlyphBuffer,
 	lookup: CursivePosLookup,
+	hasMarks: boolean,
 ): void {
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
 
+	const subtables = lookup.subtables;
 	// Helper to apply cursive positioning between glyphs at i and j
 	const applyCursive = (i: number, j: number) => {
 		const info1 = infos[i]!;
 		const info2 = infos[j]!;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const exitIndex = subtable.coverage.get(info1.glyphId);
 			const entryIndex = subtable.coverage.get(info2.glyphId);
 
@@ -1574,8 +1666,9 @@ function applyCursivePosLookup(
 		}
 	};
 
-	// FAST PATH: No skip checking needed
-	if (lookup.flag === 0 || !font.gdef) {
+	// FAST PATH: No skip checking needed (no flags, no GDEF, or no marks)
+	const needsSkip = hasMarks && lookup.flag !== 0 && font.gdef !== null;
+	if (!needsSkip) {
 		for (let i = 0; i < len - 1; i++) {
 			applyCursive(i, i + 1);
 		}
@@ -1621,7 +1714,9 @@ function applyMarkBasePosLookup(
 		const baseInfo = buffer.infos[baseIndex];
 		if (!baseInfo) continue;
 
-		for (const subtable of lookup.subtables) {
+		const subtables = lookup.subtables;
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const markCoverageIndex = subtable.markCoverage.get(markInfo.glyphId);
 			const baseCoverageIndex = subtable.baseCoverage.get(baseInfo.glyphId);
 
@@ -1700,7 +1795,9 @@ function applyMarkLigaturePosLookup(
 			}
 		}
 
-		for (const subtable of lookup.subtables) {
+		const subtables = lookup.subtables;
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const markCoverageIndex = subtable.markCoverage.get(markInfo.glyphId);
 			const ligCoverageIndex = subtable.ligatureCoverage.get(ligInfo.glyphId);
 
@@ -1775,7 +1872,9 @@ function applyMarkMarkPosLookup(
 		const mark2Info = buffer.infos[mark2Index];
 		if (!mark2Info) continue;
 
-		for (const subtable of lookup.subtables) {
+		const subtables = lookup.subtables;
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			const mark1CoverageIndex = subtable.mark1Coverage.get(mark1Info.glyphId);
 			const mark2CoverageIndex = subtable.mark2Coverage.get(mark2Info.glyphId);
 
@@ -1813,13 +1912,16 @@ function applyContextPosLookup(
 	plan: ShapePlan,
 	glyphClassCache: GlyphClassCache,
 	baseIndexArray: Int16Array,
+	hasMarks: boolean,
 ): void {
+	const subtables = lookup.subtables;
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const info = buffer.infos[i];
 		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			let matched = false;
 			let lookupRecords: PosLookupRecord[] = [];
 
@@ -1863,6 +1965,7 @@ function applyContextPosLookup(
 					plan,
 					glyphClassCache,
 					baseIndexArray,
+					hasMarks,
 				);
 				break;
 			}
@@ -1877,13 +1980,16 @@ function applyChainingContextPosLookup(
 	plan: ShapePlan,
 	glyphClassCache: GlyphClassCache,
 	baseIndexArray: Int16Array,
+	hasMarks: boolean,
 ): void {
+	const subtables = lookup.subtables;
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const info = buffer.infos[i];
 		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
 
-		for (const subtable of lookup.subtables) {
+		for (let s = 0; s < subtables.length; s++) {
+			const subtable = subtables[s]!;
 			let matched = false;
 			let lookupRecords: PosLookupRecord[] = [];
 
@@ -1929,6 +2035,7 @@ function applyChainingContextPosLookup(
 					plan,
 					glyphClassCache,
 					baseIndexArray,
+					hasMarks,
 				);
 				break;
 			}
@@ -1951,7 +2058,8 @@ function matchContextPosFormat1(
 	const ruleSet = subtable.ruleSets[coverageIndex];
 	if (!ruleSet) return null;
 
-	for (const rule of ruleSet) {
+	for (let r = 0; r < ruleSet.length; r++) {
+		const rule = ruleSet[r]!;
 		if (
 			matchGlyphSequence(
 				font,
@@ -1983,7 +2091,8 @@ function matchContextPosFormat2(
 	const classRuleSet = subtable.classRuleSets[firstClass];
 	if (!classRuleSet) return null;
 
-	for (const rule of classRuleSet) {
+	for (let r = 0; r < classRuleSet.length; r++) {
+		const rule = classRuleSet[r]!;
 		if (
 			matchClassSequence(
 				font,
@@ -2008,16 +2117,19 @@ function matchContextPosFormat3(
 	subtable: ContextPosFormat3,
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
+	const coverages = subtable.coverages;
 	let pos = startIndex;
-	for (const coverage of subtable.coverages) {
+	for (let c = 0; c < coverages.length; c++) {
+		const coverage = coverages[c]!;
 		while (
-			pos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[pos]?.glyphId, lookupFlag)
+			pos < infos.length &&
+			shouldSkipGlyph(font, infos[pos]?.glyphId, lookupFlag)
 		) {
 			pos++;
 		}
-		if (pos >= buffer.infos.length) return false;
-		if (coverage.get(buffer.infos[pos]?.glyphId) === null) return false;
+		if (pos >= infos.length) return false;
+		if (coverage.get(infos[pos]?.glyphId) === null) return false;
 		pos++;
 	}
 	return true;
@@ -2038,7 +2150,8 @@ function matchChainingContextPosFormat1(
 	const chainRuleSet = subtable.chainRuleSets[coverageIndex];
 	if (!chainRuleSet) return null;
 
-	for (const rule of chainRuleSet) {
+	for (let r = 0; r < chainRuleSet.length; r++) {
+		const rule = chainRuleSet[r]!
 		// Check backtrack (reversed order, before startIndex)
 		if (
 			!matchGlyphSequenceBackward(
@@ -2111,7 +2224,8 @@ function matchChainingContextPosFormat2(
 	const chainClassRuleSet = subtable.chainClassRuleSets[firstClass];
 	if (!chainClassRuleSet) return null;
 
-	for (const rule of chainClassRuleSet) {
+	for (let r = 0; r < chainClassRuleSet.length; r++) {
+		const rule = chainClassRuleSet[r]!;
 		// Check backtrack classes (reversed order)
 		if (
 			!matchClassSequenceBackward(
@@ -2141,11 +2255,12 @@ function matchChainingContextPosFormat2(
 		}
 
 		// Find where input ends
+		const infos = buffer.infos;
 		let inputEnd = startIndex + 1;
 		for (let i = 0; i < rule.inputClasses.length; i++) {
 			while (
-				inputEnd < buffer.infos.length &&
-				shouldSkipGlyph(font, buffer.infos[inputEnd]?.glyphId, lookupFlag)
+				inputEnd < infos.length &&
+				shouldSkipGlyph(font, infos[inputEnd]?.glyphId, lookupFlag)
 			) {
 				inputEnd++;
 			}
@@ -2179,47 +2294,52 @@ function matchChainingContextPosFormat3(
 	subtable: ChainingContextPosFormat3,
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
 	// Check backtrack (in reverse order, before startIndex)
 	let backtrackPos = startIndex - 1;
-	for (const coverage of subtable.backtrackCoverages) {
+	const backtrackCoverages = subtable.backtrackCoverages;
+	for (let b = 0; b < backtrackCoverages.length; b++) {
+		const coverage = backtrackCoverages[b]!;
 		while (
 			backtrackPos >= 0 &&
-			shouldSkipGlyph(font, buffer.infos[backtrackPos]?.glyphId, lookupFlag)
+			shouldSkipGlyph(font, infos[backtrackPos]?.glyphId, lookupFlag)
 		) {
 			backtrackPos--;
 		}
 		if (backtrackPos < 0) return false;
-		if (coverage.get(buffer.infos[backtrackPos]?.glyphId) === null)
-			return false;
+		if (coverage.get(infos[backtrackPos]?.glyphId) === null) return false;
 		backtrackPos--;
 	}
 
 	// Check input sequence
 	let inputPos = startIndex;
-	for (const coverage of subtable.inputCoverages) {
+	const inputCoverages = subtable.inputCoverages;
+	for (let i = 0; i < inputCoverages.length; i++) {
+		const coverage = inputCoverages[i]!;
 		while (
-			inputPos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[inputPos]?.glyphId, lookupFlag)
+			inputPos < infos.length &&
+			shouldSkipGlyph(font, infos[inputPos]?.glyphId, lookupFlag)
 		) {
 			inputPos++;
 		}
-		if (inputPos >= buffer.infos.length) return false;
-		if (coverage.get(buffer.infos[inputPos]?.glyphId) === null) return false;
+		if (inputPos >= infos.length) return false;
+		if (coverage.get(infos[inputPos]?.glyphId) === null) return false;
 		inputPos++;
 	}
 
 	// Check lookahead
 	let lookaheadPos = inputPos;
-	for (const coverage of subtable.lookaheadCoverages) {
+	const lookaheadCoverages = subtable.lookaheadCoverages;
+	for (let l = 0; l < lookaheadCoverages.length; l++) {
+		const coverage = lookaheadCoverages[l]!;
 		while (
-			lookaheadPos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[lookaheadPos]?.glyphId, lookupFlag)
+			lookaheadPos < infos.length &&
+			shouldSkipGlyph(font, infos[lookaheadPos]?.glyphId, lookupFlag)
 		) {
 			lookaheadPos++;
 		}
-		if (lookaheadPos >= buffer.infos.length) return false;
-		if (coverage.get(buffer.infos[lookaheadPos]?.glyphId) === null)
-			return false;
+		if (lookaheadPos >= infos.length) return false;
+		if (coverage.get(infos[lookaheadPos]?.glyphId) === null) return false;
 		lookaheadPos++;
 	}
 
@@ -2235,6 +2355,7 @@ function applyNestedPosLookups(
 	plan: ShapePlan,
 	glyphClassCache: GlyphClassCache,
 	baseIndexArray: Int16Array,
+	hasMarks: boolean,
 ): void {
 	const len = lookupRecords.length;
 	if (len === 0) return;
@@ -2253,6 +2374,7 @@ function applyNestedPosLookups(
 			plan,
 			glyphClassCache,
 			baseIndexArray,
+			hasMarks,
 		);
 		return;
 	}
@@ -2286,6 +2408,7 @@ function applyNestedPosLookups(
 			plan,
 			glyphClassCache,
 			baseIndexArray,
+			hasMarks,
 		);
 	}
 }
@@ -2323,16 +2446,15 @@ function matchGlyphSequenceBackward(
 	glyphs: GlyphId[],
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
 	let pos = startPos;
-	for (const glyph of glyphs) {
-		while (
-			pos >= 0 &&
-			shouldSkipGlyph(font, buffer.infos[pos]?.glyphId, lookupFlag)
-		) {
+	for (let g = 0; g < glyphs.length; g++) {
+		const glyph = glyphs[g]!;
+		while (pos >= 0 && shouldSkipGlyph(font, infos[pos]?.glyphId, lookupFlag)) {
 			pos--;
 		}
 		if (pos < 0) return false;
-		if (buffer.infos[pos]?.glyphId !== glyph) return false;
+		if (infos[pos]?.glyphId !== glyph) return false;
 		pos--;
 	}
 	return true;
@@ -2347,16 +2469,18 @@ function matchClassSequence(
 	classDef: ClassDef,
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
 	let pos = startPos;
-	for (const cls of classes) {
+	for (let c = 0; c < classes.length; c++) {
+		const cls = classes[c]!;
 		while (
-			pos < buffer.infos.length &&
-			shouldSkipGlyph(font, buffer.infos[pos]?.glyphId, lookupFlag)
+			pos < infos.length &&
+			shouldSkipGlyph(font, infos[pos]?.glyphId, lookupFlag)
 		) {
 			pos++;
 		}
-		if (pos >= buffer.infos.length) return false;
-		if (classDef.get(buffer.infos[pos]?.glyphId) !== cls) return false;
+		if (pos >= infos.length) return false;
+		if (classDef.get(infos[pos]?.glyphId) !== cls) return false;
 		pos++;
 	}
 	return true;
@@ -2371,16 +2495,15 @@ function matchClassSequenceBackward(
 	classDef: ClassDef,
 	lookupFlag: number,
 ): boolean {
+	const infos = buffer.infos;
 	let pos = startPos;
-	for (const cls of classes) {
-		while (
-			pos >= 0 &&
-			shouldSkipGlyph(font, buffer.infos[pos]?.glyphId, lookupFlag)
-		) {
+	for (let c = 0; c < classes.length; c++) {
+		const cls = classes[c]!;
+		while (pos >= 0 && shouldSkipGlyph(font, infos[pos]?.glyphId, lookupFlag)) {
 			pos--;
 		}
 		if (pos < 0) return false;
-		if (classDef.get(buffer.infos[pos]?.glyphId) !== cls) return false;
+		if (classDef.get(infos[pos]?.glyphId) !== cls) return false;
 		pos--;
 	}
 	return true;
@@ -2430,15 +2553,21 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 	const morx = font.morx;
 	if (!morx) return;
 
-	for (const chain of morx.chains) {
-		for (const subtable of chain.subtables) {
+	const chains = morx.chains;
+	for (let c = 0; c < chains.length; c++) {
+		const chain = chains[c]!;
+		const chainSubtables = chain.subtables;
+		for (let s = 0; s < chainSubtables.length; s++) {
+			const subtable = chainSubtables[s]!;
 			// Apply if subFeatureFlags match (default: all enabled)
 			if ((chain.defaultFlags & subtable.subFeatureFlags) === 0) continue;
 
 			switch (subtable.type) {
-				case MorxSubtableType.NonContextual:
+				case MorxSubtableType.NonContextual: {
 					// Simple substitution (Type 4)
-					for (const info of buffer.infos) {
+					const infos = buffer.infos;
+					for (let i = 0; i < infos.length; i++) {
+						const info = infos[i]!;
 						const replacement = applyNonContextual(
 							subtable as MorxNonContextualSubtable,
 							info.glyphId,
@@ -2448,6 +2577,7 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 						}
 					}
 					break;
+				}
 
 				case MorxSubtableType.Rearrangement:
 					// Rearrangement (Type 0) - reorder glyphs

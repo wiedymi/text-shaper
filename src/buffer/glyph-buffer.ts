@@ -31,17 +31,76 @@ export class GlyphBuffer {
 	/** Count of deleted glyphs pending compaction */
 	private _deletedCount = 0;
 
+	/** Pre-allocated info pool for reuse */
+	private _infoPool: GlyphInfo[] = [];
+	/** Pre-allocated position pool for reuse */
+	private _posPool: GlyphPosition[] = [];
+
 	/** Create buffer with pre-allocated capacity */
 	static withCapacity(capacity: number): GlyphBuffer {
 		const buffer = new GlyphBuffer();
 		buffer.infos = new Array(capacity);
 		buffer.positions = new Array(capacity);
+		// Pre-create pool objects
+		buffer._infoPool = new Array(capacity);
+		buffer._posPool = new Array(capacity);
+		for (let i = 0; i < capacity; i++) {
+			buffer._infoPool[i] = { glyphId: 0, cluster: 0, mask: 0, codepoint: 0 };
+			buffer._posPool[i] = { xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 };
+		}
 		return buffer;
 	}
 
 	/** Number of glyphs */
 	get length(): number {
 		return this.infos.length;
+	}
+
+	/** Reset buffer for reuse - reuses existing object pool */
+	reset(): void {
+		this.infos.length = 0;
+		this.positions.length = 0;
+		this._deleted = null;
+		this._deletedCount = 0;
+	}
+
+	/** Initialize from codepoints, reusing pooled objects when possible */
+	initFromCodepoints(
+		codepoints: ArrayLike<number>,
+		clusters: ArrayLike<number>,
+		getGlyphId: (codepoint: number) => number,
+	): void {
+		const len = codepoints.length;
+
+		// Expand pools if needed
+		while (this._infoPool.length < len) {
+			this._infoPool.push({ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 });
+			this._posPool.push({ xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 });
+		}
+
+		// Reuse pooled objects
+		this.infos.length = len;
+		this.positions.length = len;
+
+		for (let i = 0; i < len; i++) {
+			const codepoint = codepoints[i]!;
+			const info = this._infoPool[i]!;
+			info.glyphId = getGlyphId(codepoint);
+			info.cluster = clusters[i]!;
+			info.mask = 0xffffffff;
+			info.codepoint = codepoint;
+			this.infos[i] = info;
+
+			const pos = this._posPool[i]!;
+			pos.xAdvance = 0;
+			pos.yAdvance = 0;
+			pos.xOffset = 0;
+			pos.yOffset = 0;
+			this.positions[i] = pos;
+		}
+
+		this._deleted = null;
+		this._deletedCount = 0;
 	}
 
 	/** Initialize from glyph infos (positions zeroed) */

@@ -75,6 +75,13 @@ function getCacheKey(
 	userFeatures: ShapeFeature[],
 	axisCoords: number[] | null,
 ): string {
+	// Fast path for common case: no user features, no axis coords
+	if (userFeatures.length === 0 && axisCoords === null) {
+		return language === null
+			? `${script}||${direction}||`
+			: `${script}|${language}|${direction}||`;
+	}
+
 	const featuresKey = userFeatures
 		.map((f) => `${tagToString(f.tag)}:${f.enabled ? "1" : "0"}`)
 		.sort()
