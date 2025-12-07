@@ -690,6 +690,10 @@ function extractEdges(
 							p0: currentPoint,
 							p1: firstPoint,
 							color: 0,
+							minX: Math.min(currentPoint.x, firstPoint.x),
+							maxX: Math.max(currentPoint.x, firstPoint.x),
+							minY: Math.min(currentPoint.y, firstPoint.y),
+							maxY: Math.max(currentPoint.y, firstPoint.y),
 						});
 					}
 					currentPoint = firstPoint;
@@ -726,6 +730,122 @@ function signedDistanceToEdge(
 		case "cubic":
 			return signedDistanceToCubic(px, py, edge.p0, edge.p1, edge.p2, edge.p3);
 	}
+}
+
+/**
+ * Compute unsigned distance from point to edge (faster version for rendering)
+ */
+function unsignedDistanceToEdge(px: number, py: number, edge: MsdfEdge): number {
+	switch (edge.type) {
+		case "line":
+			return unsignedDistanceToLine(px, py, edge.p0, edge.p1);
+		case "quadratic":
+			return unsignedDistanceToQuadratic(px, py, edge.p0, edge.p1, edge.p2);
+		case "cubic":
+			return unsignedDistanceToCubic(px, py, edge.p0, edge.p1, edge.p2, edge.p3);
+	}
+}
+
+/**
+ * Pre-flattened contour segments for fast inside testing
+ */
+type FlatSegment = [Point, Point];
+
+/**
+ * Pre-flatten contours once for reuse in inside testing
+ */
+function preFlattenContours(contours: MsdfEdge[][]): FlatSegment[][] {
+	const result: FlatSegment[][] = [];
+	for (const contour of contours) {
+		const segments: FlatSegment[] = [];
+		for (const edge of contour) {
+			if (edge.type === "line") {
+				segments.push([edge.p0, edge.p1]);
+			} else if (edge.type === "quadratic") {
+				let prev = edge.p0;
+				for (let i = 1; i <= 4; i++) {
+					const t = i / 4;
+					const ti = 1 - t;
+					const p = {
+						x: ti * ti * edge.p0.x + 2 * ti * t * edge.p1.x + t * t * edge.p2.x,
+						y: ti * ti * edge.p0.y + 2 * ti * t * edge.p1.y + t * t * edge.p2.y,
+					};
+					segments.push([prev, p]);
+					prev = p;
+				}
+			} else {
+				let prev = edge.p0;
+				for (let i = 1; i <= 4; i++) {
+					const t = i / 4;
+					const ti = 1 - t;
+					const ti2 = ti * ti;
+					const ti3 = ti2 * ti;
+					const t2 = t * t;
+					const t3 = t2 * t;
+					const p = {
+						x:
+							ti3 * edge.p0.x +
+							3 * ti2 * t * edge.p1.x +
+							3 * ti * t2 * edge.p2.x +
+							t3 * edge.p3.x,
+						y:
+							ti3 * edge.p0.y +
+							3 * ti2 * t * edge.p1.y +
+							3 * ti * t2 * edge.p2.y +
+							t3 * edge.p3.y,
+					};
+					segments.push([prev, p]);
+					prev = p;
+				}
+			}
+		}
+		result.push(segments);
+	}
+	return result;
+}
+
+/**
+ * Determine if a point is inside using pre-flattened contours (fast version)
+ */
+function isPointInsideFast(
+	px: number,
+	py: number,
+	flatContours: FlatSegment[][],
+): boolean {
+	let crossings = 0;
+	for (const segments of flatContours) {
+		for (const [p0, p1] of segments) {
+			if ((p0.y > py) !== (p1.y > py)) {
+				const x = p0.x + ((p1.x - p0.x) * (py - p0.y)) / (p1.y - p0.y);
+				if (px < x) crossings++;
+			}
+		}
+	}
+	return (crossings & 1) === 1;
+}
+
+/**
+ * Find minimum unsigned distance to edges with bounding box culling and early exit
+ */
+function findMinDistance(
+	px: number,
+	py: number,
+	edges: MsdfEdge[],
+): number {
+	let minDist = Infinity;
+	for (const edge of edges) {
+		// Bounding box culling - compute distance to bbox
+		const dx = px < edge.minX ? edge.minX - px : px > edge.maxX ? px - edge.maxX : 0;
+		const dy = py < edge.minY ? edge.minY - py : py > edge.maxY ? py - edge.maxY : 0;
+		if (dx * dx + dy * dy >= minDist * minDist) continue;
+
+		const d = unsignedDistanceToEdge(px, py, edge);
+		if (d < minDist) {
+			minDist = d;
+			if (d < 0.5) break; // Early exit for very close points
+		}
+	}
+	return minDist;
 }
 
 /**
@@ -844,6 +964,9 @@ export function renderMsdf(path: GlyphPath, options: MsdfOptions): Bitmap {
 	// Assign colors to edges
 	assignEdgeColors(contours);
 
+	// Pre-flatten contours once for fast inside testing
+	const flatContours = preFlattenContours(contours);
+
 	// Flatten all edges for quick access
 	const allEdges: MsdfEdge[] = contours.flat();
 
@@ -853,14 +976,9 @@ export function renderMsdf(path: GlyphPath, options: MsdfOptions): Bitmap {
 	const blueEdges = allEdges.filter((e) => e.color === 2);
 
 	// If any color has no edges, duplicate from another
-	const ensureEdges = (edges: MsdfEdge[]): MsdfEdge[] => {
-		if (edges.length > 0) return edges;
-		return allEdges;
-	};
-
-	const rEdges = ensureEdges(redEdges);
-	const gEdges = ensureEdges(greenEdges);
-	const bEdges = ensureEdges(blueEdges);
+	const rEdges = redEdges.length > 0 ? redEdges : allEdges;
+	const gEdges = greenEdges.length > 0 ? greenEdges : allEdges;
+	const bEdges = blueEdges.length > 0 ? blueEdges : allEdges;
 
 	// For each pixel
 	for (let y = 0; y < height; y++) {
@@ -868,45 +986,20 @@ export function renderMsdf(path: GlyphPath, options: MsdfOptions): Bitmap {
 			const px = x + 0.5;
 			const py = y + 0.5;
 
-			// Find minimum distance to each color channel
-			let minR = Infinity;
-			let minG = Infinity;
-			let minB = Infinity;
+			// Find minimum distance to each color channel with bbox culling
+			const minR = findMinDistance(px, py, rEdges);
+			const minG = findMinDistance(px, py, gEdges);
+			const minB = findMinDistance(px, py, bEdges);
 
-			for (let k = 0; k < rEdges.length; k++) {
-				const edge = rEdges[k]!;
-				const result = signedDistanceToEdge(px, py, edge);
-				if (Math.abs(result.distance) < Math.abs(minR)) {
-					minR = result.distance;
-				}
-			}
-
-			for (let k = 0; k < gEdges.length; k++) {
-				const edge = gEdges[k]!;
-				const result = signedDistanceToEdge(px, py, edge);
-				if (Math.abs(result.distance) < Math.abs(minG)) {
-					minG = result.distance;
-				}
-			}
-
-			for (let k = 0; k < bEdges.length; k++) {
-				const edge = bEdges[k]!;
-				const result = signedDistanceToEdge(px, py, edge);
-				if (Math.abs(result.distance) < Math.abs(minB)) {
-					minB = result.distance;
-				}
-			}
-
-			// Determine inside/outside using median
-			const _medDist = median(minR, minG, minB);
-			const inside = isPointInside(px, py, contours);
+			// Determine inside/outside using pre-flattened contours
+			const inside = isPointInsideFast(px, py, flatContours);
 
 			// Correct signs based on inside/outside
 			// All distances should be positive inside, negative outside
 			const signCorrection = inside ? 1 : -1;
-			const rDist = Math.abs(minR) * signCorrection;
-			const gDist = Math.abs(minG) * signCorrection;
-			const bDist = Math.abs(minB) * signCorrection;
+			const rDist = minR * signCorrection;
+			const gDist = minG * signCorrection;
+			const bDist = minB * signCorrection;
 
 			// Encode to 0-255
 			const encode = (d: number): number => {

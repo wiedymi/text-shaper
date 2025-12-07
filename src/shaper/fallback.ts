@@ -11,7 +11,9 @@ import { getCombiningClass } from "../unicode/normalize.ts";
  */
 function hasAnyMarks(infos: GlyphInfo[]): boolean {
 	for (let i = 0; i < infos.length; i++) {
-		const cp = infos[i]!.codepoint;
+		const info = infos[i];
+		if (!info) continue;
+		const cp = info.codepoint;
 		// Fast check: most scripts have no combining marks
 		// Only check getCombiningClass for potential mark ranges
 		if (cp >= 0x0300 && cp < 0x0370) return true; // Latin combining

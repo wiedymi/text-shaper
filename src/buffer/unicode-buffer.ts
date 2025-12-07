@@ -28,14 +28,77 @@ export class UnicodeBuffer {
 
 	/** Add a string to the buffer */
 	addStr(text: string, startCluster = 0): this {
+		const len = text.length;
+		if (len === 0) return this;
+
+		const baseLen = this.codepoints.length;
+
+		// For appending to existing data, use push (rare case)
+		if (baseLen > 0) {
+			return this._addStrAppend(text, startCluster);
+		}
+
+		// Fast path: fresh buffer - use new Array for speed
+		const codepoints = new Array<number>(len);
+		const clusters = new Array<number>(len);
+
 		let cluster = startCluster;
-		// Use Array.from to correctly handle surrogate pairs (emoji, etc.)
-		const chars = Array.from(text);
-		for (let i = 0; i < chars.length; i++) {
-			const char = chars[i]!;
-			const codepoint = char.codePointAt(0);
-			if (codepoint === undefined) continue;
-			this.codepoints.push(codepoint);
+		let writeIdx = 0;
+
+		for (let i = 0; i < len; i++) {
+			const code = text.charCodeAt(i);
+			// Check for high surrogate (emoji, etc.)
+			if (code >= 0xd800 && code <= 0xdbff && i + 1 < len) {
+				const low = text.charCodeAt(i + 1);
+				if (low >= 0xdc00 && low <= 0xdfff) {
+					// Decode surrogate pair
+					codepoints[writeIdx] =
+						((code - 0xd800) << 10) + (low - 0xdc00) + 0x10000;
+					clusters[writeIdx] = cluster;
+					writeIdx++;
+					cluster++;
+					i++; // Skip low surrogate
+					continue;
+				}
+			}
+			codepoints[writeIdx] = code;
+			clusters[writeIdx] = cluster;
+			writeIdx++;
+			cluster++;
+		}
+
+		// Trim if surrogates reduced length
+		if (writeIdx < len) {
+			codepoints.length = writeIdx;
+			clusters.length = writeIdx;
+		}
+
+		// Replace arrays (cast to bypass readonly)
+		(this as { codepoints: number[] }).codepoints = codepoints;
+		(this as { clusters: number[] }).clusters = clusters;
+
+		return this;
+	}
+
+	/** Append to existing buffer (slower path) */
+	private _addStrAppend(text: string, startCluster: number): this {
+		let cluster = startCluster;
+		const len = text.length;
+		for (let i = 0; i < len; i++) {
+			const code = text.charCodeAt(i);
+			if (code >= 0xd800 && code <= 0xdbff && i + 1 < len) {
+				const low = text.charCodeAt(i + 1);
+				if (low >= 0xdc00 && low <= 0xdfff) {
+					this.codepoints.push(
+						((code - 0xd800) << 10) + (low - 0xdc00) + 0x10000,
+					);
+					this.clusters.push(cluster);
+					cluster++;
+					i++;
+					continue;
+				}
+			}
+			this.codepoints.push(code);
 			this.clusters.push(cluster);
 			cluster++;
 		}
@@ -94,13 +157,20 @@ export class UnicodeBuffer {
 	/** Set pre-context string */
 	setPreContext(text: string): this {
 		this.preContext = [];
-		const chars = Array.from(text);
-		for (let i = 0; i < chars.length; i++) {
-			const char = chars[i]!;
-			const codepoint = char.codePointAt(0);
-			if (codepoint !== undefined) {
-				this.preContext.push(codepoint);
+		const len = text.length;
+		for (let i = 0; i < len; i++) {
+			const code = text.charCodeAt(i);
+			if (code >= 0xd800 && code <= 0xdbff && i + 1 < len) {
+				const low = text.charCodeAt(i + 1);
+				if (low >= 0xdc00 && low <= 0xdfff) {
+					this.preContext.push(
+						((code - 0xd800) << 10) + (low - 0xdc00) + 0x10000,
+					);
+					i++;
+					continue;
+				}
 			}
+			this.preContext.push(code);
 		}
 		return this;
 	}
@@ -108,13 +178,20 @@ export class UnicodeBuffer {
 	/** Set post-context string */
 	setPostContext(text: string): this {
 		this.postContext = [];
-		const chars = Array.from(text);
-		for (let i = 0; i < chars.length; i++) {
-			const char = chars[i]!;
-			const codepoint = char.codePointAt(0);
-			if (codepoint !== undefined) {
-				this.postContext.push(codepoint);
+		const len = text.length;
+		for (let i = 0; i < len; i++) {
+			const code = text.charCodeAt(i);
+			if (code >= 0xd800 && code <= 0xdbff && i + 1 < len) {
+				const low = text.charCodeAt(i + 1);
+				if (low >= 0xdc00 && low <= 0xdfff) {
+					this.postContext.push(
+						((code - 0xd800) << 10) + (low - 0xdc00) + 0x10000,
+					);
+					i++;
+					continue;
+				}
 			}
+			this.postContext.push(code);
 		}
 		return this;
 	}
