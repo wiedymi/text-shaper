@@ -398,7 +398,8 @@ export function parseColr(reader: Reader): ColrTable {
 			}
 
 			result.layerList = [];
-			for (const offset of paintOffsets) {
+			for (let i = 0; i < paintOffsets.length; i++) {
+				const offset = paintOffsets[i]!;
 				reader.seek(startOffset + layerListOffset + offset);
 				result.layerList.push(parsePaint(reader, startOffset));
 			}
@@ -892,7 +893,8 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 
 	// Parse item variation data subtables
 	const itemVariationData: ItemVariationData[] = [];
-	for (const offset of itemVariationDataOffsets) {
+	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
+		const offset = itemVariationDataOffsets[i]!;
 		reader.seek(storeOffset + offset);
 		const itemCount = reader.uint16();
 		const wordDeltaCount = reader.uint16();
@@ -945,7 +947,8 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 export function getClipBox(colr: ColrTable, glyphId: GlyphId): ClipBox | null {
 	if (!colr.clipList) return null;
 
-	for (const record of colr.clipList) {
+	for (let i = 0; i < colr.clipList.length; i++) {
+		const record = colr.clipList[i]!;
 		if (glyphId >= record.startGlyphId && glyphId <= record.endGlyphId) {
 			return record.clipBox;
 		}

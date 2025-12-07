@@ -741,8 +741,10 @@ export class Font {
 		let xMax = -Infinity;
 		let yMax = -Infinity;
 
-		for (const contour of contours) {
-			for (const point of contour) {
+		for (let i = 0; i < contours.length; i++) {
+			const contour = contours[i]!;
+			for (let j = 0; j < contour.length; j++) {
+				const point = contour[j]!;
 				xMin = Math.min(xMin, point.x);
 				yMin = Math.min(yMin, point.y);
 				xMax = Math.max(xMax, point.x);
@@ -779,8 +781,10 @@ export class Font {
 		let xMax = -Infinity;
 		let yMax = -Infinity;
 
-		for (const contour of contours) {
-			for (const point of contour) {
+		for (let i = 0; i < contours.length; i++) {
+			const contour = contours[i]!;
+			for (let j = 0; j < contour.length; j++) {
+				const point = contour[j]!;
 				xMin = Math.min(xMin, point.x);
 				yMin = Math.min(yMin, point.y);
 				xMax = Math.max(xMax, point.x);

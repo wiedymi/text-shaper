@@ -640,7 +640,8 @@ export function findGraphemeBoundaries(
 	const properties: GraphemeBreakProperty[] = [];
 	const boundaries: number[] = [];
 
-	for (const cp of codepoints) {
+	for (let i = 0; i < codepoints.length; i++) {
+		const cp = codepoints[i]!;
 		properties.push(getGraphemeBreakProperty(cp));
 	}
 
@@ -787,7 +788,8 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 	const properties: WordBreakProperty[] = [];
 	const boundaries: number[] = [];
 
-	for (const cp of codepoints) {
+	for (let i = 0; i < codepoints.length; i++) {
+		const cp = codepoints[i]!;
 		properties.push(getWordBreakProperty(cp));
 	}
 
@@ -961,18 +963,19 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
  */
 export function splitGraphemes(text: string): string[] {
 	const codepoints: number[] = [];
-	const chars: string[] = [];
+	const chars = Array.from(text);
 
-	for (const char of text) {
+	for (let i = 0; i < chars.length; i++) {
+		const char = chars[i]!;
 		codepoints.push(char.codePointAt(0) ?? 0);
-		chars.push(char);
 	}
 
 	const { boundaries } = findGraphemeBoundaries(codepoints);
 	const graphemes: string[] = [];
 
 	let start = 0;
-	for (const end of boundaries) {
+	for (let i = 0; i < boundaries.length; i++) {
+		const end = boundaries[i]!;
 		if (end > start) {
 			graphemes.push(chars.slice(start, end).join(""));
 		}
@@ -987,19 +990,19 @@ export function splitGraphemes(text: string): string[] {
  */
 export function splitWords(text: string): string[] {
 	const codepoints: number[] = [];
-	const chars: string[] = [];
+	const chars = Array.from(text);
 
-	for (const char of text) {
+	for (let i = 0; i < chars.length; i++) {
+		const char = chars[i]!;
 		codepoints.push(char.codePointAt(0) ?? 0);
-		chars.push(char);
 	}
 
 	const { boundaries, properties } = findWordBoundaries(codepoints);
 	const words: string[] = [];
 
 	for (let i = 0; i < boundaries.length - 1; i++) {
-		const start = boundaries[i];
-		const end = boundaries[i + 1];
+		const start = boundaries[i]!;
+		const end = boundaries[i + 1]!;
 
 		// Skip whitespace-only segments
 		let hasContent = false;
@@ -1029,7 +1032,9 @@ export function splitWords(text: string): string[] {
  */
 export function countGraphemes(text: string): number {
 	const codepoints: number[] = [];
-	for (const char of text) {
+	const chars = Array.from(text);
+	for (let i = 0; i < chars.length; i++) {
+		const char = chars[i]!;
 		codepoints.push(char.codePointAt(0) ?? 0);
 	}
 	const { boundaries } = findGraphemeBoundaries(codepoints);

@@ -29,7 +29,10 @@ export class UnicodeBuffer {
 	/** Add a string to the buffer */
 	addStr(text: string, startCluster = 0): this {
 		let cluster = startCluster;
-		for (const char of text) {
+		// Use Array.from to correctly handle surrogate pairs (emoji, etc.)
+		const chars = Array.from(text);
+		for (let i = 0; i < chars.length; i++) {
+			const char = chars[i]!;
 			const codepoint = char.codePointAt(0);
 			if (codepoint === undefined) continue;
 			this.codepoints.push(codepoint);
@@ -42,7 +45,8 @@ export class UnicodeBuffer {
 	/** Add codepoints directly */
 	addCodepoints(codepoints: number[], startCluster = 0): this {
 		let cluster = startCluster;
-		for (const cp of codepoints) {
+		for (let i = 0; i < codepoints.length; i++) {
+			const cp = codepoints[i]!;
 			this.codepoints.push(cp);
 			this.clusters.push(cluster);
 			cluster++;
@@ -90,7 +94,9 @@ export class UnicodeBuffer {
 	/** Set pre-context string */
 	setPreContext(text: string): this {
 		this.preContext = [];
-		for (const char of text) {
+		const chars = Array.from(text);
+		for (let i = 0; i < chars.length; i++) {
+			const char = chars[i]!;
 			const codepoint = char.codePointAt(0);
 			if (codepoint !== undefined) {
 				this.preContext.push(codepoint);
@@ -102,7 +108,9 @@ export class UnicodeBuffer {
 	/** Set post-context string */
 	setPostContext(text: string): this {
 		this.postContext = [];
-		for (const char of text) {
+		const chars = Array.from(text);
+		for (let i = 0; i < chars.length; i++) {
+			const char = chars[i]!;
 			const codepoint = char.codePointAt(0);
 			if (codepoint !== undefined) {
 				this.postContext.push(codepoint);

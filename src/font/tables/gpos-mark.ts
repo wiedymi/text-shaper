@@ -142,7 +142,8 @@ export function parseMarkArray(reader: Reader): MarkArray {
 		});
 	}
 
-	for (const data of recordData) {
+	for (let i = 0; i < recordData.length; i++) {
+		const data = recordData[i]!;
 		const markAnchor = parseAnchor(reader.sliceFrom(data.anchorOffset));
 		markRecords.push({
 			markClass: data.markClass,
@@ -159,7 +160,8 @@ export function parseCursivePos(
 ): CursivePosSubtable[] {
 	const subtables: CursivePosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -169,7 +171,7 @@ export function parseCursivePos(
 
 			const entryExitData: Array<{ entryOffset: uint16; exitOffset: uint16 }> =
 				[];
-			for (let i = 0; i < entryExitCount; i++) {
+			for (let j = 0; j < entryExitCount; j++) {
 				entryExitData.push({
 					entryOffset: r.uint16(),
 					exitOffset: r.uint16(),
@@ -179,7 +181,8 @@ export function parseCursivePos(
 			const coverage = parseCoverageAt(r, coverageOffset);
 			const entryExitRecords: EntryExitRecord[] = [];
 
-			for (const data of entryExitData) {
+			for (let j = 0; j < entryExitData.length; j++) {
+				const data = entryExitData[j]!;
 				entryExitRecords.push({
 					entryAnchor: parseAnchorAt(r, data.entryOffset),
 					exitAnchor: parseAnchorAt(r, data.exitOffset),
@@ -199,7 +202,8 @@ export function parseMarkBasePos(
 ): MarkBasePosSubtable[] {
 	const subtables: MarkBasePosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -221,18 +225,20 @@ export function parseMarkBasePos(
 
 			// Read anchor offsets first
 			const baseRecordData: Array<uint16[]> = [];
-			for (let i = 0; i < baseCount; i++) {
+			for (let j = 0; j < baseCount; j++) {
 				const anchorOffsets: uint16[] = [];
-				for (let j = 0; j < markClassCount; j++) {
+				for (let k = 0; k < markClassCount; k++) {
 					anchorOffsets.push(baseArrayReader.uint16());
 				}
 				baseRecordData.push(anchorOffsets);
 			}
 
 			// Parse anchors
-			for (const anchorOffsets of baseRecordData) {
+			for (let j = 0; j < baseRecordData.length; j++) {
+				const anchorOffsets = baseRecordData[j]!;
 				const baseAnchors: (Anchor | null)[] = [];
-				for (const anchorOffset of anchorOffsets) {
+				for (let k = 0; k < anchorOffsets.length; k++) {
+					const anchorOffset = anchorOffsets[k]!;
 					baseAnchors.push(parseAnchorAt(baseArrayReader, anchorOffset));
 				}
 				baseArray.push({ baseAnchors });
@@ -257,7 +263,8 @@ export function parseMarkLigaturePos(
 ): MarkLigaturePosSubtable[] {
 	const subtables: MarkLigaturePosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -278,25 +285,28 @@ export function parseMarkLigaturePos(
 			const ligatureAttachOffsets = ligArrayReader.uint16Array(ligatureCount);
 
 			const ligatureArray: LigatureAttach[] = [];
-			for (const ligAttachOffset of ligatureAttachOffsets) {
+			for (let j = 0; j < ligatureAttachOffsets.length; j++) {
+				const ligAttachOffset = ligatureAttachOffsets[j]!;
 				const ligAttachReader = ligArrayReader.sliceFrom(ligAttachOffset);
 				const componentCount = ligAttachReader.uint16();
 
 				const componentRecords: ComponentRecord[] = [];
 				// Read all anchor offsets first
 				const componentData: Array<uint16[]> = [];
-				for (let i = 0; i < componentCount; i++) {
+				for (let k = 0; k < componentCount; k++) {
 					const anchorOffsets: uint16[] = [];
-					for (let j = 0; j < markClassCount; j++) {
+					for (let l = 0; l < markClassCount; l++) {
 						anchorOffsets.push(ligAttachReader.uint16());
 					}
 					componentData.push(anchorOffsets);
 				}
 
 				// Parse anchors
-				for (const anchorOffsets of componentData) {
+				for (let k = 0; k < componentData.length; k++) {
+					const anchorOffsets = componentData[k]!;
 					const ligatureAnchors: (Anchor | null)[] = [];
-					for (const anchorOffset of anchorOffsets) {
+					for (let l = 0; l < anchorOffsets.length; l++) {
+						const anchorOffset = anchorOffsets[l]!;
 						ligatureAnchors.push(parseAnchorAt(ligAttachReader, anchorOffset));
 					}
 					componentRecords.push({ ligatureAnchors });
@@ -324,7 +334,8 @@ export function parseMarkMarkPos(
 ): MarkMarkPosSubtable[] {
 	const subtables: MarkMarkPosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -346,18 +357,20 @@ export function parseMarkMarkPos(
 
 			// Read anchor offsets
 			const mark2Data: Array<uint16[]> = [];
-			for (let i = 0; i < mark2Count; i++) {
+			for (let j = 0; j < mark2Count; j++) {
 				const anchorOffsets: uint16[] = [];
-				for (let j = 0; j < markClassCount; j++) {
+				for (let k = 0; k < markClassCount; k++) {
 					anchorOffsets.push(mark2ArrayReader.uint16());
 				}
 				mark2Data.push(anchorOffsets);
 			}
 
 			// Parse anchors
-			for (const anchorOffsets of mark2Data) {
+			for (let j = 0; j < mark2Data.length; j++) {
+				const anchorOffsets = mark2Data[j]!;
 				const mark2Anchors: (Anchor | null)[] = [];
-				for (const anchorOffset of anchorOffsets) {
+				for (let k = 0; k < anchorOffsets.length; k++) {
+					const anchorOffset = anchorOffsets[k]!;
 					mark2Anchors.push(parseAnchorAt(mark2ArrayReader, anchorOffset));
 				}
 				mark2Array.push({ mark2Anchors });

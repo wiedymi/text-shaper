@@ -439,23 +439,24 @@ function isSharpCorner(
 export function assignEdgeColors(contours: MsdfEdge[][]): void {
 	const CORNER_THRESHOLD = Math.PI / 4; // 45 degrees
 
-	for (const contour of contours) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
 		if (contour.length === 0) continue;
 
 		if (contour.length === 1) {
 			// Single edge gets any color
-			contour[0].color = 0;
+			contour[0]!.color = 0;
 			continue;
 		}
 
 		// Start with color 0
 		let currentColor: EdgeColor = 0;
 
-		for (let i = 0; i < contour.length; i++) {
-			const edge = contour[i];
-			const prevEdge = contour[(i - 1 + contour.length) % contour.length];
+		for (let j = 0; j < contour.length; j++) {
+			const edge = contour[j]!;
+			const prevEdge = contour[(j - 1 + contour.length) % contour.length]!;
 
-			if (i === 0) {
+			if (j === 0) {
 				// First edge starts with color 0
 				edge.color = currentColor;
 			} else {
@@ -474,8 +475,8 @@ export function assignEdgeColors(contours: MsdfEdge[][]): void {
 
 		// Check if last-to-first transition needs different colors
 		if (contour.length >= 2) {
-			const lastEdge = contour[contour.length - 1];
-			const firstEdge = contour[0];
+			const lastEdge = contour[contour.length - 1]!;
+			const firstEdge = contour[0]!;
 
 			const lastDir = getEdgeEndDirection(lastEdge);
 			const firstDir = getEdgeStartDirection(firstEdge);
@@ -521,7 +522,8 @@ function extractEdges(
 		y: flipY ? -(y * scale) + offsetY : y * scale + offsetY,
 	});
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				// Start new contour
@@ -644,14 +646,16 @@ function isPointInside(
 ): boolean {
 	let crossings = 0;
 
-	for (const contour of contours) {
-		for (const edge of contour) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			const edge = contour[j]!;
 			// Flatten curves to line segments for inside test
 			const points = flattenEdge(edge);
 
-			for (let i = 0; i < points.length - 1; i++) {
-				const p0 = points[i];
-				const p1 = points[i + 1];
+			for (let k = 0; k < points.length - 1; k++) {
+				const p0 = points[k]!;
+				const p1 = points[k + 1]!;
 
 				// Ray casting: horizontal ray to the right
 				if (p0.y > py !== p1.y > py) {
@@ -777,21 +781,24 @@ export function renderMsdf(path: GlyphPath, options: MsdfOptions): Bitmap {
 			let minG = Infinity;
 			let minB = Infinity;
 
-			for (const edge of rEdges) {
+			for (let k = 0; k < rEdges.length; k++) {
+				const edge = rEdges[k]!;
 				const result = signedDistanceToEdge(px, py, edge);
 				if (Math.abs(result.distance) < Math.abs(minR)) {
 					minR = result.distance;
 				}
 			}
 
-			for (const edge of gEdges) {
+			for (let k = 0; k < gEdges.length; k++) {
+				const edge = gEdges[k]!;
 				const result = signedDistanceToEdge(px, py, edge);
 				if (Math.abs(result.distance) < Math.abs(minG)) {
 					minG = result.distance;
 				}
 			}
 
-			for (const edge of bEdges) {
+			for (let k = 0; k < bEdges.length; k++) {
+				const edge = bEdges[k]!;
 				const result = signedDistanceToEdge(px, py, edge);
 				if (Math.abs(result.distance) < Math.abs(minB)) {
 					minB = result.distance;
@@ -857,19 +864,20 @@ function packGlyphs(
 	let atlasWidth = 0;
 	let atlasHeight = 0;
 
-	for (const size of sizes) {
+	for (let i = 0; i < sizes.length; i++) {
+		const size = sizes[i]!;
 		let placed = false;
 		let bestShelf = -1;
 		let bestY = maxHeight;
 
 		// Try to find an existing shelf
-		for (let i = 0; i < shelves.length; i++) {
-			const shelf = shelves[i];
+		for (let j = 0; j < shelves.length; j++) {
+			const shelf = shelves[j]!;
 
 			// Check if glyph fits in this shelf
 			if (shelf.width + size.width <= maxWidth && size.height <= shelf.height) {
 				if (shelf.y < bestY) {
-					bestShelf = i;
+					bestShelf = j;
 					bestY = shelf.y;
 				}
 			}
@@ -877,7 +885,7 @@ function packGlyphs(
 
 		if (bestShelf >= 0) {
 			// Place in existing shelf
-			const shelf = shelves[bestShelf];
+			const shelf = shelves[bestShelf]!;
 			placements.push({
 				x: shelf.width,
 				y: shelf.y,
@@ -983,7 +991,8 @@ export function buildMsdfAtlas(
 		advance: number;
 	}> = [];
 
-	for (const glyphId of glyphIds) {
+	for (let i = 0; i < glyphIds.length; i++) {
+		const glyphId = glyphIds[i]!;
 		const path = getGlyphPath(font, glyphId);
 		if (!path || !path.bounds) continue;
 
@@ -1107,7 +1116,9 @@ export function buildMsdfStringAtlas(
 ): GlyphAtlas {
 	const glyphIdSet = new Set<number>();
 
-	for (const char of text) {
+	const textArray = Array.from(text);
+	for (let i = 0; i < textArray.length; i++) {
+		const char = textArray[i]!;
 		const codepoint = char.codePointAt(0);
 		if (codepoint === undefined) continue;
 

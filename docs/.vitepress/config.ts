@@ -31,6 +31,7 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API', link: '/api/font' },
+      { text: 'Benchmarks', link: '/benchmarks' },
       { text: 'Playground', link: '/playground/' },
       { text: 'Advanced', link: '/advanced/architecture' }
     ],

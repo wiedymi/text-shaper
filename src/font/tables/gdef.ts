@@ -123,7 +123,8 @@ export function parseAttachList(reader: Reader): Map<GlyphId, AttachPoint> {
 
 	// Parse attach points
 	const result = new Map<GlyphId, AttachPoint>();
-	for (const [i, offset] of attachPointOffsets.entries()) {
+	for (let i = 0; i < attachPointOffsets.length; i++) {
+		const offset = attachPointOffsets[i]!;
 		const glyphId = glyphIds[i];
 		if (glyphId === undefined) continue;
 
@@ -168,7 +169,8 @@ export function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
 
 	// Parse ligature glyphs
 	const result = new Map<GlyphId, LigatureCaret>();
-	for (const [i, offset] of ligGlyphOffsets.entries()) {
+	for (let i = 0; i < ligGlyphOffsets.length; i++) {
+		const offset = ligGlyphOffsets[i]!;
 		const glyphId = glyphIds[i];
 		if (glyphId === undefined) continue;
 
@@ -177,7 +179,8 @@ export function parseLigCaretList(reader: Reader): Map<GlyphId, LigatureCaret> {
 		const caretValueOffsets = ligReader.uint16Array(caretCount);
 
 		const caretValues: number[] = [];
-		for (const caretOffset of caretValueOffsets) {
+		for (let j = 0; j < caretValueOffsets.length; j++) {
+			const caretOffset = caretValueOffsets[j]!;
 			const caretReader = reader.sliceFrom(offset + caretOffset);
 			const caretFormat = caretReader.uint16();
 
@@ -208,19 +211,20 @@ export function parseMarkGlyphSets(reader: Reader): MarkGlyphSets {
 
 	// Parse each mark set coverage
 	const markSets: Set<GlyphId>[] = [];
-	for (const offset of coverageOffsets) {
+	for (let i = 0; i < coverageOffsets.length; i++) {
+		const offset = coverageOffsets[i]!;
 		const coverageReader = reader.sliceFrom(offset);
 		const coverageFormat = coverageReader.uint16();
 
 		const glyphSet = new Set<GlyphId>();
 		if (coverageFormat === 1) {
 			const count = coverageReader.uint16();
-			for (let i = 0; i < count; i++) {
+			for (let j = 0; j < count; j++) {
 				glyphSet.add(coverageReader.uint16());
 			}
 		} else if (coverageFormat === 2) {
 			const rangeCount = coverageReader.uint16();
-			for (let i = 0; i < rangeCount; i++) {
+			for (let j = 0; j < rangeCount; j++) {
 				const start = coverageReader.uint16();
 				const end = coverageReader.uint16();
 				coverageReader.skip(2);

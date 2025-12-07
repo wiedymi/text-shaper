@@ -131,7 +131,8 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 
 	// Parse item variation data
 	const itemVariationData: ItemVariationData[] = [];
-	for (const offset of itemVariationDataOffsets) {
+	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
+		const offset = itemVariationDataOffsets[i]!;
 		const dataReader = reader.sliceFrom(offset);
 		const itemCount = dataReader.uint16();
 		const wordDeltaCount = dataReader.uint16();
@@ -280,7 +281,8 @@ function getDeltaFromMapping(
 
 	// Calculate total delta
 	let delta = 0;
-	for (const [i, regionIndex] of varData.regionIndexes.entries()) {
+	for (let i = 0; i < varData.regionIndexes.length; i++) {
+		const regionIndex = varData.regionIndexes[i]!;
 		const region = hvar.itemVariationStore.variationRegions[regionIndex];
 		if (!region) continue;
 

@@ -170,7 +170,8 @@ function parseBaseValues(
 	}
 
 	const baseCoords: int16[] = [];
-	for (const offset of coordOffsets) {
+	for (let i = 0; i < coordOffsets.length; i++) {
+		const offset = coordOffsets[i]!;
 		if (offset !== 0) {
 			const coordReader = reader.sliceFrom(baseValuesOffset + offset);
 			baseCoords.push(parseBaseCoord(coordReader).coordinate);
@@ -208,10 +209,11 @@ function parseBaseScriptRecord(
 	);
 	const defaultMinMax = parseMinMax(reader, scriptOffset + defaultMinMaxOffset);
 
-	for (const { tag, offset } of langSysData) {
-		const minMax = parseMinMax(reader, scriptOffset + offset);
+	for (let i = 0; i < langSysData.length; i++) {
+		const item = langSysData[i]!;
+		const minMax = parseMinMax(reader, scriptOffset + item.offset);
 		if (minMax) {
-			baseLangSysRecords.set(tag, minMax);
+			baseLangSysRecords.set(item.tag, minMax);
 		}
 	}
 
@@ -250,13 +252,14 @@ function parseAxisTable(reader: Reader, axisOffset: number): AxisTable | null {
 			scriptData.push({ tag, offset });
 		}
 
-		for (const { tag, offset } of scriptData) {
+		for (let i = 0; i < scriptData.length; i++) {
+			const item = scriptData[i]!;
 			const record = parseBaseScriptRecord(
 				reader,
-				axisOffset + baseScriptListOffset + offset,
+				axisOffset + baseScriptListOffset + item.offset,
 				baseTagList,
 			);
-			baseScriptList.push({ scriptTag: tag, ...record });
+			baseScriptList.push({ scriptTag: item.tag, ...record });
 		}
 	}
 

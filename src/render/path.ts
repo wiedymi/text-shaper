@@ -60,7 +60,8 @@ export function contourToPath(contour: Contour): PathCommand[] {
 
 	// Fast check: if first off-curve point is cubic, use cubic path
 	// CFF glyphs always have cubic control points, TrueType never does
-	for (const p of contour) {
+	for (let i = 0; i < contour.length; i++) {
+		const p = contour[i]!;
 		if (!p.onCurve) {
 			return p.cubic
 				? contourToPathCubic(contour)
@@ -164,7 +165,8 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
 
 	// Find the first on-curve point to start
 	let startIndex = 0;
-	for (const [i, point] of contour.entries()) {
+	for (let i = 0; i < contour.length; i++) {
+		const point = contour[i]!;
 		if (point.onCurve) {
 			startIndex = i;
 			break;
@@ -288,7 +290,8 @@ export function getGlyphPath(font: Font, glyphId: GlyphId): GlyphPath | null {
 	}
 
 	const commands: PathCommand[] = [];
-	for (const contour of result.contours) {
+	for (let i = 0; i < result.contours.length; i++) {
+		const contour = result.contours[i]!;
 		commands.push(...contourToPath(contour));
 	}
 
@@ -317,7 +320,8 @@ export function pathToSVG(
 	// Direct string concatenation is faster than array.join for small strings
 	let result = "";
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		if (result) result += " ";
 		switch (cmd.type) {
 			case "M":
@@ -375,7 +379,8 @@ export function pathToCanvas(
 	const offsetX = options?.offsetX ?? 0;
 	const offsetY = options?.offsetY ?? 0;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				ctx.moveTo(
@@ -512,7 +517,8 @@ export function renderShapedText(
 	let x = startX;
 	let y = startY;
 
-	for (const glyph of glyphs) {
+	for (let i = 0; i < glyphs.length; i++) {
+		const glyph = glyphs[i]!;
 		const path = getGlyphPath(font, glyph.glyphId);
 		if (path) {
 			ctx.beginPath();
@@ -610,7 +616,8 @@ export function shapedTextToSVG(
 	let minY = Infinity;
 	let maxY = -Infinity;
 
-	for (const glyph of glyphs) {
+	for (let i = 0; i < glyphs.length; i++) {
+		const glyph = glyphs[i]!;
 		const path = getGlyphPath(font, glyph.glyphId);
 		if (path?.bounds) {
 			const offsetX = x + glyph.xOffset * scale;
@@ -669,7 +676,8 @@ export function shapedTextToSVG(
 						matrix3D,
 					),
 				];
-				for (const c of corners) {
+				for (let j = 0; j < corners.length; j++) {
+					const c = corners[j]!;
 					minX = Math.min(minX, c.x);
 					maxX = Math.max(maxX, c.x);
 					minY = Math.min(minY, c.y);
@@ -711,7 +719,8 @@ export function shapedTextToSVG(
 						matrix,
 					),
 				];
-				for (const c of corners) {
+				for (let j = 0; j < corners.length; j++) {
+					const c = corners[j]!;
 					minX = Math.min(minX, c.x);
 					maxX = Math.max(maxX, c.x);
 					minY = Math.min(minY, c.y);
@@ -766,7 +775,8 @@ export function shapedTextToSVG(
  */
 export function glyphBufferToShapedGlyphs(buffer: GlyphBuffer): ShapedGlyph[] {
 	const result: ShapedGlyph[] = [];
-	for (const [i, info] of buffer.infos.entries()) {
+	for (let i = 0; i < buffer.infos.length; i++) {
+		const info = buffer.infos[i]!;
 		const pos = buffer.positions[i];
 		if (!pos) continue;
 		result.push({
@@ -792,7 +802,8 @@ export function getGlyphPathWithVariation(
 	if (!contours) return null;
 
 	const commands: PathCommand[] = [];
-	for (const contour of contours) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
 		commands.push(...contourToPath(contour));
 	}
 
@@ -840,7 +851,8 @@ export function renderShapedTextWithVariation(
 	let x = startX;
 	let y = startY;
 
-	for (const glyph of glyphs) {
+	for (let i = 0; i < glyphs.length; i++) {
+		const glyph = glyphs[i]!;
 		const path = getGlyphPathWithVariation(font, glyph.glyphId, axisCoords);
 		if (path) {
 			ctx.beginPath();
@@ -889,7 +901,8 @@ export function shapedTextToSVGWithVariation(
 	let minY = Infinity;
 	let maxY = -Infinity;
 
-	for (const glyph of glyphs) {
+	for (let i = 0; i < glyphs.length; i++) {
+		const glyph = glyphs[i]!;
 		const path = getGlyphPathWithVariation(font, glyph.glyphId, axisCoords);
 		if (path?.bounds) {
 			const offsetX = x + glyph.xOffset * scale;
@@ -939,7 +952,8 @@ export function getTextWidth(
 ): number {
 	const scale = fontSize / font.unitsPerEm;
 	let width = 0;
-	for (const glyph of glyphs) {
+	for (let i = 0; i < glyphs.length; i++) {
+		const glyph = glyphs[i]!;
 		width += glyph.xAdvance;
 	}
 	return width * scale;
@@ -975,7 +989,8 @@ export function pathToCanvasWithMatrix(
 	const flipY = options?.flipY ?? true;
 	const ySign = flipY ? -1 : 1;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M": {
 				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
@@ -1019,7 +1034,8 @@ export function pathToSVGWithMatrix(
 	const ySign = flipY ? -1 : 1;
 	const parts: string[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M": {
 				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
@@ -1066,7 +1082,8 @@ export function pathToCanvasWithMatrix3D(
 	const flipY = options?.flipY ?? true;
 	const ySign = flipY ? -1 : 1;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M": {
 				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
@@ -1111,7 +1128,8 @@ export function pathToSVGWithMatrix3D(
 	const ySign = flipY ? -1 : 1;
 	const parts: string[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M": {
 				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
@@ -1186,7 +1204,8 @@ export function pathToSVGDirect(
 ): string {
 	let result = "";
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		if (result) result += " ";
 		switch (cmd.type) {
 			case "M":

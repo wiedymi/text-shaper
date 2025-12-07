@@ -85,7 +85,8 @@ export function renderSdf(path: GlyphPath, options: SdfOptions): Bitmap {
 
 			// Find minimum distance to all edges
 			let minDist = Infinity;
-			for (const edge of edges) {
+			for (let k = 0; k < edges.length; k++) {
+				const edge = edges[k]!;
 				const dist = distanceToEdge(px, py, edge);
 				minDist = Math.min(minDist, dist);
 			}
@@ -130,7 +131,8 @@ function extractEdges(
 		y: flipY ? -(y * scale) + offsetY : y * scale + offsetY,
 	});
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				currentPoint = transform(cmd.x, cmd.y);
@@ -304,13 +306,14 @@ function distanceToCubic(
 function isPointInside(px: number, py: number, edges: Edge[]): boolean {
 	let crossings = 0;
 
-	for (const edge of edges) {
+	for (let i = 0; i < edges.length; i++) {
+		const edge = edges[i]!;
 		// Flatten curves to line segments for inside test
 		const points = flattenEdge(edge);
 
-		for (let i = 0; i < points.length - 1; i++) {
-			const p0 = points[i];
-			const p1 = points[i + 1];
+		for (let j = 0; j < points.length - 1; j++) {
+			const p0 = points[j];
+			const p1 = points[j + 1];
 			if (!p0 || !p1) continue;
 
 			// Ray casting: cast horizontal ray to the right from (px, py)

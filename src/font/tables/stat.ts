@@ -134,7 +134,8 @@ export function parseStat(reader: Reader): StatTable {
 		}
 
 		// Parse each axis value
-		for (const offset of axisValueOffsets) {
+		for (let i = 0; i < axisValueOffsets.length; i++) {
+			const offset = axisValueOffsets[i]!;
 			const valueReader = reader.sliceFrom(
 				tableStart + axisValueArrayOffset + offset,
 			);

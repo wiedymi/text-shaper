@@ -19,7 +19,8 @@ function computeBounds(commands: PathCommand[]): {
 	let xMax = -Infinity;
 	let yMax = -Infinity;
 
-	for (const cmd of commands) {
+	for (let i = 0; i < commands.length; i++) {
+		const cmd = commands[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L":
@@ -61,7 +62,8 @@ function computeBounds(commands: PathCommand[]): {
 export function obliquePath(path: GlyphPath, slant: number): GlyphPath {
 	const commands: PathCommand[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L":
@@ -125,7 +127,8 @@ export function transformPath(
 
 	const commands: PathCommand[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L": {
@@ -188,7 +191,8 @@ export function transformPath(
 export function condensePath(path: GlyphPath, factor: number): GlyphPath {
 	const commands: PathCommand[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L":
@@ -259,7 +263,8 @@ export function emboldenPath(path: GlyphPath, strength: number): GlyphPath {
 	const contours = extractContours(path);
 	const commands: PathCommand[] = [];
 
-	for (const contour of contours) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
 		if (contour.length < 3) continue;
 
 		// Offset the contour
@@ -272,11 +277,11 @@ export function emboldenPath(path: GlyphPath, strength: number): GlyphPath {
 				x: offsetContour[0].x,
 				y: offsetContour[0].y,
 			});
-			for (let i = 1; i < offsetContour.length; i++) {
+			for (let j = 1; j < offsetContour.length; j++) {
 				commands.push({
 					type: "L",
-					x: offsetContour[i].x,
-					y: offsetContour[i].y,
+					x: offsetContour[j].x,
+					y: offsetContour[j].y,
 				});
 			}
 			commands.push({ type: "Z" });
@@ -291,7 +296,8 @@ export function emboldenPath(path: GlyphPath, strength: number): GlyphPath {
 			maxX = -Infinity,
 			maxY = -Infinity;
 
-		for (const cmd of commands) {
+		for (let i = 0; i < commands.length; i++) {
+			const cmd = commands[i]!;
 			if (cmd.type === "M" || cmd.type === "L") {
 				minX = Math.min(minX, cmd.x);
 				minY = Math.min(minY, cmd.y);
@@ -323,7 +329,8 @@ function extractContours(path: GlyphPath): Point[][] {
 	const contours: Point[][] = [];
 	let currentContour: Point[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				if (currentContour.length > 0) {
@@ -339,8 +346,8 @@ function extractContours(path: GlyphPath): Point[][] {
 				const last = currentContour[currentContour.length - 1];
 				if (last) {
 					const steps = 8;
-					for (let i = 1; i <= steps; i++) {
-						const t = i / steps;
+					for (let j = 1; j <= steps; j++) {
+						const t = j / steps;
 						const ti = 1 - t;
 						const x = ti * ti * last.x + 2 * ti * t * cmd.x1 + t * t * cmd.x;
 						const y = ti * ti * last.y + 2 * ti * t * cmd.y1 + t * t * cmd.y;
@@ -354,8 +361,8 @@ function extractContours(path: GlyphPath): Point[][] {
 				const last = currentContour[currentContour.length - 1];
 				if (last) {
 					const steps = 12;
-					for (let i = 1; i <= steps; i++) {
-						const t = i / steps;
+					for (let j = 1; j <= steps; j++) {
+						const t = j / steps;
 						const ti = 1 - t;
 						const x =
 							ti * ti * ti * last.x +

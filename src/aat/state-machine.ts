@@ -389,8 +389,9 @@ export function processLigature(
 						if (firstInfo && ligature !== undefined) {
 							firstInfo.glyphId = ligature;
 							// Mark other components for deletion
-							for (const [j, idx] of componentIndices.entries()) {
+							for (let j = 0; j < componentIndices.length; j++) {
 								if (j < componentIndices.length - 1) {
+									const idx = componentIndices[j]!;
 									deleted.add(idx);
 								}
 							}
@@ -413,8 +414,9 @@ export function processLigature(
 	}
 
 	// Build result without deleted glyphs
-	for (const [i, info] of infos.entries()) {
+	for (let i = 0; i < infos.length; i++) {
 		if (!deleted.has(i)) {
+			const info = infos[i]!;
 			result.push(info);
 		}
 	}
@@ -504,12 +506,14 @@ export function processInsertion(
 	}
 
 	// Build result with insertions
-	for (const [i, info] of infos.entries()) {
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
 		const ins = insertions.get(i);
 
 		if (ins) {
 			// Insert before
-			for (const glyph of ins.before) {
+			for (let j = 0; j < ins.before.length; j++) {
+				const glyph = ins.before[j]!;
 				result.push({
 					glyphId: glyph,
 					cluster: info.cluster,
@@ -523,7 +527,8 @@ export function processInsertion(
 
 		if (ins) {
 			// Insert after
-			for (const glyph of ins.after) {
+			for (let j = 0; j < ins.after.length; j++) {
+				const glyph = ins.after[j]!;
 				result.push({
 					glyphId: glyph,
 					cluster: info.cluster,

@@ -65,7 +65,8 @@ export function parseGasp(reader: Reader): GaspTable {
  * Get behavior flags for a specific ppem
  */
 export function getGaspBehavior(gasp: GaspTable, ppem: number): number {
-	for (const range of gasp.ranges) {
+	for (let i = 0; i < gasp.ranges.length; i++) {
+		const range = gasp.ranges[i]!;
 		if (ppem <= range.maxPPEM) {
 			return range.behavior;
 		}

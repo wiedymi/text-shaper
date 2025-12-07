@@ -248,7 +248,7 @@ function parseKerxFormat2(
 	const numCols = rowWidth / 2;
 	const kerningArray = new Int16Array(numRows * numCols);
 
-	for (const [i, _] of kerningArray.entries()) {
+	for (let i = 0; i < kerningArray.length; i++) {
 		kerningArray[i] = arrayReader.int16();
 	}
 
@@ -307,7 +307,8 @@ export function getKerxValue(
 	left: GlyphId,
 	right: GlyphId,
 ): number {
-	for (const subtable of kerx.subtables) {
+	for (let i = 0; i < kerx.subtables.length; i++) {
+		const subtable = kerx.subtables[i]!;
 		if (subtable.coverage.vertical) continue; // Skip vertical kerning
 
 		switch (subtable.format) {

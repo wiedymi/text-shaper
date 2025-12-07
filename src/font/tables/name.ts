@@ -95,7 +95,8 @@ export function parseName(reader: Reader): NameTable {
 	}
 
 	// Decode strings
-	for (const rd of recordData) {
+	for (let i = 0; i < recordData.length; i++) {
+		const rd = recordData[i]!;
 		const strReader = reader.sliceFrom(stringOffset + rd.offset);
 		const value = decodeNameString(
 			strReader,
@@ -161,7 +162,8 @@ export function getNameById(
 	languageId?: number,
 ): string | null {
 	// Prefer Windows Unicode (platform 3, encoding 1)
-	for (const record of table.records) {
+	for (let i = 0; i < table.records.length; i++) {
+		const record = table.records[i]!;
 		if (record.nameId !== nameId) continue;
 		if (record.platformId === PlatformId.Windows && record.encodingId === 1) {
 			if (languageId === undefined || record.languageId === languageId) {
@@ -171,7 +173,8 @@ export function getNameById(
 	}
 
 	// Fallback to Unicode platform
-	for (const record of table.records) {
+	for (let i = 0; i < table.records.length; i++) {
+		const record = table.records[i]!;
 		if (record.nameId !== nameId) continue;
 		if (record.platformId === PlatformId.Unicode) {
 			if (languageId === undefined || record.languageId === languageId) {
@@ -181,7 +184,8 @@ export function getNameById(
 	}
 
 	// Fallback to any platform
-	for (const record of table.records) {
+	for (let i = 0; i < table.records.length; i++) {
+		const record = table.records[i]!;
 		if (record.nameId !== nameId) continue;
 		if (languageId === undefined || record.languageId === languageId) {
 			return record.value;

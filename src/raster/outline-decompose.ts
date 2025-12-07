@@ -197,7 +197,8 @@ export function decomposePath(
 	const offX = offsetX * ONE_PIXEL;
 	const offY = offsetY * ONE_PIXEL;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M": {
 				// Close previous contour if open

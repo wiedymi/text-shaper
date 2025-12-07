@@ -49,7 +49,8 @@ export function getExactBounds(path: GlyphPath): BBox | null {
 		hasPoints = true;
 	};
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M": {
 				currentX = cmd.x;
@@ -75,21 +76,25 @@ export function getExactBounds(path: GlyphPath): BBox | null {
 
 				// Find extrema in X direction
 				const xExtrema = getQuadraticExtrema(currentX, cmd.x1, cmd.x);
-				for (const t of xExtrema) {
+				for (let j = 0; j < xExtrema.length; j++) {
+					const t = xExtrema[j]!;
 					const x = evaluateQuadratic(currentX, cmd.x1, cmd.x, t);
 					updateBounds(x, currentY); // Use current Y temporarily
 				}
 
 				// Find extrema in Y direction
 				const yExtrema = getQuadraticExtrema(currentY, cmd.y1, cmd.y);
-				for (const t of yExtrema) {
+				for (let j = 0; j < yExtrema.length; j++) {
+					const t = yExtrema[j]!;
 					const y = evaluateQuadratic(currentY, cmd.y1, cmd.y, t);
 					updateBounds(currentX, y); // Use current X temporarily
 				}
 
 				// Evaluate both X and Y at extrema points
 				const allExtrema = new Set([...xExtrema, ...yExtrema]);
-				for (const t of allExtrema) {
+				const extremaArray = Array.from(allExtrema);
+				for (let j = 0; j < extremaArray.length; j++) {
+					const t = extremaArray[j]!;
 					const x = evaluateQuadratic(currentX, cmd.x1, cmd.x, t);
 					const y = evaluateQuadratic(currentY, cmd.y1, cmd.y, t);
 					updateBounds(x, y);
@@ -109,21 +114,25 @@ export function getExactBounds(path: GlyphPath): BBox | null {
 
 				// Find extrema in X direction
 				const xExtrema = getCubicExtrema(currentX, cmd.x1, cmd.x2, cmd.x);
-				for (const t of xExtrema) {
+				for (let j = 0; j < xExtrema.length; j++) {
+					const t = xExtrema[j]!;
 					const x = evaluateCubic(currentX, cmd.x1, cmd.x2, cmd.x, t);
 					updateBounds(x, currentY); // Use current Y temporarily
 				}
 
 				// Find extrema in Y direction
 				const yExtrema = getCubicExtrema(currentY, cmd.y1, cmd.y2, cmd.y);
-				for (const t of yExtrema) {
+				for (let j = 0; j < yExtrema.length; j++) {
+					const t = yExtrema[j]!;
 					const y = evaluateCubic(currentY, cmd.y1, cmd.y2, cmd.y, t);
 					updateBounds(currentX, y); // Use current X temporarily
 				}
 
 				// Evaluate both X and Y at extrema points
 				const allExtrema = new Set([...xExtrema, ...yExtrema]);
-				for (const t of allExtrema) {
+				const extremaArray = Array.from(allExtrema);
+				for (let j = 0; j < extremaArray.length; j++) {
+					const t = extremaArray[j]!;
 					const x = evaluateCubic(currentX, cmd.x1, cmd.x2, cmd.x, t);
 					const y = evaluateCubic(currentY, cmd.y1, cmd.y2, cmd.y, t);
 					updateBounds(x, y);

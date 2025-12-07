@@ -807,7 +807,9 @@ export interface LineBreakAnalysis {
  */
 export function analyzeLineBreaks(text: string): LineBreakAnalysis {
 	const codepoints: number[] = [];
-	for (const char of text) {
+	const chars = Array.from(text);
+	for (let i = 0; i < chars.length; i++) {
+		const char = chars[i]!;
 		codepoints.push(char.codePointAt(0) ?? 0);
 	}
 
@@ -825,7 +827,8 @@ export function analyzeLineBreaksFromCodepoints(
 	const breaks: BreakOpportunity[] = [];
 
 	// Get classes for all codepoints
-	for (const cp of codepoints) {
+	for (let i = 0; i < codepoints.length; i++) {
+		const cp = codepoints[i]!;
 		classes.push(getLineBreakClass(cp));
 	}
 

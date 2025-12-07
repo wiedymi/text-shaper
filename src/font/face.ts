@@ -52,18 +52,22 @@ export class Face {
 
 		// Convert to map
 		if (Array.isArray(variations)) {
-			for (const v of variations) {
+			for (let i = 0; i < variations.length; i++) {
+				const v = variations[i]!;
 				this._variations.set(v.tag, v.value);
 			}
 		} else {
-			for (const [tagStr, value] of Object.entries(variations)) {
+			const entries = Object.entries(variations);
+			for (let i = 0; i < entries.length; i++) {
+				const [tagStr, value] = entries[i]!;
 				const t = tag(tagStr.padEnd(4, " "));
 				this._variations.set(t, value);
 			}
 		}
 
 		// Normalize coordinates
-		for (const [i, axis] of fvar.axes.entries()) {
+		for (let i = 0; i < fvar.axes.length; i++) {
+			const axis = fvar.axes[i]!;
 			const userValue = this._variations.get(axis.tag) ?? axis.defaultValue;
 			this._coords[i] = normalizeAxisValue(axis, userValue);
 		}

@@ -198,7 +198,8 @@ function parseGlyphVariationData(
 
 	// Parse each tuple's deltas
 	const headers: TupleVariationHeader[] = [];
-	for (const hd of headerData) {
+	for (let i = 0; i < headerData.length; i++) {
+		const hd = headerData[i]!;
 		const hasPrivatePoints = (hd.tupleIndex & PRIVATE_POINT_NUMBERS) !== 0;
 
 		let pointNumbers: number[] | null;
@@ -218,7 +219,8 @@ function parseGlyphVariationData(
 			numPoints > 0 ? parsePackedDeltas(dataReader, numPoints) : [];
 
 		const deltas: PointDelta[] = [];
-		for (const [p, xDelta] of xDeltas.entries()) {
+		for (let p = 0; p < xDeltas.length; p++) {
+			const xDelta = xDeltas[p];
 			const yDelta = yDeltas[p];
 			deltas.push({
 				x: xDelta ?? 0,
@@ -312,7 +314,8 @@ export function calculateTupleScalar(
 ): number {
 	let scalar = 1.0;
 
-	for (const [i, peak] of peakTuple.entries()) {
+	for (let i = 0; i < peakTuple.length; i++) {
+		const peak = peakTuple[i]!;
 		const coord = axisCoords[i] ?? 0;
 
 		if (peak === 0 || coord === 0) {
@@ -366,7 +369,8 @@ export function getGlyphDelta(
 	let totalX = 0;
 	let totalY = 0;
 
-	for (const header of glyphData.tupleVariationHeaders) {
+	for (let i = 0; i < glyphData.tupleVariationHeaders.length; i++) {
+		const header = glyphData.tupleVariationHeaders[i]!;
 		if (!header.peakTuple) continue;
 
 		const scalar = calculateTupleScalar(

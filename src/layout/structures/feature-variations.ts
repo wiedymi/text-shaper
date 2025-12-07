@@ -84,7 +84,8 @@ export function parseFeatureVariations(reader: Reader): FeatureVariations {
 	}
 
 	const featureVariationRecords: FeatureVariationRecord[] = [];
-	for (const offsets of recordOffsets) {
+	for (let i = 0; i < recordOffsets.length; i++) {
+		const offsets = recordOffsets[i]!;
 		const conditionSet = parseConditionSet(
 			reader.sliceFrom(offsets.conditionSetOffset),
 		);
@@ -113,7 +114,8 @@ function parseConditionSet(reader: Reader): ConditionSet {
 	}
 
 	const conditions: Condition[] = [];
-	for (const offset of conditionOffsets) {
+	for (let i = 0; i < conditionOffsets.length; i++) {
+		const offset = conditionOffsets[i]!;
 		const condReader = reader.sliceFrom(offset);
 		const format = condReader.uint16();
 
@@ -146,13 +148,16 @@ function parseFeatureTableSubstitution(
 	}
 
 	const substitutions: FeatureSubstitutionRecord[] = [];
-	for (const record of substitutionRecords) {
+	for (let i = 0; i < substitutionRecords.length; i++) {
+		const record = substitutionRecords[i]!;
 		const featureReader = reader.sliceFrom(record.offset);
 		const featureParamsOffset = featureReader.offset16();
 		const lookupIndexCount = featureReader.uint16();
-		const lookupListIndices = Array.from(
-			featureReader.uint16Array(lookupIndexCount),
-		);
+		const uint16Array = featureReader.uint16Array(lookupIndexCount);
+		const lookupListIndices: uint16[] = new Array(lookupIndexCount);
+		for (let j = 0; j < lookupIndexCount; j++) {
+			lookupListIndices[j] = uint16Array[j]!;
+		}
 
 		substitutions.push({
 			featureIndex: record.featureIndex,
@@ -178,7 +183,8 @@ export function evaluateConditionSet(
 	conditionSet: ConditionSet,
 	axisCoords: number[],
 ): boolean {
-	for (const condition of conditionSet.conditions) {
+	for (let i = 0; i < conditionSet.conditions.length; i++) {
+		const condition = conditionSet.conditions[i]!;
 		const axisValue = axisCoords[condition.axisIndex] ?? 0;
 		if (
 			axisValue < condition.filterRangeMinValue ||
@@ -198,7 +204,8 @@ export function findMatchingFeatureVariation(
 	featureVariations: FeatureVariations,
 	axisCoords: number[],
 ): FeatureVariationRecord | null {
-	for (const record of featureVariations.featureVariationRecords) {
+	for (let i = 0; i < featureVariations.featureVariationRecords.length; i++) {
+		const record = featureVariations.featureVariationRecords[i]!;
 		if (evaluateConditionSet(record.conditionSet, axisCoords)) {
 			return record;
 		}
@@ -266,10 +273,13 @@ export function applyFeatureVariations(
 	// Create a new map with substituted lookups
 	const result = new Map(featureLookups);
 
-	for (const substitution of matchingRecord.featureTableSubstitution
-		.substitutions) {
+	const substitutions = matchingRecord.featureTableSubstitution.substitutions;
+	for (let i = 0; i < substitutions.length; i++) {
+		const substitution = substitutions[i]!;
 		// Find the feature tag for this index
-		for (const [tag, index] of featureIndices) {
+		const entries = Array.from(featureIndices.entries());
+		for (let j = 0; j < entries.length; j++) {
+			const [tag, index] = entries[j]!;
 			if (index === substitution.featureIndex) {
 				result.set(tag, substitution.alternateFeature.lookupListIndices);
 				break;

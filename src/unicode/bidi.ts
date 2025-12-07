@@ -79,7 +79,8 @@ export function reorderGlyphs(
 
 	// Reorder glyphs according to visual order
 	const reordered: GlyphInfo[] = [];
-	for (const idx of indices) {
+	for (let i = 0; i < indices.length; i++) {
+		const idx = indices[i]!;
 		if (idx < infos.length) {
 			const info = infos[idx];
 			if (info) {
@@ -104,7 +105,8 @@ export function getMirror(codepoint: number): number {
  * Apply character mirroring for RTL runs
  */
 export function applyMirroring(infos: GlyphInfo[], levels: Uint8Array): void {
-	for (const [i, info] of infos.entries()) {
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
 		const level = levels[i];
 		if (level === undefined) continue;
 
@@ -177,7 +179,9 @@ export function isLTR(codepoint: number): boolean {
  * Detect base direction from text content
  */
 export function detectDirection(text: string): Direction {
-	for (const char of text) {
+	const chars = Array.from(text);
+	for (let i = 0; i < chars.length; i++) {
+		const char = chars[i]!;
 		const type = getBidiCharType(char);
 		if (type & BidiType.L) return Direction.LTR;
 		if (type & (BidiType.R | BidiType.AL)) return Direction.RTL;

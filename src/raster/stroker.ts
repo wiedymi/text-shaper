@@ -455,7 +455,8 @@ function extractContours(
 	const contours: { points: Point[]; closed: boolean }[] = [];
 	let currentContour: Point[] = [];
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				if (currentContour.length > 0) {
@@ -471,8 +472,8 @@ function extractContours(
 				const last = currentContour[currentContour.length - 1];
 				if (last) {
 					const steps = 8;
-					for (let i = 1; i <= steps; i++) {
-						const t = i / steps;
+					for (let j = 1; j <= steps; j++) {
+						const t = j / steps;
 						const ti = 1 - t;
 						const x = ti * ti * last.x + 2 * ti * t * cmd.x1 + t * t * cmd.x;
 						const y = ti * ti * last.y + 2 * ti * t * cmd.y1 + t * t * cmd.y;
@@ -486,8 +487,8 @@ function extractContours(
 				const last = currentContour[currentContour.length - 1];
 				if (last) {
 					const steps = 12;
-					for (let i = 1; i <= steps; i++) {
-						const t = i / steps;
+					for (let j = 1; j <= steps; j++) {
+						const t = j / steps;
 						const ti = 1 - t;
 						const x =
 							ti * ti * ti * last.x +
@@ -537,7 +538,8 @@ export function strokePath(
 	const contours = extractContours(path);
 	const commands: PathCommand[] = [];
 
-	for (const contour of contours) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
 		if (contour.points.length < 2) continue;
 
 		const contourCommands = contour.closed

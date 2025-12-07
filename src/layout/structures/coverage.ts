@@ -109,7 +109,8 @@ class CoverageFormat2 implements Coverage {
 
 	glyphs(): GlyphId[] {
 		const result: GlyphId[] = [];
-		for (const range of this.ranges) {
+		for (let i = 0; i < this.ranges.length; i++) {
+			const range = this.ranges[i]!;
 			for (let g = range.startGlyphId; g <= range.endGlyphId; g++) {
 				result.push(g);
 			}

@@ -387,7 +387,8 @@ export function getEmbeddingLevels(
 				}
 
 				const seqIndices: number[] = [];
-				for (const seqRun of seqRuns) {
+				for (let i = 0; i < seqRuns.length; i++) {
+					const seqRun = seqRuns[i]!;
 					for (let j = seqRun._start; j <= seqRun._end; j++) {
 						seqIndices.push(j);
 					}
@@ -421,7 +422,8 @@ export function getEmbeddingLevels(
 			}
 		}
 
-		for (const seq of isolatingRunSeqs) {
+		for (let seqIdx = 0; seqIdx < isolatingRunSeqs.length; seqIdx++) {
+			const seq = isolatingRunSeqs[seqIdx]!;
 			const {
 				_seqIndices: seqIndices,
 				_sosType: sosType,
@@ -628,7 +630,8 @@ export function getEmbeddingLevels(
 				}
 				bracketPairs.sort((a, b) => a[0] - b[0]);
 
-				for (const pair of bracketPairs) {
+				for (let pairIdx = 0; pairIdx < bracketPairs.length; pairIdx++) {
+					const pair = bracketPairs[pairIdx]!;
 					const [openSeqIdx, closeSeqIdx] = pair;
 					let foundStrongType = false;
 					let useStrongType = 0;

@@ -59,7 +59,8 @@ export function parseSbix(reader: Reader, numGlyphs: number): SbixTable {
 
 	// Parse each strike
 	const strikes: SbixStrike[] = [];
-	for (const strikeOffset of strikeOffsets) {
+	for (let i = 0; i < strikeOffsets.length; i++) {
+		const strikeOffset = strikeOffsets[i]!;
 		const strike = parseStrike(reader, tableStart + strikeOffset, numGlyphs);
 		strikes.push(strike);
 	}
@@ -129,7 +130,8 @@ export function getGlyphBitmap(
 	let bestStrike: SbixStrike | null = null;
 	let bestDiff = Infinity;
 
-	for (const strike of sbix.strikes) {
+	for (let i = 0; i < sbix.strikes.length; i++) {
+		const strike = sbix.strikes[i]!;
 		const diff = Math.abs(strike.ppem - ppem);
 		if (diff < bestDiff) {
 			bestDiff = diff;
@@ -173,7 +175,8 @@ export function hasGlyphBitmap(
 	}
 
 	// Check any strike
-	for (const strike of sbix.strikes) {
+	for (let i = 0; i < sbix.strikes.length; i++) {
+		const strike = sbix.strikes[i]!;
 		if (strike.glyphData.has(glyphId)) {
 			return true;
 		}

@@ -98,7 +98,8 @@ export function applyAvarMapping(
 export function applyAvar(avar: AvarTable, coords: number[]): number[] {
 	const result: number[] = [];
 
-	for (const [i, coord] of coords.entries()) {
+	for (let i = 0; i < coords.length; i++) {
+		const coord = coords[i]!;
 		const segmentMap = avar.axisSegmentMaps[i];
 		if (segmentMap) {
 			result.push(applyAvarMapping(segmentMap, coord));

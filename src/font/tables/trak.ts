@@ -86,10 +86,11 @@ function parseTrackData(reader: Reader, tableReader: Reader): TrackData {
 
 	// Read per-size tracking values for each track
 	// Note: offsets are relative to table start, not trackData start
-	for (const entry of trackTable) {
+	for (let i = 0; i < trackTable.length; i++) {
+		const entry = trackTable[i]!;
 		const trackReader = tableReader.sliceFrom(entry.offset);
 		entry.perSizeTracking = [];
-		for (let i = 0; i < nSizes; i++) {
+		for (let j = 0; j < nSizes; j++) {
 			entry.perSizeTracking.push(trackReader.int16());
 		}
 	}
@@ -121,7 +122,8 @@ export function getTrackingValue(
 	// Find the track entry
 	let trackEntry: TrackTableEntry | null = null;
 
-	for (const entry of trackData.trackTable) {
+	for (let i = 0; i < trackData.trackTable.length; i++) {
+		const entry = trackData.trackTable[i]!;
 		if (entry.track === track) {
 			trackEntry = entry;
 			break;
@@ -133,7 +135,8 @@ export function getTrackingValue(
 		let lower: TrackTableEntry | null = null;
 		let upper: TrackTableEntry | null = null;
 
-		for (const entry of trackData.trackTable) {
+		for (let i = 0; i < trackData.trackTable.length; i++) {
+			const entry = trackData.trackTable[i]!;
 			if (entry.track <= track && (!lower || entry.track > lower.track)) {
 				lower = entry;
 			}
@@ -229,7 +232,8 @@ export function applyTracking(
 	if (trackingValue === 0) return;
 
 	// Add tracking to each advance
-	for (const [i, advance] of advances.entries()) {
+	for (let i = 0; i < advances.length; i++) {
+		const advance = advances[i];
 		advances[i] = (advance ?? 0) + trackingValue;
 	}
 }

@@ -22,7 +22,8 @@ export function getReorderSegments(
 	const endPos = Math.min(strLen - 1, end == null ? strLen - 1 : +end);
 
 	const segments: Array<[number, number]> = [];
-	for (const paragraph of embeddingLevelsResult.paragraphs) {
+	for (let i = 0; i < embeddingLevelsResult.paragraphs.length; i++) {
+		const paragraph = embeddingLevelsResult.paragraphs[i]!;
 		const lineStart = Math.max(startPos, paragraph.start);
 		const lineEnd = Math.min(endPos, paragraph.end);
 		if (lineStart < lineEnd) {
@@ -112,12 +113,15 @@ export function getReorderedIndices(
 		indices[i] = i;
 	}
 	// Reverse each segment in order
-	for (const [segStart, segEnd] of segments) {
+	for (let i = 0; i < segments.length; i++) {
+		const segment = segments[i]!;
+		const segStart = segment[0];
+		const segEnd = segment[1];
 		const slice = indices.slice(segStart, segEnd + 1);
-		for (let i = slice.length; i--; ) {
-			const val = slice[i];
+		for (let j = slice.length; j--; ) {
+			const val = slice[j];
 			if (val !== undefined) {
-				indices[segEnd - i] = val;
+				indices[segEnd - j] = val;
 			}
 		}
 	}

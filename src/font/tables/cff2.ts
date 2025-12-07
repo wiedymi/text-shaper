@@ -152,7 +152,8 @@ export function parseCff2(reader: Reader): Cff2Table {
 		reader.seek(startOffset + topDict.fdArray);
 		const fdDictData = parseIndex(reader);
 
-		for (const data of fdDictData) {
+		for (let i = 0; i < fdDictData.length; i++) {
+			const data = fdDictData[i]!;
 			const fd = parseCff2FDDict(
 				new Reader(
 					data.buffer as ArrayBuffer,
@@ -334,7 +335,9 @@ function parseCff2TopDict(reader: Reader): Cff2TopDict {
 	const dict = parseDict(reader);
 	const result: Cff2TopDict = {};
 
-	for (const [op, operands] of dict) {
+	const dictEntries = Array.from(dict);
+	for (let i = 0; i < dictEntries.length; i++) {
+		const [op, operands] = dictEntries[i]!;
 		switch (op) {
 			case Cff2TopDictOp.FontMatrix:
 				result.fontMatrix = operands;
@@ -381,7 +384,9 @@ function parseCff2PrivateDict(reader: Reader): Cff2PrivateDict {
 	const dict = parseDict(reader);
 	const result: Cff2PrivateDict = {};
 
-	for (const [op, operands] of dict) {
+	const dictEntries = Array.from(dict);
+	for (let i = 0; i < dictEntries.length; i++) {
+		const [op, operands] = dictEntries[i]!;
 		const op0 = operands[0];
 
 		switch (op) {
@@ -445,7 +450,8 @@ function parseCff2PrivateDict(reader: Reader): Cff2PrivateDict {
 function deltaToAbsolute(deltas: number[]): number[] {
 	const result: number[] = [];
 	let value = 0;
-	for (const delta of deltas) {
+	for (let i = 0; i < deltas.length; i++) {
+		const delta = deltas[i]!;
 		value += delta;
 		result.push(value);
 	}
@@ -552,7 +558,8 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 
 	// Parse ItemVariationData
 	const itemVariationData: ItemVariationData[] = [];
-	for (const offset of itemVariationDataOffsets) {
+	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
+		const offset = itemVariationDataOffsets[i]!;
 		reader.seek(startOffset + offset);
 		itemVariationData.push(parseItemVariationData(reader));
 	}
@@ -646,7 +653,8 @@ export function calculateVariationDelta(
 
 		// Calculate scalar for this region
 		let scalar = 1.0;
-		for (const [axis, coords] of region.axes.entries()) {
+		for (let axis = 0; axis < region.axes.length; axis++) {
+			const coords = region.axes[axis]!;
 			const coord = normalizedCoords[axis] ?? 0;
 
 			if (coords.peakCoord === 0) {

@@ -173,7 +173,8 @@ function parseJstfLangSys(reader: Reader, offset: number): JstfLangSys {
 	}
 
 	const priorities: JstfPriorityRecord[] = [];
-	for (const priOffset of priorityOffsets) {
+	for (let i = 0; i < priorityOffsets.length; i++) {
+		const priOffset = priorityOffsets[i]!;
 		priorities.push(parseJstfPriority(reader, offset + priOffset));
 	}
 
@@ -215,7 +216,8 @@ function parseJstfScript(
 
 	// Parse language-specific systems
 	const langSysRecords = new Map<number, JstfLangSys>();
-	for (const { tag, offset: langOffset } of langSysData) {
+	for (let i = 0; i < langSysData.length; i++) {
+		const { tag, offset: langOffset } = langSysData[i]!;
 		langSysRecords.set(tag, parseJstfLangSys(reader, offset + langOffset));
 	}
 
@@ -237,7 +239,8 @@ export function parseJstf(reader: Reader): JstfTable {
 
 	// Parse scripts
 	const scripts: JstfScriptRecord[] = [];
-	for (const { tag, offset } of scriptData) {
+	for (let i = 0; i < scriptData.length; i++) {
+		const { tag, offset } = scriptData[i]!;
 		const script = parseJstfScript(reader, offset);
 		scripts.push({ scriptTag: tag, ...script });
 	}

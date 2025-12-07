@@ -150,7 +150,8 @@ export function parseCblc(reader: Reader): CblcTable {
 	}
 
 	// Parse index sub-tables for each bitmap size
-	for (const size of bitmapSizes) {
+	for (let i = 0; i < bitmapSizes.length; i++) {
+		const size = bitmapSizes[i]!;
 		const subTableReader = reader.sliceFrom(
 			tableStart + size.indexSubTableArrayOffset,
 		);
@@ -162,7 +163,7 @@ export function parseCblc(reader: Reader): CblcTable {
 			additionalOffsetToIndexSubtable: uint32;
 		}[] = [];
 
-		for (let i = 0; i < size.numberOfIndexSubTables; i++) {
+		for (let j = 0; j < size.numberOfIndexSubTables; j++) {
 			subTableHeaders.push({
 				firstGlyphIndex: subTableReader.uint16(),
 				lastGlyphIndex: subTableReader.uint16(),
@@ -171,7 +172,8 @@ export function parseCblc(reader: Reader): CblcTable {
 		}
 
 		// Parse each index sub-table
-		for (const header of subTableHeaders) {
+		for (let j = 0; j < subTableHeaders.length; j++) {
+			const header = subTableHeaders[j]!;
 			const indexSubTable = parseIndexSubTable(
 				reader,
 				tableStart +
@@ -353,7 +355,8 @@ export function getBitmapGlyph(
 	let bestSize: BitmapSize | null = null;
 	let bestDiff = Infinity;
 
-	for (const size of cblc.bitmapSizes) {
+	for (let i = 0; i < cblc.bitmapSizes.length; i++) {
+		const size = cblc.bitmapSizes[i]!;
 		if (glyphId < size.startGlyphIndex || glyphId > size.endGlyphIndex) {
 			continue;
 		}
@@ -367,7 +370,8 @@ export function getBitmapGlyph(
 	if (!bestSize) return null;
 
 	// Find glyph in index sub-tables
-	for (const subTable of bestSize.indexSubTables) {
+	for (let i = 0; i < bestSize.indexSubTables.length; i++) {
+		const subTable = bestSize.indexSubTables[i]!;
 		const glyphInfo = subTable.glyphOffsets.get(glyphId);
 		if (!glyphInfo) continue;
 
@@ -446,12 +450,14 @@ export function hasColorBitmap(
 	glyphId: GlyphId,
 	ppem?: number,
 ): boolean {
-	for (const size of cblc.bitmapSizes) {
+	for (let i = 0; i < cblc.bitmapSizes.length; i++) {
+		const size = cblc.bitmapSizes[i]!;
 		if (ppem !== undefined && size.ppemX !== ppem) continue;
 		if (glyphId < size.startGlyphIndex || glyphId > size.endGlyphIndex) {
 			continue;
 		}
-		for (const subTable of size.indexSubTables) {
+		for (let j = 0; j < size.indexSubTables.length; j++) {
+			const subTable = size.indexSubTables[j]!;
 			if (subTable.glyphOffsets.has(glyphId)) {
 				return true;
 			}
@@ -465,7 +471,8 @@ export function hasColorBitmap(
  */
 export function getColorBitmapSizes(cblc: CblcTable): number[] {
 	const sizes = new Set<number>();
-	for (const size of cblc.bitmapSizes) {
+	for (let i = 0; i < cblc.bitmapSizes.length; i++) {
+		const size = cblc.bitmapSizes[i]!;
 		sizes.add(size.ppemX);
 	}
 	return Array.from(sizes).sort((a, b) => a - b);

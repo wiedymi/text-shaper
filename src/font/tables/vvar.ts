@@ -108,14 +108,15 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 		regionIndexes: uint16[];
 		deltaSets: number[][];
 	}[] = [];
-	for (const offset of itemVariationDataOffsets) {
+	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
+		const offset = itemVariationDataOffsets[i]!;
 		const dataReader = reader.sliceFrom(offset);
 		const itemCount = dataReader.uint16();
 		const wordDeltaCount = dataReader.uint16();
 		const regionIndexCount = dataReader.uint16();
 
 		const regionIndexes: uint16[] = [];
-		for (let i = 0; i < regionIndexCount; i++) {
+		for (let j = 0; j < regionIndexCount; j++) {
 			regionIndexes.push(dataReader.uint16());
 		}
 
@@ -125,10 +126,10 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 		const shortCount = regionIndexCount - wordCount;
 
 		const deltaSets: number[][] = [];
-		for (let i = 0; i < itemCount; i++) {
+		for (let j = 0; j < itemCount; j++) {
 			const deltas: number[] = [];
 			// Read word-sized deltas
-			for (let j = 0; j < wordCount; j++) {
+			for (let k = 0; k < wordCount; k++) {
 				if (longWords) {
 					deltas.push(dataReader.int32());
 				} else {
@@ -136,7 +137,7 @@ function parseItemVariationStore(reader: Reader): ItemVariationStore {
 				}
 			}
 			// Read short-sized deltas
-			for (let j = 0; j < shortCount; j++) {
+			for (let k = 0; k < shortCount; k++) {
 				if (longWords) {
 					deltas.push(dataReader.int16());
 				} else {
@@ -298,7 +299,8 @@ function calculateDelta(
 
 	// Calculate total delta
 	let delta = 0;
-	for (const [i, regionIndex] of varData.regionIndexes.entries()) {
+	for (let i = 0; i < varData.regionIndexes.length; i++) {
+		const regionIndex = varData.regionIndexes[i]!;
 		const region = store.variationRegions[regionIndex];
 		if (!region) continue;
 

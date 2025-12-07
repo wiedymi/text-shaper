@@ -424,7 +424,8 @@ export function computeControlBox(path: GlyphPath): ControlBox {
 	let xMax = -Infinity;
 	let yMax = -Infinity;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L":
@@ -546,7 +547,8 @@ export function computeTightBounds(path: GlyphPath): BoundingBox {
 	let curX = 0;
 	let curY = 0;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				curX = cmd.x;
@@ -571,12 +573,16 @@ export function computeTightBounds(path: GlyphPath): BoundingBox {
 				xMax = Math.max(xMax, cmd.x);
 				yMax = Math.max(yMax, cmd.y);
 				// Extrema
-				for (const t of quadraticExtrema(curX, cmd.x1, cmd.x)) {
+				const xExtrema = quadraticExtrema(curX, cmd.x1, cmd.x);
+				for (let j = 0; j < xExtrema.length; j++) {
+					const t = xExtrema[j]!;
 					const x = evalQuadratic(curX, cmd.x1, cmd.x, t);
 					xMin = Math.min(xMin, x);
 					xMax = Math.max(xMax, x);
 				}
-				for (const t of quadraticExtrema(curY, cmd.y1, cmd.y)) {
+				const yExtrema = quadraticExtrema(curY, cmd.y1, cmd.y);
+				for (let j = 0; j < yExtrema.length; j++) {
+					const t = yExtrema[j]!;
 					const y = evalQuadratic(curY, cmd.y1, cmd.y, t);
 					yMin = Math.min(yMin, y);
 					yMax = Math.max(yMax, y);
@@ -592,12 +598,16 @@ export function computeTightBounds(path: GlyphPath): BoundingBox {
 				xMax = Math.max(xMax, cmd.x);
 				yMax = Math.max(yMax, cmd.y);
 				// Extrema
-				for (const t of cubicExtrema(curX, cmd.x1, cmd.x2, cmd.x)) {
+				const xExtrema = cubicExtrema(curX, cmd.x1, cmd.x2, cmd.x);
+				for (let j = 0; j < xExtrema.length; j++) {
+					const t = xExtrema[j]!;
 					const x = evalCubic(curX, cmd.x1, cmd.x2, cmd.x, t);
 					xMin = Math.min(xMin, x);
 					xMax = Math.max(xMax, x);
 				}
-				for (const t of cubicExtrema(curY, cmd.y1, cmd.y2, cmd.y)) {
+				const yExtrema = cubicExtrema(curY, cmd.y1, cmd.y2, cmd.y);
+				for (let j = 0; j < yExtrema.length; j++) {
+					const t = yExtrema[j]!;
 					const y = evalCubic(curY, cmd.y1, cmd.y2, cmd.y, t);
 					yMin = Math.min(yMin, y);
 					yMax = Math.max(yMax, y);
@@ -627,7 +637,8 @@ export function updateMinTransformedX(
 ): number {
 	let minX = currentMinX;
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L": {
@@ -720,7 +731,8 @@ export function combinePaths(paths: GlyphPath[]): GlyphPath {
 	let xMax = -Infinity;
 	let yMax = -Infinity;
 
-	for (const path of paths) {
+	for (let i = 0; i < paths.length; i++) {
+		const path = paths[i]!;
 		commands.push(...path.commands);
 		if (path.bounds) {
 			xMin = Math.min(xMin, path.bounds.xMin);

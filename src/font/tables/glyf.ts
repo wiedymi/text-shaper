@@ -205,7 +205,8 @@ function parseSimpleGlyph(
 	// Read X coordinates
 	const xCoordinates: number[] = [];
 	let x = 0;
-	for (const [_i, flag] of flags.entries()) {
+	for (let i = 0; i < flags.length; i++) {
+		const flag = flags[i]!;
 		if (flag & PointFlag.XShortVector) {
 			const dx = reader.uint8();
 			x += flag & PointFlag.XIsSameOrPositive ? dx : -dx;
@@ -219,7 +220,8 @@ function parseSimpleGlyph(
 	// Read Y coordinates
 	const yCoordinates: number[] = [];
 	let y = 0;
-	for (const [_i, flag] of flags.entries()) {
+	for (let i = 0; i < flags.length; i++) {
+		const flag = flags[i]!;
 		if (flag & PointFlag.YShortVector) {
 			const dy = reader.uint8();
 			y += flag & PointFlag.YIsSameOrPositive ? dy : -dy;
@@ -233,7 +235,8 @@ function parseSimpleGlyph(
 	// Build contours
 	const contours: Contour[] = [];
 	let pointIndex = 0;
-	for (const endPt of endPtsOfContours) {
+	for (let i = 0; i < endPtsOfContours.length; i++) {
+		const endPt = endPtsOfContours[i]!;
 		const contour: Contour = [];
 
 		while (pointIndex <= endPt) {
@@ -366,7 +369,8 @@ export function flattenCompositeGlyph(
 
 	const result: Contour[] = [];
 
-	for (const component of glyph.components) {
+	for (let i = 0; i < glyph.components.length; i++) {
+		const component = glyph.components[i]!;
 		const componentGlyph = parseGlyph(glyf, loca, component.glyphId);
 
 		let componentContours: Contour[];
@@ -390,7 +394,8 @@ export function flattenCompositeGlyph(
 		const dy =
 			component.flags & CompositeFlag.ArgsAreXYValues ? component.arg2 : 0;
 
-		for (const contour of componentContours) {
+		for (let j = 0; j < componentContours.length; j++) {
+			const contour = componentContours[j]!;
 			const transformedContour: Contour = contour.map((point) => ({
 				x: Math.round(a * point.x + c * point.y + dx),
 				y: Math.round(b * point.x + d * point.y + dy),
@@ -523,7 +528,8 @@ export function getGlyphDeltas(
 		.fill(null)
 		.map(() => ({ x: 0, y: 0 }));
 
-	for (const header of glyphData.tupleVariationHeaders) {
+	for (let i = 0; i < glyphData.tupleVariationHeaders.length; i++) {
+		const header = glyphData.tupleVariationHeaders[i]!;
 		if (!header.peakTuple) continue;
 
 		const scalar = calculateTupleScalar(
@@ -537,9 +543,10 @@ export function getGlyphDeltas(
 
 		if (header.pointNumbers !== null) {
 			// Sparse point deltas
-			for (const [i, pointIndex] of header.pointNumbers.entries()) {
+			for (let j = 0; j < header.pointNumbers.length; j++) {
+				const pointIndex = header.pointNumbers[j]!;
 				const delta = deltas[pointIndex];
-				const headerDelta = header.deltas[i];
+				const headerDelta = header.deltas[j];
 				if (pointIndex < numPoints && delta && headerDelta) {
 					delta.x += headerDelta.x * scalar;
 					delta.y += headerDelta.y * scalar;
@@ -547,9 +554,9 @@ export function getGlyphDeltas(
 			}
 		} else {
 			// All points
-			for (let i = 0; i < Math.min(header.deltas.length, numPoints); i++) {
-				const delta = deltas[i];
-				const headerDelta = header.deltas[i];
+			for (let j = 0; j < Math.min(header.deltas.length, numPoints); j++) {
+				const delta = deltas[j];
+				const headerDelta = header.deltas[j];
 				if (delta && headerDelta) {
 					delta.x += headerDelta.x * scalar;
 					delta.y += headerDelta.y * scalar;
@@ -559,7 +566,8 @@ export function getGlyphDeltas(
 	}
 
 	// Round final values
-	for (const d of deltas) {
+	for (let i = 0; i < deltas.length; i++) {
+		const d = deltas[i]!;
 		d.x = Math.round(d.x);
 		d.y = Math.round(d.y);
 	}
@@ -577,9 +585,11 @@ export function applyVariationDeltas(
 	const result: Contour[] = [];
 	let pointIndex = 0;
 
-	for (const contour of contours) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
 		const newContour: Contour = [];
-		for (const point of contour) {
+		for (let j = 0; j < contour.length; j++) {
+			const point = contour[j]!;
 			const delta = deltas[pointIndex] ?? { x: 0, y: 0 };
 			newContour.push({
 				x: point.x + delta.x,
@@ -627,7 +637,8 @@ export function getGlyphContoursWithVariation(
 	if (gvar && axisCoords && axisCoords.length > 0) {
 		// Count total points
 		let numPoints = 0;
-		for (const c of contours) {
+		for (let i = 0; i < contours.length; i++) {
+			const c = contours[i]!;
 			numPoints += c.length;
 		}
 		// Add phantom points (4)
@@ -657,7 +668,8 @@ function flattenCompositeGlyphWithVariation(
 
 	const result: Contour[] = [];
 
-	for (const component of glyph.components) {
+	for (let i = 0; i < glyph.components.length; i++) {
+		const component = glyph.components[i]!;
 		const componentGlyph = parseGlyph(glyf, loca, component.glyphId);
 
 		let componentContours: Contour[];
@@ -667,7 +679,8 @@ function flattenCompositeGlyphWithVariation(
 			// Apply variation to component
 			if (gvar && axisCoords && axisCoords.length > 0) {
 				let numPoints = 0;
-				for (const c of componentContours) {
+				for (let j = 0; j < componentContours.length; j++) {
+					const c = componentContours[j]!;
 					numPoints += c.length;
 				}
 				numPoints += 4; // phantom points
@@ -700,7 +713,8 @@ function flattenCompositeGlyphWithVariation(
 		const dy =
 			component.flags & CompositeFlag.ArgsAreXYValues ? component.arg2 : 0;
 
-		for (const contour of componentContours) {
+		for (let j = 0; j < componentContours.length; j++) {
+			const contour = componentContours[j]!;
 			const transformedContour: Contour = contour.map((point) => ({
 				x: Math.round(a * point.x + c * point.y + dx),
 				y: Math.round(b * point.x + d * point.y + dy),

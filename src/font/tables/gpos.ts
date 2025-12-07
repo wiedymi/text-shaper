@@ -212,7 +212,8 @@ export function parseGpos(reader: Reader): GposTable {
 	const lookupOffsets = lookupListReader.uint16Array(lookupCount);
 
 	const lookups: AnyGposLookup[] = [];
-	for (const lookupOffset of lookupOffsets) {
+	for (let i = 0; i < lookupOffsets.length; i++) {
+		const lookupOffset = lookupOffsets[i]!;
 		const lookupReader = lookupListReader.sliceFrom(lookupOffset);
 		const lookup = parseGposLookup(lookupReader);
 		if (lookup) {
@@ -244,7 +245,8 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 	// Helper to build digest from subtables with coverage
 	const buildDigest = (subtables: { coverage: Coverage }[]): SetDigest => {
 		const digest = new SetDigest();
-		for (const st of subtables) {
+		for (let i = 0; i < subtables.length; i++) {
+			const st = subtables[i]!;
 			digest.addCoverage(st.coverage);
 		}
 		return digest;
@@ -255,7 +257,8 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 		subtables: { markCoverage: Coverage }[],
 	): SetDigest => {
 		const digest = new SetDigest();
-		for (const st of subtables) {
+		for (let i = 0; i < subtables.length; i++) {
+			const st = subtables[i]!;
 			digest.addCoverage(st.markCoverage);
 		}
 		return digest;
@@ -316,7 +319,8 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 			const subtables = parseMarkMarkPos(reader, subtableOffsets);
 			// MarkMark uses mark1Coverage for the first mark
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				digest.addCoverage(st.mark1Coverage);
 			}
 			return {
@@ -330,7 +334,8 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 		case GposLookupType.Context: {
 			const subtables = parseContextPos(reader, subtableOffsets);
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				}
@@ -346,7 +351,8 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 		case GposLookupType.ChainingContext: {
 			const subtables = parseChainingContextPos(reader, subtableOffsets);
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				} else if ("inputCoverages" in st && st.inputCoverages?.[0]) {
@@ -413,7 +419,8 @@ function parseSinglePos(
 ): SinglePosSubtable[] {
 	const subtables: SinglePosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const subtableReader = reader.sliceFrom(offset);
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
@@ -429,7 +436,7 @@ function parseSinglePos(
 			const valueFormat = r.uint16();
 			const valueCount = r.uint16();
 			const values: ValueRecord[] = [];
-			for (let i = 0; i < valueCount; i++) {
+			for (let j = 0; j < valueCount; j++) {
 				values.push(parseValueRecord(r, valueFormat, subtableReader));
 			}
 			const coverage = parseCoverageAt(subtableReader, coverageOffset);
@@ -446,7 +453,8 @@ function parsePairPos(
 ): PairPosSubtable[] {
 	const subtables: PairPosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const subtableReader = reader.sliceFrom(offset);
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
@@ -474,13 +482,14 @@ function parsePairPosFormat1(
 	const coverage = parseCoverageAt(subtableReader, coverageOffset);
 	const pairSets: PairSet[] = [];
 
-	for (const pairSetOffset of pairSetOffsets) {
+	for (let i = 0; i < pairSetOffsets.length; i++) {
+		const pairSetOffset = pairSetOffsets[i]!;
 		const pairSetReader = subtableReader.sliceFrom(pairSetOffset);
 		const r = subtableReader.sliceFrom(pairSetOffset);
 		const pairValueCount = r.uint16();
 		const pairValueRecords: PairValueRecord[] = [];
 
-		for (let i = 0; i < pairValueCount; i++) {
+		for (let j = 0; j < pairValueCount; j++) {
 			const secondGlyph = r.uint16();
 			const value1 = parseValueRecord(r, valueFormat1, pairSetReader);
 			const value2 = parseValueRecord(r, valueFormat2, pairSetReader);
@@ -542,7 +551,8 @@ function parseExtensionLookup(
 
 	const extSubtables: Array<{ type: number; reader: Reader }> = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const extReader = reader.sliceFrom(offset);
 		const format = extReader.uint16();
 		if (format !== 1) continue;
@@ -564,7 +574,8 @@ function parseExtensionLookup(
 	// Helper to build digest from subtables with coverage
 	const buildDigest = (subtables: { coverage: Coverage }[]): SetDigest => {
 		const digest = new SetDigest();
-		for (const st of subtables) {
+		for (let i = 0; i < subtables.length; i++) {
+			const st = subtables[i]!;
 			digest.addCoverage(st.coverage);
 		}
 		return digest;
@@ -575,7 +586,8 @@ function parseExtensionLookup(
 		subtables: { markCoverage: Coverage }[],
 	): SetDigest => {
 		const digest = new SetDigest();
-		for (const st of subtables) {
+		for (let i = 0; i < subtables.length; i++) {
+			const st = subtables[i]!;
 			digest.addCoverage(st.markCoverage);
 		}
 		return digest;
@@ -584,7 +596,8 @@ function parseExtensionLookup(
 	switch (actualType) {
 		case GposLookupType.Single: {
 			const subtables: SinglePosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseSinglePos(ext.reader, [0]));
 			}
 			return {
@@ -597,7 +610,8 @@ function parseExtensionLookup(
 
 		case GposLookupType.Pair: {
 			const subtables: PairPosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parsePairPos(ext.reader, [0]));
 			}
 			return {
@@ -610,7 +624,8 @@ function parseExtensionLookup(
 
 		case GposLookupType.Cursive: {
 			const subtables: CursivePosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseCursivePos(ext.reader, [0]));
 			}
 			return {
@@ -623,7 +638,8 @@ function parseExtensionLookup(
 
 		case GposLookupType.MarkToBase: {
 			const subtables: MarkBasePosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseMarkBasePos(ext.reader, [0]));
 			}
 			return {
@@ -636,7 +652,8 @@ function parseExtensionLookup(
 
 		case GposLookupType.MarkToLigature: {
 			const subtables: MarkLigaturePosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseMarkLigaturePos(ext.reader, [0]));
 			}
 			return {
@@ -649,12 +666,14 @@ function parseExtensionLookup(
 
 		case GposLookupType.MarkToMark: {
 			const subtables: MarkMarkPosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseMarkMarkPos(ext.reader, [0]));
 			}
 			// MarkMark uses mark1Coverage for the first mark
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				digest.addCoverage(st.mark1Coverage);
 			}
 			return {
@@ -667,11 +686,13 @@ function parseExtensionLookup(
 
 		case GposLookupType.Context: {
 			const subtables: ContextPosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseContextPos(ext.reader, [0]));
 			}
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				}
@@ -681,11 +702,13 @@ function parseExtensionLookup(
 
 		case GposLookupType.ChainingContext: {
 			const subtables: ChainingContextPosSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseChainingContextPos(ext.reader, [0]));
 			}
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				} else if ("inputCoverages" in st && st.inputCoverages?.[0]) {
@@ -740,7 +763,8 @@ export function getKerning(
 	firstGlyph: GlyphId,
 	secondGlyph: GlyphId,
 ): { xAdvance1: number; xAdvance2: number } | null {
-	for (const subtable of lookup.subtables) {
+	for (let i = 0; i < lookup.subtables.length; i++) {
+		const subtable = lookup.subtables[i]!;
 		const coverageIndex = subtable.coverage.get(firstGlyph);
 		if (coverageIndex === null) continue;
 
@@ -787,7 +811,8 @@ export function applyKerningDirect(
 	pos1: GlyphPosition,
 	pos2: GlyphPosition,
 ): boolean {
-	for (const subtable of lookup.subtables) {
+	for (let i = 0; i < lookup.subtables.length; i++) {
+		const subtable = lookup.subtables[i]!;
 		const coverageIndex = subtable.coverage.get(firstGlyph);
 		if (coverageIndex === null) continue;
 

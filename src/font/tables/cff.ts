@@ -575,7 +575,8 @@ export function parseCff(reader: Reader): CffTable {
 	const globalSubrs = parseIndex(reader);
 
 	// Parse Top DICTs
-	for (const data of topDictData) {
+	for (let i = 0; i < topDictData.length; i++) {
+		const data = topDictData[i]!;
 		topDicts.push(
 			parseTopDict(
 				new Reader(
@@ -594,7 +595,8 @@ export function parseCff(reader: Reader): CffTable {
 	const fdArrays: FDDict[][] = [];
 	const fdSelects: FDSelect[] = [];
 
-	for (const topDict of topDicts) {
+	for (let i = 0; i < topDicts.length; i++) {
+		const topDict = topDicts[i]!;
 		// CharStrings
 		if (topDict.charStrings !== undefined) {
 			reader.seek(startOffset + topDict.charStrings);
@@ -626,7 +628,8 @@ export function parseCff(reader: Reader): CffTable {
 			reader.seek(startOffset + topDict.fdArray);
 			const fdData = parseIndex(reader);
 			const fds: FDDict[] = [];
-			for (const data of fdData) {
+			for (let j = 0; j < fdData.length; j++) {
+				const data = fdData[j]!;
 				const fdDict = parseTopDict(
 					new Reader(
 						data.buffer as ArrayBuffer,
@@ -810,7 +813,9 @@ function parseTopDict(reader: Reader, strings: string[]): TopDict {
 		return strings[sid - STANDARD_STRINGS.length] ?? "";
 	};
 
-	for (const [op, operands] of dict) {
+	const dictEntries = Array.from(dict);
+	for (let i = 0; i < dictEntries.length; i++) {
+		const [op, operands] = dictEntries[i]!;
 		const op0 = operands[0];
 		const op1 = operands[1];
 		const op2 = operands[2];
@@ -936,7 +941,9 @@ function parsePrivateDict(reader: Reader, _strings: string[]): PrivateDict {
 	const dict = parseDict(reader);
 	const result: PrivateDict = {};
 
-	for (const [op, operands] of dict) {
+	const dictEntries = Array.from(dict);
+	for (let i = 0; i < dictEntries.length; i++) {
+		const [op, operands] = dictEntries[i]!;
 		const op0 = operands[0];
 
 		switch (op) {
@@ -1006,7 +1013,8 @@ function parsePrivateDict(reader: Reader, _strings: string[]): PrivateDict {
 function deltaToAbsolute(deltas: number[]): number[] {
 	const result: number[] = [];
 	let value = 0;
-	for (const delta of deltas) {
+	for (let i = 0; i < deltas.length; i++) {
+		const delta = deltas[i]!;
 		value += delta;
 		result.push(value);
 	}

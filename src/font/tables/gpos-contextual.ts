@@ -118,7 +118,8 @@ export function parseContextPos(
 ): ContextPosSubtable[] {
 	const subtables: ContextPosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -146,7 +147,8 @@ function parseContextPosFormat1(reader: Reader): ContextPosFormat1 {
 	const coverage = parseCoverageAt(reader, coverageOffset);
 	const ruleSets: (PosContextRule[] | null)[] = [];
 
-	for (const ruleSetOffset of ruleSetOffsets) {
+	for (let i = 0; i < ruleSetOffsets.length; i++) {
+		const ruleSetOffset = ruleSetOffsets[i]!;
 		if (ruleSetOffset === 0) {
 			ruleSets.push(null);
 			continue;
@@ -157,7 +159,8 @@ function parseContextPosFormat1(reader: Reader): ContextPosFormat1 {
 		const ruleOffsets = rsReader.uint16Array(ruleCount);
 
 		const rules: PosContextRule[] = [];
-		for (const ruleOffset of ruleOffsets) {
+		for (let j = 0; j < ruleOffsets.length; j++) {
+			const ruleOffset = ruleOffsets[j]!;
 			const ruleReader = rsReader.sliceFrom(ruleOffset);
 			const glyphCount = ruleReader.uint16();
 			const lookupCount = ruleReader.uint16();
@@ -183,7 +186,8 @@ function parseContextPosFormat2(reader: Reader): ContextPosFormat2 {
 	const classDef = parseClassDefAt(reader, classDefOffset);
 	const classRuleSets: (PosClassRule[] | null)[] = [];
 
-	for (const crsOffset of classRuleSetOffsets) {
+	for (let i = 0; i < classRuleSetOffsets.length; i++) {
+		const crsOffset = classRuleSetOffsets[i]!;
 		if (crsOffset === 0) {
 			classRuleSets.push(null);
 			continue;
@@ -194,7 +198,8 @@ function parseContextPosFormat2(reader: Reader): ContextPosFormat2 {
 		const ruleOffsets = crsReader.uint16Array(ruleCount);
 
 		const rules: PosClassRule[] = [];
-		for (const ruleOffset of ruleOffsets) {
+		for (let j = 0; j < ruleOffsets.length; j++) {
+			const ruleOffset = ruleOffsets[j]!;
 			const ruleReader = crsReader.sliceFrom(ruleOffset);
 			const glyphCount = ruleReader.uint16();
 			const lookupCount = ruleReader.uint16();
@@ -216,7 +221,8 @@ function parseContextPosFormat3(reader: Reader): ContextPosFormat3 {
 	const coverageOffsets = reader.uint16Array(glyphCount);
 
 	const coverages: Coverage[] = [];
-	for (const offset of coverageOffsets) {
+	for (let i = 0; i < coverageOffsets.length; i++) {
+		const offset = coverageOffsets[i]!;
 		coverages.push(parseCoverageAt(reader, offset));
 	}
 
@@ -231,7 +237,8 @@ export function parseChainingContextPos(
 ): ChainingContextPosSubtable[] {
 	const subtables: ChainingContextPosSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -259,7 +266,8 @@ function parseChainingPosFormat1(reader: Reader): ChainingContextPosFormat1 {
 	const coverage = parseCoverageAt(reader, coverageOffset);
 	const chainRuleSets: (PosChainRule[] | null)[] = [];
 
-	for (const crsOffset of chainRuleSetOffsets) {
+	for (let i = 0; i < chainRuleSetOffsets.length; i++) {
+		const crsOffset = chainRuleSetOffsets[i]!;
 		if (crsOffset === 0) {
 			chainRuleSets.push(null);
 			continue;
@@ -270,7 +278,8 @@ function parseChainingPosFormat1(reader: Reader): ChainingContextPosFormat1 {
 		const ruleOffsets = crsReader.uint16Array(ruleCount);
 
 		const rules: PosChainRule[] = [];
-		for (const ruleOffset of ruleOffsets) {
+		for (let j = 0; j < ruleOffsets.length; j++) {
+			const ruleOffset = ruleOffsets[j]!;
 			const ruleReader = crsReader.sliceFrom(ruleOffset);
 
 			const backtrackCount = ruleReader.uint16();
@@ -318,7 +327,8 @@ function parseChainingPosFormat2(reader: Reader): ChainingContextPosFormat2 {
 
 	const chainClassRuleSets: (PosChainClassRule[] | null)[] = [];
 
-	for (const ccrsOffset of chainClassRuleSetOffsets) {
+	for (let i = 0; i < chainClassRuleSetOffsets.length; i++) {
+		const ccrsOffset = chainClassRuleSetOffsets[i]!;
 		if (ccrsOffset === 0) {
 			chainClassRuleSets.push(null);
 			continue;
@@ -329,7 +339,8 @@ function parseChainingPosFormat2(reader: Reader): ChainingContextPosFormat2 {
 		const ruleOffsets = ccrsReader.uint16Array(ruleCount);
 
 		const rules: PosChainClassRule[] = [];
-		for (const ruleOffset of ruleOffsets) {
+		for (let j = 0; j < ruleOffsets.length; j++) {
+			const ruleOffset = ruleOffsets[j]!;
 			const ruleReader = ccrsReader.sliceFrom(ruleOffset);
 
 			const backtrackCount = ruleReader.uint16();
@@ -383,17 +394,20 @@ function parseChainingPosFormat3(reader: Reader): ChainingContextPosFormat3 {
 	const lookupRecords = parsePosLookupRecords(reader, lookupCount);
 
 	const backtrackCoverages: Coverage[] = [];
-	for (const offset of backtrackCoverageOffsets) {
+	for (let i = 0; i < backtrackCoverageOffsets.length; i++) {
+		const offset = backtrackCoverageOffsets[i]!;
 		backtrackCoverages.push(parseCoverageAt(reader, offset));
 	}
 
 	const inputCoverages: Coverage[] = [];
-	for (const offset of inputCoverageOffsets) {
+	for (let i = 0; i < inputCoverageOffsets.length; i++) {
+		const offset = inputCoverageOffsets[i]!;
 		inputCoverages.push(parseCoverageAt(reader, offset));
 	}
 
 	const lookaheadCoverages: Coverage[] = [];
-	for (const offset of lookaheadCoverageOffsets) {
+	for (let i = 0; i < lookaheadCoverageOffsets.length; i++) {
+		const offset = lookaheadCoverageOffsets[i]!;
 		lookaheadCoverages.push(parseCoverageAt(reader, offset));
 	}
 

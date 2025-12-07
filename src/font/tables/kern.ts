@@ -203,7 +203,8 @@ export function getKernValue(
 ): number {
 	let total = 0;
 
-	for (const subtable of kern.subtables) {
+	for (let i = 0; i < kern.subtables.length; i++) {
+		const subtable = kern.subtables[i]!;
 		if (!subtable.coverage.horizontal) continue; // Only horizontal for now
 
 		if (subtable.format === 0) {

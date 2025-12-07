@@ -29,3 +29,5 @@ features:
     details: COLR/CPAL color palettes, SVG glyphs, sbix bitmaps, and CBDT/CBLC color bitmap support.
 ---
 
+<BenchmarkHero />
+

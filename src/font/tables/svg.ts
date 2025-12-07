@@ -62,7 +62,8 @@ export function parseSvg(reader: Reader): SvgTable {
 	const documentRecords: SvgDocumentRecord[] = [];
 	const decoder = new TextDecoder("utf-8");
 
-	for (const entry of entries) {
+	for (let i = 0; i < entries.length; i++) {
+		const entry = entries[i]!;
 		// SVG doc offset is relative to SVG Document List
 		const docReader = listReader.sliceFrom(entry.svgDocOffset);
 		const svgBytes = docReader.bytes(entry.svgDocLength);
@@ -97,7 +98,8 @@ export function parseSvg(reader: Reader): SvgTable {
  * Returns null if no SVG exists for this glyph
  */
 export function getSvgDocument(svg: SvgTable, glyphId: GlyphId): string | null {
-	for (const record of svg.documentRecords) {
+	for (let i = 0; i < svg.documentRecords.length; i++) {
+		const record = svg.documentRecords[i]!;
 		if (glyphId >= record.startGlyphID && glyphId <= record.endGlyphID) {
 			return record.svgDoc;
 		}
@@ -118,7 +120,8 @@ export function hasSvgGlyph(svg: SvgTable, glyphId: GlyphId): boolean {
 export function getSvgGlyphIds(svg: SvgTable): GlyphId[] {
 	const glyphIds: GlyphId[] = [];
 
-	for (const record of svg.documentRecords) {
+	for (let i = 0; i < svg.documentRecords.length; i++) {
+		const record = svg.documentRecords[i]!;
 		for (let gid = record.startGlyphID; gid <= record.endGlyphID; gid++) {
 			glyphIds.push(gid);
 		}
@@ -175,7 +178,8 @@ export async function decompressSvgDocument(data: Uint8Array): Promise<string> {
 			const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
 			const decompressed = new Uint8Array(totalLength);
 			let offset = 0;
-			for (const chunk of chunks) {
+			for (let i = 0; i < chunks.length; i++) {
+				const chunk = chunks[i]!;
 				decompressed.set(chunk, offset);
 				offset += chunk.length;
 			}

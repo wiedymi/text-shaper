@@ -56,7 +56,8 @@ class ClassDefFormat2 implements ClassDef {
 
 		// Calculate total glyphs covered
 		let totalGlyphs = 0;
-		for (const range of ranges) {
+		for (let i = 0; i < ranges.length; i++) {
+			const range = ranges[i]!;
 			totalGlyphs += range.endGlyphId - range.startGlyphId + 1;
 		}
 
@@ -64,7 +65,8 @@ class ClassDefFormat2 implements ClassDef {
 		// Larger tables stick with binary search to avoid memory overhead
 		if (totalGlyphs < 2000) {
 			this.glyphMap = new Map();
-			for (const range of ranges) {
+			for (let i = 0; i < ranges.length; i++) {
+				const range = ranges[i]!;
 				for (let g = range.startGlyphId; g <= range.endGlyphId; g++) {
 					this.glyphMap.set(g, range.classValue);
 				}
@@ -102,7 +104,8 @@ class ClassDefFormat2 implements ClassDef {
 
 	glyphsInClass(classValue: number): GlyphId[] {
 		const result: GlyphId[] = [];
-		for (const range of this.ranges) {
+		for (let i = 0; i < this.ranges.length; i++) {
+			const range = this.ranges[i]!;
 			if (range.classValue === classValue) {
 				for (let g = range.startGlyphId; g <= range.endGlyphId; g++) {
 					result.push(g);

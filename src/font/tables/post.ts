@@ -321,7 +321,8 @@ export function parsePost(reader: Reader): PostTable {
 		// Collect custom names (indexes >= 258)
 		const customNames: string[] = [];
 		let maxIndex = 0;
-		for (const idx of glyphNameIndex) {
+		for (let i = 0; i < glyphNameIndex.length; i++) {
+			const idx = glyphNameIndex[i]!;
 			if (idx >= 258 && idx > maxIndex) {
 				maxIndex = idx;
 			}

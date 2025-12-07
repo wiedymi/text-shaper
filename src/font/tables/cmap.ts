@@ -104,12 +104,15 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 	const subtables = new Map<string, CmapSubtable>();
 	const parsedOffsets = new Set<number>();
 
-	for (const record of encodingRecords) {
+	for (let i = 0; i < encodingRecords.length; i++) {
+		const record = encodingRecords[i]!;
 		// Skip duplicates (multiple records can point to same subtable)
 		if (parsedOffsets.has(record.offset)) {
 			const key = `${record.platformId}-${record.encodingId}`;
 			// Find existing subtable
-			for (const [existingKey, subtable] of subtables) {
+			const subtablesEntries = Array.from(subtables.entries());
+			for (let j = 0; j < subtablesEntries.length; j++) {
+				const [existingKey, subtable] = subtablesEntries[j]!;
 				const parts = existingKey.split("@");
 				const existingOffset = parts[0];
 				if (
@@ -141,7 +144,8 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 	const preferredKeys = ["3-10", "0-4", "3-1", "0-3", "0-6", "1-0"];
 	let bestSubtable: CmapSubtable | null = null;
 
-	for (const key of preferredKeys) {
+	for (let i = 0; i < preferredKeys.length; i++) {
+		const key = preferredKeys[i]!;
 		const subtable = subtables.get(key);
 		if (subtable && subtable.format !== 14) {
 			bestSubtable = subtable;
@@ -151,7 +155,9 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 
 	// Fallback to first non-format-14 subtable
 	if (!bestSubtable) {
-		for (const subtable of subtables.values()) {
+		const subtablesValues = Array.from(subtables.values());
+		for (let i = 0; i < subtablesValues.length; i++) {
+			const subtable = subtablesValues[i]!;
 			if (subtable.format !== 14) {
 				bestSubtable = subtable;
 				break;
@@ -378,7 +384,8 @@ function parseCmapFormat14(reader: Reader): CmapFormat14 {
 	// Second pass: parse the UVS tables
 	const varSelectorRecords: VariationSelectorRecord[] = [];
 
-	for (const raw of rawRecords) {
+	for (let i = 0; i < rawRecords.length; i++) {
+		const raw = rawRecords[i]!;
 		let defaultUVS: VariationSelectorRecord["defaultUVS"] = null;
 		let nonDefaultUVS: VariationSelectorRecord["nonDefaultUVS"] = null;
 
@@ -476,7 +483,8 @@ function parseCmapFormat14(reader: Reader): CmapFormat14 {
 
 			// Check default UVS (use default glyph for base codepoint)
 			if (record.defaultUVS) {
-				for (const range of record.defaultUVS) {
+				for (let i = 0; i < record.defaultUVS.length; i++) {
+					const range = record.defaultUVS[i]!;
 					const end = range.startUnicodeValue + range.additionalCount;
 					if (codepoint >= range.startUnicodeValue && codepoint <= end) {
 						return "default"; // Signal to use the default glyph

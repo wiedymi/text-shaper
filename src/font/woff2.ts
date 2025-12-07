@@ -461,7 +461,8 @@ function reconstructGlyfLoca(
 	// Build glyf table
 	const glyf = new Uint8Array(totalGlyfSize);
 	let glyfOffset = 0;
-	for (const part of glyphParts) {
+	for (let i = 0; i < glyphParts.length; i++) {
+		const part = glyphParts[i]!;
 		glyf.set(part, glyfOffset);
 		glyfOffset += pad4(part.length);
 	}
@@ -531,7 +532,8 @@ function reconstructSimpleGlyph(
 		// Compute bbox
 		xMin = yMin = 0x7fff;
 		xMax = yMax = -0x8000;
-		for (const pt of points) {
+		for (let i = 0; i < points.length; i++) {
+			const pt = points[i]!;
 			xMin = Math.min(xMin, pt.x);
 			yMin = Math.min(yMin, pt.y);
 			xMax = Math.max(xMax, pt.x);
@@ -553,7 +555,8 @@ function reconstructSimpleGlyph(
 	const yDeltas: number[] = [];
 	let prevX = 0,
 		prevY = 0;
-	for (const pt of points) {
+	for (let i = 0; i < points.length; i++) {
+		const pt = points[i]!;
 		xDeltas.push(pt.x - prevX);
 		yDeltas.push(pt.y - prevY);
 		prevX = pt.x;
@@ -615,7 +618,8 @@ function reconstructSimpleGlyph(
 	off += 2;
 
 	// End points
-	for (const endPt of endPtsOfContours) {
+	for (let i = 0; i < endPtsOfContours.length; i++) {
+		const endPt = endPtsOfContours[i]!;
 		writeUint16BE(data, off, endPt);
 		off += 2;
 	}
@@ -627,17 +631,20 @@ function reconstructSimpleGlyph(
 	off += instructionLength;
 
 	// Flags
-	for (const f of encodedFlags) {
+	for (let i = 0; i < encodedFlags.length; i++) {
+		const f = encodedFlags[i]!;
 		data[off++] = f;
 	}
 
 	// X coordinates
-	for (const x of encodedX) {
+	for (let i = 0; i < encodedX.length; i++) {
+		const x = encodedX[i]!;
 		data[off++] = x;
 	}
 
 	// Y coordinates
-	for (const y of encodedY) {
+	for (let i = 0; i < encodedY.length; i++) {
+		const y = encodedY[i]!;
 		data[off++] = y;
 	}
 
@@ -758,7 +765,8 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	const tableData: Map<string, Uint8Array> = new Map();
 	let decompOffset = 0;
 
-	for (const table of tables) {
+	for (let i = 0; i < tables.length; i++) {
+		const table = tables[i]!;
 		const tdata = decompressedData.slice(
 			decompOffset,
 			decompOffset + table.transformLength,
@@ -807,7 +815,8 @@ export async function woff2ToSfnt(buffer: ArrayBuffer): Promise<ArrayBuffer> {
 	let tableOffset = headerSize + directorySize;
 
 	const tableOffsets: number[] = [];
-	for (const table of tables) {
+	for (let i = 0; i < tables.length; i++) {
+		const table = tables[i]!;
 		tableOffsets.push(tableOffset);
 		tableOffset += pad4(table.origLength);
 	}

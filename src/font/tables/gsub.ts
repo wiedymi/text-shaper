@@ -161,7 +161,8 @@ export function parseGsub(reader: Reader): GsubTable {
 	const lookupOffsets = lookupListReader.uint16Array(lookupCount);
 
 	const lookups: AnyGsubLookup[] = [];
-	for (const lookupOffset of lookupOffsets) {
+	for (let i = 0; i < lookupOffsets.length; i++) {
+		const lookupOffset = lookupOffsets[i]!;
 		const lookupReader = lookupListReader.sliceFrom(lookupOffset);
 		const lookup = parseGsubLookup(
 			lookupReader,
@@ -201,7 +202,8 @@ function parseGsubLookup(
 	// Helper to build digest from subtables with coverage
 	const buildDigest = (subtables: { coverage: Coverage }[]): SetDigest => {
 		const digest = new SetDigest();
-		for (const st of subtables) {
+		for (let i = 0; i < subtables.length; i++) {
+			const st = subtables[i]!;
 			digest.addCoverage(st.coverage);
 		}
 		return digest;
@@ -252,7 +254,8 @@ function parseGsubLookup(
 			const subtables = parseContextSubst(reader, subtableOffsets);
 			// Context subtables may not have direct coverage - use empty digest
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				}
@@ -269,7 +272,8 @@ function parseGsubLookup(
 			const subtables = parseChainingContextSubst(reader, subtableOffsets);
 			// Chaining context - use input coverage if available
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				} else if ("inputCoverages" in st && st.inputCoverages?.[0]) {
@@ -311,7 +315,8 @@ function parseSingleSubst(
 ): SingleSubstSubtable[] {
 	const subtables: SingleSubstSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -338,7 +343,8 @@ function parseMultipleSubst(
 ): MultipleSubstSubtable[] {
 	const subtables: MultipleSubstSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -350,7 +356,8 @@ function parseMultipleSubst(
 			const coverage = parseCoverageAt(r, coverageOffset);
 			const sequences: GlyphId[][] = [];
 
-			for (const seqOffset of sequenceOffsets) {
+			for (let j = 0; j < sequenceOffsets.length; j++) {
+				const seqOffset = sequenceOffsets[j]!;
 				const seqReader = r.sliceFrom(seqOffset);
 				const glyphCount = seqReader.uint16();
 				sequences.push(Array.from(seqReader.uint16Array(glyphCount)));
@@ -517,7 +524,8 @@ function parseExtensionLookup(
 	// Helper to build digest from subtables with coverage
 	const buildDigest = (subtables: { coverage: Coverage }[]): SetDigest => {
 		const digest = new SetDigest();
-		for (const st of subtables) {
+		for (let i = 0; i < subtables.length; i++) {
+			const st = subtables[i]!;
 			digest.addCoverage(st.coverage);
 		}
 		return digest;

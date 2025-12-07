@@ -175,8 +175,10 @@ function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
 
 	if (glyph.type === "simple") {
 		let pointIndex = 0;
-		for (const contour of glyph.contours) {
-			for (const point of contour) {
+		for (let i = 0; i < glyph.contours.length; i++) {
+			const contour = glyph.contours[i]!;
+			for (let j = 0; j < contour.length; j++) {
+				const point = contour[j]!;
 				xCoords.push(point.x);
 				yCoords.push(point.y);
 				flags.push(point.onCurve ? 1 : 0);
@@ -195,7 +197,8 @@ function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
 		};
 	} else {
 		// Composite - flatten components
-		for (const component of glyph.components) {
+		for (let i = 0; i < glyph.components.length; i++) {
+			const component = glyph.components[i]!;
 			const compGlyph = font.getGlyph(component.glyphId);
 			if (!compGlyph || compGlyph.type !== "simple") continue;
 
@@ -204,8 +207,10 @@ function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
 				oy = component.arg2;
 			let pointOffset = xCoords.length;
 
-			for (const contour of compGlyph.contours) {
-				for (const point of contour) {
+			for (let j = 0; j < compGlyph.contours.length; j++) {
+				const contour = compGlyph.contours[j]!;
+				for (let k = 0; k < contour.length; k++) {
+					const point = contour[k]!;
 					xCoords.push(point.x * a + point.y * c + ox);
 					yCoords.push(point.x * b + point.y * d + oy);
 					flags.push(point.onCurve ? 1 : 0);
@@ -504,7 +509,9 @@ export function rasterizeText(
 	let maxAscent = 0;
 	let maxDescent = 0;
 
-	for (const char of text) {
+	const textArray = Array.from(text);
+	for (let i = 0; i < textArray.length; i++) {
+		const char = textArray[i]!;
 		const codepoint = char.codePointAt(0);
 		if (codepoint === undefined) continue;
 
@@ -537,14 +544,15 @@ export function rasterizeText(
 	let x = padding;
 	const baseline = maxDescent + padding;
 
-	for (const { glyphId, advance } of glyphs) {
-		const path = getGlyphPath(font, glyphId);
+	for (let i = 0; i < glyphs.length; i++) {
+		const glyph = glyphs[i]!;
+		const path = getGlyphPath(font, glyph.glyphId);
 		if (path) {
 			raster.reset();
 			decomposePath(raster, path, scale, x, baseline, true);
 			raster.sweep(bitmap);
 		}
-		x += advance;
+		x += glyph.advance;
 	}
 
 	return bitmap;

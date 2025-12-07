@@ -52,7 +52,8 @@ export function buildAtlas(
 
 	const scale = fontSize / font.unitsPerEm;
 
-	for (const glyphId of glyphIds) {
+	for (let i = 0; i < glyphIds.length; i++) {
+		const glyphId = glyphIds[i]!;
 		const result = rasterizeGlyph(font, glyphId, fontSize, {
 			padding: 0,
 			pixelMode,
@@ -153,7 +154,9 @@ export function buildStringAtlas(
 ): GlyphAtlas {
 	const glyphIdSet = new Set<number>();
 
-	for (const char of text) {
+	const textArray = Array.from(text);
+	for (let i = 0; i < textArray.length; i++) {
+		const char = textArray[i]!;
 		const codepoint = char.codePointAt(0);
 		if (codepoint === undefined) continue;
 
@@ -189,19 +192,20 @@ function packGlyphs(
 	let atlasWidth = 0;
 	let atlasHeight = 0;
 
-	for (const size of sizes) {
+	for (let i = 0; i < sizes.length; i++) {
+		const size = sizes[i]!;
 		let placed = false;
 		let bestShelf = -1;
 		let bestY = maxHeight;
 
 		// Try to find an existing shelf
-		for (let i = 0; i < shelves.length; i++) {
-			const shelf = shelves[i];
+		for (let j = 0; j < shelves.length; j++) {
+			const shelf = shelves[j]!;
 
 			// Check if glyph fits in this shelf
 			if (shelf.width + size.width <= maxWidth && size.height <= shelf.height) {
 				if (shelf.y < bestY) {
-					bestShelf = i;
+					bestShelf = j;
 					bestY = shelf.y;
 				}
 			}
@@ -209,7 +213,7 @@ function packGlyphs(
 
 		if (bestShelf >= 0) {
 			// Place in existing shelf
-			const shelf = shelves[bestShelf];
+			const shelf = shelves[bestShelf]!;
 			placements.push({
 				x: shelf.width,
 				y: shelf.y,

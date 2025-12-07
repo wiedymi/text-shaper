@@ -56,7 +56,9 @@ export class SetDigest {
 	 */
 	addCoverage(coverage: Coverage): void {
 		// Coverage.glyphs() returns all covered glyph IDs
-		for (const gid of coverage.glyphs()) {
+		const glyphs = coverage.glyphs();
+		for (let i = 0; i < glyphs.length; i++) {
+			const gid = glyphs[i]!;
 			this.add(gid);
 		}
 	}
@@ -67,7 +69,8 @@ export class SetDigest {
  */
 export function createLookupDigest(coverages: Coverage[]): SetDigest {
 	const digest = new SetDigest();
-	for (const coverage of coverages) {
+	for (let i = 0; i < coverages.length; i++) {
+		const coverage = coverages[i]!;
 		digest.addCoverage(coverage);
 	}
 	return digest;

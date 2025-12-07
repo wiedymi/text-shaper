@@ -6,6 +6,9 @@ import ShapingPlayground from '../components/ShapingPlayground.vue'
 import VariableFontPlayground from '../components/VariableFontPlayground.vue'
 import GlyphInspector from '../components/GlyphInspector.vue'
 import RasterPreview from '../components/RasterPreview.vue'
+import BenchmarkChart from '../components/BenchmarkChart.vue'
+import BenchmarkSummary from '../components/BenchmarkSummary.vue'
+import BenchmarkHero from '../components/BenchmarkHero.vue'
 
 export default {
   extends: DefaultTheme,
@@ -16,5 +19,8 @@ export default {
     app.component('VariableFontPlayground', VariableFontPlayground)
     app.component('GlyphInspector', GlyphInspector)
     app.component('RasterPreview', RasterPreview)
+    app.component('BenchmarkChart', BenchmarkChart)
+    app.component('BenchmarkSummary', BenchmarkSummary)
+    app.component('BenchmarkHero', BenchmarkHero)
   }
 } satisfies Theme

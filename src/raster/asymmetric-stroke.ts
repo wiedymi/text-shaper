@@ -151,7 +151,8 @@ function pathToContours(
 	let curPoint: Point = { x: 0, y: 0 };
 	let startPoint: Point = { x: 0, y: 0 };
 
-	for (const cmd of path.commands) {
+	for (let i = 0; i < path.commands.length; i++) {
+		const cmd = path.commands[i]!;
 		switch (cmd.type) {
 			case "M":
 				if (current.length > 1) {
@@ -555,7 +556,8 @@ export function strokeAsymmetric(
 	const outerCommands: PathCommand[] = [];
 	const innerCommands: PathCommand[] = [];
 
-	for (const contour of contours) {
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
 		if (!contour.closed) {
 			// For open paths, we'd need to handle caps
 			// For now, treat as closed by connecting ends

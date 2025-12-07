@@ -91,7 +91,8 @@ export function parseScriptList(reader: Reader): ScriptList {
 	}
 
 	const scripts: ScriptRecord[] = [];
-	for (const record of scriptRecords) {
+	for (let i = 0; i < scriptRecords.length; i++) {
+		const record = scriptRecords[i]!;
 		const scriptReader = reader.sliceFrom(record.offset);
 		const script = parseScript(scriptReader);
 		scripts.push({
@@ -123,7 +124,8 @@ function parseScript(reader: Reader): Script {
 
 	// Parse language system records
 	const parsedLangSysRecords: LangSysRecord[] = [];
-	for (const record of langSysRecords) {
+	for (let i = 0; i < langSysRecords.length; i++) {
+		const record = langSysRecords[i]!;
 		const langSys = parseLangSys(reader.sliceFrom(record.offset));
 		parsedLangSysRecords.push({
 			langSysTag: record.tag,
@@ -141,7 +143,11 @@ function parseLangSys(reader: Reader): LangSys {
 	const _lookupOrderOffset = reader.offset16(); // Reserved, always 0
 	const requiredFeatureIndex = reader.uint16();
 	const featureIndexCount = reader.uint16();
-	const featureIndices = Array.from(reader.uint16Array(featureIndexCount));
+	const uint16Array = reader.uint16Array(featureIndexCount);
+	const featureIndices: uint16[] = new Array(featureIndexCount);
+	for (let i = 0; i < featureIndexCount; i++) {
+		featureIndices[i] = uint16Array[i]!;
+	}
 
 	return {
 		requiredFeatureIndex,
@@ -162,7 +168,8 @@ export function parseFeatureList(reader: Reader): FeatureList {
 	}
 
 	const features: FeatureRecord[] = [];
-	for (const record of featureRecords) {
+	for (let i = 0; i < featureRecords.length; i++) {
+		const record = featureRecords[i]!;
 		const featureReader = reader.sliceFrom(record.offset);
 		const feature = parseFeature(featureReader);
 		features.push({
@@ -177,7 +184,11 @@ export function parseFeatureList(reader: Reader): FeatureList {
 function parseFeature(reader: Reader): Feature {
 	const featureParamsOffset = reader.offset16();
 	const lookupIndexCount = reader.uint16();
-	const lookupListIndices = Array.from(reader.uint16Array(lookupIndexCount));
+	const uint16Array = reader.uint16Array(lookupIndexCount);
+	const lookupListIndices: uint16[] = new Array(lookupIndexCount);
+	for (let i = 0; i < lookupIndexCount; i++) {
+		lookupListIndices[i] = uint16Array[i]!;
+	}
 
 	return {
 		featureParamsOffset,
@@ -191,7 +202,8 @@ export function parseLookupHeaders(reader: Reader): LookupHeader[] {
 	const lookupOffsets = reader.uint16Array(lookupCount);
 
 	const headers: LookupHeader[] = [];
-	for (const offset of lookupOffsets) {
+	for (let i = 0; i < lookupOffsets.length; i++) {
+		const offset = lookupOffsets[i]!;
 		const lookupReader = reader.sliceFrom(offset);
 		headers.push(parseLookupHeader(lookupReader));
 	}
@@ -203,7 +215,11 @@ function parseLookupHeader(reader: Reader): LookupHeader {
 	const lookupType = reader.uint16();
 	const lookupFlag = reader.uint16();
 	const subtableCount = reader.uint16();
-	const subtableOffsets = Array.from(reader.uint16Array(subtableCount));
+	const uint16Array = reader.uint16Array(subtableCount);
+	const subtableOffsets: uint16[] = new Array(subtableCount);
+	for (let i = 0; i < subtableCount; i++) {
+		subtableOffsets[i] = uint16Array[i]!;
+	}
 
 	let markFilteringSet: uint16 | undefined;
 	if (lookupFlag & LookupFlag.UseMarkFilteringSet) {
@@ -223,7 +239,8 @@ export function findScript(
 	scriptList: ScriptList,
 	scriptTag: Tag,
 ): Script | null {
-	for (const record of scriptList.scripts) {
+	for (let i = 0; i < scriptList.scripts.length; i++) {
+		const record = scriptList.scripts[i]!;
 		if (record.scriptTag === scriptTag) {
 			return record.script;
 		}
@@ -240,7 +257,8 @@ export function findLangSys(
 		return script.defaultLangSys;
 	}
 
-	for (const record of script.langSysRecords) {
+	for (let i = 0; i < script.langSysRecords.length; i++) {
+		const record = script.langSysRecords[i]!;
 		if (record.langSysTag === langSysTag) {
 			return record.langSys;
 		}

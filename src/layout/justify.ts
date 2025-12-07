@@ -79,7 +79,8 @@ export interface JustifyAdjustment {
  */
 export function calculateLineWidth(buffer: GlyphBuffer): number {
 	let width = 0;
-	for (const pos of buffer.positions) {
+	for (let i = 0; i < buffer.positions.length; i++) {
+		const pos = buffer.positions[i]!;
 		width += pos.xAdvance;
 	}
 	return width;
@@ -257,9 +258,10 @@ function insertKashida(
 		targetExtension / insertionPoints.length,
 	);
 
-	for (const point of insertionPoints) {
+	for (let i = 0; i < insertionPoints.length; i++) {
 		if (totalExtension >= targetExtension) break;
 
+		const point = insertionPoints[i]!;
 		// Add Kashida extension via xAdvance
 		buffer.positions[point].xAdvance += adjustmentPerPoint;
 		totalExtension += adjustmentPerPoint;
@@ -320,7 +322,8 @@ function adjustWordSpacing(
 			? Math.min(adjustmentPerSpace, maxAdjustment)
 			: Math.max(adjustmentPerSpace, -maxAdjustment);
 
-	for (const idx of spaceIndices) {
+	for (let i = 0; i < spaceIndices.length; i++) {
+		const idx = spaceIndices[i]!;
 		buffer.positions[idx].xAdvance += clampedAdjustment;
 		totalAdjustment += clampedAdjustment;
 	}

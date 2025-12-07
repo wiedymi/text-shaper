@@ -906,11 +906,13 @@ export function normalize(
 		// Decompose precomposed characters (NFD-like)
 		const result: GlyphInfo[] = [];
 
-		for (const info of infos) {
+		for (let i = 0; i < infos.length; i++) {
+			const info = infos[i]!;
 			const decomposed = decompose(info.codepoint);
 			if (decomposed) {
 				// Replace with decomposed sequence
-				for (const cp of decomposed) {
+				for (let j = 0; j < decomposed.length; j++) {
+					const cp = decomposed[j]!;
 					result.push({
 						glyphId: info.glyphId, // Will be remapped later
 						cluster: info.cluster,
@@ -933,10 +935,12 @@ export function normalize(
 		// First decompose, reorder, then compose (NFC-like)
 		// Step 1: Decompose
 		const decomposed: GlyphInfo[] = [];
-		for (const info of infos) {
+		for (let i = 0; i < infos.length; i++) {
+			const info = infos[i]!;
 			const dec = decompose(info.codepoint);
 			if (dec) {
-				for (const cp of dec) {
+				for (let j = 0; j < dec.length; j++) {
+					const cp = dec[j]!;
 					decomposed.push({
 						glyphId: info.glyphId,
 						cluster: info.cluster,
@@ -960,10 +964,12 @@ export function normalize(
 		// Auto mode: use decomposition by default (better for shaping)
 		const result: GlyphInfo[] = [];
 
-		for (const info of infos) {
+		for (let i = 0; i < infos.length; i++) {
+			const info = infos[i]!;
 			const decomposed = decompose(info.codepoint);
 			if (decomposed) {
-				for (const cp of decomposed) {
+				for (let j = 0; j < decomposed.length; j++) {
+					const cp = decomposed[j]!;
 					result.push({
 						glyphId: info.glyphId,
 						cluster: info.cluster,
