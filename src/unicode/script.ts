@@ -832,6 +832,8 @@ const SCRIPT_RANGES: ScriptRange[] = [
 
 /**
  * Get script for a codepoint using binary search
+ * @param cp Unicode codepoint to check
+ * @returns The script for the given codepoint
  */
 export function getScript(cp: number): Script {
 	let left = 0;
@@ -855,6 +857,8 @@ export function getScript(cp: number): Script {
 
 /**
  * Get script for a string (returns the dominant non-Common/Inherited script)
+ * @param text Text string to analyze
+ * @returns The dominant script found in the text (most frequent non-Common/Inherited script)
  */
 export function detectScript(text: string): Script {
 	const counts = new Map<Script, number>();
@@ -895,6 +899,8 @@ export function detectScript(text: string): Script {
 
 /**
  * Get all scripts present in text
+ * @param text Text string to analyze
+ * @returns Array of all scripts found in the text
  */
 export function getScripts(text: string): Script[] {
 	const scripts = new Set<Script>();
@@ -913,6 +919,9 @@ export function getScripts(text: string): Script[] {
 /**
  * Check if text contains only characters from a specific script
  * (Common and Inherited are allowed)
+ * @param text Text string to check
+ * @param script Script to check against
+ * @returns True if text contains only characters from the specified script (plus Common/Inherited)
  */
 export function isScript(text: string, script: Script): boolean {
 	const chars = [...text];
@@ -945,6 +954,8 @@ export interface ScriptRun {
 
 /**
  * Split text into script runs
+ * @param text Text string to split
+ * @returns Array of script runs, where each run is a contiguous sequence of characters with the same script
  */
 export function getScriptRuns(text: string): ScriptRun[] {
 	const runs: ScriptRun[] = [];
@@ -1003,6 +1014,8 @@ export function getScriptRuns(text: string): ScriptRun[] {
 
 /**
  * Get OpenType script tag for a Unicode script
+ * @param script Unicode script to convert
+ * @returns OpenType script tag (4-character string like "latn", "arab", etc.)
  */
 export function getScriptTag(script: Script): string {
 	// Map Script enum to OpenType script tags
@@ -1237,6 +1250,8 @@ const RTL_SCRIPTS = new Set([
 
 /**
  * Check if a script requires complex shaping
+ * @param script Script to check
+ * @returns True if the script requires complex shaping (e.g., Arabic, Devanagari, Thai)
  */
 export function isComplexScript(script: Script): boolean {
 	return COMPLEX_SCRIPTS.has(script);
@@ -1244,6 +1259,8 @@ export function isComplexScript(script: Script): boolean {
 
 /**
  * Get script direction (LTR or RTL)
+ * @param script Script to check
+ * @returns Direction of the script: "ltr" for left-to-right or "rtl" for right-to-left
  */
 export function getScriptDirection(script: Script): "ltr" | "rtl" {
 	return RTL_SCRIPTS.has(script) ? "rtl" : "ltr";

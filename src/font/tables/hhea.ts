@@ -23,6 +23,11 @@ export interface HheaTable {
 	numberOfHMetrics: uint16;
 }
 
+/**
+ * Parse hhea table - horizontal header with metrics for horizontal layout
+ * @param reader - Reader positioned at start of hhea table
+ * @returns Parsed hhea table
+ */
 export function parseHhea(reader: Reader): HheaTable {
 	return {
 		majorVersion: reader.uint16(),

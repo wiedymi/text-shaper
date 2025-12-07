@@ -234,7 +234,12 @@ function parseLookupHeader(reader: Reader): LookupHeader {
 	};
 }
 
-/** Find script in script list */
+/**
+ * Find script in script list by tag
+ * @param scriptList - The script list to search
+ * @param scriptTag - The script tag to find (e.g., 'latn', 'arab')
+ * @returns The script table if found, null otherwise
+ */
 export function findScript(
 	scriptList: ScriptList,
 	scriptTag: Tag,
@@ -248,7 +253,12 @@ export function findScript(
 	return null;
 }
 
-/** Find language system in script */
+/**
+ * Find language system in script by tag
+ * @param script - The script table to search
+ * @param langSysTag - The language system tag to find (e.g., 'ENG', 'ARA'), or null for default
+ * @returns The language system table if found, or the default language system if langSysTag is null or not found
+ */
 export function findLangSys(
 	script: Script,
 	langSysTag: Tag | null,
@@ -267,7 +277,12 @@ export function findLangSys(
 	return script.defaultLangSys;
 }
 
-/** Get feature by index */
+/**
+ * Get feature by index from feature list
+ * @param featureList - The feature list to retrieve from
+ * @param index - The zero-based feature index
+ * @returns The feature record at the specified index, or null if index is out of bounds
+ */
 export function getFeature(
 	featureList: FeatureList,
 	index: number,

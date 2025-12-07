@@ -31,13 +31,10 @@ export interface ValidationResult {
 
 /**
  * Validate a GlyphPath before rasterization (like FreeType's outline validation)
- *
- * Checks:
- * - Path is not null/undefined
- * - Commands array exists
- * - Path is not empty (unless allowEmpty is true)
- * - Command structure is valid
- * - Contours are properly closed (start with M, end with Z)
+ * Checks: path existence, command structure validity, and proper contour closure
+ * @param path Glyph path to validate
+ * @param allowEmpty Whether empty paths are considered valid (default: true)
+ * @returns Validation result with error code and optional message
  */
 export function validateOutline(
 	path: GlyphPath | null | undefined,
@@ -171,13 +168,12 @@ export function validateOutline(
 
 /**
  * Convert a GlyphPath to rasterizer commands
- *
- * @param raster - The rasterizer instance
- * @param path - Path commands to decompose
- * @param scale - Scale factor (font units to pixels)
- * @param offsetX - X offset in pixels
- * @param offsetY - Y offset in pixels
- * @param flipY - Flip Y axis (font coords are Y-up)
+ * @param raster The rasterizer instance to receive commands
+ * @param path Path commands to decompose
+ * @param scale Scale factor (font units to pixels)
+ * @param offsetX X offset in pixels (default: 0)
+ * @param offsetY Y offset in pixels (default: 0)
+ * @param flipY Flip Y axis - font coords are Y-up, bitmap is Y-down (default: true)
  */
 export function decomposePath(
 	raster: GrayRaster,
@@ -282,6 +278,10 @@ function _toSubpixelFlipY(
 
 /**
  * Calculate bounding box of path in pixel coordinates
+ * @param path Glyph path to measure
+ * @param scale Scale factor (font units to pixels)
+ * @param flipY Flip Y axis for bitmap coordinates (default: true)
+ * @returns Bounding box in pixel coordinates, or null if path has no bounds
  */
 export function getPathBounds(
 	path: GlyphPath,
@@ -311,10 +311,9 @@ export function getPathBounds(
 
 /**
  * Get fill rule from outline flags (like FreeType's FT_OUTLINE_EVEN_ODD_FILL check)
- *
  * @param path Path with optional flags
- * @param defaultRule Default fill rule if flags not set
- * @returns Fill rule to use
+ * @param defaultRule Default fill rule if flags not set (default: NonZero)
+ * @returns Fill rule to use for rendering
  */
 export function getFillRuleFromFlags(
 	path: GlyphPath | null | undefined,

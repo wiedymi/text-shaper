@@ -42,6 +42,16 @@ export enum LcdMode {
  * 1. Render at 3x horizontal resolution
  * 2. Apply FIR filter to reduce color fringing
  * 3. Output RGB values per pixel
+ *
+ * @param path Glyph path to rasterize
+ * @param width Width in pixels
+ * @param height Height in pixels
+ * @param scale Scale factor from font units to pixels
+ * @param offsetX X offset in pixels
+ * @param offsetY Y offset in pixels
+ * @param mode LCD subpixel mode (RGB, BGR, RGB_V, BGR_V)
+ * @param filterWeights FIR filter coefficients for reducing color fringing
+ * @returns Bitmap with LCD subpixel data (3 bytes per pixel)
  */
 export function rasterizeLcd(
 	path: GlyphPath,
@@ -281,6 +291,11 @@ function applyLcdFilterVertical(
 /**
  * Convert LCD bitmap to RGBA for display
  * Uses gamma-corrected blending against a background color
+ *
+ * @param lcd LCD bitmap to convert
+ * @param bgColor Background color as RGB (0-255 each)
+ * @param fgColor Foreground color as RGB (0-255 each)
+ * @returns RGBA pixel array (4 bytes per pixel)
  */
 export function lcdToRGBA(
 	lcd: Bitmap,

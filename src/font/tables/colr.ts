@@ -313,7 +313,10 @@ export interface VarColorStop extends ColorStop {
 }
 
 /**
- * Parse COLR table
+ * Parse COLR table - color glyph definitions with layered or gradient fills
+ * Supports both v0 (simple layers) and v1 (advanced paint operations)
+ * @param reader - Reader positioned at start of COLR table
+ * @returns Parsed COLR table with color layer and paint definitions
  */
 export function parseColr(reader: Reader): ColrTable {
 	const startOffset = reader.offset;

@@ -76,6 +76,8 @@ export interface JustifyAdjustment {
 
 /**
  * Calculate current line width from glyph buffer
+ * @param buffer - The glyph buffer to measure
+ * @returns Total line width in font units (sum of all xAdvance values)
  */
 export function calculateLineWidth(buffer: GlyphBuffer): number {
 	let width = 0;
@@ -88,6 +90,10 @@ export function calculateLineWidth(buffer: GlyphBuffer): number {
 
 /**
  * Justify a shaped glyph buffer to fit a target width
+ * @param font - The font containing JSTF and glyph metrics
+ * @param buffer - The shaped glyph buffer to justify (modified in place)
+ * @param options - Justification options including target width and mode
+ * @returns Result containing success status, final width, and applied adjustments
  */
 export function justify(
 	font: Font,
@@ -218,6 +224,11 @@ export function justify(
 
 /**
  * Insert Kashida (tatweel) characters for Arabic justification
+ * @param buffer - The glyph buffer to extend (modified in place)
+ * @param kashidaGlyph - The glyph ID of the Kashida character
+ * @param targetExtension - Target width to extend by in font units
+ * @param font - The font containing glyph metrics
+ * @returns Object containing total extension achieved and list of adjustments
  */
 function insertKashida(
 	buffer: GlyphBuffer,
@@ -278,6 +289,8 @@ function insertKashida(
 
 /**
  * Check if a codepoint is a valid Kashida insertion point
+ * @param codepoint - Unicode codepoint to check
+ * @returns True if this is an Arabic character that can have Kashida after it
  */
 function isValidKashidaPoint(codepoint: number): boolean {
 	// Arabic letters that can have Kashida after them
@@ -287,6 +300,11 @@ function isValidKashidaPoint(codepoint: number): boolean {
 
 /**
  * Adjust word spacing (space character width)
+ * @param buffer - The glyph buffer to adjust (modified in place)
+ * @param spaceGlyph - The glyph ID of the space character
+ * @param targetAdjustment - Target total adjustment in font units (positive to expand, negative to shrink)
+ * @param limitFactor - Maximum spacing factor relative to original space width (e.g., 1.5 allows 150% of original)
+ * @returns Object containing total adjustment achieved and list of adjustments
  */
 function adjustWordSpacing(
 	buffer: GlyphBuffer,
@@ -341,6 +359,10 @@ function adjustWordSpacing(
 
 /**
  * Adjust letter spacing (inter-character spacing)
+ * @param buffer - The glyph buffer to adjust (modified in place)
+ * @param targetAdjustment - Target total adjustment in font units (positive to expand, negative to shrink)
+ * @param maxAdjustment - Maximum adjustment per gap in font units
+ * @returns Object containing total adjustment achieved and list of adjustments
  */
 function adjustLetterSpacing(
 	buffer: GlyphBuffer,
@@ -393,8 +415,11 @@ export interface LineBreakResult {
 }
 
 /**
- * Break shaped text into lines at a given width
- * Uses simple greedy algorithm
+ * Break shaped text into lines at a given width using simple greedy algorithm
+ * @param buffer - The shaped glyph buffer to break into lines
+ * @param maxWidth - Maximum line width in font units
+ * @param spaceGlyph - Optional glyph ID of space character for word boundary detection
+ * @returns Object containing array of line buffers and break point indices
  */
 export function breakIntoLines(
 	buffer: GlyphBuffer,
@@ -465,6 +490,10 @@ export function breakIntoLines(
 
 /**
  * Create a new GlyphBuffer from a slice of an existing buffer
+ * @param source - The source glyph buffer to copy from
+ * @param start - Start index (inclusive)
+ * @param end - End index (exclusive)
+ * @returns New glyph buffer containing the specified range
  */
 function createLineBuffer(
 	source: GlyphBuffer,
@@ -486,6 +515,10 @@ function createLineBuffer(
 
 /**
  * Justify all lines in a paragraph to the same width
+ * @param font - The font containing JSTF and glyph metrics
+ * @param lines - Array of glyph buffers representing lines (modified in place)
+ * @param options - Justification options including target width and mode
+ * @returns Array of justification results, one per line
  */
 export function justifyParagraph(
 	font: Font,

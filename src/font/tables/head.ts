@@ -50,6 +50,11 @@ export const MacStyle = {
 	Extended: 0x0040,
 } as const;
 
+/**
+ * Parse head table - font header with global metrics
+ * @param reader - Reader positioned at start of head table
+ * @returns Parsed head table
+ */
 export function parseHead(reader: Reader): HeadTable {
 	const majorVersion = reader.uint16();
 	const minorVersion = reader.uint16();

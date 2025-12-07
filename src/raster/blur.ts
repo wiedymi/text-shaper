@@ -8,6 +8,9 @@ import { type Bitmap, PixelMode } from "./types.ts";
 /**
  * Generate 1D Gaussian kernel
  * Uses Gaussian function: exp(-x²/(2σ²))
+ *
+ * @param radius Blur radius (sigma value)
+ * @returns Normalized Gaussian kernel weights
  */
 export function createGaussianKernel(radius: number): Float32Array {
 	if (radius <= 0) {
@@ -114,6 +117,10 @@ function convolveVertical(
 /**
  * Gaussian blur implementation using separable 2-pass algorithm
  * Modifies bitmap in-place and returns it
+ *
+ * @param bitmap Bitmap to blur (modified in-place)
+ * @param radius Blur radius in pixels
+ * @returns The same bitmap after blur is applied
  */
 export function gaussianBlur(bitmap: Bitmap, radius: number): Bitmap {
 	// Handle Mono by converting to Gray first
@@ -172,6 +179,10 @@ export function gaussianBlur(bitmap: Bitmap, radius: number): Bitmap {
 /**
  * Box blur using running sum for O(1) per pixel
  * Modifies bitmap in-place and returns it
+ *
+ * @param bitmap Bitmap to blur (modified in-place)
+ * @param radius Blur radius in pixels
+ * @returns The same bitmap after blur is applied
  */
 export function boxBlur(bitmap: Bitmap, radius: number): Bitmap {
 	// Handle Mono by converting to Gray first

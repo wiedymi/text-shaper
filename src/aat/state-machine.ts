@@ -31,7 +31,10 @@ const _CLASS_DELETED_GLYPH = 2;
 const _CLASS_END_OF_LINE = 3;
 
 /**
- * Get class for a glyph
+ * Get the class value for a glyph from the class table
+ * @param classTable - The class lookup table
+ * @param glyphId - The glyph ID to look up
+ * @returns The class value, or CLASS_OUT_OF_BOUNDS if the glyph is not in the table
  */
 export function getGlyphClass(
 	classTable: ClassTable,
@@ -44,8 +47,9 @@ export function getGlyphClass(
 }
 
 /**
- * Process rearrangement subtable
- * Reorders glyphs based on state machine
+ * Process rearrangement subtable to reorder glyphs based on state machine rules
+ * @param subtable - The rearrangement subtable containing state machine and rules
+ * @param infos - Array of glyph infos to be reordered in place
  */
 export function processRearrangement(
 	subtable: MorxRearrangementSubtable,
@@ -250,7 +254,9 @@ function rearrangeGlyphs(
 }
 
 /**
- * Process contextual substitution subtable
+ * Process contextual substitution subtable to replace glyphs based on context
+ * @param subtable - The contextual subtable containing state machine and substitution tables
+ * @param infos - Array of glyph infos to be modified in place with contextual substitutions
  */
 export function processContextual(
 	subtable: MorxContextualSubtable,
@@ -319,7 +325,10 @@ export function processContextual(
 }
 
 /**
- * Process ligature subtable
+ * Process ligature subtable to combine multiple glyphs into ligatures
+ * @param subtable - The ligature subtable containing state machine, actions, and component tables
+ * @param infos - Array of glyph infos to process
+ * @returns New array of glyph infos with ligatures applied and component glyphs removed
  */
 export function processLigature(
 	subtable: MorxLigatureSubtable,
@@ -425,7 +434,10 @@ export function processLigature(
 }
 
 /**
- * Process insertion subtable
+ * Process insertion subtable to insert additional glyphs before or after existing glyphs
+ * @param subtable - The insertion subtable containing state machine and insertion glyph table
+ * @param infos - Array of glyph infos to process
+ * @returns New array of glyph infos with inserted glyphs added at specified positions
  */
 export function processInsertion(
 	subtable: MorxInsertionSubtable,

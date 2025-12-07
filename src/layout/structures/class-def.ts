@@ -38,12 +38,20 @@ export class ClassDef {
 		this.isEmpty = isEmpty;
 	}
 
-	/** Create an empty ClassDef */
+	/**
+	 * Create an empty ClassDef
+	 * @returns Empty ClassDef instance where all glyphs return class 0
+	 */
 	static empty(): ClassDef {
 		return new ClassDef(0, null, null, null, true);
 	}
 
-	/** Create Format 1 ClassDef (array of class values) */
+	/**
+	 * Create Format 1 ClassDef (array of class values)
+	 * @param startGlyphId - First glyph ID in the range
+	 * @param classValueArray - Array of class values indexed by (glyphId - startGlyphId)
+	 * @returns ClassDef instance using array lookup
+	 */
 	static format1(
 		startGlyphId: GlyphId,
 		classValueArray: Uint16Array,
@@ -51,7 +59,11 @@ export class ClassDef {
 		return new ClassDef(startGlyphId, classValueArray, null, null, false);
 	}
 
-	/** Create Format 2 ClassDef (ranges) */
+	/**
+	 * Create Format 2 ClassDef (ranges)
+	 * @param ranges - Array of range records mapping glyph ranges to class values
+	 * @returns ClassDef instance using hash map (for small tables) or binary search (for large tables)
+	 */
 	static format2(ranges: ClassRangeRecord[]): ClassDef {
 		// Calculate total glyphs covered
 		let totalGlyphs = 0;
@@ -76,7 +88,11 @@ export class ClassDef {
 		return new ClassDef(0, null, ranges, glyphMap, false);
 	}
 
-	/** Get class for a glyph ID (returns 0 if not defined) */
+	/**
+	 * Get class for a glyph ID
+	 * @param glyphId - The glyph ID to look up
+	 * @returns Class value for the glyph, or 0 if not defined
+	 */
 	get(glyphId: GlyphId): number {
 		// Empty: all glyphs are class 0
 		if (this.isEmpty) {
@@ -117,7 +133,11 @@ export class ClassDef {
 		return 0;
 	}
 
-	/** Get all glyphs in a specific class */
+	/**
+	 * Get all glyphs in a specific class
+	 * @param classValue - The class value to search for
+	 * @returns Array of all glyph IDs assigned to this class
+	 */
 	glyphsInClass(classValue: number): GlyphId[] {
 		// Empty
 		if (this.isEmpty) {
@@ -153,7 +173,11 @@ export class ClassDef {
 /** Singleton empty ClassDef for external use */
 export const EMPTY_CLASS_DEF: ClassDef = ClassDef.empty();
 
-/** Parse a Class Definition table */
+/**
+ * Parse a Class Definition table from binary data
+ * @param reader - Binary reader positioned at class definition table start
+ * @returns Parsed ClassDef instance (Format 1 or Format 2)
+ */
 export function parseClassDef(reader: Reader): ClassDef {
 	const format = reader.uint16();
 
@@ -182,7 +206,12 @@ export function parseClassDef(reader: Reader): ClassDef {
 	throw new Error(`Unknown ClassDef format: ${format}`);
 }
 
-/** Parse ClassDef from offset, or return empty if offset is 0 */
+/**
+ * Parse ClassDef from offset, or return empty if offset is 0
+ * @param reader - Binary reader positioned at parent table
+ * @param offset - Offset from reader's current position to class definition table
+ * @returns Parsed ClassDef instance, or empty ClassDef if offset is 0
+ */
 export function parseClassDefAt(reader: Reader, offset: number): ClassDef {
 	if (offset === 0) {
 		return EMPTY_CLASS_DEF;

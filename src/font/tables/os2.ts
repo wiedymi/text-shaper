@@ -100,6 +100,11 @@ export const FsType = {
 	BitmapOnly: 0x0200,
 } as const;
 
+/**
+ * Parse OS/2 table - Windows-specific metrics, weight, width, and classification
+ * @param reader - Reader positioned at start of OS/2 table
+ * @returns Parsed OS/2 table
+ */
 export function parseOs2(reader: Reader): Os2Table {
 	const version = reader.uint16();
 	const xAvgCharWidth = reader.int16();

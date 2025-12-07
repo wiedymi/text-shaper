@@ -195,6 +195,10 @@ export interface MsdfAtlasOptions {
 
 /**
  * Create an empty bitmap
+ * @param width Width in pixels
+ * @param height Height in pixels
+ * @param pixelMode Pixel format (default: Gray)
+ * @returns Empty bitmap with the specified dimensions and format
  */
 export function createBitmap(
 	width: number,
@@ -233,6 +237,7 @@ export function createBitmap(
 
 /**
  * Clear a bitmap to zero
+ * @param bitmap Bitmap to clear
  */
 export function clearBitmap(bitmap: Bitmap): void {
 	bitmap.buffer.fill(0);
@@ -242,6 +247,10 @@ export function clearBitmap(bitmap: Bitmap): void {
  * Create a bottom-up bitmap (negative pitch)
  * Bottom-up bitmaps have row 0 at the bottom of the image,
  * which matches some graphics APIs (e.g., Windows DIB, OpenGL textures)
+ * @param width Width in pixels
+ * @param height Height in pixels
+ * @param pixelMode Pixel format (default: Gray)
+ * @returns Bottom-up bitmap with row 0 at the bottom
  */
 export function createBottomUpBitmap(
 	width: number,

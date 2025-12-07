@@ -522,14 +522,11 @@ function pointsToPath(points: Point[], closed: boolean): PathCommand[] {
 
 /**
  * Stroke a path with asymmetric X/Y borders
- *
+ * For filled text with border: combine outer outline with original fill,
+ * or use outer outline alone for hollow border effect
  * @param path Input path to stroke
  * @param options Stroke options including xBorder and yBorder
  * @returns Two paths: outer (positive offset) and inner (negative offset)
- *
- * For filled text with border:
- * - Combine outer outline with original fill
- * - Or use outer outline alone for hollow border effect
  */
 export function strokeAsymmetric(
 	path: GlyphPath,
@@ -606,6 +603,9 @@ export function strokeAsymmetric(
 /**
  * Create a combined stroke path (both inner and outer as single path)
  * This creates a ring/donut shape that can be filled
+ * @param path Input path to stroke
+ * @param options Stroke options including xBorder and yBorder
+ * @returns Single path containing both outer and inner borders as a fillable ring
  */
 export function strokeAsymmetricCombined(
 	path: GlyphPath,
@@ -624,6 +624,10 @@ export function strokeAsymmetricCombined(
 
 /**
  * Stroke with uniform border (convenience function)
+ * @param path Input path to stroke
+ * @param border Border width in font units (applied to both X and Y)
+ * @param options Additional stroke options (precision, line join, miter limit)
+ * @returns Two paths: outer and inner borders
  */
 export function strokeUniform(
 	path: GlyphPath,

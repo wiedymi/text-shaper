@@ -21,6 +21,11 @@ function parse(): void {
 	}
 }
 
+/**
+ * Get the mirrored version of a character for BiDi display
+ * @param char Character to mirror
+ * @returns Mirrored character, or null if character has no mirror
+ */
 export function getMirroredCharacter(char: string): string | null {
 	parse();
 	return mirrorMap?.get(char) || null;
@@ -29,6 +34,11 @@ export function getMirroredCharacter(char: string): string | null {
 /**
  * Given a string and its resolved embedding levels, build a map of indices to replacement chars
  * for any characters in right-to-left segments that have defined mirrored characters.
+ * @param string Text string to process
+ * @param embeddingLevels Resolved embedding levels from getEmbeddingLevels
+ * @param start Start index (defaults to 0)
+ * @param end End index (defaults to string length - 1)
+ * @returns Map of character indices to their mirrored replacements
  */
 export function getMirroredCharactersMap(
 	string: string,

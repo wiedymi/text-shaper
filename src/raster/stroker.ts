@@ -523,6 +523,9 @@ function extractContours(
 
 /**
  * Stroke a glyph path, producing a new path that represents the stroked outline
+ * @param path Input glyph path to stroke
+ * @param options Stroke parameters (width, cap style, join style, miter limit)
+ * @returns New path representing the stroked outline that can be filled
  */
 export function strokePath(
 	path: GlyphPath,

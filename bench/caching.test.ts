@@ -3,7 +3,9 @@ import { measure, printComparison, loadFontBuffer, type BenchResult } from "./ut
 import {
 	Font,
 	shape,
+	shapeInto,
 	UnicodeBuffer,
+	GlyphBuffer,
 	getGlyphPath,
 	rasterizeGlyph,
 	PixelMode,
@@ -119,14 +121,17 @@ describe("Caching Benchmark", () => {
 				),
 			)
 
-			// Subsequent iterations (warm)
+			// Subsequent iterations (warm) - use shapeInto for buffer reuse
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(64)
 			results.push(
 				measure(
 					"text-shaper (repeat)",
 					() => {
-						const buffer = new UnicodeBuffer()
-						buffer.addStr(text)
-						shape(notoSans, buffer)
+						uBuffer.clear()
+						uBuffer.addStr(text)
+						gBuffer.reset()
+						shapeInto(notoSans, uBuffer, gBuffer)
 					},
 					{ warmup: 10, iterations: 100 },
 				),
@@ -167,13 +172,17 @@ describe("Caching Benchmark", () => {
 				),
 			)
 
+			// Use shapeInto for buffer reuse
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(256)
 			results.push(
 				measure(
 					"text-shaper (repeat)",
 					() => {
-						const buffer = new UnicodeBuffer()
-						buffer.addStr(text)
-						shape(notoSans, buffer)
+						uBuffer.clear()
+						uBuffer.addStr(text)
+						gBuffer.reset()
+						shapeInto(notoSans, uBuffer, gBuffer)
 					},
 					{ warmup: 10, iterations: 100 },
 				),

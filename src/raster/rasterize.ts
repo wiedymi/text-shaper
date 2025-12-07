@@ -283,6 +283,9 @@ const BAND_PROCESSING_THRESHOLD = 256;
 
 /**
  * Rasterize a glyph path to a bitmap
+ * @param path Glyph path to rasterize
+ * @param options Rasterization options including dimensions, scale, and pixel mode
+ * @returns Rendered bitmap of the glyph
  */
 export function rasterizePath(
 	path: GlyphPath,
@@ -329,6 +332,11 @@ export function rasterizePath(
 
 /**
  * Rasterize a glyph from a font
+ * @param font Font containing the glyph
+ * @param glyphId ID of the glyph to rasterize
+ * @param fontSize Font size in pixels
+ * @param options Optional rendering settings (pixel mode, padding, hinting)
+ * @returns Rasterized glyph with bitmap and bearing information, or null if glyph is empty
  */
 export function rasterizeGlyph(
 	font: Font,
@@ -486,6 +494,11 @@ function rasterizeHintedGlyph(
 
 /**
  * Rasterize text string using shaped glyphs
+ * @param font Font to use for rendering
+ * @param text Text string to rasterize
+ * @param fontSize Font size in pixels
+ * @param options Optional rendering settings (pixel mode, padding)
+ * @returns Bitmap containing rendered text, or null if no glyphs
  */
 export function rasterizeText(
 	font: Font,
@@ -560,6 +573,8 @@ export function rasterizeText(
 
 /**
  * Export bitmap to raw RGBA pixels (for WebGL textures, etc.)
+ * @param bitmap Source bitmap to convert
+ * @returns RGBA pixel array (4 bytes per pixel)
  */
 export function bitmapToRGBA(bitmap: Bitmap): Uint8Array {
 	// bitmap.width is always the pixel width
@@ -626,6 +641,8 @@ export function bitmapToRGBA(bitmap: Bitmap): Uint8Array {
 
 /**
  * Export bitmap to grayscale array
+ * @param bitmap Source bitmap to convert
+ * @returns Grayscale pixel array (1 byte per pixel)
  */
 export function bitmapToGray(bitmap: Bitmap): Uint8Array {
 	if (bitmap.pixelMode === PixelMode.Gray && bitmap.pitch === bitmap.width) {

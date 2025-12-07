@@ -36,7 +36,11 @@ export class Coverage {
 		this.size = size;
 	}
 
-	/** Create Format 1 coverage (individual glyphs) */
+	/**
+	 * Create Format 1 coverage (individual glyphs)
+	 * @param glyphArray - Array of glyph IDs to cover
+	 * @returns Coverage instance using hash map for O(1) lookup
+	 */
 	static format1(glyphArray: Uint16Array): Coverage {
 		const glyphMap = new Map<GlyphId, number>();
 		for (let i = 0; i < glyphArray.length; i++) {
@@ -45,7 +49,11 @@ export class Coverage {
 		return new Coverage(glyphMap, null, glyphArray, glyphArray.length);
 	}
 
-	/** Create Format 2 coverage (ranges) */
+	/**
+	 * Create Format 2 coverage (ranges)
+	 * @param ranges - Array of range records defining covered glyph ranges
+	 * @returns Coverage instance using binary search for range lookup
+	 */
 	static format2(ranges: RangeRecord[]): Coverage {
 		let size = 0;
 		if (ranges.length > 0) {
@@ -59,7 +67,11 @@ export class Coverage {
 		return new Coverage(null, ranges, null, size);
 	}
 
-	/** Get coverage index for a glyph ID, or null if not covered */
+	/**
+	 * Get coverage index for a glyph ID
+	 * @param glyphId - The glyph ID to look up
+	 * @returns Coverage index (0-based) if glyph is covered, null otherwise
+	 */
 	get(glyphId: GlyphId): number | null {
 		// Format 1: O(1) hash lookup
 		if (this.glyphMap) {
@@ -87,12 +99,19 @@ export class Coverage {
 		return null;
 	}
 
-	/** Check if glyph is covered */
+	/**
+	 * Check if glyph is covered
+	 * @param glyphId - The glyph ID to check
+	 * @returns True if the glyph is in this coverage table
+	 */
 	covers(glyphId: GlyphId): boolean {
 		return this.get(glyphId) !== null;
 	}
 
-	/** Get all covered glyph IDs */
+	/**
+	 * Get all covered glyph IDs
+	 * @returns Array of all glyph IDs in this coverage table
+	 */
 	glyphs(): GlyphId[] {
 		// Format 1 - manual copy is faster than Array.from
 		if (this.glyphArray) {
@@ -117,7 +136,11 @@ export class Coverage {
 	}
 }
 
-/** Parse a Coverage table */
+/**
+ * Parse a Coverage table from binary data
+ * @param reader - Binary reader positioned at coverage table start
+ * @returns Parsed coverage instance (Format 1 or Format 2)
+ */
 export function parseCoverage(reader: Reader): Coverage {
 	const format = reader.uint16();
 
@@ -145,7 +168,12 @@ export function parseCoverage(reader: Reader): Coverage {
 	throw new Error(`Unknown Coverage format: ${format}`);
 }
 
-/** Parse Coverage from offset (creates sub-reader) */
+/**
+ * Parse Coverage from offset (creates sub-reader)
+ * @param reader - Binary reader positioned at parent table
+ * @param offset - Offset from reader's current position to coverage table
+ * @returns Parsed coverage instance
+ */
 export function parseCoverageAt(reader: Reader, offset: number): Coverage {
 	return parseCoverage(reader.sliceFrom(offset));
 }

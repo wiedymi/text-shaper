@@ -54,6 +54,8 @@ export enum WordBreakProperty {
 
 /**
  * Get grapheme break property for codepoint
+ * @param cp Unicode codepoint to check
+ * @returns Grapheme break property for the codepoint
  */
 export function getGraphemeBreakProperty(cp: number): GraphemeBreakProperty {
 	// CR, LF
@@ -416,6 +418,8 @@ export function getGraphemeBreakProperty(cp: number): GraphemeBreakProperty {
 
 /**
  * Get word break property for codepoint
+ * @param cp Unicode codepoint to check
+ * @returns Word break property for the codepoint
  */
 export function getWordBreakProperty(cp: number): WordBreakProperty {
 	// CR, LF, Newline
@@ -632,6 +636,8 @@ export interface GraphemeBoundaries {
 
 /**
  * Find grapheme cluster boundaries in codepoints
+ * @param codepoints Array of Unicode codepoints
+ * @returns Object containing boundary positions and grapheme break properties
  */
 export function findGraphemeBoundaries(
 	codepoints: number[],
@@ -782,6 +788,8 @@ export interface WordBoundaries {
 
 /**
  * Find word boundaries in codepoints
+ * @param codepoints Array of Unicode codepoints
+ * @returns Object containing boundary positions and word break properties
  */
 export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 	const len = codepoints.length;
@@ -960,6 +968,8 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
 
 /**
  * Split text into grapheme clusters
+ * @param text Text string to split
+ * @returns Array of grapheme cluster strings
  */
 export function splitGraphemes(text: string): string[] {
 	const codepoints: number[] = [];
@@ -987,6 +997,8 @@ export function splitGraphemes(text: string): string[] {
 
 /**
  * Split text into words
+ * @param text Text string to split
+ * @returns Array of word strings (whitespace-only segments are filtered out)
  */
 export function splitWords(text: string): string[] {
 	const codepoints: number[] = [];
@@ -1029,6 +1041,8 @@ export function splitWords(text: string): string[] {
 
 /**
  * Count grapheme clusters in text
+ * @param text Text string to analyze
+ * @returns Number of grapheme clusters in the text
  */
 export function countGraphemes(text: string): number {
 	const codepoints: number[] = [];
@@ -1043,6 +1057,8 @@ export function countGraphemes(text: string): number {
 
 /**
  * Analyze grapheme boundaries for glyph infos
+ * @param infos Array of glyph information objects
+ * @returns Object containing boundary positions and grapheme break properties
  */
 export function analyzeGraphemesForGlyphs(
 	infos: GlyphInfo[],
@@ -1053,6 +1069,8 @@ export function analyzeGraphemesForGlyphs(
 
 /**
  * Analyze word boundaries for glyph infos
+ * @param infos Array of glyph information objects
+ * @returns Object containing boundary positions and word break properties
  */
 export function analyzeWordsForGlyphs(infos: GlyphInfo[]): WordBoundaries {
 	const codepoints = infos.map((info) => info.codepoint);

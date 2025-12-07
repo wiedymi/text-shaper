@@ -3,7 +3,9 @@ import { measure, printComparison, loadFontBuffer, type BenchResult } from "./ut
 import {
 	Font,
 	shape,
+	shapeInto,
 	UnicodeBuffer,
+	GlyphBuffer,
 	standardLigatures,
 	kerning,
 	smallCaps,
@@ -291,13 +293,17 @@ describe("Shape Plan Compilation Benchmark", () => {
 			const text = "Hello World"
 			const results: BenchResult[] = []
 
+			// Use shapeInto with buffer reuse for fair comparison
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(64)
 			results.push(
 				measure(
 					"LTR text",
 					() => {
-						const buffer = new UnicodeBuffer()
-						buffer.addStr(text)
-						shape(notoSans, buffer)
+						uBuffer.clear()
+						uBuffer.addStr(text)
+						gBuffer.reset()
+						shapeInto(notoSans, uBuffer, gBuffer)
 					},
 					{ iterations: 200 },
 				),
@@ -325,13 +331,17 @@ describe("Shape Plan Compilation Benchmark", () => {
 			const text = "مرحبا بالعالم"
 			const results: BenchResult[] = []
 
+			// Use shapeInto with buffer reuse
+			const uBuffer = new UnicodeBuffer()
+			const gBuffer = GlyphBuffer.withCapacity(64)
 			results.push(
 				measure(
 					"RTL text",
 					() => {
-						const buffer = new UnicodeBuffer()
-						buffer.addStr(text)
-						shape(notoSansArabic, buffer)
+						uBuffer.clear()
+						uBuffer.addStr(text)
+						gBuffer.reset()
+						shapeInto(notoSansArabic, uBuffer, gBuffer)
 					},
 					{ iterations: 200 },
 				),

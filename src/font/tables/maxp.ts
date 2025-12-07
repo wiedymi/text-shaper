@@ -28,6 +28,11 @@ export interface MaxpTable10 {
 
 export type MaxpTable = MaxpTable05 | MaxpTable10;
 
+/**
+ * Parse maxp table - maximum profile with glyph count and limits
+ * @param reader - Reader positioned at start of maxp table
+ * @returns Parsed maxp table (version 0.5 for CFF or 1.0 for TrueType)
+ */
 export function parseMaxp(reader: Reader): MaxpTable {
 	const version = reader.uint32();
 	const numGlyphs = reader.uint16();

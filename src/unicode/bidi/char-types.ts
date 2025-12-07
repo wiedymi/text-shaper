@@ -98,6 +98,8 @@ function parseData(): void {
 
 /**
  * Get the bidi character type for a character
+ * @param char Character to check
+ * @returns Bidi character type as a bitmask
  */
 export function getBidiCharType(char: string): number {
 	parseData();
@@ -108,6 +110,8 @@ export function getBidiCharType(char: string): number {
 
 /**
  * Get the name of a bidi character type
+ * @param char Character to check
+ * @returns Bidi character type name (e.g., "L", "R", "EN", "AN", etc.)
  */
 export function getBidiCharTypeName(char: string): string {
 	return TYPES_TO_NAMES[getBidiCharType(char)] ?? "L";

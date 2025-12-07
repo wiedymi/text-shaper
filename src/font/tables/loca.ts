@@ -48,6 +48,9 @@ export function parseLoca(
 /**
  * Get byte offset and length for a glyph in the glyf table
  * Returns null if glyph has no outline (empty glyph)
+ * @param loca - Parsed loca table
+ * @param glyphId - Glyph ID to look up
+ * @returns Object with offset and length, or null if glyph has no outline
  */
 export function getGlyphLocation(
 	loca: LocaTable,

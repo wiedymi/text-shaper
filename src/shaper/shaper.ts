@@ -101,10 +101,17 @@ import {
 	type ShapePlan,
 } from "./shape-plan.ts";
 
+/**
+ * Options for controlling text shaping behavior.
+ */
 export interface ShapeOptions {
+	/** ISO 15924 script tag (e.g., "arab", "deva", "latn"). Defaults to buffer.script or "latn" */
 	script?: string;
+	/** BCP 47 language tag (e.g., "en", "ar-SA", "hi-IN"). Defaults to buffer.language or null */
 	language?: string | null;
+	/** Text direction: "ltr" (left-to-right) or "rtl" (right-to-left). Defaults to "ltr" */
 	direction?: "ltr" | "rtl";
+	/** Array of OpenType features to apply (e.g., [{tag: "liga", value: 1}, {tag: "kern", value: 0}]) */
 	features?: ShapeFeature[];
 }
 
@@ -115,7 +122,11 @@ export interface ShapeOptions {
 const _ligMatchIndices = new Uint16Array(16);
 const _ligMatchGlyphs = new Uint16Array(16);
 
-/** Font or Face - accepted by shape function */
+/**
+ * Union type accepting either Font or Face instances.
+ * Use Face for variable fonts to provide axis coordinates for feature variations.
+ * Use Font for static fonts or when default axis values are acceptable.
+ */
 export type FontLike = Font | Face;
 
 /** Get the underlying Font from a FontLike */
@@ -253,6 +264,9 @@ const MAX_POOL_SIZE = 8;
 /**
  * Return a GlyphBuffer to the pool for reuse.
  * Call this when done with a buffer from shape() to reduce allocations.
+ * The pool has a maximum size, so buffers beyond that limit will be discarded.
+ *
+ * @param buffer - The GlyphBuffer to return to the pool
  */
 export function releaseBuffer(buffer: GlyphBuffer): void {
 	if (_glyphBufferPool.length < MAX_POOL_SIZE) {
@@ -262,8 +276,27 @@ export function releaseBuffer(buffer: GlyphBuffer): void {
 }
 
 /**
- * Shape text using OpenType features.
- * Accepts Font or Face (for variable fonts).
+ * Shape text using OpenType features and complex script processing.
+ *
+ * Text shaping is the process of converting Unicode text into positioned glyphs for rendering.
+ * This involves:
+ * - Mapping characters to glyphs via the font's cmap table
+ * - Applying OpenType GSUB substitutions (ligatures, contextual forms, etc.)
+ * - Positioning glyphs via GPOS or fallback kerning/mark positioning
+ * - Complex script analysis (Arabic joining, Indic reordering, etc.)
+ * - Applying OpenType features (liga, kern, calt, etc.)
+ *
+ * The function returns a pooled GlyphBuffer for efficiency. Call releaseBuffer() when done
+ * to return it to the pool for reuse.
+ *
+ * @param fontLike - Font or Face instance (Face for variable fonts with axis coordinates)
+ * @param buffer - UnicodeBuffer containing the input text and metadata (script, language, direction)
+ * @param options - Optional shaping parameters
+ * @param options.script - ISO 15924 script tag (e.g., "arab", "deva"), defaults to buffer.script or "latn"
+ * @param options.language - BCP 47 language tag (e.g., "en", "ar-SA"), defaults to buffer.language or null
+ * @param options.direction - Text direction "ltr" or "rtl", defaults to "ltr"
+ * @param options.features - Array of OpenType features to enable/disable (e.g., [{tag: "liga", value: 1}])
+ * @returns GlyphBuffer containing shaped glyphs with positions and metadata
  */
 export function shape(
 	fontLike: FontLike,
@@ -282,7 +315,22 @@ export function shape(
 
 /**
  * Shape text into an existing GlyphBuffer (zero-allocation hot path).
- * Use this for maximum performance when shaping repeatedly.
+ *
+ * This is a performance-optimized version of shape() that reuses an existing GlyphBuffer
+ * instead of allocating a new one. Use this for maximum performance when shaping repeatedly,
+ * such as in animation loops or batch text processing.
+ *
+ * The provided GlyphBuffer will be reset and filled with the shaped output. This avoids
+ * allocations from the buffer pool and gives you full control over buffer lifecycle.
+ *
+ * @param fontLike - Font or Face instance (Face for variable fonts with axis coordinates)
+ * @param buffer - UnicodeBuffer containing the input text and metadata (script, language, direction)
+ * @param glyphBuffer - Existing GlyphBuffer to fill with shaped output (will be reset)
+ * @param options - Optional shaping parameters
+ * @param options.script - ISO 15924 script tag (e.g., "arab", "deva"), defaults to buffer.script or "latn"
+ * @param options.language - BCP 47 language tag (e.g., "en", "ar-SA"), defaults to buffer.language or null
+ * @param options.direction - Text direction "ltr" or "rtl", defaults to "ltr"
+ * @param options.features - Array of OpenType features to enable/disable (e.g., [{tag: "liga", value: 1}])
  */
 export function shapeInto(
 	fontLike: FontLike,

@@ -17,6 +17,10 @@ export class SetDigest {
 	private mask1 = 0; // Bits 4-9 of glyphId
 	private mask2 = 0; // Bits 9-14 of glyphId
 
+	/**
+	 * Add a single glyph to the digest
+	 * @param glyphId - The glyph ID to add
+	 */
 	add(glyphId: GlyphId): void {
 		// Each mask uses 6 bits of the glyph ID at different positions
 		this.mask0 |= 1 << (glyphId & 0x1f);
@@ -24,6 +28,11 @@ export class SetDigest {
 		this.mask2 |= 1 << ((glyphId >> 9) & 0x1f);
 	}
 
+	/**
+	 * Add a range of glyphs to the digest
+	 * @param start - Start glyph ID (inclusive)
+	 * @param end - End glyph ID (inclusive)
+	 */
 	addRange(start: GlyphId, end: GlyphId): void {
 		// For small ranges, add individually
 		if (end - start < 32) {
@@ -39,9 +48,9 @@ export class SetDigest {
 	}
 
 	/**
-	 * Fast check if glyph MAY be in the set.
-	 * Returns false only if glyph is definitely NOT in the set.
-	 * May return true for glyphs not in the set (false positive).
+	 * Fast check if glyph MAY be in the set
+	 * @param glyphId - The glyph ID to check
+	 * @returns False if glyph is definitely NOT in the set, true if glyph MAY be in the set (false positives possible)
 	 */
 	mayHave(glyphId: GlyphId): boolean {
 		return (
@@ -52,7 +61,8 @@ export class SetDigest {
 	}
 
 	/**
-	 * Add all glyphs from a Coverage table to this digest.
+	 * Add all glyphs from a Coverage table to this digest
+	 * @param coverage - The coverage table containing glyphs to add
 	 */
 	addCoverage(coverage: Coverage): void {
 		// Coverage.glyphs() returns all covered glyph IDs
@@ -64,8 +74,9 @@ export class SetDigest {
 	}
 
 	/**
-	 * Check if this digest MAY intersect with another digest.
-	 * Returns false only if there is definitely NO overlap.
+	 * Check if this digest MAY intersect with another digest
+	 * @param other - The other digest to check intersection with
+	 * @returns False if there is definitely NO overlap, true if there MAY be overlap (false positives possible)
 	 */
 	mayIntersect(other: SetDigest): boolean {
 		return (
@@ -75,7 +86,10 @@ export class SetDigest {
 		);
 	}
 
-	/** Get raw masks for external comparison */
+	/**
+	 * Get raw masks for external comparison
+	 * @returns Object containing the three internal mask values
+	 */
 	getMasks(): { mask0: number; mask1: number; mask2: number } {
 		return { mask0: this.mask0, mask1: this.mask1, mask2: this.mask2 };
 	}
@@ -83,6 +97,8 @@ export class SetDigest {
 
 /**
  * Create a SetDigest from multiple Coverage tables (for a lookup with multiple subtables)
+ * @param coverages - Array of coverage tables to combine into a single digest
+ * @returns A new SetDigest containing all glyphs from all coverage tables
  */
 export function createLookupDigest(coverages: Coverage[]): SetDigest {
 	const digest = new SetDigest();

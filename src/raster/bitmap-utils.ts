@@ -7,6 +7,10 @@ import { type Bitmap, createBitmap, PixelMode } from "./types.ts";
 /**
  * Embolden a bitmap by dilating pixel values
  * Makes text bolder by spreading coverage in x and y directions
+ * @param bitmap Source bitmap to embolden
+ * @param xStrength Horizontal dilation strength in pixels
+ * @param yStrength Vertical dilation strength in pixels
+ * @returns New bitmap with emboldened content
  */
 export function emboldenBitmap(
 	bitmap: Bitmap,
@@ -130,6 +134,9 @@ export function emboldenBitmap(
 
 /**
  * Convert bitmap between pixel modes
+ * @param bitmap Source bitmap to convert
+ * @param targetMode Target pixel format
+ * @returns New bitmap in the target format
  */
 export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 	if (bitmap.pixelMode === targetMode) {
@@ -223,6 +230,11 @@ export function convertBitmap(bitmap: Bitmap, targetMode: PixelMode): Bitmap {
 
 /**
  * Alpha blend src bitmap onto dst bitmap at position (x, y)
+ * @param dst Destination bitmap to blend onto (modified in place)
+ * @param src Source bitmap to blend
+ * @param x X position in destination
+ * @param y Y position in destination
+ * @param opacity Blend opacity from 0 to 1
  */
 export function blendBitmap(
 	dst: Bitmap,
@@ -260,6 +272,8 @@ export function blendBitmap(
 
 /**
  * Create a deep copy of a bitmap
+ * @param bitmap Bitmap to copy
+ * @returns New bitmap with copied data
  */
 export function copyBitmap(bitmap: Bitmap): Bitmap {
 	return {
@@ -274,6 +288,10 @@ export function copyBitmap(bitmap: Bitmap): Bitmap {
 
 /**
  * Resize bitmap using nearest-neighbor interpolation
+ * @param bitmap Source bitmap to resize
+ * @param newWidth Target width in pixels
+ * @param newHeight Target height in pixels
+ * @returns New bitmap resized to target dimensions
  */
 export function resizeBitmap(
 	bitmap: Bitmap,
@@ -336,6 +354,10 @@ export function resizeBitmap(
 /**
  * Resize bitmap using bilinear interpolation
  * Produces smoother results than nearest-neighbor, ideal for downsampling
+ * @param bitmap Source bitmap to resize
+ * @param newWidth Target width in pixels
+ * @param newHeight Target height in pixels
+ * @returns New bitmap resized with smooth interpolation
  */
 export function resizeBitmapBilinear(
 	bitmap: Bitmap,
@@ -419,6 +441,10 @@ export function resizeBitmapBilinear(
  * Add two bitmaps together (additive blend)
  * Result: dst = clamp(dst + src, 0, 255)
  * Used for combining glyph with shadow/glow
+ * @param dst Destination bitmap (modified in place)
+ * @param src Source bitmap to add
+ * @param srcX X offset of source in destination (default: 0)
+ * @param srcY Y offset of source in destination (default: 0)
  */
 export function addBitmaps(
 	dst: Bitmap,
@@ -454,6 +480,10 @@ export function addBitmaps(
  * Multiply two bitmaps (multiplicative blend)
  * Result: dst = (dst * src) / 255
  * Used for masking operations
+ * @param dst Destination bitmap (modified in place)
+ * @param src Source bitmap to multiply
+ * @param srcX X offset of source in destination (default: 0)
+ * @param srcY Y offset of source in destination (default: 0)
  */
 export function mulBitmaps(
 	dst: Bitmap,
@@ -492,6 +522,10 @@ export function mulBitmaps(
  * Subtract src from dst (subtractive blend)
  * Result: dst = clamp(dst - src, 0, 255)
  * Used for outline effects
+ * @param dst Destination bitmap (modified in place)
+ * @param src Source bitmap to subtract
+ * @param srcX X offset of source in destination (default: 0)
+ * @param srcY Y offset of source in destination (default: 0)
  */
 export function subBitmaps(
 	dst: Bitmap,
@@ -527,6 +561,10 @@ export function subBitmaps(
  * Alpha composite src over dst using src as alpha
  * Result: dst = src + dst * (1 - src/255)
  * Standard Porter-Duff "over" operation
+ * @param dst Destination bitmap (modified in place)
+ * @param src Source bitmap to composite
+ * @param srcX X offset of source in destination (default: 0)
+ * @param srcY Y offset of source in destination (default: 0)
  */
 export function compositeBitmaps(
 	dst: Bitmap,
@@ -563,6 +601,10 @@ export function compositeBitmaps(
 /**
  * Shift bitmap position by integer offset
  * Creates a new bitmap with the content shifted
+ * @param bitmap Source bitmap to shift
+ * @param shiftX Horizontal shift in pixels
+ * @param shiftY Vertical shift in pixels
+ * @returns New bitmap with shifted content
  */
 export function shiftBitmap(
 	bitmap: Bitmap,
@@ -633,6 +675,11 @@ export function shiftBitmap(
  * Fix outline bitmap by removing glyph interior
  * Used when you want only the border, not the filled shape
  * Result: outline = outline - glyph (where glyph coverage > threshold)
+ * @param outlineBitmap Outline bitmap to fix (modified in place)
+ * @param glyphBitmap Glyph bitmap containing filled shape
+ * @param glyphX X position of glyph in outline (default: 0)
+ * @param glyphY Y position of glyph in outline (default: 0)
+ * @param threshold Coverage threshold for removal (default: 128)
  */
 export function fixOutline(
 	outlineBitmap: Bitmap,
@@ -674,6 +721,10 @@ export function fixOutline(
  * Maximum blend: take the maximum of two bitmaps
  * Result: dst = max(dst, src)
  * Used for combining multiple layers
+ * @param dst Destination bitmap (modified in place)
+ * @param src Source bitmap to compare
+ * @param srcX X offset of source in destination (default: 0)
+ * @param srcY Y offset of source in destination (default: 0)
  */
 export function maxBitmaps(
 	dst: Bitmap,
@@ -708,6 +759,12 @@ export function maxBitmaps(
 /**
  * Create a padded copy of a bitmap with extra space around edges
  * Useful before blur operations to prevent edge artifacts
+ * @param bitmap Source bitmap to pad
+ * @param padLeft Left padding in pixels
+ * @param padTop Top padding in pixels
+ * @param padRight Right padding in pixels
+ * @param padBottom Bottom padding in pixels
+ * @returns New bitmap with padding added
  */
 export function padBitmap(
 	bitmap: Bitmap,
@@ -748,6 +805,11 @@ export function padBitmap(
 /**
  * Create an expanded bitmap that can contain both dst and src
  * Returns the expanded bitmap and the offsets for both original bitmaps
+ * @param dst Destination bitmap
+ * @param src Source bitmap to fit
+ * @param srcX X position of source relative to destination
+ * @param srcY Y position of source relative to destination
+ * @returns Expanded bitmap and offset positions for both original bitmaps
  */
 export function expandToFit(
 	dst: Bitmap,

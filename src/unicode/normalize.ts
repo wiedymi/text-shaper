@@ -29,6 +29,8 @@ export enum NormalizationMode {
  * - Cyrillic Supplement (0500-052F)
  * - CJK ranges (3000+)
  * - Hangul (AC00-D7AF)
+ * @param cp Unicode codepoint to check
+ * @returns Canonical combining class (0 for non-combining characters, 1-255 for combining marks)
  */
 export function getCombiningClass(cp: number): number {
 	// FAST PATH: Most common scripts have no combining marks
@@ -306,6 +308,7 @@ function getLatinCcc(cp: number): number {
 
 /**
  * Reorder combining marks according to canonical combining class
+ * @param infos Array of glyph information objects (modified in place)
  */
 export function reorderMarks(infos: GlyphInfo[]): void {
 	// Simple bubble sort for stability (marks with same ccc keep order)
@@ -559,6 +562,8 @@ const DECOMPOSITIONS: Map<number, number[]> = new Map([
 
 /**
  * Decompose a codepoint if it has a canonical decomposition
+ * @param cp Unicode codepoint to decompose
+ * @returns Array of decomposed codepoints, or null if character has no decomposition
  */
 export function decompose(cp: number): number[] | null {
 	return DECOMPOSITIONS.get(cp) ?? null;
@@ -828,6 +833,9 @@ const COMPOSITIONS: Map<number, Map<number, number>> = new Map([
 /**
  * Try to compose a base character with a combining mark
  * Returns the composed character or null if no composition exists
+ * @param base Base character codepoint
+ * @param combining Combining mark codepoint
+ * @returns Composed character codepoint, or null if no composition exists
  */
 export function tryCompose(base: number, combining: number): number | null {
 	const baseCompositions = COMPOSITIONS.get(base);
@@ -924,6 +932,9 @@ function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
 
 /**
  * Apply normalization to glyph infos
+ * @param infos Array of glyph information objects
+ * @param mode Normalization mode (None, Decompose, Compose, or Auto)
+ * @returns Normalized array of glyph information objects
  */
 export function normalize(
 	infos: GlyphInfo[],

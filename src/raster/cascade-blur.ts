@@ -414,10 +414,10 @@ function cascadeBlurRGBA(
 
 /**
  * Cascade Gaussian blur with asymmetric X/Y radii
- *
- * @param bitmap Input bitmap
- * @param radiusX Blur radius along X axis
- * @param radiusY Blur radius along Y axis (defaults to radiusX)
+ * High-performance blur using pyramid scaling for large radii
+ * @param bitmap Input bitmap to blur
+ * @param radiusX Blur radius along X axis in pixels
+ * @param radiusY Blur radius along Y axis in pixels (defaults to radiusX)
  * @returns New bitmap with blur applied (dimensions may change)
  */
 export function cascadeBlur(
@@ -539,8 +539,7 @@ export function cascadeBlur(
 /**
  * Fast Gaussian blur using cascade algorithm
  * This is the recommended blur function for large radii (> 3 pixels)
- *
- * @param bitmap Input bitmap
+ * @param bitmap Input bitmap to blur
  * @param radius Blur radius in pixels
  * @returns New bitmap with blur applied (dimensions may change)
  */
@@ -550,12 +549,12 @@ export function fastGaussianBlur(bitmap: Bitmap, radius: number): Bitmap {
 
 /**
  * Adaptive blur that chooses the best algorithm based on radius
- * - For small radii (≤ 3): uses simple separable Gaussian (more precise)
- * - For large radii (> 3): uses cascade algorithm (faster)
- *
- * @param bitmap Input bitmap
+ * For small radii (≤ 3): uses simple separable Gaussian (more precise)
+ * For large radii (> 3): uses cascade algorithm (faster)
+ * @param bitmap Input bitmap to blur
  * @param radiusX Horizontal blur radius in pixels
  * @param radiusY Vertical blur radius in pixels (defaults to radiusX)
+ * @returns Blurred bitmap using the optimal algorithm
  */
 export function adaptiveBlur(
 	bitmap: Bitmap,

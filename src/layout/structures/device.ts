@@ -23,14 +23,23 @@ export interface VariationIndexTable {
 /** Combined type - can be either Device or VariationIndex */
 export type DeviceOrVariationIndex = DeviceTable | VariationIndexTable;
 
-/** Check if this is a VariationIndex table */
+/**
+ * Check if this is a VariationIndex table
+ * @param table - The device or variation index table to check
+ * @returns True if the table is a VariationIndex table, false if it's a Device table
+ */
 export function isVariationIndexTable(
 	table: DeviceOrVariationIndex,
 ): table is VariationIndexTable {
 	return "deltaSetOuterIndex" in table;
 }
 
-/** Parse Device or VariationIndex table at offset */
+/**
+ * Parse Device or VariationIndex table at offset
+ * @param reader - Binary reader positioned at the parent table
+ * @param offset - Offset from reader's current position to the device table
+ * @returns Parsed device or variation index table, or null if offset is 0
+ */
 export function parseDeviceAt(
 	reader: Reader,
 	offset: number,
@@ -39,7 +48,11 @@ export function parseDeviceAt(
 	return parseDevice(reader.sliceFrom(offset));
 }
 
-/** Parse Device or VariationIndex table */
+/**
+ * Parse Device or VariationIndex table
+ * @param reader - Binary reader positioned at the device table start
+ * @returns Parsed device or variation index table
+ */
 export function parseDevice(reader: Reader): DeviceOrVariationIndex {
 	const startSize = reader.uint16();
 	const endSize = reader.uint16();
@@ -96,7 +109,9 @@ export function parseDevice(reader: Reader): DeviceOrVariationIndex {
 
 /**
  * Get delta adjustment for a specific PPEM size
- * Returns 0 if the size is outside the table's range
+ * @param device - The device table to query
+ * @param ppem - Pixels per em size to get delta for
+ * @returns Delta adjustment value, or 0 if PPEM is outside the table's range
  */
 export function getDeviceDelta(device: DeviceTable, ppem: number): int16 {
 	if (ppem < device.startSize || ppem > device.endSize) {
@@ -108,7 +123,10 @@ export function getDeviceDelta(device: DeviceTable, ppem: number): int16 {
 
 /**
  * Apply Device table adjustment to a value
- * For variable fonts, this would need ItemVariationStore lookup instead
+ * @param device - The device or variation index table, or null
+ * @param value - The base value to adjust
+ * @param ppem - Pixels per em size for device table lookup
+ * @returns Adjusted value (for Device tables) or unchanged value (for VariationIndex tables or null)
  */
 export function applyDeviceAdjustment(
 	device: DeviceOrVariationIndex | null,
@@ -142,6 +160,9 @@ export interface ResolvedValueRecord {
 
 /**
  * Apply all Device adjustments to a resolved value record
+ * @param record - The value record containing placement and advance values with device tables
+ * @param ppem - Pixels per em size for device table lookups
+ * @returns Object containing adjusted xPlacement, yPlacement, xAdvance, and yAdvance values
  */
 export function applyDeviceAdjustments(
 	record: ResolvedValueRecord,

@@ -84,6 +84,9 @@ function getCharAt(s: string, i: number): string {
  * This function applies the Bidirectional Algorithm to a string, returning the resolved embedding levels
  * in a single Uint8Array plus a list of objects holding each paragraph's start and end indices and resolved
  * base embedding level.
+ * @param string Text string to process
+ * @param baseDirection Base text direction: "ltr", "rtl", or "auto"
+ * @returns Object containing embedding levels array and paragraph information
  */
 export function getEmbeddingLevels(
 	string: string,

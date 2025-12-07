@@ -545,7 +545,9 @@ enum PrivateDictOp {
 }
 
 /**
- * Parse CFF table
+ * Parse CFF table - Compact Font Format for PostScript outlines
+ * @param reader - Reader positioned at start of CFF table
+ * @returns Parsed CFF table with CharStrings, DICTs, and subroutines
  */
 export function parseCff(reader: Reader): CffTable {
 	const startOffset = reader.offset;

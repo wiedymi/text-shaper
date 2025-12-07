@@ -76,6 +76,11 @@ function lerpColor(
 
 /**
  * Get color at position in gradient
+ *
+ * @param gradient Linear or radial gradient definition
+ * @param x X coordinate
+ * @param y Y coordinate
+ * @returns RGBA color at position (0-255 each)
  */
 export function interpolateGradient(
 	gradient: Gradient,
@@ -142,6 +147,11 @@ export function interpolateGradient(
 
 /**
  * Create a bitmap filled with gradient (no path)
+ *
+ * @param width Width in pixels
+ * @param height Height in pixels
+ * @param gradient Linear or radial gradient definition
+ * @returns RGBA bitmap filled with gradient
  */
 export function createGradientBitmap(
 	width: number,
@@ -167,6 +177,11 @@ export function createGradientBitmap(
 /**
  * Rasterize path with gradient fill
  * First rasterizes path to get coverage mask, then fills with gradient
+ *
+ * @param path Glyph path to rasterize
+ * @param gradient Linear or radial gradient definition
+ * @param options Rasterization options (width, height, scale, etc.)
+ * @returns RGBA bitmap with gradient-filled path
  */
 export function rasterizePathWithGradient(
 	path: GlyphPath,

@@ -50,7 +50,10 @@ const PRIVATE_POINT_NUMBERS = 0x2000;
 const TUPLE_INDEX_MASK = 0x0fff;
 
 /**
- * Parse gvar table
+ * Parse gvar table - glyph variations for TrueType outlines in variable fonts
+ * @param reader - Reader positioned at start of gvar table
+ * @param _numGlyphs - Number of glyphs (currently unused)
+ * @returns Parsed gvar table with per-glyph variation data
  */
 export function parseGvar(reader: Reader, _numGlyphs: number): GvarTable {
 	const majorVersion = reader.uint16();
@@ -305,6 +308,12 @@ export function parsePackedDeltas(reader: Reader, count: number): number[] {
 
 /**
  * Calculate the scalar for a tuple given axis coordinates
+ * Determines how much a variation tuple contributes based on current axis values
+ * @param peakTuple - Peak coordinates for each axis where variation is at maximum
+ * @param axisCoords - Current normalized axis coordinates
+ * @param intermediateStart - Start of intermediate region (null if not used)
+ * @param intermediateEnd - End of intermediate region (null if not used)
+ * @returns Scalar value between 0 and 1 indicating variation contribution
  */
 export function calculateTupleScalar(
 	peakTuple: number[],

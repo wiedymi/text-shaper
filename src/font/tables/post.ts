@@ -283,6 +283,11 @@ const standardNames: string[] = [
 	"dcroat",
 ];
 
+/**
+ * Parse post table - PostScript information including glyph names
+ * @param reader - Reader positioned at start of post table
+ * @returns Parsed post table
+ */
 export function parsePost(reader: Reader): PostTable {
 	const versionMajor = reader.uint16();
 	const versionMinor = reader.uint16();

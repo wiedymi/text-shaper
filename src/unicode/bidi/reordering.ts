@@ -10,6 +10,11 @@ import { getMirroredCharacter } from "./mirroring.ts";
 /**
  * Given a start and end denoting a single line within a string, and a set of precalculated
  * bidi embedding levels, produce a list of segments whose ordering should be flipped, in sequence.
+ * @param string Text string to process
+ * @param embeddingLevelsResult Result from getEmbeddingLevels
+ * @param start Start index (defaults to 0)
+ * @param end End index (defaults to string length - 1)
+ * @returns Array of segment ranges [start, end] to be reversed
  */
 export function getReorderSegments(
 	string: string,
@@ -74,6 +79,11 @@ export function getReorderSegments(
 
 /**
  * Get the reordered string with bidi segments reversed
+ * @param string Text string to reorder
+ * @param embedLevelsResult Result from getEmbeddingLevels
+ * @param start Start index (defaults to 0)
+ * @param end End index (defaults to string length - 1)
+ * @returns Reordered string with BiDi applied
  */
 export function getReorderedString(
 	string: string,
@@ -99,6 +109,11 @@ export function getReorderedString(
 
 /**
  * Get an array with character indices in their new bidi order
+ * @param string Text string to process
+ * @param embedLevelsResult Result from getEmbeddingLevels
+ * @param start Start index (defaults to 0)
+ * @param end End index (defaults to string length - 1)
+ * @returns Array mapping new positions to original character indices
  */
 export function getReorderedIndices(
 	string: string,

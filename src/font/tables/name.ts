@@ -66,6 +66,11 @@ export interface NameTable {
 	records: NameRecord[];
 }
 
+/**
+ * Parse name table - font naming information in multiple languages
+ * @param reader - Reader positioned at start of name table
+ * @returns Parsed name table with decoded name records
+ */
 export function parseName(reader: Reader): NameTable {
 	const format = reader.uint16();
 	const count = reader.uint16();

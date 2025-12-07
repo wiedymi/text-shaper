@@ -106,6 +106,11 @@ export function parseFeatureVariations(reader: Reader): FeatureVariations {
 	};
 }
 
+/**
+ * Parse condition set from binary data
+ * @param reader - Binary reader positioned at condition set start
+ * @returns Parsed condition set containing all axis conditions
+ */
 function parseConditionSet(reader: Reader): ConditionSet {
 	const conditionCount = reader.uint16();
 	const conditionOffsets: uint32[] = [];
@@ -132,6 +137,11 @@ function parseConditionSet(reader: Reader): ConditionSet {
 	return { conditions };
 }
 
+/**
+ * Parse feature table substitution from binary data
+ * @param reader - Binary reader positioned at feature table substitution start
+ * @returns Parsed feature table substitution containing all feature substitution records
+ */
 function parseFeatureTableSubstitution(
 	reader: Reader,
 ): FeatureTableSubstitution {

@@ -52,6 +52,9 @@ type Edge =
 
 /**
  * Render a glyph path as a signed distance field
+ * @param path Glyph path to render
+ * @param options SDF rendering options (dimensions, scale, spread)
+ * @returns Grayscale bitmap with signed distance field (128 = on edge, 255 = inside, 0 = outside)
  */
 export function renderSdf(path: GlyphPath, options: SdfOptions): Bitmap {
 	const {

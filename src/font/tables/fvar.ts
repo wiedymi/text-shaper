@@ -62,7 +62,9 @@ export const AxisTags = {
 } as const;
 
 /**
- * Parse fvar table
+ * Parse fvar table - font variations defining axes and named instances
+ * @param reader - Reader positioned at start of fvar table
+ * @returns Parsed fvar table with variation axes and instances
  */
 export function parseFvar(reader: Reader): FvarTable {
 	const majorVersion = reader.uint16();
