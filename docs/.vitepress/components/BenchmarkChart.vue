@@ -46,7 +46,7 @@ function isSmallBar(opsPerSec: number): boolean {
 				<span class="bench-name" :class="{ ours: result.name === 'text-shaper' }">{{ result.name }}</span>
 				<div class="bench-bar-wrap">
 					<div :class="getBarClass(result.name)" :style="{ width: `${getBarWidth(result.opsPerSec)}%` }"></div>
-					<span class="bench-ops" :class="isSmallBar(result.opsPerSec) ? 'outside' : 'inside'" :style="{ left: `${Math.max(getBarWidth(result.opsPerSec), 1)}%` }">{{ formatOps(result.opsPerSec) }}</span>
+					<span class="bench-ops" :class="isSmallBar(result.opsPerSec) ? 'outside' : 'inside'" :style="{ left: `${Math.max(getBarWidth(result.opsPerSec), 1)}%` }">{{ formatOps(result.opsPerSec) }} ops/s</span>
 				</div>
 			</div>
 		</div>

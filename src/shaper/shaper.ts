@@ -629,6 +629,7 @@ function applyMultipleSubstLookup(
 	buffer: GlyphBuffer,
 	lookup: MultipleSubstLookup,
 ): void {
+	const digest = lookup.digest;
 	let i = 0;
 	while (i < buffer.infos.length) {
 		const info = buffer.infos[i];
@@ -637,6 +638,11 @@ function applyMultipleSubstLookup(
 			continue;
 		}
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) {
+			i++;
+			continue;
+		}
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) {
 			i++;
 			continue;
 		}
@@ -693,9 +699,12 @@ function applyAlternateSubstLookup(
 	// By default, use the first alternate (index 0)
 	const infos = buffer.infos;
 	const subtables = lookup.subtables;
+	const digest = lookup.digest;
 	for (let i = 0; i < infos.length; i++) {
 		const info = infos[i]!;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
@@ -808,6 +817,7 @@ function applyContextSubstLookup(
 ): void {
 	const infos = buffer.infos;
 	const len = infos.length;
+	const digest = lookup.digest;
 
 	// Pre-compute skip markers only if needed
 	let skip: Uint8Array | null = null;
@@ -821,6 +831,8 @@ function applyContextSubstLookup(
 		const info = infos[i];
 		if (!info) continue;
 		if (skip?.[i]) continue;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
@@ -874,6 +886,7 @@ function applyChainingContextSubstLookup(
 ): void {
 	const infos = buffer.infos;
 	const len = infos.length;
+	const digest = lookup.digest;
 
 	// Pre-compute skip markers only if needed
 	let skip: Uint8Array | null = null;
@@ -886,6 +899,8 @@ function applyChainingContextSubstLookup(
 		const info = infos[i];
 		if (!info) continue;
 		if (skip?.[i]) continue;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
@@ -938,11 +953,14 @@ function applyReverseChainingSingleSubstLookup(
 ): void {
 	const infos = buffer.infos;
 	const subtables = lookup.subtables;
+	const digest = lookup.digest;
 	// Process in reverse order
 	for (let i = infos.length - 1; i >= 0; i--) {
 		const info = infos[i];
 		if (!info) continue;
 		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
@@ -1671,12 +1689,15 @@ function applyCursivePosLookup(
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
+	const digest = lookup.digest;
 
 	const subtables = lookup.subtables;
 	// Helper to apply cursive positioning between glyphs at i and j
 	const applyCursive = (i: number, j: number) => {
 		const info1 = infos[i]!;
 		const info2 = infos[j]!;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info1.glyphId) && !digest.mayHave(info2.glyphId)) return;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
@@ -1971,11 +1992,23 @@ function applyContextPosLookup(
 	baseIndexArray: Int16Array,
 	hasMarks: boolean,
 ): void {
+	const infos = buffer.infos;
+	const len = infos.length;
+	const digest = lookup.digest;
 	const subtables = lookup.subtables;
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i];
+
+	// Pre-compute skip markers only if needed
+	let skip: Uint8Array | null = null;
+	if (lookup.flag !== 0 && font.gdef !== null) {
+		skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	}
+
+	for (let i = 0; i < len; i++) {
+		const info = infos[i];
 		if (!info) continue;
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		if (skip?.[i]) continue;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
@@ -2039,11 +2072,23 @@ function applyChainingContextPosLookup(
 	baseIndexArray: Int16Array,
 	hasMarks: boolean,
 ): void {
+	const infos = buffer.infos;
+	const len = infos.length;
+	const digest = lookup.digest;
 	const subtables = lookup.subtables;
-	for (let i = 0; i < buffer.infos.length; i++) {
-		const info = buffer.infos[i];
+
+	// Pre-compute skip markers only if needed
+	let skip: Uint8Array | null = null;
+	if (lookup.flag !== 0 && font.gdef !== null) {
+		skip = precomputeSkipMarkers(font, buffer, lookup.flag);
+	}
+
+	for (let i = 0; i < len; i++) {
+		const info = infos[i];
 		if (!info) continue;
-		if (shouldSkipGlyph(font, info.glyphId, lookup.flag)) continue;
+		if (skip?.[i]) continue;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;
