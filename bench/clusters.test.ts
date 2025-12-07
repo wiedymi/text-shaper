@@ -108,7 +108,7 @@ describe("Cluster Iteration Benchmark", () => {
 					measure(
 						"text-shaper",
 						() => {
-							findGraphemeBoundaries(text)
+							findGraphemeBoundaries([...text].map((c) => c.codePointAt(0)!))
 						},
 						{ iterations: name.startsWith("long") ? 100 : 500 },
 					),
@@ -129,7 +129,7 @@ describe("Cluster Iteration Benchmark", () => {
 					measure(
 						"text-shaper",
 						() => {
-							findWordBoundaries(text)
+							findWordBoundaries([...text].map((c) => c.codePointAt(0)!))
 						},
 						{ iterations: name.startsWith("long") ? 100 : 500 },
 					),

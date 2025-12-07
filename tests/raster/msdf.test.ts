@@ -174,10 +174,10 @@ describe("Edge coloring", () => {
 	test("assigns colors to edges at corners", () => {
 		// Simple square - 4 edges, each corner is 90 degrees (sharp)
 		const edges: MsdfEdge[] = [
-			{ type: "line", p0: { x: 0, y: 0 }, p1: { x: 10, y: 0 }, color: 0 },
-			{ type: "line", p0: { x: 10, y: 0 }, p1: { x: 10, y: 10 }, color: 0 },
-			{ type: "line", p0: { x: 10, y: 10 }, p1: { x: 0, y: 10 }, color: 0 },
-			{ type: "line", p0: { x: 0, y: 10 }, p1: { x: 0, y: 0 }, color: 0 },
+			{ type: "line", p0: { x: 0, y: 0 }, p1: { x: 10, y: 0 }, color: 0, minX: 0, maxX: 10, minY: 0, maxY: 0 },
+			{ type: "line", p0: { x: 10, y: 0 }, p1: { x: 10, y: 10 }, color: 0, minX: 10, maxX: 10, minY: 0, maxY: 10 },
+			{ type: "line", p0: { x: 10, y: 10 }, p1: { x: 0, y: 10 }, color: 0, minX: 0, maxX: 10, minY: 10, maxY: 10 },
+			{ type: "line", p0: { x: 0, y: 10 }, p1: { x: 0, y: 0 }, color: 0, minX: 0, maxX: 0, minY: 0, maxY: 10 },
 		];
 
 		assignEdgeColors([edges]);
@@ -192,9 +192,9 @@ describe("Edge coloring", () => {
 	test("uses all three colors for complex shapes", () => {
 		// Triangle - 3 sharp corners
 		const edges: MsdfEdge[] = [
-			{ type: "line", p0: { x: 5, y: 0 }, p1: { x: 10, y: 10 }, color: 0 },
-			{ type: "line", p0: { x: 10, y: 10 }, p1: { x: 0, y: 10 }, color: 0 },
-			{ type: "line", p0: { x: 0, y: 10 }, p1: { x: 5, y: 0 }, color: 0 },
+			{ type: "line", p0: { x: 5, y: 0 }, p1: { x: 10, y: 10 }, color: 0, minX: 5, maxX: 10, minY: 0, maxY: 10 },
+			{ type: "line", p0: { x: 10, y: 10 }, p1: { x: 0, y: 10 }, color: 0, minX: 0, maxX: 10, minY: 10, maxY: 10 },
+			{ type: "line", p0: { x: 0, y: 10 }, p1: { x: 5, y: 0 }, color: 0, minX: 0, maxX: 5, minY: 0, maxY: 10 },
 		];
 
 		assignEdgeColors([edges]);
@@ -207,8 +207,8 @@ describe("Edge coloring", () => {
 	test("smooth curves can share colors", () => {
 		// Two segments forming a smooth curve (180 degree angle)
 		const edges: MsdfEdge[] = [
-			{ type: "line", p0: { x: 0, y: 0 }, p1: { x: 5, y: 0 }, color: 0 },
-			{ type: "line", p0: { x: 5, y: 0 }, p1: { x: 10, y: 0 }, color: 0 },
+			{ type: "line", p0: { x: 0, y: 0 }, p1: { x: 5, y: 0 }, color: 0, minX: 0, maxX: 5, minY: 0, maxY: 0 },
+			{ type: "line", p0: { x: 5, y: 0 }, p1: { x: 10, y: 0 }, color: 0, minX: 5, maxX: 10, minY: 0, maxY: 0 },
 		];
 
 		assignEdgeColors([edges]);

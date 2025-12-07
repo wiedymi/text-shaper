@@ -731,7 +731,7 @@ function extractEdges(
 /**
  * Compute signed distance from point to edge
  */
-function signedDistanceToEdge(
+function _signedDistanceToEdge(
 	px: number,
 	py: number,
 	edge: MsdfEdge,
@@ -874,7 +874,7 @@ function findMinDistance(px: number, py: number, edges: MsdfEdge[]): number {
 /**
  * Determine if a point is inside using ray casting (even-odd rule)
  */
-function isPointInside(
+function _isPointInside(
 	px: number,
 	py: number,
 	contours: MsdfEdge[][],

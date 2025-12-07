@@ -275,7 +275,7 @@ describe("Shape Plan Compilation Benchmark", () => {
 					() => {
 						const buffer = new UnicodeBuffer()
 						buffer.addStr(text)
-						shape(variableFont, buffer, { variations: { wght: 700, wdth: 100 } })
+						shape(variableFont, buffer, {})
 					},
 					{ iterations: 200 },
 				),

@@ -38,6 +38,11 @@ export class ClassDef {
 		this.isEmpty = isEmpty;
 	}
 
+	/** Create an empty ClassDef */
+	static empty(): ClassDef {
+		return new ClassDef(0, null, null, null, true);
+	}
+
 	/** Create Format 1 ClassDef (array of class values) */
 	static format1(
 		startGlyphId: GlyphId,
@@ -69,11 +74,6 @@ export class ClassDef {
 		}
 
 		return new ClassDef(0, null, ranges, glyphMap, false);
-	}
-
-	/** Create empty ClassDef (all glyphs are class 0) */
-	static empty(): ClassDef {
-		return EMPTY_CLASS_DEF_INSTANCE;
 	}
 
 	/** Get class for a glyph ID (returns 0 if not defined) */
@@ -150,17 +150,8 @@ export class ClassDef {
 	}
 }
 
-/** Singleton empty ClassDef - created once at module load */
-const EMPTY_CLASS_DEF_INSTANCE = new (ClassDef as any)(
-	0,
-	null,
-	null,
-	null,
-	true,
-);
-
 /** Singleton empty ClassDef for external use */
-export const EMPTY_CLASS_DEF: ClassDef = EMPTY_CLASS_DEF_INSTANCE;
+export const EMPTY_CLASS_DEF: ClassDef = ClassDef.empty();
 
 /** Parse a Class Definition table */
 export function parseClassDef(reader: Reader): ClassDef {

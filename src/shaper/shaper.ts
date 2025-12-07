@@ -96,7 +96,6 @@ import {
 	applyFallbackMarkPositioning,
 } from "./fallback.ts";
 import {
-	createShapePlan,
 	getOrCreateShapePlan,
 	type ShapeFeature,
 	type ShapePlan,
