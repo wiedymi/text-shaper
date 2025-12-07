@@ -376,7 +376,8 @@ function parseAlternateSubst(
 ): AlternateSubstSubtable[] {
 	const subtables: AlternateSubstSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -388,7 +389,8 @@ function parseAlternateSubst(
 			const coverage = parseCoverageAt(r, coverageOffset);
 			const alternateSets: GlyphId[][] = [];
 
-			for (const altOffset of alternateSetOffsets) {
+			for (let j = 0; j < alternateSetOffsets.length; j++) {
+				const altOffset = alternateSetOffsets[j]!;
 				const altReader = r.sliceFrom(altOffset);
 				const glyphCount = altReader.uint16();
 				alternateSets.push(Array.from(altReader.uint16Array(glyphCount)));
@@ -407,7 +409,8 @@ function parseLigatureSubst(
 ): LigatureSubstSubtable[] {
 	const subtables: LigatureSubstSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -419,13 +422,15 @@ function parseLigatureSubst(
 			const coverage = parseCoverageAt(r, coverageOffset);
 			const ligatureSets: LigatureSet[] = [];
 
-			for (const setOffset of ligatureSetOffsets) {
+			for (let j = 0; j < ligatureSetOffsets.length; j++) {
+				const setOffset = ligatureSetOffsets[j]!;
 				const setReader = r.sliceFrom(setOffset);
 				const ligatureCount = setReader.uint16();
 				const ligatureOffsets = setReader.uint16Array(ligatureCount);
 
 				const ligatures: Ligature[] = [];
-				for (const ligOffset of ligatureOffsets) {
+				for (let k = 0; k < ligatureOffsets.length; k++) {
+					const ligOffset = ligatureOffsets[k]!;
 					const ligReader = setReader.sliceFrom(ligOffset);
 					const ligatureGlyph = ligReader.uint16();
 					const componentCount = ligReader.uint16();
@@ -451,7 +456,8 @@ function parseReverseChainingSingleSubst(
 ): ReverseChainingSingleSubstSubtable[] {
 	const subtables: ReverseChainingSingleSubstSubtable[] = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const r = reader.sliceFrom(offset);
 		const format = r.uint16();
 
@@ -470,12 +476,14 @@ function parseReverseChainingSingleSubst(
 			const coverage = parseCoverageAt(r, coverageOffset);
 
 			const backtrackCoverages: Coverage[] = [];
-			for (const covOffset of backtrackCoverageOffsets) {
+			for (let j = 0; j < backtrackCoverageOffsets.length; j++) {
+				const covOffset = backtrackCoverageOffsets[j]!;
 				backtrackCoverages.push(parseCoverageAt(r, covOffset));
 			}
 
 			const lookaheadCoverages: Coverage[] = [];
-			for (const covOffset of lookaheadCoverageOffsets) {
+			for (let j = 0; j < lookaheadCoverageOffsets.length; j++) {
+				const covOffset = lookaheadCoverageOffsets[j]!;
 				lookaheadCoverages.push(parseCoverageAt(r, covOffset));
 			}
 
@@ -501,7 +509,8 @@ function parseExtensionLookup(
 	// Parse all extension subtables
 	const extSubtables: Array<{ type: number; reader: Reader }> = [];
 
-	for (const offset of subtableOffsets) {
+	for (let i = 0; i < subtableOffsets.length; i++) {
+		const offset = subtableOffsets[i]!;
 		const extReader = reader.sliceFrom(offset);
 		const format = extReader.uint16();
 		if (format !== 1) continue;
@@ -535,7 +544,8 @@ function parseExtensionLookup(
 	switch (actualType) {
 		case GsubLookupType.Single: {
 			const subtables: SingleSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseSingleSubst(ext.reader, [0]));
 			}
 			return {
@@ -548,7 +558,8 @@ function parseExtensionLookup(
 
 		case GsubLookupType.Multiple: {
 			const subtables: MultipleSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseMultipleSubst(ext.reader, [0]));
 			}
 			return {
@@ -561,7 +572,8 @@ function parseExtensionLookup(
 
 		case GsubLookupType.Alternate: {
 			const subtables: AlternateSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseAlternateSubst(ext.reader, [0]));
 			}
 			return {
@@ -574,7 +586,8 @@ function parseExtensionLookup(
 
 		case GsubLookupType.Ligature: {
 			const subtables: LigatureSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseLigatureSubst(ext.reader, [0]));
 			}
 			return {
@@ -587,11 +600,13 @@ function parseExtensionLookup(
 
 		case GsubLookupType.Context: {
 			const subtables: ContextSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseContextSubst(ext.reader, [0]));
 			}
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				}
@@ -601,11 +616,13 @@ function parseExtensionLookup(
 
 		case GsubLookupType.ChainingContext: {
 			const subtables: ChainingContextSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseChainingContextSubst(ext.reader, [0]));
 			}
 			const digest = new SetDigest();
-			for (const st of subtables) {
+			for (let i = 0; i < subtables.length; i++) {
+				const st = subtables[i]!;
 				if ("coverage" in st && st.coverage) {
 					digest.addCoverage(st.coverage);
 				} else if ("inputCoverages" in st && st.inputCoverages?.[0]) {
@@ -622,7 +639,8 @@ function parseExtensionLookup(
 
 		case GsubLookupType.ReverseChainingSingle: {
 			const subtables: ReverseChainingSingleSubstSubtable[] = [];
-			for (const ext of extSubtables) {
+			for (let i = 0; i < extSubtables.length; i++) {
+				const ext = extSubtables[i]!;
 				subtables.push(...parseReverseChainingSingleSubst(ext.reader, [0]));
 			}
 			return {
@@ -644,7 +662,8 @@ export function applySingleSubst(
 	lookup: SingleSubstLookup,
 	glyphId: GlyphId,
 ): GlyphId | null {
-	for (const subtable of lookup.subtables) {
+	for (let i = 0; i < lookup.subtables.length; i++) {
+		const subtable = lookup.subtables[i]!;
 		const coverageIndex = subtable.coverage.get(glyphId);
 		if (coverageIndex === null) continue;
 
@@ -668,21 +687,23 @@ export function applyLigatureSubst(
 	const firstGlyph = glyphIds[startIndex];
 	if (firstGlyph === undefined) return null;
 
-	for (const subtable of lookup.subtables) {
+	for (let i = 0; i < lookup.subtables.length; i++) {
+		const subtable = lookup.subtables[i]!;
 		const coverageIndex = subtable.coverage.get(firstGlyph);
 		if (coverageIndex === null) continue;
 
 		const ligatureSet = subtable.ligatureSets[coverageIndex];
 		if (!ligatureSet) continue;
 
-		for (const ligature of ligatureSet.ligatures) {
+		for (let j = 0; j < ligatureSet.ligatures.length; j++) {
+			const ligature = ligatureSet.ligatures[j]!;
 			const componentCount = ligature.componentGlyphIds.length;
 
 			if (startIndex + 1 + componentCount > glyphIds.length) continue;
 
 			let matches = true;
-			for (let i = 0; i < componentCount; i++) {
-				if (glyphIds[startIndex + 1 + i] !== ligature.componentGlyphIds[i]) {
+			for (let k = 0; k < componentCount; k++) {
+				if (glyphIds[startIndex + 1 + k] !== ligature.componentGlyphIds[k]) {
 					matches = false;
 					break;
 				}
@@ -713,21 +734,23 @@ export function applyLigatureSubstDirect(
 	const firstGlyph = glyphIds[startIndex];
 	if (firstGlyph === undefined) return null;
 
-	for (const subtable of lookup.subtables) {
+	for (let i = 0; i < lookup.subtables.length; i++) {
+		const subtable = lookup.subtables[i]!;
 		const coverageIndex = subtable.coverage.get(firstGlyph);
 		if (coverageIndex === null) continue;
 
 		const ligatureSet = subtable.ligatureSets[coverageIndex];
 		if (!ligatureSet) continue;
 
-		for (const ligature of ligatureSet.ligatures) {
+		for (let j = 0; j < ligatureSet.ligatures.length; j++) {
+			const ligature = ligatureSet.ligatures[j]!;
 			const componentCount = ligature.componentGlyphIds.length;
 
 			if (startIndex + 1 + componentCount > matchLen) continue;
 
 			let matches = true;
-			for (let i = 0; i < componentCount; i++) {
-				if (glyphIds[startIndex + 1 + i] !== ligature.componentGlyphIds[i]) {
+			for (let k = 0; k < componentCount; k++) {
+				if (glyphIds[startIndex + 1 + k] !== ligature.componentGlyphIds[k]) {
 					matches = false;
 					break;
 				}

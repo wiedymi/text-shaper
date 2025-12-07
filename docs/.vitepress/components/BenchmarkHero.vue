@@ -162,7 +162,7 @@ function isOurs(name: string): boolean {
 }
 
 .chart-name.ours {
-	color: #ec4899;
+	color: #8b5cf6;
 	font-weight: 600;
 }
 
@@ -189,7 +189,7 @@ function isOurs(name: string): boolean {
 }
 
 .chart-value.ours {
-	color: #ec4899;
+	color: #8b5cf6;
 	font-weight: 600;
 }
 
@@ -207,7 +207,7 @@ function isOurs(name: string): boolean {
 .info-title {
 	font-size: 36px;
 	font-weight: 700;
-	color: #ec4899;
+	color: #8b5cf6;
 	margin: 0 0 16px 0;
 	line-height: 1.2;
 }
@@ -222,7 +222,7 @@ function isOurs(name: string): boolean {
 .info-link {
 	font-size: 14px;
 	font-weight: 600;
-	color: #ec4899;
+	color: #8b5cf6;
 	text-decoration: none;
 }
 

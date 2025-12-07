@@ -1,0 +1,17 @@
+/* Hide divider between features and custom content on home page */
+.VPHome .VPFeatures + .vp-doc {
+	border-top: none;
+}
+
+.VPHome .VPFeatures {
+	border-bottom: none;
+}
+
+/* Target the home page content area after features */
+.VPHome > .vp-doc {
+	border-top: none !important;
+}
+
+.VPHome .VPHomeContent {
+	border-top: none;
+}
