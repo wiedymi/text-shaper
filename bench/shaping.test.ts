@@ -4,11 +4,14 @@ import { Font, shape, UnicodeBuffer } from "../src"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 const TEXTS_DIR = "reference/rustybuzz/benches/texts"
+const BENCH_TEXTS_DIR = "bench/texts"
 
 interface ScriptConfig {
 	name: string
 	font: string
+	fontDir?: string
 	textDir: string
+	textsDir?: string
 	texts: string[]
 }
 
@@ -57,6 +60,73 @@ const SCRIPTS: ScriptConfig[] = [
 	},
 ]
 
+const ADDITIONAL_SCRIPTS: ScriptConfig[] = [
+	{
+		name: "Russian",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "russian",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Ukrainian",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "ukrainian",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Belarusian",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "belarusian",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Chinese Simplified",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "chinese_simplified",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Chinese Traditional",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "chinese_traditional",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Japanese",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "japanese",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Korean",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "korean",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+	{
+		name: "Greek",
+		font: "Arial Unicode.ttf",
+		fontDir: "/System/Library/Fonts/Supplemental",
+		textDir: "greek",
+		textsDir: BENCH_TEXTS_DIR,
+		texts: ["word_1.txt", "sentence_1.txt", "paragraph_short.txt", "paragraph_medium.txt", "paragraph_long.txt"],
+	},
+]
+
 describe("Text Shaping Benchmark", () => {
 	let hb: any
 	const fonts = new Map<string, Font>()
@@ -67,9 +137,10 @@ describe("Text Shaping Benchmark", () => {
 		// Load harfbuzzjs
 		hb = await import("harfbuzzjs").then((m) => m.default)
 
-		// Load all fonts
+		// Load all fonts from reference folder
 		for (const script of SCRIPTS) {
-			const buffer = await loadFontBuffer(`${FONTS_DIR}/${script.font}`)
+			const fontPath = script.fontDir ? `${script.fontDir}/${script.font}` : `${FONTS_DIR}/${script.font}`
+			const buffer = await loadFontBuffer(fontPath)
 			fonts.set(script.font, Font.load(buffer))
 
 			const blob = hb.createBlob(buffer)
@@ -78,12 +149,45 @@ describe("Text Shaping Benchmark", () => {
 			hbFonts.set(script.font, { font, face, blob })
 		}
 
-		// Load all texts
+		// Load additional fonts (system fonts)
+		for (const script of ADDITIONAL_SCRIPTS) {
+			const fontKey = script.fontDir ? `${script.fontDir}/${script.font}` : script.font
+			if (!fonts.has(fontKey)) {
+				try {
+					const buffer = await loadFontBuffer(fontKey)
+					fonts.set(fontKey, Font.load(buffer))
+
+					const blob = hb.createBlob(buffer)
+					const face = hb.createFace(blob, 0)
+					const font = hb.createFont(face)
+					hbFonts.set(fontKey, { font, face, blob })
+				} catch {
+					// Skip missing fonts
+				}
+			}
+		}
+
+		// Load all texts from reference folder
 		for (const script of SCRIPTS) {
 			for (const textFile of script.texts) {
 				const key = `${script.textDir}/${textFile}`
+				const textsDir = script.textsDir || TEXTS_DIR
 				try {
-					const text = await loadTextFile(`${TEXTS_DIR}/${key}`)
+					const text = await loadTextFile(`${textsDir}/${key}`)
+					texts.set(key, text.trim())
+				} catch {
+					// Skip missing files
+				}
+			}
+		}
+
+		// Load additional texts
+		for (const script of ADDITIONAL_SCRIPTS) {
+			for (const textFile of script.texts) {
+				const key = `${script.textDir}/${textFile}`
+				const textsDir = script.textsDir || TEXTS_DIR
+				try {
+					const text = await loadTextFile(`${textsDir}/${key}`)
 					texts.set(key, text.trim())
 				} catch {
 					// Skip missing files
@@ -107,6 +211,60 @@ describe("Text Shaping Benchmark", () => {
 
 					const font = fonts.get(script.font)!
 					const hbFont = hbFonts.get(script.font)!
+
+					const results: BenchResult[] = []
+
+					// text-shaper
+					results.push(
+						measure("text-shaper", () => {
+							const buffer = new UnicodeBuffer()
+							buffer.addStr(text)
+							shape(font, buffer)
+						}),
+					)
+
+					// harfbuzzjs
+					results.push(
+						measure("harfbuzzjs", () => {
+							const buffer = hb.createBuffer()
+							buffer.addText(text)
+							buffer.guessSegmentProperties()
+							hb.shape(hbFont.font, buffer)
+							buffer.destroy()
+						}),
+					)
+
+					printComparison(
+						`Text Shaping - ${script.name} ${testName} (${text.length} chars)`,
+						results,
+						"text-shaper",
+					)
+					expect(results.length).toBe(2)
+				})
+			}
+		})
+	}
+
+	for (const script of ADDITIONAL_SCRIPTS) {
+		describe(script.name, () => {
+			for (const textFile of script.texts) {
+				const testName = textFile.replace(".txt", "")
+
+				test(testName, () => {
+					const textKey = `${script.textDir}/${textFile}`
+					const text = texts.get(textKey)
+					if (!text) {
+						console.log(`Skipping ${script.name}/${testName}: text file not found`)
+						return
+					}
+
+					const fontKey = script.fontDir ? `${script.fontDir}/${script.font}` : script.font
+					const font = fonts.get(fontKey)
+					const hbFont = hbFonts.get(fontKey)
+					if (!font || !hbFont) {
+						console.log(`Skipping ${script.name}/${testName}: font not found`)
+						return
+					}
 
 					const results: BenchResult[] = []
 
