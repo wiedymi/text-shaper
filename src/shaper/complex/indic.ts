@@ -549,7 +549,8 @@ export function getMatraPosition(cp: number): MatraPosition {
 export function setupIndicMasks(infos: GlyphInfo[]): void {
 	const syllables = findSyllables(infos);
 
-	for (const [i, syllable] of syllables.entries()) {
+	for (let i = 0; i < syllables.length; i++) {
+		const syllable = syllables[i]!;
 		// Mark syllable boundaries in mask
 		for (let j = syllable.start; j < syllable.end; j++) {
 			const info = infos[j];
@@ -632,7 +633,8 @@ export function setupIndicMasks(infos: GlyphInfo[]): void {
 export function reorderIndic(infos: GlyphInfo[]): void {
 	const syllables = findSyllables(infos);
 
-	for (const syllable of syllables) {
+	for (let i = 0; i < syllables.length; i++) {
+		const syllable = syllables[i]!;
 		reorderSyllable(infos, syllable);
 	}
 }
@@ -664,7 +666,8 @@ function reorderSyllable(infos: GlyphInfo[], syllable: Syllable): void {
 		// Sort by original index descending to process from right to left
 		preBaseMatras.sort((a, b) => b.index - a.index);
 
-		for (const { index, info } of preBaseMatras) {
+		for (let i = 0; i < preBaseMatras.length; i++) {
+			const { index, info } = preBaseMatras[i]!;
 			// Remove from current position
 			infos.splice(index, 1);
 

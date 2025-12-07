@@ -2422,7 +2422,8 @@ function matchGlyphSequence(
 	lookupFlag: number,
 ): boolean {
 	let pos = startPos;
-	for (const glyph of glyphs) {
+	for (let g = 0; g < glyphs.length; g++) {
+		const glyph = glyphs[g]!;
 		while (
 			pos < buffer.infos.length &&
 			shouldSkipGlyph(font, buffer.infos[pos]?.glyphId, lookupFlag)

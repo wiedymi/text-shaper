@@ -217,12 +217,14 @@ function createShapePlanInternal(
 
 	// Build lookup index maps for O(1) nested lookup access
 	const gsubLookupMap = new Map<number, LookupEntry<AnyGsubLookup>>();
-	for (const entry of gsubLookups) {
+	for (let i = 0; i < gsubLookups.length; i++) {
+		const entry = gsubLookups[i]!;
 		gsubLookupMap.set(entry.index, entry);
 	}
 
 	const gposLookupMap = new Map<number, LookupEntry<AnyGposLookup>>();
-	for (const entry of gposLookups) {
+	for (let i = 0; i < gposLookups.length; i++) {
+		const entry = gposLookups[i]!;
 		gposLookupMap.set(entry.index, entry);
 	}
 
@@ -276,8 +278,9 @@ function collectLookups<T extends { lookups: unknown[] }>(
 	// Build a map of feature indices to their substituted lookup lists
 	const featureSubstitutions = new Map<uint16, uint16[]>();
 	if (matchingVariation) {
-		for (const subst of matchingVariation.featureTableSubstitution
-			.substitutions) {
+		const subs = matchingVariation.featureTableSubstitution.substitutions;
+		for (let i = 0; i < subs.length; i++) {
+			const subst = subs[i]!;
 			featureSubstitutions.set(
 				subst.featureIndex,
 				subst.alternateFeature.lookupListIndices,
@@ -294,14 +297,16 @@ function collectLookups<T extends { lookups: unknown[] }>(
 				langSys.requiredFeatureIndex,
 			);
 			const lookups = substitutedLookups ?? feature.feature.lookupListIndices;
-			for (const lookupIndex of lookups) {
-				lookupIndices.add(lookupIndex);
+			for (let i = 0; i < lookups.length; i++) {
+				lookupIndices.add(lookups[i]!);
 			}
 		}
 	}
 
 	// Add enabled features
-	for (const featureIndex of langSys.featureIndices) {
+	const featureIndices = langSys.featureIndices;
+	for (let f = 0; f < featureIndices.length; f++) {
+		const featureIndex = featureIndices[f]!;
 		const featureRecord = getFeature(gsub.featureList, featureIndex);
 		if (!featureRecord) continue;
 
@@ -310,8 +315,8 @@ function collectLookups<T extends { lookups: unknown[] }>(
 			const substitutedLookups = featureSubstitutions.get(featureIndex);
 			const lookups =
 				substitutedLookups ?? featureRecord.feature.lookupListIndices;
-			for (const lookupIndex of lookups) {
-				lookupIndices.add(lookupIndex);
+			for (let i = 0; i < lookups.length; i++) {
+				lookupIndices.add(lookups[i]!);
 			}
 		}
 	}
@@ -320,7 +325,8 @@ function collectLookups<T extends { lookups: unknown[] }>(
 	const result: Array<{ index: number; lookup: unknown }> = [];
 	const sortedIndices = Array.from(lookupIndices).sort((a, b) => a - b);
 
-	for (const index of sortedIndices) {
+	for (let i = 0; i < sortedIndices.length; i++) {
+		const index = sortedIndices[i]!;
 		const lookup = gsub.lookups[index];
 		if (lookup) {
 			result.push({ index, lookup });

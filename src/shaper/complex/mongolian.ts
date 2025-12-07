@@ -219,7 +219,8 @@ export function setupMongolianMasks(infos: GlyphInfo[]): void {
 
 	// Second pass: resolve effective joining considering transparent chars
 	const effectiveJoining: MongolianJoining[] = [];
-	for (const joining of joiningTypes) {
+	for (let i = 0; i < joiningTypes.length; i++) {
+		const joining = joiningTypes[i]!;
 		// For transparent characters, we still need their effective joining for masking
 		if (joining === MongolianJoining.Transparent) {
 			effectiveJoining.push(joining);

@@ -451,7 +451,8 @@ function parseUseSyllable(infos: GlyphInfo[], start: number): UseSyllable {
 export function setupUseMasks(infos: GlyphInfo[]): void {
 	const syllables = findUseSyllables(infos);
 
-	for (const [i, syllable] of syllables.entries()) {
+	for (let i = 0; i < syllables.length; i++) {
+		const syllable = syllables[i]!;
 		for (let j = syllable.start; j < syllable.end; j++) {
 			const info = infos[j];
 			if (!info) continue;
@@ -549,7 +550,8 @@ export function setupUseMasks(infos: GlyphInfo[]): void {
 export function reorderUSE(infos: GlyphInfo[]): void {
 	const syllables = findUseSyllables(infos);
 
-	for (const syllable of syllables) {
+	for (let i = 0; i < syllables.length; i++) {
+		const syllable = syllables[i]!;
 		reorderUseSyllable(infos, syllable);
 	}
 }
@@ -577,7 +579,8 @@ function reorderUseSyllable(infos: GlyphInfo[], syllable: UseSyllable): void {
 	if (preBaseVowels.length > 0) {
 		preBaseVowels.sort((a, b) => b.index - a.index);
 
-		for (const { index, info } of preBaseVowels) {
+		for (let i = 0; i < preBaseVowels.length; i++) {
+			const { index, info } = preBaseVowels[i]!;
 			infos.splice(index, 1);
 			const insertPos = hasReph ? start + 2 : start;
 			infos.splice(insertPos, 0, info);

@@ -162,7 +162,8 @@ export const HangulFeatureMask = {
  * Setup Hangul masks for feature application
  */
 export function setupHangulMasks(infos: GlyphInfo[]): void {
-	for (const info of infos) {
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
 		const type = getHangulSyllableType(info.codepoint);
 
 		switch (type) {

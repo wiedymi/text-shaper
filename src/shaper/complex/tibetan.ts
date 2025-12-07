@@ -198,7 +198,8 @@ export const TibetanFeatureMask = {
 export function setupTibetanMasks(infos: GlyphInfo[]): void {
 	const syllables = findTibetanSyllables(infos);
 
-	for (const [s, syllable] of syllables.entries()) {
+	for (let s = 0; s < syllables.length; s++) {
+		const syllable = syllables[s]!;
 		for (let i = syllable.start; i < syllable.end; i++) {
 			const info = infos[i];
 			if (!info) continue;

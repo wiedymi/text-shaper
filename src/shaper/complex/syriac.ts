@@ -171,7 +171,8 @@ export function setupSyriacMasks(infos: GlyphInfo[]): void {
 	}
 
 	// Assign forms and masks
-	for (const [i, info] of infos.entries()) {
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
 		const cat = getSyriacCategory(info.codepoint);
 		const joining = joiningTypes[i] ?? SyriacJoining.NonJoining;
 

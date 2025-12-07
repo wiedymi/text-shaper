@@ -197,7 +197,8 @@ export function recategorizeCombiningMarks(
 				const cccB = getCombiningClass(b.codepoint);
 				return cccA - cccB;
 			});
-			for (const [k, mark] of marks.entries()) {
+			for (let k = 0; k < marks.length; k++) {
+				const mark = marks[k]!;
 				infos[i + k] = mark;
 			}
 		}

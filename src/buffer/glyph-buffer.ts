@@ -266,7 +266,9 @@ export class GlyphBuffer {
 	getTotalAdvance(): { x: number; y: number } {
 		let x = 0;
 		let y = 0;
-		for (const pos of this.positions) {
+		const positions = this.positions;
+		for (let i = 0; i < positions.length; i++) {
+			const pos = positions[i]!;
 			x += pos.xAdvance;
 			y += pos.yAdvance;
 		}
@@ -276,15 +278,18 @@ export class GlyphBuffer {
 	/** Serialize to HarfBuzz-compatible format */
 	serialize(): string {
 		const parts: string[] = [];
+		const infos = this.infos;
+		const positions = this.positions;
 
-		for (const [i, info] of this.infos.entries()) {
-			const pos = this.positions[i];
+		for (let i = 0; i < infos.length; i++) {
+			const info = infos[i]!;
+			const pos = positions[i];
 			if (!pos) continue;
 
 			let str = `${info.glyphId}`;
 
 			// Add cluster if not sequential
-			if (i === 0 || info.cluster !== this.infos[i - 1]?.cluster) {
+			if (i === 0 || info.cluster !== infos[i - 1]?.cluster) {
 				str += `=${info.cluster}`;
 			}
 
@@ -314,8 +319,11 @@ export class GlyphBuffer {
 
 	/** Iterator for glyph info/position pairs */
 	*[Symbol.iterator](): Iterator<{ info: GlyphInfo; position: GlyphPosition }> {
-		for (const [i, info] of this.infos.entries()) {
-			const position = this.positions[i];
+		const infos = this.infos;
+		const positions = this.positions;
+		for (let i = 0; i < infos.length; i++) {
+			const info = infos[i]!;
+			const position = positions[i];
 			if (!position) continue;
 			yield { info, position };
 		}

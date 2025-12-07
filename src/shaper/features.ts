@@ -361,7 +361,8 @@ export function combineFeatures(
 	...featureSets: (ShapeFeature | ShapeFeature[])[]
 ): ShapeFeature[] {
 	const result: ShapeFeature[] = [];
-	for (const set of featureSets) {
+	for (let i = 0; i < featureSets.length; i++) {
+		const set = featureSets[i]!;
 		if (Array.isArray(set)) {
 			result.push(...set);
 		} else {

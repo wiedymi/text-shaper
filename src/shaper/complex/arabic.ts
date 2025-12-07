@@ -165,7 +165,8 @@ export function analyzeJoining(infos: GlyphInfo[]): JoiningAction[] {
 	const types: ArabicJoiningType[] = [];
 
 	// Get joining types for all glyphs
-	for (const info of infos) {
+	for (let i = 0; i < infos.length; i++) {
+		const info = infos[i]!;
 		const cp = info.codepoint ?? 0;
 		types.push(getJoiningType(cp));
 	}
@@ -278,7 +279,8 @@ export function setupArabicMasks(infos: GlyphInfo[]): void {
 	// - bit 1: fina
 	// - bit 2: medi
 	// - bit 3: init
-	for (const [i, action] of actions.entries()) {
+	for (let i = 0; i < actions.length; i++) {
+		const action = actions[i]!;
 		const info = infos[i];
 		if (!info) continue;
 
