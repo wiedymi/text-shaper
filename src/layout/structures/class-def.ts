@@ -22,11 +22,10 @@ class ClassDefFormat1 implements ClassDef {
 
 	get(glyphId: GlyphId): number {
 		const index = glyphId - this.startGlyphId;
-		if (index >= 0 && index < this.classValueArray.length) {
-			const value = this.classValueArray[index];
-			return value ?? 0;
-		}
-		return 0; // Default class
+		// Uint16Array always returns a number (0 for uninitialized), no null coalescing needed
+		return index >= 0 && index < this.classValueArray.length
+			? this.classValueArray[index]!
+			: 0;
 	}
 
 	glyphsInClass(classValue: number): GlyphId[] {
@@ -62,8 +61,7 @@ class ClassDefFormat2 implements ClassDef {
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const range = this.ranges[mid];
-			if (!range) continue;
+			const range = this.ranges[mid]!; // Pre-allocated array, always defined
 
 			if (glyphId > range.endGlyphId) {
 				low = mid + 1;

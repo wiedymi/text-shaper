@@ -13,7 +13,7 @@ describe("Micro-benchmarks for Bottleneck Verification", () => {
 		const buffer = await loadFontBuffer(
 			"reference/rustybuzz/benches/fonts/NotoSans-Regular.ttf",
 		);
-		font = new Font(buffer);
+		font = Font.load(buffer);
 	});
 
 	test("1. Optional chaining vs cached access", () => {

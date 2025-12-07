@@ -82,6 +82,7 @@ function createBitmapShared(
 		pitch,
 		buffer: buffer.subarray(0, size),
 		pixelMode,
+		numGrays: pixelMode === PixelMode.Mono ? 2 : 256,
 	};
 }
 

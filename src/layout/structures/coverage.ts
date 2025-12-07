@@ -35,8 +35,7 @@ class CoverageFormat1 implements Coverage {
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const midVal = this.glyphArray[mid];
-			if (midVal === undefined) continue;
+			const midVal = this.glyphArray[mid]!; // Uint16Array never returns undefined
 
 			if (midVal < glyphId) {
 				low = mid + 1;
@@ -100,8 +99,7 @@ class CoverageFormat2 implements Coverage {
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const range = this.ranges[mid];
-			if (!range) continue;
+			const range = this.ranges[mid]!; // Pre-allocated array, always defined
 
 			if (glyphId > range.endGlyphId) {
 				low = mid + 1;

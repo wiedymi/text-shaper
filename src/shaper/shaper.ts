@@ -11,9 +11,9 @@ import type { Font } from "../font/font.ts";
 import { getGlyphClass } from "../font/tables/gdef.ts";
 import {
 	type AnyGposLookup,
+	applyKerningDirect,
 	type CursivePosLookup,
 	GposLookupType,
-	getKerning,
 	type MarkBasePosLookup,
 	type MarkLigaturePosLookup,
 	type MarkMarkPosLookup,
@@ -34,7 +34,6 @@ import type {
 import {
 	type AlternateSubstLookup,
 	type AnyGsubLookup,
-	applyLigatureSubst,
 	applyLigatureSubstDirect,
 	applySingleSubst,
 	type ChainingContextSubstLookup,
@@ -185,10 +184,7 @@ function precomputeSkipMarkers(
  * nextNonSkip[i] = index of next non-skipped glyph after i, or -1 if none.
  * Built in reverse for O(n) construction.
  */
-function buildNextNonSkipArray(
-	skip: SkipMarkers,
-	length: number,
-): Int16Array {
+function buildNextNonSkipArray(skip: SkipMarkers, length: number): Int16Array {
 	const next = new Int16Array(length);
 	let lastNonSkip = -1;
 
@@ -270,22 +266,21 @@ export function shape(
 	glyphBuffer.script = script;
 	glyphBuffer.language = language;
 
-	// Convert codepoints to initial glyph infos
-	const infos: GlyphInfo[] = [];
+	// Convert codepoints to initial glyph infos (pre-allocate for better performance)
 	const codepoints = buffer.codepoints;
 	const clusters = buffer.clusters;
-	for (let i = 0; i < codepoints.length; i++) {
+	const len = codepoints.length;
+	const infos: GlyphInfo[] = new Array(len);
+	for (let i = 0; i < len; i++) {
 		const codepoint = codepoints[i]!;
-		const cluster = clusters[i];
-		if (cluster === undefined) continue;
+		const cluster = clusters[i]!;
 		const glyphId = font.glyphId(codepoint);
-
-		infos.push({
+		infos[i] = {
 			glyphId,
 			cluster,
 			mask: 0xffffffff,
 			codepoint,
-		});
+		};
 	}
 
 	glyphBuffer.initFromInfos(infos);
@@ -538,6 +533,31 @@ function applySingleSubstLookup(
 
 	// FAST PATH: No skip checking needed
 	if (lookup.flag === 0 || !font.gdef) {
+		// Super-fast path for single subtable (very common)
+		if (lookup.subtables.length === 1) {
+			const subtable = lookup.subtables[0]!;
+			if (subtable.format === 1 && subtable.deltaGlyphId !== undefined) {
+				const delta = subtable.deltaGlyphId;
+				for (let i = 0; i < len; i++) {
+					const info = infos[i]!;
+					if (subtable.coverage.get(info.glyphId) !== null) {
+						info.glyphId = (info.glyphId + delta) & 0xffff;
+					}
+				}
+			} else if (subtable.format === 2 && subtable.substituteGlyphIds) {
+				const subs = subtable.substituteGlyphIds;
+				for (let i = 0; i < len; i++) {
+					const info = infos[i]!;
+					const idx = subtable.coverage.get(info.glyphId);
+					if (idx !== null) {
+						const rep = subs[idx];
+						if (rep !== undefined) info.glyphId = rep;
+					}
+				}
+			}
+			return;
+		}
+		// Multiple subtables - use function
 		for (let i = 0; i < len; i++) {
 			const info = infos[i]!;
 			const replacement = applySingleSubst(lookup, info.glyphId);
@@ -585,15 +605,15 @@ function applyMultipleSubstLookup(
 			const sequence = subtable.sequences[coverageIndex];
 			if (!sequence || sequence.length === 0) continue;
 
-			const [firstGlyph, ...restGlyphs] = sequence;
+			const firstGlyph = sequence[0];
 			if (firstGlyph === undefined) continue;
 
-			// Replace with sequence
+			// Replace with first glyph
 			info.glyphId = firstGlyph;
 
-			// Insert remaining glyphs
-			for (let j = 0; j < restGlyphs.length; j++) {
-				const glyphId = restGlyphs[j]!;
+			// Insert remaining glyphs (avoid array destructuring allocation)
+			for (let j = 1; j < sequence.length; j++) {
+				const glyphId = sequence[j]!;
 				const newInfo: GlyphInfo = {
 					glyphId,
 					cluster: info.cluster,
@@ -606,7 +626,7 @@ function applyMultipleSubstLookup(
 					xOffset: 0,
 					yOffset: 0,
 				};
-				buffer.insertGlyph(i + j + 1, newInfo, newPos);
+				buffer.insertGlyph(i + j, newInfo, newPos);
 			}
 
 			i += sequence.length;
@@ -673,7 +693,7 @@ function applyLigatureSubstLookup(
 			continue;
 		}
 		// Use pre-computed skip markers
-		if (skip && skip[i]) {
+		if (skip?.[i]) {
 			i++;
 			continue;
 		}
@@ -689,7 +709,7 @@ function applyLigatureSubstLookup(
 			const nextInfo = infos[j];
 			if (!nextInfo) continue;
 			// Use pre-computed skip markers
-			if (skip && skip[j]) continue;
+			if (skip?.[j]) continue;
 			_ligMatchIndices[matchLen] = j;
 			_ligMatchGlyphs[matchLen] = nextInfo.glyphId;
 			matchLen++;
@@ -743,7 +763,7 @@ function applyContextSubstLookup(
 	for (let i = 0; i < len; i++) {
 		const info = infos[i];
 		if (!info) continue;
-		if (skip && skip[i]) continue;
+		if (skip?.[i]) continue;
 
 		for (const subtable of lookup.subtables) {
 			let matched = false;
@@ -806,7 +826,7 @@ function applyChainingContextSubstLookup(
 	for (let i = 0; i < len; i++) {
 		const info = infos[i];
 		if (!info) continue;
-		if (skip && skip[i]) continue;
+		if (skip?.[i]) continue;
 
 		for (const subtable of lookup.subtables) {
 			let matched = false;
@@ -1226,25 +1246,56 @@ function applyNestedLookups(
 	lookupRecords: Array<{ sequenceIndex: number; lookupListIndex: number }>,
 	plan: ShapePlan,
 ): void {
-	// Sort by sequence index descending to apply from end to start
-	// Use slice() instead of spread operator for better performance
-	const sorted = lookupRecords.slice().sort(
-		(a, b) => b.sequenceIndex - a.sequenceIndex,
-	);
+	const len = lookupRecords.length;
+	if (len === 0) return;
 
-	for (const record of sorted) {
-		// O(1) lookup via map instead of O(n) find
+	// Fast path for single record (common case)
+	if (len === 1) {
+		const record = lookupRecords[0]!;
+		const lookupEntry = plan.gsubLookupMap.get(record.lookupListIndex);
+		if (!lookupEntry) return;
+		const pos = startIndex + record.sequenceIndex;
+		if (pos >= buffer.infos.length) return;
+		const targetInfo = buffer.infos[pos];
+		if (!targetInfo) return;
+		if (lookupEntry.lookup.type === GsubLookupType.Single) {
+			const replacement = applySingleSubst(
+				lookupEntry.lookup as SingleSubstLookup,
+				targetInfo.glyphId,
+			);
+			if (replacement !== null) {
+				targetInfo.glyphId = replacement;
+			}
+		}
+		return;
+	}
+
+	// For multiple records, apply in descending sequence index order
+	// Use selection approach for small arrays (typical case) to avoid alloc
+	const applied = new Uint8Array(len);
+	for (let round = 0; round < len; round++) {
+		// Find max unapplied sequence index
+		let maxIdx = -1;
+		let maxSeq = -1;
+		for (let i = 0; i < len; i++) {
+			if (applied[i]) continue;
+			const seq = lookupRecords[i]?.sequenceIndex;
+			if (seq > maxSeq) {
+				maxSeq = seq;
+				maxIdx = i;
+			}
+		}
+		if (maxIdx < 0) break;
+		applied[maxIdx] = 1;
+
+		const record = lookupRecords[maxIdx]!;
 		const lookupEntry = plan.gsubLookupMap.get(record.lookupListIndex);
 		if (!lookupEntry) continue;
-
-		// Apply at the specific position
 		const pos = startIndex + record.sequenceIndex;
 		if (pos >= buffer.infos.length) continue;
-
 		const targetInfo = buffer.infos[pos];
 		if (!targetInfo) continue;
 
-		// For single subst, apply directly
 		if (lookupEntry.lookup.type === GsubLookupType.Single) {
 			const replacement = applySingleSubst(
 				lookupEntry.lookup as SingleSubstLookup,
@@ -1261,11 +1312,14 @@ function applyNestedLookups(
 
 function initializePositions(face: Face, buffer: GlyphBuffer): void {
 	const infos = buffer.infos;
-	for (let i = 0; i < infos.length; i++) {
+	const positions = buffer.positions;
+	const len = infos.length;
+	// Direct assignment is faster than method call
+	for (let i = 0; i < len; i++) {
 		const info = infos[i]!;
+		const pos = positions[i]!;
 		// Use Face.advanceWidth to include variable font deltas
-		const advance = face.advanceWidth(info.glyphId);
-		buffer.setAdvance(i, advance, 0);
+		pos.xAdvance = face.advanceWidth(info.glyphId);
 	}
 }
 
@@ -1299,7 +1353,14 @@ function applyGpos(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 	const baseIndexArray = buildBaseIndexArray(buffer, glyphClassCache, font);
 
 	for (const { lookup } of plan.gposLookups) {
-		applyGposLookup(font, buffer, lookup, plan, glyphClassCache, baseIndexArray);
+		applyGposLookup(
+			font,
+			buffer,
+			lookup,
+			plan,
+			glyphClassCache,
+			baseIndexArray,
+		);
 	}
 }
 
@@ -1322,16 +1383,35 @@ function applyGposLookup(
 			applyCursivePosLookup(font, buffer, lookup);
 			break;
 		case GposLookupType.MarkToBase:
-			applyMarkBasePosLookup(font, buffer, lookup, glyphClassCache, baseIndexArray);
+			applyMarkBasePosLookup(
+				font,
+				buffer,
+				lookup,
+				glyphClassCache,
+				baseIndexArray,
+			);
 			break;
 		case GposLookupType.MarkToLigature:
-			applyMarkLigaturePosLookup(font, buffer, lookup, glyphClassCache, baseIndexArray);
+			applyMarkLigaturePosLookup(
+				font,
+				buffer,
+				lookup,
+				glyphClassCache,
+				baseIndexArray,
+			);
 			break;
 		case GposLookupType.MarkToMark:
 			applyMarkMarkPosLookup(font, buffer, lookup, glyphClassCache);
 			break;
 		case GposLookupType.Context:
-			applyContextPosLookup(font, buffer, lookup as ContextPosLookup, plan);
+			applyContextPosLookup(
+				font,
+				buffer,
+				lookup as ContextPosLookup,
+				plan,
+				glyphClassCache,
+				baseIndexArray,
+			);
 			break;
 		case GposLookupType.ChainingContext:
 			applyChainingContextPosLookup(
@@ -1339,6 +1419,8 @@ function applyGposLookup(
 				buffer,
 				lookup as ChainingContextPosLookup,
 				plan,
+				glyphClassCache,
+				baseIndexArray,
 			);
 			break;
 		// Extension (type 9) is unwrapped during parsing - no runtime case needed
@@ -1409,14 +1491,9 @@ function applyPairPosLookup(
 		for (let i = 0; i < len - 1; i++) {
 			const info1 = infos[i]!;
 			const info2 = infos[i + 1]!;
-
-			const kern = getKerning(lookup, info1.glyphId, info2.glyphId);
-			if (kern) {
-				const pos1 = positions[i];
-				const pos2 = positions[i + 1];
-				if (pos1) pos1.xAdvance += kern.xAdvance1;
-				if (pos2) pos2.xAdvance += kern.xAdvance2;
-			}
+			const pos1 = positions[i]!;
+			const pos2 = positions[i + 1]!;
+			applyKerningDirect(lookup, info1.glyphId, info2.glyphId, pos1, pos2);
 		}
 		return;
 	}
@@ -1434,14 +1511,9 @@ function applyPairPosLookup(
 
 		const info1 = infos[i]!;
 		const info2 = infos[j]!;
-
-		const kern = getKerning(lookup, info1.glyphId, info2.glyphId);
-		if (kern) {
-			const pos1 = positions[i];
-			const pos2 = positions[j];
-			if (pos1) pos1.xAdvance += kern.xAdvance1;
-			if (pos2) pos2.xAdvance += kern.xAdvance2;
-		}
+		const pos1 = positions[i]!;
+		const pos2 = positions[j]!;
+		applyKerningDirect(lookup, info1.glyphId, info2.glyphId, pos1, pos2);
 	}
 }
 
@@ -1516,7 +1588,10 @@ function applyMarkBasePosLookup(
 		if (!markInfo) continue;
 
 		// Must be a mark glyph
-		if (getCachedGlyphClass(font, markInfo.glyphId, glyphClassCache) !== GlyphClass.Mark)
+		if (
+			getCachedGlyphClass(font, markInfo.glyphId, glyphClassCache) !==
+			GlyphClass.Mark
+		)
 			continue;
 
 		// Use pre-computed base index for O(1) lookup instead of O(n) backward scan
@@ -1572,7 +1647,10 @@ function applyMarkLigaturePosLookup(
 		const markInfo = buffer.infos[i];
 		if (!markInfo) continue;
 
-		if (getCachedGlyphClass(font, markInfo.glyphId, glyphClassCache) !== GlyphClass.Mark)
+		if (
+			getCachedGlyphClass(font, markInfo.glyphId, glyphClassCache) !==
+			GlyphClass.Mark
+		)
 			continue;
 
 		// Use pre-computed base index for O(1) lookup
@@ -1583,14 +1661,21 @@ function applyMarkLigaturePosLookup(
 		if (!ligInfo) continue;
 
 		// Must be a ligature
-		if (getCachedGlyphClass(font, ligInfo.glyphId, glyphClassCache) !== GlyphClass.Ligature)
+		if (
+			getCachedGlyphClass(font, ligInfo.glyphId, glyphClassCache) !==
+			GlyphClass.Ligature
+		)
 			continue;
 
 		// Count intervening marks to determine component index
 		let componentIndex = 0;
 		for (let j = ligIndex + 1; j < i; j++) {
 			const midInfo = buffer.infos[j];
-			if (midInfo && getCachedGlyphClass(font, midInfo.glyphId, glyphClassCache) === GlyphClass.Mark) {
+			if (
+				midInfo &&
+				getCachedGlyphClass(font, midInfo.glyphId, glyphClassCache) ===
+					GlyphClass.Mark
+			) {
 				componentIndex++;
 			}
 		}
@@ -1644,7 +1729,10 @@ function applyMarkMarkPosLookup(
 		const mark1Info = buffer.infos[i];
 		if (!mark1Info) continue;
 
-		if (getCachedGlyphClass(font, mark1Info.glyphId, glyphClassCache) !== GlyphClass.Mark)
+		if (
+			getCachedGlyphClass(font, mark1Info.glyphId, glyphClassCache) !==
+			GlyphClass.Mark
+		)
 			continue;
 
 		// Find preceding mark (mark2) - must be immediately preceding
@@ -1652,7 +1740,11 @@ function applyMarkMarkPosLookup(
 		if (i > 0) {
 			const prevInfo = buffer.infos[i - 1];
 			if (prevInfo) {
-				const prevClass = getCachedGlyphClass(font, prevInfo.glyphId, glyphClassCache);
+				const prevClass = getCachedGlyphClass(
+					font,
+					prevInfo.glyphId,
+					glyphClassCache,
+				);
 				if (prevClass === GlyphClass.Mark) {
 					mark2Index = i - 1;
 				}
@@ -1699,6 +1791,8 @@ function applyContextPosLookup(
 	buffer: GlyphBuffer,
 	lookup: ContextPosLookup,
 	plan: ShapePlan,
+	glyphClassCache: GlyphClassCache,
+	baseIndexArray: Int16Array,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const info = buffer.infos[i];
@@ -1741,7 +1835,15 @@ function applyContextPosLookup(
 			}
 
 			if (matched) {
-				applyNestedPosLookups(font, buffer, i, lookupRecords, plan);
+				applyNestedPosLookups(
+					font,
+					buffer,
+					i,
+					lookupRecords,
+					plan,
+					glyphClassCache,
+					baseIndexArray,
+				);
 				break;
 			}
 		}
@@ -1753,6 +1855,8 @@ function applyChainingContextPosLookup(
 	buffer: GlyphBuffer,
 	lookup: ChainingContextPosLookup,
 	plan: ShapePlan,
+	glyphClassCache: GlyphClassCache,
+	baseIndexArray: Int16Array,
 ): void {
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const info = buffer.infos[i];
@@ -1797,7 +1901,15 @@ function applyChainingContextPosLookup(
 			}
 
 			if (matched) {
-				applyNestedPosLookups(font, buffer, i, lookupRecords, plan);
+				applyNestedPosLookups(
+					font,
+					buffer,
+					i,
+					lookupRecords,
+					plan,
+					glyphClassCache,
+					baseIndexArray,
+				);
 				break;
 			}
 		}
@@ -2101,28 +2213,60 @@ function applyNestedPosLookups(
 	startIndex: number,
 	lookupRecords: PosLookupRecord[],
 	plan: ShapePlan,
+	glyphClassCache: GlyphClassCache,
+	baseIndexArray: Int16Array,
 ): void {
-	// Sort by sequence index descending to apply from end to start
-	// Use slice() instead of spread operator for better performance
-	const sorted = lookupRecords.slice().sort(
-		(a, b) => b.sequenceIndex - a.sequenceIndex,
-	);
+	const len = lookupRecords.length;
+	if (len === 0) return;
 
-	// Build cache and base index for nested lookups (may use mark positioning)
-	const glyphClassCache: GlyphClassCache = new Map();
-	const baseIndexArray = buildBaseIndexArray(buffer, glyphClassCache, font);
+	// Fast path for single record (common case)
+	if (len === 1) {
+		const record = lookupRecords[0]!;
+		const lookupEntry = plan.gposLookupMap.get(record.lookupListIndex);
+		if (!lookupEntry) return;
+		const pos = startIndex + record.sequenceIndex;
+		if (pos >= buffer.infos.length) return;
+		applyGposLookup(
+			font,
+			buffer,
+			lookupEntry.lookup,
+			plan,
+			glyphClassCache,
+			baseIndexArray,
+		);
+		return;
+	}
 
-	for (const record of sorted) {
-		// O(1) lookup via map instead of O(n) find
+	// For multiple records, apply in descending sequence index order
+	// Use selection approach for small arrays (typical case) to avoid alloc
+	const applied = new Uint8Array(len);
+	for (let round = 0; round < len; round++) {
+		let maxIdx = -1;
+		let maxSeq = -1;
+		for (let i = 0; i < len; i++) {
+			if (applied[i]) continue;
+			const seq = lookupRecords[i]!.sequenceIndex;
+			if (seq > maxSeq) {
+				maxSeq = seq;
+				maxIdx = i;
+			}
+		}
+		if (maxIdx < 0) break;
+		applied[maxIdx] = 1;
+
+		const record = lookupRecords[maxIdx]!;
 		const lookupEntry = plan.gposLookupMap.get(record.lookupListIndex);
 		if (!lookupEntry) continue;
-
-		// Apply at the specific position
 		const pos = startIndex + record.sequenceIndex;
 		if (pos >= buffer.infos.length) continue;
-
-		// Apply the lookup directly
-		applyGposLookup(font, buffer, lookupEntry.lookup, plan, glyphClassCache, baseIndexArray);
+		applyGposLookup(
+			font,
+			buffer,
+			lookupEntry.lookup,
+			plan,
+			glyphClassCache,
+			baseIndexArray,
+		);
 	}
 }
 
@@ -2229,6 +2373,10 @@ function shouldSkipGlyph(
 	glyphId: GlyphId,
 	lookupFlag: number,
 ): boolean {
+	// Fast path: if no ignore flags are set, nothing to skip
+	// This avoids GDEF lookup for the common case of lookupFlag === 0
+	if ((lookupFlag & 0x000e) === 0 && (lookupFlag & 0xff00) === 0) return false;
+
 	const gdef = font.gdef;
 	if (!gdef) return false;
 

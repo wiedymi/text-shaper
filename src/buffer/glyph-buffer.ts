@@ -47,12 +47,13 @@ export class GlyphBuffer {
 	/** Initialize from glyph infos (positions zeroed) */
 	initFromInfos(infos: GlyphInfo[]): void {
 		this.infos = infos;
-		this.positions = infos.map(() => ({
-			xAdvance: 0,
-			yAdvance: 0,
-			xOffset: 0,
-			yOffset: 0,
-		}));
+		// Pre-allocate positions array with exact size (avoid map allocation overhead)
+		const len = infos.length;
+		const positions: GlyphPosition[] = new Array(len);
+		for (let i = 0; i < len; i++) {
+			positions[i] = { xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 };
+		}
+		this.positions = positions;
 	}
 
 	/** Set advance width for a glyph */

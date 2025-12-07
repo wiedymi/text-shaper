@@ -28,9 +28,9 @@ describe("Rasterization Benchmark", () => {
 	]
 
 	beforeAll(async () => {
-		notoSans = new Font(await loadFontBuffer(`${FONTS_DIR}/NotoSans-Regular.ttf`))
-		notoSansArabic = new Font(await loadFontBuffer(`${FONTS_DIR}/NotoSansArabic-Regular.ttf`))
-		variableFont = new Font(await loadFontBuffer(`${FONTS_DIR}/NotoSans-VariableFont.ttf`))
+		notoSans = Font.load(await loadFontBuffer(`${FONTS_DIR}/NotoSans-Regular.ttf`))
+		notoSansArabic = Font.load(await loadFontBuffer(`${FONTS_DIR}/NotoSansArabic-Regular.ttf`))
+		variableFont = Font.load(await loadFontBuffer(`${FONTS_DIR}/NotoSans-VariableFont.ttf`))
 
 		// Load fonts with FreeType
 		ftNotoSans = freetype.NewFace(`${FONTS_DIR}/NotoSans-Regular.ttf`)

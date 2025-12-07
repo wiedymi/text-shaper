@@ -16,7 +16,7 @@ describe("Path Rendering Benchmark", () => {
 
 	beforeAll(async () => {
 		const buffer = await loadFontBuffer(`${FONTS_DIR}/NotoSans-Regular.ttf`)
-		notoSans = new Font(buffer)
+		notoSans = Font.load(buffer)
 		notoSansOT = opentype.parse(buffer)
 
 		hb = await import("harfbuzzjs").then((m) => m.default)

@@ -10,6 +10,73 @@ export {
 export { GlyphBuffer } from "./buffer/glyph-buffer.ts";
 // Buffers
 export { UnicodeBuffer } from "./buffer/unicode-buffer.ts";
+// Fluent API - Builder classes
+// Fluent API - Entry points
+// Fluent API - Pipe function
+// Fluent API - Pipe operators (prefixed with $ to avoid conflicts with existing exports)
+export {
+	adaptiveBlur as $adaptiveBlur,
+	BitmapBuilder,
+	bitmap,
+	// Bitmap effects
+	blur as $blur,
+	boxBlur as $boxBlur,
+	cascadeBlur as $cascadeBlur,
+	char,
+	clone as $clone,
+	combine,
+	combinePaths as $combinePaths,
+	condensePath as $condensePath,
+	convert as $convert,
+	copy as $copy,
+	embolden as $embolden,
+	// Path effects
+	emboldenPath as $emboldenPath,
+	fastBlur as $fastBlur,
+	fromGlyph as $fromGlyph,
+	glyph,
+	glyphVar,
+	italic as $italic,
+	matrix as $matrix,
+	obliquePath as $obliquePath,
+	PathBuilder,
+	pad as $pad,
+	path,
+	perspective as $perspective,
+	pipe,
+	// Rasterization
+	rasterize as $rasterize,
+	rasterizeAuto as $rasterizeAuto,
+	rasterizeWithGradient as $rasterizeWithGradient,
+	renderMsdf as $renderMsdf,
+	// SDF/MSDF rendering
+	renderSdf as $renderSdf,
+	resize as $resize,
+	resizeBilinear as $resizeBilinear,
+	rotate as $rotate,
+	rotateDeg as $rotateDeg,
+	// Path transforms
+	scale as $scale,
+	shear as $shear,
+	shift as $shift,
+	strokeAsymmetric as $strokeAsymmetric,
+	strokeAsymmetricCombined as $strokeAsymmetricCombined,
+	strokePath as $strokePath,
+	toGray as $toGray,
+	// Output
+	toRGBA as $toRGBA,
+	toSVG as $toSVG,
+	translate as $translate,
+} from "./fluent/index.ts";
+// Fluent API - Types
+export type {
+	AutoRasterOptions,
+	CanvasOptions,
+	RasterOptions,
+	SVGElementOptions,
+	SVGOptions,
+	TransformState,
+} from "./fluent/types.ts";
 export { Reader } from "./font/binary/reader.ts";
 export { createFace, Face } from "./font/face.ts";
 // Font parsing
@@ -565,64 +632,3 @@ export {
 	splitWords,
 	WordBreakProperty,
 } from "./unicode/segmentation.ts";
-// Fluent API - Builder classes
-export { PathBuilder, BitmapBuilder } from "./fluent/index.ts";
-// Fluent API - Entry points
-export { glyph, char, glyphVar, path, bitmap, combine } from "./fluent/index.ts";
-// Fluent API - Pipe function
-export { pipe } from "./fluent/index.ts";
-// Fluent API - Pipe operators (prefixed with $ to avoid conflicts with existing exports)
-export {
-	// Path transforms
-	scale as $scale,
-	translate as $translate,
-	rotate as $rotate,
-	rotateDeg as $rotateDeg,
-	shear as $shear,
-	italic as $italic,
-	matrix as $matrix,
-	perspective as $perspective,
-	// Path effects
-	emboldenPath as $emboldenPath,
-	condensePath as $condensePath,
-	obliquePath as $obliquePath,
-	strokePath as $strokePath,
-	strokeAsymmetric as $strokeAsymmetric,
-	strokeAsymmetricCombined as $strokeAsymmetricCombined,
-	clone as $clone,
-	combinePaths as $combinePaths,
-	// Rasterization
-	rasterize as $rasterize,
-	rasterizeAuto as $rasterizeAuto,
-	rasterizeWithGradient as $rasterizeWithGradient,
-	// SDF/MSDF rendering
-	renderSdf as $renderSdf,
-	renderMsdf as $renderMsdf,
-	// Bitmap effects
-	blur as $blur,
-	boxBlur as $boxBlur,
-	cascadeBlur as $cascadeBlur,
-	adaptiveBlur as $adaptiveBlur,
-	fastBlur as $fastBlur,
-	embolden as $embolden,
-	shift as $shift,
-	resize as $resize,
-	resizeBilinear as $resizeBilinear,
-	pad as $pad,
-	convert as $convert,
-	// Output
-	toRGBA as $toRGBA,
-	toGray as $toGray,
-	toSVG as $toSVG,
-	copy as $copy,
-	fromGlyph as $fromGlyph,
-} from "./fluent/index.ts";
-// Fluent API - Types
-export type {
-	TransformState,
-	RasterOptions,
-	AutoRasterOptions,
-	SVGOptions,
-	SVGElementOptions,
-	CanvasOptions,
-} from "./fluent/types.ts";

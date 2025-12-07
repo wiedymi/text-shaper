@@ -263,7 +263,7 @@ export function decomposePath(
 /**
  * Convert font units to subpixel coordinates
  */
-function toSubpixel(value: number, scale: number, offset: number): number {
+function _toSubpixel(value: number, scale: number, offset: number): number {
 	return Math.round((value * scale + offset) * ONE_PIXEL);
 }
 
@@ -271,7 +271,11 @@ function toSubpixel(value: number, scale: number, offset: number): number {
  * Convert font units to subpixel coordinates with Y flip
  * Font coordinates are Y-up, bitmap is Y-down
  */
-function toSubpixelFlipY(value: number, scale: number, offset: number): number {
+function _toSubpixelFlipY(
+	value: number,
+	scale: number,
+	offset: number,
+): number {
 	return Math.round((-value * scale + offset) * ONE_PIXEL);
 }
 

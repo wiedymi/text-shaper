@@ -35,7 +35,7 @@ describe("Font Loading Benchmark", () => {
 		// text-shaper
 		results.push(
 			measure("text-shaper", () => {
-				new Font(notoSansBuffer)
+				Font.load(notoSansBuffer)
 			}),
 		)
 
@@ -67,7 +67,7 @@ describe("Font Loading Benchmark", () => {
 
 		results.push(
 			measure("text-shaper", () => {
-				new Font(notoSansArabicBuffer)
+				Font.load(notoSansArabicBuffer)
 			}),
 		)
 
@@ -101,7 +101,7 @@ describe("Font Loading Benchmark", () => {
 
 		results.push(
 			measure("text-shaper", () => {
-				new Font(notoSansDevanagariBuffer)
+				Font.load(notoSansDevanagariBuffer)
 			}),
 		)
 
@@ -135,7 +135,7 @@ describe("Font Loading Benchmark", () => {
 
 		results.push(
 			measure("text-shaper", () => {
-				new Font(variableFontBuffer)
+				Font.load(variableFontBuffer)
 			}),
 		)
 

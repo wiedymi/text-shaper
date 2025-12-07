@@ -70,7 +70,7 @@ describe("Text Shaping Benchmark", () => {
 		// Load all fonts
 		for (const script of SCRIPTS) {
 			const buffer = await loadFontBuffer(`${FONTS_DIR}/${script.font}`)
-			fonts.set(script.font, new Font(buffer))
+			fonts.set(script.font, Font.load(buffer))
 
 			const blob = hb.createBlob(buffer)
 			const face = hb.createFace(blob, 0)
@@ -219,7 +219,7 @@ describe("Text Shaping Benchmark", () => {
 
 		beforeAll(async () => {
 			const buffer = await loadFontBuffer(`${FONTS_DIR}/NotoSans-VariableFont.ttf`)
-			variableFont = new Font(buffer)
+			variableFont = Font.load(buffer)
 
 			const blob = hb.createBlob(buffer)
 			const face = hb.createFace(blob, 0)

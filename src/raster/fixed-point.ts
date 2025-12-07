@@ -102,7 +102,7 @@ export function mulDiv(a: number, b: number, c: number): number {
 	// Safe when |a * b| < 2^53 (JS safe integer limit)
 	const absA = a < 0 ? -a : a;
 	const absB = b < 0 ? -b : b;
-	if (absA < 0x7FFFFF && absB < 0x7FFFFF) {
+	if (absA < 0x7fffff && absB < 0x7fffff) {
 		// Both under 2^23, product fits in 2^46 < 2^53
 		return Math.trunc((a * b) / c);
 	}

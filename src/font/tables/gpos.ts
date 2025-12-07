@@ -17,7 +17,7 @@ import {
 	parseScriptList,
 	type ScriptList,
 } from "../../layout/structures/layout-common.ts";
-import type { GlyphId, int16, uint16 } from "../../types.ts";
+import type { GlyphId, GlyphPosition, int16, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 import {
 	type ChainingContextPosLookup,
@@ -609,10 +609,7 @@ export function getKerning(
 			if (!pairSet) continue;
 
 			// Binary search for secondGlyph (records are sorted)
-			const record = findPairValueRecord(
-				pairSet.pairValueRecords,
-				secondGlyph,
-			);
+			const record = findPairValueRecord(pairSet.pairValueRecords, secondGlyph);
 			if (record) {
 				return {
 					xAdvance1: record.value1.xAdvance ?? 0,
@@ -637,4 +634,52 @@ export function getKerning(
 	}
 
 	return null;
+}
+
+/**
+ * Apply kerning directly to positions, avoiding object allocation.
+ * Returns true if kerning was applied, false otherwise.
+ */
+export function applyKerningDirect(
+	lookup: PairPosLookup,
+	firstGlyph: GlyphId,
+	secondGlyph: GlyphId,
+	pos1: GlyphPosition,
+	pos2: GlyphPosition,
+): boolean {
+	for (const subtable of lookup.subtables) {
+		const coverageIndex = subtable.coverage.get(firstGlyph);
+		if (coverageIndex === null) continue;
+
+		if (subtable.format === 1) {
+			const pairSet = subtable.pairSets[coverageIndex];
+			if (!pairSet) continue;
+
+			const record = findPairValueRecord(pairSet.pairValueRecords, secondGlyph);
+			if (record) {
+				const xAdv1 = record.value1.xAdvance;
+				const xAdv2 = record.value2.xAdvance;
+				if (xAdv1) pos1.xAdvance += xAdv1;
+				if (xAdv2) pos2.xAdvance += xAdv2;
+				return true;
+			}
+		} else if (subtable.format === 2) {
+			const class1 = subtable.classDef1.get(firstGlyph);
+			const class2 = subtable.classDef2.get(secondGlyph);
+
+			const class1Record = subtable.class1Records[class1];
+			if (!class1Record) continue;
+
+			const class2Record = class1Record.class2Records[class2];
+			if (!class2Record) continue;
+
+			const xAdv1 = class2Record.value1.xAdvance;
+			const xAdv2 = class2Record.value2.xAdvance;
+			if (xAdv1) pos1.xAdvance += xAdv1;
+			if (xAdv2) pos2.xAdvance += xAdv2;
+			return true;
+		}
+	}
+
+	return false;
 }

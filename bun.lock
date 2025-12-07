@@ -4,12 +4,11 @@
   "workspaces": {
     "": {
       "name": "typeshaper",
-      "dependencies": {
-        "freetype2": "^2.1.0",
-      },
       "devDependencies": {
         "@biomejs/biome": "2.3.8",
         "@types/bun": "latest",
+        "@types/opentype.js": "^1.3.8",
+        "freetype2": "^2.1.0",
         "harfbuzzjs": "^0.4.13",
         "opentype.js": "^1.3.4",
         "vitepress": "^2.0.0-alpha.15",
@@ -20,6 +19,9 @@
       },
     },
   },
+  "trustedDependencies": [
+    "freetype2",
+  ],
   "packages": {
     "@babel/helper-string-parser": ["@babel/helper-string-parser@7.27.1", "", {}, "sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA=="],
 
@@ -202,6 +204,8 @@
     "@types/ms": ["@types/ms@2.1.0", "", {}, "sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA=="],
 
     "@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
+
+    "@types/opentype.js": ["@types/opentype.js@1.3.8", "", {}, "sha512-H6qeTp03jrknklSn4bpT1/9+1xCAEIU2CnjcWPkicJy8A1SKuthanbvoHYMiv79/2W3Xn1XE4gfSJFzt2U3JSw=="],
 
     "@types/unist": ["@types/unist@3.0.3", "", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
 

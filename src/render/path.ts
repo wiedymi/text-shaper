@@ -196,7 +196,7 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
 
 	const n = contour.length;
 	// Replace modulo with conditional increment for better performance
-	let i = allOffCurve ? 0 : (startIndex + 1);
+	let i = allOffCurve ? 0 : startIndex + 1;
 	if (i >= n) i = 0;
 	let current = startPoint;
 	let iterations = 0;
@@ -523,9 +523,21 @@ export function renderShapedText(
 				const posY = y - glyph.yOffset * scale;
 				// Create combined 3x3 matrix with scale and position baked in
 				const combined: Matrix3x3 = [
-					[matrix3D[0][0] * scale, matrix3D[0][1] * scale, matrix3D[0][0] * posX + matrix3D[0][1] * posY + matrix3D[0][2]],
-					[matrix3D[1][0] * scale, matrix3D[1][1] * scale, matrix3D[1][0] * posX + matrix3D[1][1] * posY + matrix3D[1][2]],
-					[matrix3D[2][0] * scale, matrix3D[2][1] * scale, matrix3D[2][0] * posX + matrix3D[2][1] * posY + matrix3D[2][2]],
+					[
+						matrix3D[0][0] * scale,
+						matrix3D[0][1] * scale,
+						matrix3D[0][0] * posX + matrix3D[0][1] * posY + matrix3D[0][2],
+					],
+					[
+						matrix3D[1][0] * scale,
+						matrix3D[1][1] * scale,
+						matrix3D[1][0] * posX + matrix3D[1][1] * posY + matrix3D[1][2],
+					],
+					[
+						matrix3D[2][0] * scale,
+						matrix3D[2][1] * scale,
+						matrix3D[2][0] * posX + matrix3D[2][1] * posY + matrix3D[2][2],
+					],
 				];
 				pathToCanvasWithMatrix3D(ctx, path, combined);
 			} else if (matrix) {
@@ -609,19 +621,53 @@ export function shapedTextToSVG(
 			if (matrix3D && !useNativeTransform) {
 				// Apply 3D matrix to path coordinates
 				const combined: Matrix3x3 = [
-					[matrix3D[0][0] * scale, matrix3D[0][1] * scale, matrix3D[0][0] * offsetX + matrix3D[0][1] * offsetY + matrix3D[0][2]],
-					[matrix3D[1][0] * scale, matrix3D[1][1] * scale, matrix3D[1][0] * offsetX + matrix3D[1][1] * offsetY + matrix3D[1][2]],
-					[matrix3D[2][0] * scale, matrix3D[2][1] * scale, matrix3D[2][0] * offsetX + matrix3D[2][1] * offsetY + matrix3D[2][2]],
+					[
+						matrix3D[0][0] * scale,
+						matrix3D[0][1] * scale,
+						matrix3D[0][0] * offsetX +
+							matrix3D[0][1] * offsetY +
+							matrix3D[0][2],
+					],
+					[
+						matrix3D[1][0] * scale,
+						matrix3D[1][1] * scale,
+						matrix3D[1][0] * offsetX +
+							matrix3D[1][1] * offsetY +
+							matrix3D[1][2],
+					],
+					[
+						matrix3D[2][0] * scale,
+						matrix3D[2][1] * scale,
+						matrix3D[2][0] * offsetX +
+							matrix3D[2][1] * offsetY +
+							matrix3D[2][2],
+					],
 				];
 				pathStr = pathToSVGWithMatrix3D(path, combined);
 
 				// Update bounds with transformed corners
 				const b = path.bounds;
 				const corners = [
-					transformPoint3x3(b.xMin * scale + offsetX, -b.yMax * scale + offsetY, matrix3D),
-					transformPoint3x3(b.xMax * scale + offsetX, -b.yMax * scale + offsetY, matrix3D),
-					transformPoint3x3(b.xMin * scale + offsetX, -b.yMin * scale + offsetY, matrix3D),
-					transformPoint3x3(b.xMax * scale + offsetX, -b.yMin * scale + offsetY, matrix3D),
+					transformPoint3x3(
+						b.xMin * scale + offsetX,
+						-b.yMax * scale + offsetY,
+						matrix3D,
+					),
+					transformPoint3x3(
+						b.xMax * scale + offsetX,
+						-b.yMax * scale + offsetY,
+						matrix3D,
+					),
+					transformPoint3x3(
+						b.xMin * scale + offsetX,
+						-b.yMin * scale + offsetY,
+						matrix3D,
+					),
+					transformPoint3x3(
+						b.xMax * scale + offsetX,
+						-b.yMin * scale + offsetY,
+						matrix3D,
+					),
 				];
 				for (const c of corners) {
 					minX = Math.min(minX, c.x);
@@ -644,10 +690,26 @@ export function shapedTextToSVG(
 				// Update bounds with transformed corners
 				const b = path.bounds;
 				const corners = [
-					transformPoint2D(b.xMin * scale + offsetX, -b.yMax * scale + offsetY, matrix),
-					transformPoint2D(b.xMax * scale + offsetX, -b.yMax * scale + offsetY, matrix),
-					transformPoint2D(b.xMin * scale + offsetX, -b.yMin * scale + offsetY, matrix),
-					transformPoint2D(b.xMax * scale + offsetX, -b.yMin * scale + offsetY, matrix),
+					transformPoint2D(
+						b.xMin * scale + offsetX,
+						-b.yMax * scale + offsetY,
+						matrix,
+					),
+					transformPoint2D(
+						b.xMax * scale + offsetX,
+						-b.yMax * scale + offsetY,
+						matrix,
+					),
+					transformPoint2D(
+						b.xMin * scale + offsetX,
+						-b.yMin * scale + offsetY,
+						matrix,
+					),
+					transformPoint2D(
+						b.xMax * scale + offsetX,
+						-b.yMin * scale + offsetY,
+						matrix,
+					),
 				];
 				for (const c of corners) {
 					minX = Math.min(minX, c.x);
@@ -689,7 +751,10 @@ export function shapedTextToSVG(
 		: "";
 
 	// Use native transform attribute if requested (only for 2D matrix)
-	const transformAttr = useNativeTransform && matrix ? ` transform="${matrixToSVGTransform(matrix)}"` : "";
+	const transformAttr =
+		useNativeTransform && matrix
+			? ` transform="${matrixToSVGTransform(matrix)}"`
+			: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
   <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}${transformAttr}/>
@@ -1091,7 +1156,14 @@ export function applyMatrixToContext(
 	// Canvas transform: (a, b, c, d, e, f)
 	// Matrix2D: [a, b, c, d, tx, ty]
 	// Canvas expects: [a, b, c, d, e, f] where e=tx, f=ty
-	ctx.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+	ctx.transform(
+		matrix[0],
+		matrix[1],
+		matrix[2],
+		matrix[3],
+		matrix[4],
+		matrix[5],
+	);
 }
 
 /**
