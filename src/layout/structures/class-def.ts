@@ -39,7 +39,10 @@ export class ClassDef {
 	}
 
 	/** Create Format 1 ClassDef (array of class values) */
-	static format1(startGlyphId: GlyphId, classValueArray: Uint16Array): ClassDef {
+	static format1(
+		startGlyphId: GlyphId,
+		classValueArray: Uint16Array,
+	): ClassDef {
 		return new ClassDef(startGlyphId, classValueArray, null, null, false);
 	}
 
@@ -148,7 +151,13 @@ export class ClassDef {
 }
 
 /** Singleton empty ClassDef - created once at module load */
-const EMPTY_CLASS_DEF_INSTANCE = new (ClassDef as any)(0, null, null, null, true);
+const EMPTY_CLASS_DEF_INSTANCE = new (ClassDef as any)(
+	0,
+	null,
+	null,
+	null,
+	true,
+);
 
 /** Singleton empty ClassDef for external use */
 export const EMPTY_CLASS_DEF: ClassDef = EMPTY_CLASS_DEF_INSTANCE;

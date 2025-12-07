@@ -164,7 +164,9 @@ function parseContextPosFormat1(reader: Reader): ContextPosFormat1 {
 			const ruleReader = rsReader.sliceFrom(ruleOffset);
 			const glyphCount = ruleReader.uint16();
 			const lookupCount = ruleReader.uint16();
-			const inputSequence = Array.from(ruleReader.uint16Array(glyphCount - 1));
+			const typedArr = ruleReader.uint16Array(glyphCount - 1);
+			const inputSequence = new Array(typedArr.length);
+			for (let k = 0; k < typedArr.length; k++) inputSequence[k] = typedArr[k];
 			const lookupRecords = parsePosLookupRecords(ruleReader, lookupCount);
 
 			rules.push({ glyphCount, inputSequence, lookupRecords });
@@ -203,7 +205,9 @@ function parseContextPosFormat2(reader: Reader): ContextPosFormat2 {
 			const ruleReader = crsReader.sliceFrom(ruleOffset);
 			const glyphCount = ruleReader.uint16();
 			const lookupCount = ruleReader.uint16();
-			const inputClasses = Array.from(ruleReader.uint16Array(glyphCount - 1));
+			const typedArr = ruleReader.uint16Array(glyphCount - 1);
+			const inputClasses = new Array(typedArr.length);
+			for (let k = 0; k < typedArr.length; k++) inputClasses[k] = typedArr[k];
 			const lookupRecords = parsePosLookupRecords(ruleReader, lookupCount);
 
 			rules.push({ glyphCount, inputClasses, lookupRecords });
@@ -283,17 +287,22 @@ function parseChainingPosFormat1(reader: Reader): ChainingContextPosFormat1 {
 			const ruleReader = crsReader.sliceFrom(ruleOffset);
 
 			const backtrackCount = ruleReader.uint16();
-			const backtrackSequence = Array.from(
-				ruleReader.uint16Array(backtrackCount),
-			);
+			const backtrackTyped = ruleReader.uint16Array(backtrackCount);
+			const backtrackSequence = new Array(backtrackTyped.length);
+			for (let k = 0; k < backtrackTyped.length; k++)
+				backtrackSequence[k] = backtrackTyped[k];
 
 			const inputCount = ruleReader.uint16();
-			const inputSequence = Array.from(ruleReader.uint16Array(inputCount - 1));
+			const inputTyped = ruleReader.uint16Array(inputCount - 1);
+			const inputSequence = new Array(inputTyped.length);
+			for (let k = 0; k < inputTyped.length; k++)
+				inputSequence[k] = inputTyped[k];
 
 			const lookaheadCount = ruleReader.uint16();
-			const lookaheadSequence = Array.from(
-				ruleReader.uint16Array(lookaheadCount),
-			);
+			const lookaheadTyped = ruleReader.uint16Array(lookaheadCount);
+			const lookaheadSequence = new Array(lookaheadTyped.length);
+			for (let k = 0; k < lookaheadTyped.length; k++)
+				lookaheadSequence[k] = lookaheadTyped[k];
 
 			const lookupCount = ruleReader.uint16();
 			const lookupRecords = parsePosLookupRecords(ruleReader, lookupCount);
@@ -344,17 +353,22 @@ function parseChainingPosFormat2(reader: Reader): ChainingContextPosFormat2 {
 			const ruleReader = ccrsReader.sliceFrom(ruleOffset);
 
 			const backtrackCount = ruleReader.uint16();
-			const backtrackClasses = Array.from(
-				ruleReader.uint16Array(backtrackCount),
-			);
+			const backtrackTyped = ruleReader.uint16Array(backtrackCount);
+			const backtrackClasses = new Array(backtrackTyped.length);
+			for (let k = 0; k < backtrackTyped.length; k++)
+				backtrackClasses[k] = backtrackTyped[k];
 
 			const inputCount = ruleReader.uint16();
-			const inputClasses = Array.from(ruleReader.uint16Array(inputCount - 1));
+			const inputTyped = ruleReader.uint16Array(inputCount - 1);
+			const inputClasses = new Array(inputTyped.length);
+			for (let k = 0; k < inputTyped.length; k++)
+				inputClasses[k] = inputTyped[k];
 
 			const lookaheadCount = ruleReader.uint16();
-			const lookaheadClasses = Array.from(
-				ruleReader.uint16Array(lookaheadCount),
-			);
+			const lookaheadTyped = ruleReader.uint16Array(lookaheadCount);
+			const lookaheadClasses = new Array(lookaheadTyped.length);
+			for (let k = 0; k < lookaheadTyped.length; k++)
+				lookaheadClasses[k] = lookaheadTyped[k];
 
 			const lookupCount = ruleReader.uint16();
 			const lookupRecords = parsePosLookupRecords(ruleReader, lookupCount);

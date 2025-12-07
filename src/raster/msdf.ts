@@ -54,16 +54,22 @@ interface EdgeBounds {
  * An edge with color assignment and bounding box
  */
 export type MsdfEdge =
-	| { type: "line"; p0: Point; p1: Point; color: EdgeColor } & EdgeBounds
-	| { type: "quadratic"; p0: Point; p1: Point; p2: Point; color: EdgeColor } & EdgeBounds
-	| {
+	| ({ type: "line"; p0: Point; p1: Point; color: EdgeColor } & EdgeBounds)
+	| ({
+			type: "quadratic";
+			p0: Point;
+			p1: Point;
+			p2: Point;
+			color: EdgeColor;
+	  } & EdgeBounds)
+	| ({
 			type: "cubic";
 			p0: Point;
 			p1: Point;
 			p2: Point;
 			p3: Point;
 			color: EdgeColor;
-	  } & EdgeBounds;
+	  } & EdgeBounds);
 
 /**
  * Signed distance result with parameter t
@@ -412,8 +418,10 @@ function unsignedDistanceToCubic(
 			const ti3 = ti2 * ti;
 			const t2 = t * t;
 			const t3 = t2 * t;
-			const bx = ti3 * p0.x + 3 * ti2 * t * p1.x + 3 * ti * t2 * p2.x + t3 * p3.x;
-			const by = ti3 * p0.y + 3 * ti2 * t * p1.y + 3 * ti * t2 * p2.y + t3 * p3.y;
+			const bx =
+				ti3 * p0.x + 3 * ti2 * t * p1.x + 3 * ti * t2 * p2.x + t3 * p3.x;
+			const by =
+				ti3 * p0.y + 3 * ti2 * t * p1.y + 3 * ti * t2 * p2.y + t3 * p3.y;
 			const dx =
 				3 * ti2 * (p1.x - p0.x) +
 				6 * ti * t * (p2.x - p1.x) +
@@ -438,8 +446,14 @@ function unsignedDistanceToCubic(
 		const t2 = t * t;
 		const t3 = t2 * t;
 		const dist = Math.sqrt(
-			(ti3 * p0.x + 3 * ti2 * t * p1.x + 3 * ti * t2 * p2.x + t3 * p3.x - px) ** 2 +
-				(ti3 * p0.y + 3 * ti2 * t * p1.y + 3 * ti * t2 * p2.y + t3 * p3.y - py) ** 2,
+			(ti3 * p0.x + 3 * ti2 * t * p1.x + 3 * ti * t2 * p2.x + t3 * p3.x - px) **
+				2 +
+				(ti3 * p0.y +
+					3 * ti2 * t * p1.y +
+					3 * ti * t2 * p2.y +
+					t3 * p3.y -
+					py) **
+					2,
 		);
 		if (dist < minDist) minDist = dist;
 	}
@@ -735,14 +749,25 @@ function signedDistanceToEdge(
 /**
  * Compute unsigned distance from point to edge (faster version for rendering)
  */
-function unsignedDistanceToEdge(px: number, py: number, edge: MsdfEdge): number {
+function unsignedDistanceToEdge(
+	px: number,
+	py: number,
+	edge: MsdfEdge,
+): number {
 	switch (edge.type) {
 		case "line":
 			return unsignedDistanceToLine(px, py, edge.p0, edge.p1);
 		case "quadratic":
 			return unsignedDistanceToQuadratic(px, py, edge.p0, edge.p1, edge.p2);
 		case "cubic":
-			return unsignedDistanceToCubic(px, py, edge.p0, edge.p1, edge.p2, edge.p3);
+			return unsignedDistanceToCubic(
+				px,
+				py,
+				edge.p0,
+				edge.p1,
+				edge.p2,
+				edge.p3,
+			);
 	}
 }
 
@@ -815,7 +840,7 @@ function isPointInsideFast(
 	let crossings = 0;
 	for (const segments of flatContours) {
 		for (const [p0, p1] of segments) {
-			if ((p0.y > py) !== (p1.y > py)) {
+			if (p0.y > py !== p1.y > py) {
 				const x = p0.x + ((p1.x - p0.x) * (py - p0.y)) / (p1.y - p0.y);
 				if (px < x) crossings++;
 			}
@@ -827,16 +852,14 @@ function isPointInsideFast(
 /**
  * Find minimum unsigned distance to edges with bounding box culling and early exit
  */
-function findMinDistance(
-	px: number,
-	py: number,
-	edges: MsdfEdge[],
-): number {
+function findMinDistance(px: number, py: number, edges: MsdfEdge[]): number {
 	let minDist = Infinity;
 	for (const edge of edges) {
 		// Bounding box culling - compute distance to bbox
-		const dx = px < edge.minX ? edge.minX - px : px > edge.maxX ? px - edge.maxX : 0;
-		const dy = py < edge.minY ? edge.minY - py : py > edge.maxY ? py - edge.maxY : 0;
+		const dx =
+			px < edge.minX ? edge.minX - px : px > edge.maxX ? px - edge.maxX : 0;
+		const dy =
+			py < edge.minY ? edge.minY - py : py > edge.maxY ? py - edge.maxY : 0;
 		if (dx * dx + dy * dy >= minDist * minDist) continue;
 
 		const d = unsignedDistanceToEdge(px, py, edge);
@@ -1313,7 +1336,7 @@ export function buildMsdfStringAtlas(
 		}
 	}
 
-	return buildMsdfAtlas(font, Array.from(glyphIdSet), options);
+	return buildMsdfAtlas(font, [...glyphIdSet], options);
 }
 
 /**

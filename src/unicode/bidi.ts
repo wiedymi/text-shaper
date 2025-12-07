@@ -61,7 +61,7 @@ export function getVisualOrder(
 	start: number = 0,
 	end: number = text.length,
 ): number[] {
-	return Array.from(getReorderedIndices(text, result, start, end));
+	return [...getReorderedIndices(text, result, start, end)];
 }
 
 /**
@@ -179,7 +179,7 @@ export function isLTR(codepoint: number): boolean {
  * Detect base direction from text content
  */
 export function detectDirection(text: string): Direction {
-	const chars = Array.from(text);
+	const chars = [...text];
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
 		const type = getBidiCharType(char);

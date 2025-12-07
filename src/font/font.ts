@@ -696,7 +696,7 @@ export class Font {
 
 	/** List all table tags in the font */
 	listTables(): string[] {
-		return Array.from(this.directory.tables.keys()).map(tagToString);
+		return [...this.directory.tables.keys()].map(tagToString);
 	}
 
 	// Glyph outline operations

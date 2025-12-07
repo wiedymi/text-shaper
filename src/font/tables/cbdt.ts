@@ -475,5 +475,5 @@ export function getColorBitmapSizes(cblc: CblcTable): number[] {
 		const size = cblc.bitmapSizes[i]!;
 		sizes.add(size.ppemX);
 	}
-	return Array.from(sizes).sort((a, b) => a - b);
+	return [...sizes].sort((a, b) => a - b);
 }

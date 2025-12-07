@@ -323,7 +323,7 @@ function collectLookups<T extends { lookups: unknown[] }>(
 
 	// Convert to sorted array with lookup objects
 	const result: Array<{ index: number; lookup: unknown }> = [];
-	const sortedIndices = Array.from(lookupIndices).sort((a, b) => a - b);
+	const sortedIndices = [...lookupIndices].sort((a, b) => a - b);
 
 	for (let i = 0; i < sortedIndices.length; i++) {
 		const index = sortedIndices[i]!;

@@ -243,7 +243,7 @@ function parseKerxFormat2(
 	const arrayReader = reader.sliceFrom(kerningArrayOffset);
 	const numRows =
 		leftClassTable.nGlyphs > 0
-			? Math.max(...Array.from(leftClassTable.classes)) + 1
+			? Math.max(...[...leftClassTable.classes]) + 1
 			: 0;
 	const numCols = rowWidth / 2;
 	const kerningArray = new Int16Array(numRows * numCols);

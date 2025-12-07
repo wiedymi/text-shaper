@@ -92,7 +92,7 @@ export function getExactBounds(path: GlyphPath): BBox | null {
 
 				// Evaluate both X and Y at extrema points
 				const allExtrema = new Set([...xExtrema, ...yExtrema]);
-				const extremaArray = Array.from(allExtrema);
+				const extremaArray = [...allExtrema];
 				for (let j = 0; j < extremaArray.length; j++) {
 					const t = extremaArray[j]!;
 					const x = evaluateQuadratic(currentX, cmd.x1, cmd.x, t);
@@ -130,7 +130,7 @@ export function getExactBounds(path: GlyphPath): BBox | null {
 
 				// Evaluate both X and Y at extrema points
 				const allExtrema = new Set([...xExtrema, ...yExtrema]);
-				const extremaArray = Array.from(allExtrema);
+				const extremaArray = [...allExtrema];
 				for (let j = 0; j < extremaArray.length; j++) {
 					const t = extremaArray[j]!;
 					const x = evaluateCubic(currentX, cmd.x1, cmd.x2, cmd.x, t);

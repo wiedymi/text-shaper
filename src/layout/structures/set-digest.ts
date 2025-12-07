@@ -62,6 +62,23 @@ export class SetDigest {
 			this.add(gid);
 		}
 	}
+
+	/**
+	 * Check if this digest MAY intersect with another digest.
+	 * Returns false only if there is definitely NO overlap.
+	 */
+	mayIntersect(other: SetDigest): boolean {
+		return (
+			(this.mask0 & other.mask0) !== 0 &&
+			(this.mask1 & other.mask1) !== 0 &&
+			(this.mask2 & other.mask2) !== 0
+		);
+	}
+
+	/** Get raw masks for external comparison */
+	getMasks(): { mask0: number; mask1: number; mask2: number } {
+		return { mask0: this.mask0, mask1: this.mask1, mask2: this.mask2 };
+	}
 }
 
 /**

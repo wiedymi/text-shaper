@@ -509,7 +509,7 @@ export function rasterizeText(
 	let maxAscent = 0;
 	let maxDescent = 0;
 
-	const textArray = Array.from(text);
+	const textArray = [...text];
 	for (let i = 0; i < textArray.length; i++) {
 		const char = textArray[i]!;
 		const codepoint = char.codePointAt(0);

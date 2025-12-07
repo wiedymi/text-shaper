@@ -67,6 +67,7 @@ import {
 	getMarkAttachmentType,
 	LookupFlag,
 } from "../layout/structures/layout-common.ts";
+import { SetDigest } from "../layout/structures/set-digest.ts";
 import type { GlyphId, GlyphInfo, GlyphPosition } from "../types.ts";
 import { GlyphClass } from "../types.ts";
 import { setupArabicMasks } from "./complex/arabic.ts";
@@ -521,8 +522,30 @@ function detectAndApplyComplexShaping(infos: GlyphInfo[]): void {
 
 function applyGsub(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 	const lookups = plan.gsubLookups;
+
+	// Build buffer digest for fast lookup skipping
+	// Note: We rebuild after each lookup that modifies glyphs
+	let bufferDigest = new SetDigest();
+	const infos = buffer.infos;
+	for (let i = 0; i < buffer.length; i++) {
+		bufferDigest.add(infos[i]!.glyphId);
+	}
+
 	for (let i = 0; i < lookups.length; i++) {
-		applyGsubLookup(font, buffer, lookups[i]!.lookup, plan);
+		const entry = lookups[i]!;
+		// Skip entire lookup if no glyph in buffer could match
+		if (!bufferDigest.mayIntersect(entry.lookup.digest)) continue;
+
+		const prevLength = buffer.length;
+		applyGsubLookup(font, buffer, entry.lookup, plan);
+
+		// Rebuild digest if buffer was modified (length change indicates substitution)
+		if (buffer.length !== prevLength) {
+			bufferDigest = new SetDigest();
+			for (let j = 0; j < buffer.length; j++) {
+				bufferDigest.add(infos[j]!.glyphId);
+			}
+		}
 	}
 	// Compact buffer after all GSUB lookups to remove marked-deleted glyphs
 	buffer.compact();
@@ -1464,12 +1487,24 @@ function applyGpos(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 		font,
 	);
 
+	// Build buffer digest for fast lookup skipping
+	const bufferDigest = new SetDigest();
+	const infos = buffer.infos;
+	const len = buffer.length;
+	for (let i = 0; i < len; i++) {
+		bufferDigest.add(infos[i]!.glyphId);
+	}
+
 	const lookups = plan.gposLookups;
 	for (let i = 0; i < lookups.length; i++) {
+		const entry = lookups[i]!;
+		// Skip entire lookup if no glyph in buffer could match
+		if (!bufferDigest.mayIntersect(entry.lookup.digest)) continue;
+
 		applyGposLookup(
 			font,
 			buffer,
-			lookups[i]!.lookup,
+			entry.lookup,
 			plan,
 			glyphClassCache,
 			baseIndexArray,
@@ -1701,7 +1736,8 @@ function applyCursivePosLookup(
 		const info1 = infos[i]!;
 		const info2 = infos[j]!;
 		// Fast digest check before expensive Coverage lookup
-		if (!digest.mayHave(info1.glyphId) && !digest.mayHave(info2.glyphId)) return;
+		if (!digest.mayHave(info1.glyphId) && !digest.mayHave(info2.glyphId))
+			return;
 
 		for (let s = 0; s < subtables.length; s++) {
 			const subtable = subtables[s]!;

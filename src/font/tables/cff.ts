@@ -813,7 +813,7 @@ function parseTopDict(reader: Reader, strings: string[]): TopDict {
 		return strings[sid - STANDARD_STRINGS.length] ?? "";
 	};
 
-	const dictEntries = Array.from(dict);
+	const dictEntries = [...dict];
 	for (let i = 0; i < dictEntries.length; i++) {
 		const [op, operands] = dictEntries[i]!;
 		const op0 = operands[0];
@@ -941,7 +941,7 @@ function parsePrivateDict(reader: Reader, _strings: string[]): PrivateDict {
 	const dict = parseDict(reader);
 	const result: PrivateDict = {};
 
-	const dictEntries = Array.from(dict);
+	const dictEntries = [...dict];
 	for (let i = 0; i < dictEntries.length; i++) {
 		const [op, operands] = dictEntries[i]!;
 		const op0 = operands[0];

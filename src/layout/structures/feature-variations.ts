@@ -277,7 +277,7 @@ export function applyFeatureVariations(
 	for (let i = 0; i < substitutions.length; i++) {
 		const substitution = substitutions[i]!;
 		// Find the feature tag for this index
-		const entries = Array.from(featureIndices.entries());
+		const entries = [...featureIndices.entries()];
 		for (let j = 0; j < entries.length; j++) {
 			const [tag, index] = entries[j]!;
 			if (index === substitution.featureIndex) {

@@ -190,7 +190,10 @@ function parseGsubLookup(
 	const lookupType = reader.uint16();
 	const lookupFlag = reader.uint16();
 	const subtableCount = reader.uint16();
-	const subtableOffsets = Array.from(reader.uint16Array(subtableCount));
+	const typedOffsets = reader.uint16Array(subtableCount);
+	const subtableOffsets = new Array(typedOffsets.length);
+	for (let i = 0; i < typedOffsets.length; i++)
+		subtableOffsets[i] = typedOffsets[i];
 
 	let markFilteringSet: uint16 | undefined;
 	if (lookupFlag & LookupFlag.UseMarkFilteringSet) {
@@ -328,7 +331,10 @@ function parseSingleSubst(
 		} else if (format === 2) {
 			const coverageOffset = r.offset16();
 			const glyphCount = r.uint16();
-			const substituteGlyphIds = Array.from(r.uint16Array(glyphCount));
+			const typedIds = r.uint16Array(glyphCount);
+			const substituteGlyphIds = new Array(typedIds.length);
+			for (let j = 0; j < typedIds.length; j++)
+				substituteGlyphIds[j] = typedIds[j];
 			const coverage = parseCoverageAt(r, coverageOffset);
 			subtables.push({ format: 2, coverage, substituteGlyphIds });
 		}
@@ -360,7 +366,10 @@ function parseMultipleSubst(
 				const seqOffset = sequenceOffsets[j]!;
 				const seqReader = r.sliceFrom(seqOffset);
 				const glyphCount = seqReader.uint16();
-				sequences.push(Array.from(seqReader.uint16Array(glyphCount)));
+				const typedSeq = seqReader.uint16Array(glyphCount);
+				const seq = new Array(typedSeq.length);
+				for (let k = 0; k < typedSeq.length; k++) seq[k] = typedSeq[k];
+				sequences.push(seq);
 			}
 
 			subtables.push({ coverage, sequences });
@@ -393,7 +402,10 @@ function parseAlternateSubst(
 				const altOffset = alternateSetOffsets[j]!;
 				const altReader = r.sliceFrom(altOffset);
 				const glyphCount = altReader.uint16();
-				alternateSets.push(Array.from(altReader.uint16Array(glyphCount)));
+				const typedAlts = altReader.uint16Array(glyphCount);
+				const alts = new Array(typedAlts.length);
+				for (let k = 0; k < typedAlts.length; k++) alts[k] = typedAlts[k];
+				alternateSets.push(alts);
 			}
 
 			subtables.push({ coverage, alternateSets });
@@ -434,9 +446,10 @@ function parseLigatureSubst(
 					const ligReader = setReader.sliceFrom(ligOffset);
 					const ligatureGlyph = ligReader.uint16();
 					const componentCount = ligReader.uint16();
-					const componentGlyphIds = Array.from(
-						ligReader.uint16Array(componentCount - 1),
-					);
+					const typedComps = ligReader.uint16Array(componentCount - 1);
+					const componentGlyphIds = new Array(typedComps.length);
+					for (let m = 0; m < typedComps.length; m++)
+						componentGlyphIds[m] = typedComps[m];
 					ligatures.push({ ligatureGlyph, componentGlyphIds });
 				}
 
@@ -471,7 +484,10 @@ function parseReverseChainingSingleSubst(
 			const lookaheadCoverageOffsets = r.uint16Array(lookaheadCount);
 
 			const glyphCount = r.uint16();
-			const substituteGlyphIds = Array.from(r.uint16Array(glyphCount));
+			const typedIds = r.uint16Array(glyphCount);
+			const substituteGlyphIds = new Array(typedIds.length);
+			for (let j = 0; j < typedIds.length; j++)
+				substituteGlyphIds[j] = typedIds[j];
 
 			const coverage = parseCoverageAt(r, coverageOffset);
 

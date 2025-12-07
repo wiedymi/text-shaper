@@ -154,7 +154,7 @@ export function buildStringAtlas(
 ): GlyphAtlas {
 	const glyphIdSet = new Set<number>();
 
-	const textArray = Array.from(text);
+	const textArray = [...text];
 	for (let i = 0; i < textArray.length; i++) {
 		const char = textArray[i]!;
 		const codepoint = char.codePointAt(0);
@@ -166,7 +166,7 @@ export function buildStringAtlas(
 		}
 	}
 
-	return buildAtlas(font, Array.from(glyphIdSet), options);
+	return buildAtlas(font, [...glyphIdSet], options);
 }
 
 /**

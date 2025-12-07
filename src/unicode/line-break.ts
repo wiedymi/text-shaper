@@ -807,7 +807,7 @@ export interface LineBreakAnalysis {
  */
 export function analyzeLineBreaks(text: string): LineBreakAnalysis {
 	const codepoints: number[] = [];
-	const chars = Array.from(text);
+	const chars = [...text];
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
 		codepoints.push(char.codePointAt(0) ?? 0);

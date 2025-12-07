@@ -859,7 +859,7 @@ export function getScript(cp: number): Script {
 export function detectScript(text: string): Script {
 	const counts = new Map<Script, number>();
 
-	const chars = Array.from(text);
+	const chars = [...text];
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
 		const cp = char.codePointAt(0) ?? 0;
@@ -881,7 +881,7 @@ export function detectScript(text: string): Script {
 	let maxScript = Script.Common;
 	let maxCount = 0;
 
-	const entries = Array.from(counts);
+	const entries = [...counts];
 	for (let i = 0; i < entries.length; i++) {
 		const [script, count] = entries[i]!;
 		if (count > maxCount) {
@@ -899,7 +899,7 @@ export function detectScript(text: string): Script {
 export function getScripts(text: string): Script[] {
 	const scripts = new Set<Script>();
 
-	const chars = Array.from(text);
+	const chars = [...text];
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
 		const cp = char.codePointAt(0) ?? 0;
@@ -907,7 +907,7 @@ export function getScripts(text: string): Script[] {
 		scripts.add(script);
 	}
 
-	return Array.from(scripts);
+	return [...scripts];
 }
 
 /**
@@ -915,7 +915,7 @@ export function getScripts(text: string): Script[] {
  * (Common and Inherited are allowed)
  */
 export function isScript(text: string, script: Script): boolean {
-	const chars = Array.from(text);
+	const chars = [...text];
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
 		const cp = char.codePointAt(0) ?? 0;
@@ -954,7 +954,7 @@ export function getScriptRuns(text: string): ScriptRun[] {
 	let runStart = 0;
 	const _charIndex = 0;
 
-	const chars = Array.from(text);
+	const chars = [...text];
 
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;

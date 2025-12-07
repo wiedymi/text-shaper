@@ -963,7 +963,7 @@ export function findWordBoundaries(codepoints: number[]): WordBoundaries {
  */
 export function splitGraphemes(text: string): string[] {
 	const codepoints: number[] = [];
-	const chars = Array.from(text);
+	const chars = [...text];
 
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
@@ -990,7 +990,7 @@ export function splitGraphemes(text: string): string[] {
  */
 export function splitWords(text: string): string[] {
 	const codepoints: number[] = [];
-	const chars = Array.from(text);
+	const chars = [...text];
 
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
@@ -1032,7 +1032,7 @@ export function splitWords(text: string): string[] {
  */
 export function countGraphemes(text: string): number {
 	const codepoints: number[] = [];
-	const chars = Array.from(text);
+	const chars = [...text];
 	for (let i = 0; i < chars.length; i++) {
 		const char = chars[i]!;
 		codepoints.push(char.codePointAt(0) ?? 0);

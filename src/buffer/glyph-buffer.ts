@@ -80,7 +80,12 @@ export class GlyphBuffer {
 			const needed = len - poolLen;
 			for (let i = 0; i < needed; i++) {
 				this._infoPool.push({ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 });
-				this._posPool.push({ xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 });
+				this._posPool.push({
+					xAdvance: 0,
+					yAdvance: 0,
+					xOffset: 0,
+					yOffset: 0,
+				});
 			}
 		}
 
@@ -126,7 +131,12 @@ export class GlyphBuffer {
 			const needed = len - poolLen;
 			for (let i = 0; i < needed; i++) {
 				this._infoPool.push({ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 });
-				this._posPool.push({ xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 });
+				this._posPool.push({
+					xAdvance: 0,
+					yAdvance: 0,
+					xOffset: 0,
+					yOffset: 0,
+				});
 			}
 		}
 

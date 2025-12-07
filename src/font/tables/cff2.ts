@@ -335,7 +335,7 @@ function parseCff2TopDict(reader: Reader): Cff2TopDict {
 	const dict = parseDict(reader);
 	const result: Cff2TopDict = {};
 
-	const dictEntries = Array.from(dict);
+	const dictEntries = [...dict];
 	for (let i = 0; i < dictEntries.length; i++) {
 		const [op, operands] = dictEntries[i]!;
 		switch (op) {
@@ -384,7 +384,7 @@ function parseCff2PrivateDict(reader: Reader): Cff2PrivateDict {
 	const dict = parseDict(reader);
 	const result: Cff2PrivateDict = {};
 
-	const dictEntries = Array.from(dict);
+	const dictEntries = [...dict];
 	for (let i = 0; i < dictEntries.length; i++) {
 		const [op, operands] = dictEntries[i]!;
 		const op0 = operands[0];

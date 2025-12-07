@@ -110,7 +110,7 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 		if (parsedOffsets.has(record.offset)) {
 			const key = `${record.platformId}-${record.encodingId}`;
 			// Find existing subtable
-			const subtablesEntries = Array.from(subtables.entries());
+			const subtablesEntries = [...subtables.entries()];
 			for (let j = 0; j < subtablesEntries.length; j++) {
 				const [existingKey, subtable] = subtablesEntries[j]!;
 				const parts = existingKey.split("@");
@@ -155,7 +155,7 @@ export function parseCmap(reader: Reader, tableLength: number): CmapTable {
 
 	// Fallback to first non-format-14 subtable
 	if (!bestSubtable) {
-		const subtablesValues = Array.from(subtables.values());
+		const subtablesValues = [...subtables.values()];
 		for (let i = 0; i < subtablesValues.length; i++) {
 			const subtable = subtablesValues[i]!;
 			if (subtable.format !== 14) {
@@ -509,7 +509,7 @@ export function getVariationGlyphId(
 	variationSelector: number,
 ): GlyphId | undefined {
 	// Find Format 14 subtable
-	const format14 = Array.from(cmap.subtables.values()).find(
+	const format14 = [...cmap.subtables.values()].find(
 		(s): s is CmapFormat14 => s.format === 14,
 	);
 

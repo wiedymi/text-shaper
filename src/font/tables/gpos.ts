@@ -233,7 +233,10 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 	const lookupType = reader.uint16();
 	const lookupFlag = reader.uint16();
 	const subtableCount = reader.uint16();
-	const subtableOffsets = Array.from(reader.uint16Array(subtableCount));
+	const typedOffsets = reader.uint16Array(subtableCount);
+	const subtableOffsets = new Array(typedOffsets.length);
+	for (let i = 0; i < typedOffsets.length; i++)
+		subtableOffsets[i] = typedOffsets[i];
 
 	let markFilteringSet: uint16 | undefined;
 	if (lookupFlag & LookupFlag.UseMarkFilteringSet) {

@@ -51,7 +51,9 @@ export class Coverage {
 		if (ranges.length > 0) {
 			const lastRange = ranges[ranges.length - 1];
 			if (lastRange) {
-				size = lastRange.startCoverageIndex + (lastRange.endGlyphId - lastRange.startGlyphId + 1);
+				size =
+					lastRange.startCoverageIndex +
+					(lastRange.endGlyphId - lastRange.startGlyphId + 1);
 			}
 		}
 		return new Coverage(null, ranges, null, size);

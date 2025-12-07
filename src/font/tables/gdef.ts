@@ -130,7 +130,10 @@ export function parseAttachList(reader: Reader): Map<GlyphId, AttachPoint> {
 
 		const pointReader = reader.sliceFrom(offset);
 		const pointCount = pointReader.uint16();
-		const pointIndices = Array.from(pointReader.uint16Array(pointCount));
+		const typedIndices = pointReader.uint16Array(pointCount);
+		const pointIndices = new Array(typedIndices.length);
+		for (let j = 0; j < typedIndices.length; j++)
+			pointIndices[j] = typedIndices[j];
 
 		result.set(glyphId, { pointIndices });
 	}
