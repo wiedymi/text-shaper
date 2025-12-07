@@ -71,6 +71,8 @@ interface CharStringState {
 	x: number;
 	y: number;
 	stack: number[];
+	/** Current read position for shift-like operations (O(1) instead of O(n) shift) */
+	stackPos: number;
 	nStems: number;
 	haveWidth: boolean;
 	width: number;
@@ -83,6 +85,23 @@ interface CharStringState {
 	vsindex: number;
 	axisCoords: number[] | null;
 	vstore: ItemVariationStore | null;
+}
+
+/** Get number of available stack values (from stackPos to end) */
+function stackLen(state: CharStringState): number {
+	return state.stack.length - state.stackPos;
+}
+
+/** Read next value from stack (replaces shift - O(1)) */
+function stackShift(state: CharStringState): number | undefined {
+	if (state.stackPos >= state.stack.length) return undefined;
+	return state.stack[state.stackPos++];
+}
+
+/** Clear the stack (reset both pointer and length) */
+function stackClear(state: CharStringState): void {
+	state.stack.length = 0;
+	state.stackPos = 0;
 }
 
 /**
@@ -120,6 +139,7 @@ export function executeCffCharString(
 		x: 0,
 		y: 0,
 		stack: [],
+		stackPos: 0,
 		nStems: 0,
 		haveWidth: false,
 		width: 0,
@@ -166,6 +186,7 @@ export function executeCff2CharString(
 		x: 0,
 		y: 0,
 		stack: [],
+		stackPos: 0,
 		nStems: 0,
 		haveWidth: true, // CFF2 doesn't have width in charstring
 		width: 0,
@@ -237,17 +258,17 @@ function executeCharString(
 			executeOperator(state, op, globalSubrs, localSubrs);
 		} else if (b0 === Op.hintmask || b0 === Op.cntrmask) {
 			// hintmask/cntrmask: process stems from stack, then skip mask bytes
-			const stack = state.stack;
-			const hasWidth = stack.length % 2 !== 0;
+			const len = stackLen(state);
+			const hasWidth = len % 2 !== 0;
 			if (hasWidth && !state.haveWidth) {
-				const width = stack.shift();
+				const width = stackShift(state);
 				if (width !== undefined) {
 					state.width = width;
 					state.haveWidth = true;
 				}
 			}
-			state.nStems += stack.length / 2;
-			stack.length = 0;
+			state.nStems += stackLen(state) / 2;
+			stackClear(state);
 			// Skip mask bytes (ceil(nStems / 8) bytes)
 			const maskBytes = Math.ceil(state.nStems / 8);
 			pos += maskBytes;
@@ -280,15 +301,16 @@ function executeOperator(
 		case Op.hstemhm:
 		case Op.vstemhm: {
 			// Stem hints
-			const hasWidth = stack.length % 2 !== 0;
+			const len = stackLen(state);
+			const hasWidth = len % 2 !== 0;
 			if (hasWidth && !state.haveWidth) {
-				const width = stack.shift();
+				const width = stackShift(state);
 				if (width === undefined) break;
 				state.width = width;
 				state.haveWidth = true;
 			}
-			state.nStems += stack.length / 2;
-			stack.length = 0;
+			state.nStems += stackLen(state) / 2;
+			stackClear(state);
 			break;
 		}
 
@@ -298,8 +320,8 @@ function executeOperator(
 			break;
 
 		case Op.rmoveto: {
-			if (stack.length > 2 && !state.haveWidth) {
-				const width = stack.shift();
+			if (stackLen(state) > 2 && !state.haveWidth) {
+				const width = stackShift(state);
 				if (width === undefined) break;
 				state.width = width;
 				state.haveWidth = true;
@@ -309,20 +331,21 @@ function executeOperator(
 				state.contours.push(state.currentContour);
 				state.currentContour = [];
 			}
-			const dy = stack.pop();
-			if (dy === undefined) break;
-			const dx = stack.pop();
+			// rmoveto uses shift order: dx dy
+			const dx = stackShift(state);
 			if (dx === undefined) break;
+			const dy = stackShift(state);
+			if (dy === undefined) break;
 			state.x += dx;
 			state.y += dy;
 			state.currentContour.push({ x: state.x, y: state.y, onCurve: true });
-			stack.length = 0;
+			stackClear(state);
 			break;
 		}
 
 		case Op.hmoveto: {
-			if (stack.length > 1 && !state.haveWidth) {
-				const width = stack.shift();
+			if (stackLen(state) > 1 && !state.haveWidth) {
+				const width = stackShift(state);
 				if (width === undefined) break;
 				state.width = width;
 				state.haveWidth = true;
@@ -331,17 +354,17 @@ function executeOperator(
 				state.contours.push(state.currentContour);
 				state.currentContour = [];
 			}
-			const dx = stack.pop();
+			const dx = stackShift(state);
 			if (dx === undefined) break;
 			state.x += dx;
 			state.currentContour.push({ x: state.x, y: state.y, onCurve: true });
-			stack.length = 0;
+			stackClear(state);
 			break;
 		}
 
 		case Op.vmoveto: {
-			if (stack.length > 1 && !state.haveWidth) {
-				const width = stack.shift();
+			if (stackLen(state) > 1 && !state.haveWidth) {
+				const width = stackShift(state);
 				if (width === undefined) break;
 				state.width = width;
 				state.haveWidth = true;
@@ -350,19 +373,19 @@ function executeOperator(
 				state.contours.push(state.currentContour);
 				state.currentContour = [];
 			}
-			const dy = stack.pop();
+			const dy = stackShift(state);
 			if (dy === undefined) break;
 			state.y += dy;
 			state.currentContour.push({ x: state.x, y: state.y, onCurve: true });
-			stack.length = 0;
+			stackClear(state);
 			break;
 		}
 
 		case Op.rlineto: {
-			while (stack.length >= 2) {
-				const dx = stack.shift();
+			while (stackLen(state) >= 2) {
+				const dx = stackShift(state);
 				if (dx === undefined) break;
-				const dy = stack.shift();
+				const dy = stackShift(state);
 				if (dy === undefined) break;
 				state.x += dx;
 				state.y += dy;
@@ -373,8 +396,8 @@ function executeOperator(
 
 		case Op.hlineto: {
 			let isHorizontal = true;
-			while (stack.length >= 1) {
-				const val = stack.shift();
+			while (stackLen(state) >= 1) {
+				const val = stackShift(state);
 				if (val === undefined) break;
 				if (isHorizontal) {
 					state.x += val;
@@ -389,8 +412,8 @@ function executeOperator(
 
 		case Op.vlineto: {
 			let isVertical = true;
-			while (stack.length >= 1) {
-				const val = stack.shift();
+			while (stackLen(state) >= 1) {
+				const val = stackShift(state);
 				if (val === undefined) break;
 				if (isVertical) {
 					state.y += val;
@@ -404,18 +427,18 @@ function executeOperator(
 		}
 
 		case Op.rrcurveto: {
-			while (stack.length >= 6) {
-				const dx1 = stack.shift();
+			while (stackLen(state) >= 6) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dy1 = stack.shift();
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dy3 = stack.shift();
+				const dy3 = stackShift(state);
 				if (dy3 === undefined) break;
 				addCubicBezier(state, dx1, dy1, dx2, dy2, dx3, dy3);
 			}
@@ -424,19 +447,19 @@ function executeOperator(
 
 		case Op.hhcurveto: {
 			let dy1 = 0;
-			if (stack.length % 4 === 1) {
-				const val = stack.shift();
+			if (stackLen(state) % 4 === 1) {
+				const val = stackShift(state);
 				if (val === undefined) break;
 				dy1 = val;
 			}
-			while (stack.length >= 4) {
-				const dx1 = stack.shift();
+			while (stackLen(state) >= 4) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
 				addCubicBezier(state, dx1, dy1, dx2, dy2, dx3, 0);
 				dy1 = 0;
@@ -446,19 +469,19 @@ function executeOperator(
 
 		case Op.vvcurveto: {
 			let dx1 = 0;
-			if (stack.length % 4 === 1) {
-				const val = stack.shift();
+			if (stackLen(state) % 4 === 1) {
+				const val = stackShift(state);
 				if (val === undefined) break;
 				dx1 = val;
 			}
-			while (stack.length >= 4) {
-				const dy1 = stack.shift();
+			while (stackLen(state) >= 4) {
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dy3 = stack.shift();
+				const dy3 = stackShift(state);
 				if (dy3 === undefined) break;
 				addCubicBezier(state, dx1, dy1, dx2, dy2, 0, dy3);
 				dx1 = 0;
@@ -469,28 +492,28 @@ function executeOperator(
 		case Op.hvcurveto: {
 			// Alternates horizontal/vertical starting tangent
 			let isHorizontal = true;
-			while (stack.length >= 4) {
+			while (stackLen(state) >= 4) {
 				if (isHorizontal) {
-					const dx1 = stack.shift();
+					const dx1 = stackShift(state);
 					if (dx1 === undefined) break;
-					const dx2 = stack.shift();
+					const dx2 = stackShift(state);
 					if (dx2 === undefined) break;
-					const dy2 = stack.shift();
+					const dy2 = stackShift(state);
 					if (dy2 === undefined) break;
-					const dy3 = stack.shift();
+					const dy3 = stackShift(state);
 					if (dy3 === undefined) break;
-					const dx3 = stack.length === 1 ? (stack.shift() ?? 0) : 0;
+					const dx3 = stackLen(state) === 1 ? (stackShift(state) ?? 0) : 0;
 					addCubicBezier(state, dx1, 0, dx2, dy2, dx3, dy3);
 				} else {
-					const dy1 = stack.shift();
+					const dy1 = stackShift(state);
 					if (dy1 === undefined) break;
-					const dx2 = stack.shift();
+					const dx2 = stackShift(state);
 					if (dx2 === undefined) break;
-					const dy2 = stack.shift();
+					const dy2 = stackShift(state);
 					if (dy2 === undefined) break;
-					const dx3 = stack.shift();
+					const dx3 = stackShift(state);
 					if (dx3 === undefined) break;
-					const dy3 = stack.length === 1 ? (stack.shift() ?? 0) : 0;
+					const dy3 = stackLen(state) === 1 ? (stackShift(state) ?? 0) : 0;
 					addCubicBezier(state, 0, dy1, dx2, dy2, dx3, dy3);
 				}
 				isHorizontal = !isHorizontal;
@@ -501,28 +524,28 @@ function executeOperator(
 		case Op.vhcurveto: {
 			// Alternates vertical/horizontal starting tangent
 			let isVertical = true;
-			while (stack.length >= 4) {
+			while (stackLen(state) >= 4) {
 				if (isVertical) {
-					const dy1 = stack.shift();
+					const dy1 = stackShift(state);
 					if (dy1 === undefined) break;
-					const dx2 = stack.shift();
+					const dx2 = stackShift(state);
 					if (dx2 === undefined) break;
-					const dy2 = stack.shift();
+					const dy2 = stackShift(state);
 					if (dy2 === undefined) break;
-					const dx3 = stack.shift();
+					const dx3 = stackShift(state);
 					if (dx3 === undefined) break;
-					const dy3 = stack.length === 1 ? (stack.shift() ?? 0) : 0;
+					const dy3 = stackLen(state) === 1 ? (stackShift(state) ?? 0) : 0;
 					addCubicBezier(state, 0, dy1, dx2, dy2, dx3, dy3);
 				} else {
-					const dx1 = stack.shift();
+					const dx1 = stackShift(state);
 					if (dx1 === undefined) break;
-					const dx2 = stack.shift();
+					const dx2 = stackShift(state);
 					if (dx2 === undefined) break;
-					const dy2 = stack.shift();
+					const dy2 = stackShift(state);
 					if (dy2 === undefined) break;
-					const dy3 = stack.shift();
+					const dy3 = stackShift(state);
 					if (dy3 === undefined) break;
-					const dx3 = stack.length === 1 ? (stack.shift() ?? 0) : 0;
+					const dx3 = stackLen(state) === 1 ? (stackShift(state) ?? 0) : 0;
 					addCubicBezier(state, dx1, 0, dx2, dy2, dx3, dy3);
 				}
 				isVertical = !isVertical;
@@ -531,26 +554,26 @@ function executeOperator(
 		}
 
 		case Op.rcurveline: {
-			while (stack.length >= 8) {
-				const dx1 = stack.shift();
+			while (stackLen(state) >= 8) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dy1 = stack.shift();
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dy3 = stack.shift();
+				const dy3 = stackShift(state);
 				if (dy3 === undefined) break;
 				addCubicBezier(state, dx1, dy1, dx2, dy2, dx3, dy3);
 			}
 			// Final line
-			if (stack.length >= 2) {
-				const dx = stack.shift();
+			if (stackLen(state) >= 2) {
+				const dx = stackShift(state);
 				if (dx === undefined) break;
-				const dy = stack.shift();
+				const dy = stackShift(state);
 				if (dy === undefined) break;
 				state.x += dx;
 				state.y += dy;
@@ -560,28 +583,28 @@ function executeOperator(
 		}
 
 		case Op.rlinecurve: {
-			while (stack.length >= 8) {
-				const dx = stack.shift();
+			while (stackLen(state) >= 8) {
+				const dx = stackShift(state);
 				if (dx === undefined) break;
-				const dy = stack.shift();
+				const dy = stackShift(state);
 				if (dy === undefined) break;
 				state.x += dx;
 				state.y += dy;
 				state.currentContour.push({ x: state.x, y: state.y, onCurve: true });
 			}
 			// Final curve
-			if (stack.length >= 6) {
-				const dx1 = stack.shift();
+			if (stackLen(state) >= 6) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dy1 = stack.shift();
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dy3 = stack.shift();
+				const dy3 = stackShift(state);
 				if (dy3 === undefined) break;
 				addCubicBezier(state, dx1, dy1, dx2, dy2, dx3, dy3);
 			}
@@ -615,8 +638,8 @@ function executeOperator(
 			break;
 
 		case Op.endchar: {
-			if (stack.length > 0 && !state.haveWidth) {
-				const width = stack.shift();
+			if (stackLen(state) > 0 && !state.haveWidth) {
+				const width = stackShift(state);
 				if (width === undefined) break;
 				state.width = width;
 				state.haveWidth = true;
@@ -626,39 +649,39 @@ function executeOperator(
 				state.contours.push(state.currentContour);
 				state.currentContour = [];
 			}
-			stack.length = 0;
+			stackClear(state);
 			break;
 		}
 
 		// Flex operators
 		case Op.flex: {
 			// 12 arguments: dx1 dy1 dx2 dy2 dx3 dy3 dx4 dy4 dx5 dy5 dx6 dy6 fd
-			if (stack.length >= 13) {
-				const dx1 = stack.shift();
+			if (stackLen(state) >= 13) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dy1 = stack.shift();
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dy3 = stack.shift();
+				const dy3 = stackShift(state);
 				if (dy3 === undefined) break;
-				const dx4 = stack.shift();
+				const dx4 = stackShift(state);
 				if (dx4 === undefined) break;
-				const dy4 = stack.shift();
+				const dy4 = stackShift(state);
 				if (dy4 === undefined) break;
-				const dx5 = stack.shift();
+				const dx5 = stackShift(state);
 				if (dx5 === undefined) break;
-				const dy5 = stack.shift();
+				const dy5 = stackShift(state);
 				if (dy5 === undefined) break;
-				const dx6 = stack.shift();
+				const dx6 = stackShift(state);
 				if (dx6 === undefined) break;
-				const dy6 = stack.shift();
+				const dy6 = stackShift(state);
 				if (dy6 === undefined) break;
-				stack.shift(); // fd (flex depth) - not used for rendering
+				stackShift(state); // fd (flex depth) - not used for rendering
 				addCubicBezier(state, dx1, dy1, dx2, dy2, dx3, dy3);
 				addCubicBezier(state, dx4, dy4, dx5, dy5, dx6, dy6);
 			}
@@ -667,20 +690,20 @@ function executeOperator(
 
 		case Op.hflex: {
 			// dx1 dx2 dy2 dx3 dx4 dx5 dx6
-			if (stack.length >= 7) {
-				const dx1 = stack.shift();
+			if (stackLen(state) >= 7) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dx4 = stack.shift();
+				const dx4 = stackShift(state);
 				if (dx4 === undefined) break;
-				const dx5 = stack.shift();
+				const dx5 = stackShift(state);
 				if (dx5 === undefined) break;
-				const dx6 = stack.shift();
+				const dx6 = stackShift(state);
 				if (dx6 === undefined) break;
 				addCubicBezier(state, dx1, 0, dx2, dy2, dx3, 0);
 				addCubicBezier(state, dx4, 0, dx5, -dy2, dx6, 0);
@@ -690,24 +713,24 @@ function executeOperator(
 
 		case Op.hflex1: {
 			// dx1 dy1 dx2 dy2 dx3 dx4 dx5 dy5 dx6
-			if (stack.length >= 9) {
-				const dx1 = stack.shift();
+			if (stackLen(state) >= 9) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dy1 = stack.shift();
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dx4 = stack.shift();
+				const dx4 = stackShift(state);
 				if (dx4 === undefined) break;
-				const dx5 = stack.shift();
+				const dx5 = stackShift(state);
 				if (dx5 === undefined) break;
-				const dy5 = stack.shift();
+				const dy5 = stackShift(state);
 				if (dy5 === undefined) break;
-				const dx6 = stack.shift();
+				const dx6 = stackShift(state);
 				if (dx6 === undefined) break;
 				addCubicBezier(state, dx1, dy1, dx2, dy2, dx3, 0);
 				addCubicBezier(state, dx4, 0, dx5, dy5, dx6, -(dy1 + dy2 + dy5));
@@ -717,28 +740,28 @@ function executeOperator(
 
 		case Op.flex1: {
 			// dx1 dy1 dx2 dy2 dx3 dy3 dx4 dy4 dx5 dy5 d6
-			if (stack.length >= 11) {
-				const dx1 = stack.shift();
+			if (stackLen(state) >= 11) {
+				const dx1 = stackShift(state);
 				if (dx1 === undefined) break;
-				const dy1 = stack.shift();
+				const dy1 = stackShift(state);
 				if (dy1 === undefined) break;
-				const dx2 = stack.shift();
+				const dx2 = stackShift(state);
 				if (dx2 === undefined) break;
-				const dy2 = stack.shift();
+				const dy2 = stackShift(state);
 				if (dy2 === undefined) break;
-				const dx3 = stack.shift();
+				const dx3 = stackShift(state);
 				if (dx3 === undefined) break;
-				const dy3 = stack.shift();
+				const dy3 = stackShift(state);
 				if (dy3 === undefined) break;
-				const dx4 = stack.shift();
+				const dx4 = stackShift(state);
 				if (dx4 === undefined) break;
-				const dy4 = stack.shift();
+				const dy4 = stackShift(state);
 				if (dy4 === undefined) break;
-				const dx5 = stack.shift();
+				const dx5 = stackShift(state);
 				if (dx5 === undefined) break;
-				const dy5 = stack.shift();
+				const dy5 = stackShift(state);
 				if (dy5 === undefined) break;
-				const d6 = stack.shift();
+				const d6 = stackShift(state);
 				if (d6 === undefined) break;
 
 				const dx = dx1 + dx2 + dx3 + dx4 + dx5;

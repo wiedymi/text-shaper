@@ -25,6 +25,12 @@ export interface ShapeFeature {
 	enabled: boolean;
 }
 
+/** Lookup entry with index */
+export interface LookupEntry<T> {
+	index: number;
+	lookup: T;
+}
+
 /** Collected lookups for shaping */
 export interface ShapePlan {
 	script: Tag;
@@ -32,10 +38,16 @@ export interface ShapePlan {
 	direction: "ltr" | "rtl";
 
 	/** GSUB lookups to apply, in order */
-	gsubLookups: Array<{ index: number; lookup: AnyGsubLookup }>;
+	gsubLookups: LookupEntry<AnyGsubLookup>[];
 
 	/** GPOS lookups to apply, in order */
-	gposLookups: Array<{ index: number; lookup: AnyGposLookup }>;
+	gposLookups: LookupEntry<AnyGposLookup>[];
+
+	/** Fast O(1) lookup by index for nested GSUB lookups */
+	gsubLookupMap: Map<number, LookupEntry<AnyGsubLookup>>;
+
+	/** Fast O(1) lookup by index for nested GPOS lookups */
+	gposLookupMap: Map<number, LookupEntry<AnyGposLookup>>;
 }
 
 /** Default GSUB features (always enabled) */
@@ -184,7 +196,7 @@ function createShapePlanInternal(
 		languageTag,
 		enabledFeatures,
 		axisCoords,
-	);
+	) as LookupEntry<AnyGsubLookup>[];
 
 	// Collect GPOS lookups (with feature variations support)
 	const gposLookups = collectLookups(
@@ -193,14 +205,27 @@ function createShapePlanInternal(
 		languageTag,
 		enabledFeatures,
 		axisCoords,
-	);
+	) as LookupEntry<AnyGposLookup>[];
+
+	// Build lookup index maps for O(1) nested lookup access
+	const gsubLookupMap = new Map<number, LookupEntry<AnyGsubLookup>>();
+	for (const entry of gsubLookups) {
+		gsubLookupMap.set(entry.index, entry);
+	}
+
+	const gposLookupMap = new Map<number, LookupEntry<AnyGposLookup>>();
+	for (const entry of gposLookups) {
+		gposLookupMap.set(entry.index, entry);
+	}
 
 	return {
 		script: scriptTag,
 		language: languageTag,
 		direction,
-		gsubLookups: gsubLookups as Array<{ index: number; lookup: AnyGsubLookup }>,
-		gposLookups: gposLookups as Array<{ index: number; lookup: AnyGposLookup }>,
+		gsubLookups,
+		gposLookups,
+		gsubLookupMap,
+		gposLookupMap,
 	};
 }
 

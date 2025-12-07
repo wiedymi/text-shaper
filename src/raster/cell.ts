@@ -358,7 +358,7 @@ export class CellBuffer {
 		let cellIndex = this.ycells[rowIndex];
 		while (cellIndex !== this.nullCellIndex) {
 			cells.push(this.pool[cellIndex]);
-			cellIndex = this.pool[cellIndex]?.next;
+			cellIndex = this.pool[cellIndex].next;
 		}
 		return cells;
 	}
@@ -375,12 +375,53 @@ export class CellBuffer {
 			const cells: Cell[] = [];
 			while (cellIndex !== this.nullCellIndex) {
 				cells.push(this.pool[cellIndex]);
-				cellIndex = this.pool[cellIndex]?.next;
+				cellIndex = this.pool[cellIndex].next;
 			}
 			if (cells.length > 0) {
 				yield { y, cells };
 			}
 		}
+	}
+
+	/**
+	 * Iterate scanlines directly without allocating cell arrays
+	 * Returns first cell index for each row, caller walks linked list via pool
+	 */
+	*iterateScanlines(): Generator<{ y: number; firstCellIndex: number }> {
+		for (let i = 0; i < this.ycells.length; i++) {
+			const cellIndex = this.ycells[i];
+			if (cellIndex !== this.nullCellIndex) {
+				yield { y: this.bandMinY + i, firstCellIndex: cellIndex };
+			}
+		}
+	}
+
+	/**
+	 * Get the cell pool for direct access during sweep
+	 */
+	getPool(): Cell[] {
+		return this.pool;
+	}
+
+	/**
+	 * Get the null cell index (sentinel value)
+	 */
+	getNullIndex(): number {
+		return this.nullCellIndex;
+	}
+
+	/**
+	 * Get ycells array for direct iteration (avoids generator overhead)
+	 */
+	getYCells(): number[] {
+		return this.ycells;
+	}
+
+	/**
+	 * Get band minimum Y for coordinate calculation
+	 */
+	getBandMinY(): number {
+		return this.bandMinY;
 	}
 
 	/**
@@ -393,7 +434,7 @@ export class CellBuffer {
 		let cellIndex = this.ycells[rowIndex];
 		while (cellIndex !== this.nullCellIndex) {
 			yield this.pool[cellIndex];
-			cellIndex = this.pool[cellIndex]?.next;
+			cellIndex = this.pool[cellIndex].next;
 		}
 	}
 

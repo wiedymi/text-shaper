@@ -19,11 +19,9 @@ export interface Coverage {
 /** Format 1: Individual glyph IDs */
 class CoverageFormat1 implements Coverage {
 	private readonly glyphArray: Uint16Array;
-	private readonly glyphSet: Set<GlyphId>;
 
 	constructor(glyphArray: Uint16Array) {
 		this.glyphArray = glyphArray;
-		this.glyphSet = new Set(glyphArray);
 	}
 
 	get size(): number {
@@ -53,7 +51,8 @@ class CoverageFormat1 implements Coverage {
 	}
 
 	covers(glyphId: GlyphId): boolean {
-		return this.glyphSet.has(glyphId);
+		// Reuse binary search - no redundant Set needed
+		return this.get(glyphId) !== null;
 	}
 
 	glyphs(): GlyphId[] {

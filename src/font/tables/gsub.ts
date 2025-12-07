@@ -590,3 +590,48 @@ export function applyLigatureSubst(
 
 	return null;
 }
+
+/**
+ * Apply ligature substitution using a Uint16Array directly (avoids Array.from allocation).
+ * glyphIds is a pre-allocated typed array, matchLen is the valid length to consider.
+ */
+export function applyLigatureSubstDirect(
+	lookup: LigatureSubstLookup,
+	glyphIds: Uint16Array,
+	matchLen: number,
+	startIndex: number,
+): { ligatureGlyph: GlyphId; consumed: number } | null {
+	const firstGlyph = glyphIds[startIndex];
+	if (firstGlyph === undefined) return null;
+
+	for (const subtable of lookup.subtables) {
+		const coverageIndex = subtable.coverage.get(firstGlyph);
+		if (coverageIndex === null) continue;
+
+		const ligatureSet = subtable.ligatureSets[coverageIndex];
+		if (!ligatureSet) continue;
+
+		for (const ligature of ligatureSet.ligatures) {
+			const componentCount = ligature.componentGlyphIds.length;
+
+			if (startIndex + 1 + componentCount > matchLen) continue;
+
+			let matches = true;
+			for (let i = 0; i < componentCount; i++) {
+				if (glyphIds[startIndex + 1 + i] !== ligature.componentGlyphIds[i]) {
+					matches = false;
+					break;
+				}
+			}
+
+			if (matches) {
+				return {
+					ligatureGlyph: ligature.ligatureGlyph,
+					consumed: 1 + componentCount,
+				};
+			}
+		}
+	}
+
+	return null;
+}

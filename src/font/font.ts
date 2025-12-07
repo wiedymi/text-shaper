@@ -46,6 +46,7 @@ import {
 	type Glyph,
 	getGlyphBounds,
 	getGlyphContours,
+	getGlyphContoursAndBounds,
 	getGlyphContoursWithVariation,
 	parseGlyf,
 	parseGlyph,
@@ -751,6 +752,44 @@ export class Font {
 
 		if (xMin === Infinity) return null;
 		return { xMin, yMin, xMax, yMax };
+	}
+
+	/**
+	 * Get contours and bounds for a glyph in a single operation.
+	 * More efficient than calling getGlyphContours + getGlyphBounds separately
+	 * as it only parses the glyph once.
+	 */
+	getGlyphContoursAndBounds(glyphId: GlyphId): {
+		contours: Contour[];
+		bounds: { xMin: number; yMin: number; xMax: number; yMax: number } | null;
+	} | null {
+		// TrueType - use optimized combined function
+		if (this.glyf && this.loca) {
+			return getGlyphContoursAndBounds(this.glyf, this.loca, glyphId);
+		}
+		// CFF - get contours and compute bounds
+		const contours = this.getGlyphContours(glyphId);
+		if (!contours) return null;
+		if (contours.length === 0) {
+			return { contours, bounds: null };
+		}
+
+		let xMin = Infinity;
+		let yMin = Infinity;
+		let xMax = -Infinity;
+		let yMax = -Infinity;
+
+		for (const contour of contours) {
+			for (const point of contour) {
+				xMin = Math.min(xMin, point.x);
+				yMin = Math.min(yMin, point.y);
+				xMax = Math.max(xMax, point.x);
+				yMax = Math.max(yMax, point.y);
+			}
+		}
+
+		const bounds = xMin === Infinity ? null : { xMin, yMin, xMax, yMax };
+		return { contours, bounds };
 	}
 
 	/** Get contours for a glyph with variation applied */

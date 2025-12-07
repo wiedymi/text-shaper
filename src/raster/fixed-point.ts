@@ -94,13 +94,20 @@ export function downscale(x: number): number {
 
 /**
  * Multiply two fixed-point numbers and divide, avoiding overflow
- * Computes (a * b) / c with 64-bit intermediate precision
+ * Computes (a * b) / c with 64-bit intermediate precision when needed
  */
 export function mulDiv(a: number, b: number, c: number): number {
 	if (c === 0) return 0;
-	// Use BigInt for 64-bit precision
-	const result = (BigInt(a) * BigInt(b)) / BigInt(c);
-	return Number(result);
+	// Fast path: use native math when no overflow risk
+	// Safe when |a * b| < 2^53 (JS safe integer limit)
+	const absA = a < 0 ? -a : a;
+	const absB = b < 0 ? -b : b;
+	if (absA < 0x7FFFFF && absB < 0x7FFFFF) {
+		// Both under 2^23, product fits in 2^46 < 2^53
+		return Math.trunc((a * b) / c);
+	}
+	// Fallback: use BigInt for 64-bit precision
+	return Number((BigInt(a) * BigInt(b)) / BigInt(c));
 }
 
 /**

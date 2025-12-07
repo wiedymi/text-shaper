@@ -567,6 +567,34 @@ function parseExtensionLookup(
 
 // Utility functions
 
+/**
+ * Binary search for pair value record in a PairSet.
+ * PairValueRecords are sorted by secondGlyph per OpenType spec.
+ */
+function findPairValueRecord(
+	records: PairValueRecord[],
+	secondGlyph: GlyphId,
+): PairValueRecord | null {
+	let low = 0;
+	let high = records.length - 1;
+
+	while (low <= high) {
+		const mid = (low + high) >>> 1;
+		const record = records[mid];
+		if (!record) return null;
+
+		if (record.secondGlyph < secondGlyph) {
+			low = mid + 1;
+		} else if (record.secondGlyph > secondGlyph) {
+			high = mid - 1;
+		} else {
+			return record;
+		}
+	}
+
+	return null;
+}
+
 export function getKerning(
 	lookup: PairPosLookup,
 	firstGlyph: GlyphId,
@@ -580,13 +608,16 @@ export function getKerning(
 			const pairSet = subtable.pairSets[coverageIndex];
 			if (!pairSet) continue;
 
-			for (const record of pairSet.pairValueRecords) {
-				if (record.secondGlyph === secondGlyph) {
-					return {
-						xAdvance1: record.value1.xAdvance ?? 0,
-						xAdvance2: record.value2.xAdvance ?? 0,
-					};
-				}
+			// Binary search for secondGlyph (records are sorted)
+			const record = findPairValueRecord(
+				pairSet.pairValueRecords,
+				secondGlyph,
+			);
+			if (record) {
+				return {
+					xAdvance1: record.value1.xAdvance ?? 0,
+					xAdvance2: record.value2.xAdvance ?? 0,
+				};
 			}
 		} else if (subtable.format === 2) {
 			const class1 = subtable.classDef1.get(firstGlyph);

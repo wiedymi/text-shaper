@@ -403,6 +403,10 @@ export function flattenCompositeGlyph(
 	return result;
 }
 
+/** LRU cache for composite glyph contours - using numeric keys for faster lookups */
+const compositeCache = new Map<GlyphId, Contour[]>();
+const COMPOSITE_CACHE_SIZE = 256;
+
 /**
  * Get all contours for a glyph, flattening composites
  */
@@ -418,8 +422,64 @@ export function getGlyphContours(
 	} else if (glyph.type === "simple") {
 		return glyph.contours;
 	} else {
-		return flattenCompositeGlyph(glyf, loca, glyph);
+		// Check cache for composite glyphs using numeric key directly
+		const cached = compositeCache.get(glyphId);
+		if (cached) return cached;
+
+		const result = flattenCompositeGlyph(glyf, loca, glyph);
+
+		// Cache result with LRU eviction
+		if (compositeCache.size >= COMPOSITE_CACHE_SIZE) {
+			const firstKey = compositeCache.keys().next().value;
+			if (firstKey !== undefined) compositeCache.delete(firstKey);
+		}
+		compositeCache.set(glyphId, result);
+
+		return result;
 	}
+}
+
+/**
+ * Get contours and bounds for a glyph in one parse operation.
+ * More efficient than calling getGlyphContours + getGlyphBounds separately.
+ */
+export function getGlyphContoursAndBounds(
+	glyf: GlyfTable,
+	loca: LocaTable,
+	glyphId: GlyphId,
+): {
+	contours: Contour[];
+	bounds: { xMin: number; yMin: number; xMax: number; yMax: number } | null;
+} {
+	const glyph = parseGlyph(glyf, loca, glyphId);
+
+	if (glyph.type === "empty") {
+		return { contours: [], bounds: null };
+	}
+
+	const bounds = {
+		xMin: glyph.xMin,
+		yMin: glyph.yMin,
+		xMax: glyph.xMax,
+		yMax: glyph.yMax,
+	};
+
+	if (glyph.type === "simple") {
+		return { contours: glyph.contours, bounds };
+	}
+
+	// Composite glyph - check cache using numeric key directly
+	let contours = compositeCache.get(glyphId);
+	if (!contours) {
+		contours = flattenCompositeGlyph(glyf, loca, glyph);
+		if (compositeCache.size >= COMPOSITE_CACHE_SIZE) {
+			const firstKey = compositeCache.keys().next().value;
+			if (firstKey !== undefined) compositeCache.delete(firstKey);
+		}
+		compositeCache.set(glyphId, contours);
+	}
+
+	return { contours, bounds };
 }
 
 /**

@@ -292,37 +292,67 @@ export class GrayRaster {
 	}
 
 	/**
-	 * Draw a quadratic Bezier curve using simple parametric sampling
+	 * Draw a quadratic Bezier curve using adaptive subdivision
+	 * Uses flatness test to minimize line segments at small font sizes
 	 */
 	conicTo(cx: number, cy: number, toX: number, toY: number): void {
-		const p0x = this.x;
-		const p0y = this.y;
-
-		// Estimate number of segments based on curve length
-		const dx1 = cx - p0x;
-		const dy1 = cy - p0y;
-		const dx2 = toX - cx;
-		const dy2 = toY - cy;
-		const len =
-			Math.sqrt(dx1 * dx1 + dy1 * dy1) + Math.sqrt(dx2 * dx2 + dy2 * dy2);
-
-		// At least 4 segments, more for longer curves
-		const numSegments = Math.max(4, Math.ceil(len / (ONE_PIXEL * 4)));
-
-		for (let i = 1; i <= numSegments; i++) {
-			const t = i / numSegments;
-			const ti = 1 - t;
-			// Quadratic bezier: B(t) = (1-t)²P0 + 2(1-t)tP1 + t²P2
-			const x = Math.round(ti * ti * p0x + 2 * ti * t * cx + t * t * toX);
-			const y = Math.round(ti * ti * p0y + 2 * ti * t * cy + t * t * toY);
-			this.renderLine(x, y);
-			// Update current position for next segment
-			this.x = x;
-			this.y = y;
-		}
-
+		this.subdivConic(this.x, this.y, cx, cy, toX, toY, 0);
 		this.x = toX;
 		this.y = toY;
+	}
+
+	/**
+	 * Recursive quadratic subdivision with flatness test
+	 * Uses FreeType-style flatness: check if control point is within threshold of chord
+	 */
+	private subdivConic(
+		x1: number,
+		y1: number,
+		cx: number,
+		cy: number,
+		x3: number,
+		y3: number,
+		level: number,
+	): void {
+		// Max recursion depth (like cubics)
+		if (level > 16) {
+			this.renderLine(x3, y3);
+			this.x = x3;
+			this.y = y3;
+			return;
+		}
+
+		// Flatness test: distance from control point to chord (p1 -> p3)
+		const dx = x3 - x1;
+		const dy = y3 - y1;
+		// d = |(cx-x1)*dy - (cy-y1)*dx| / sqrt(dx²+dy²)
+		// We compare d² against threshold² to avoid sqrt
+		const d = abs((cx - x1) * dy - (cy - y1) * dx);
+
+		// Size-aware threshold: scale with chord length to reduce subdivisions at small sizes
+		// At small sizes, curves are tiny and over-subdivision wastes time
+		// Minimum threshold is ONE_PIXEL/4, scales up with chord length
+		const chordLen = abs(dx) + abs(dy);
+		const threshold = Math.max(ONE_PIXEL >> 2, chordLen >> 4);
+		if (d <= threshold * chordLen) {
+			// Flat enough - render as line
+			this.renderLine(x3, y3);
+			this.x = x3;
+			this.y = y3;
+			return;
+		}
+
+		// De Casteljau subdivision at t=0.5
+		const x12 = (x1 + cx) >> 1;
+		const y12 = (y1 + cy) >> 1;
+		const x23 = (cx + x3) >> 1;
+		const y23 = (cy + y3) >> 1;
+		const x123 = (x12 + x23) >> 1;
+		const y123 = (y12 + y23) >> 1;
+
+		// Recurse on both halves
+		this.subdivConic(x1, y1, x12, y12, x123, y123, level + 1);
+		this.subdivConic(x123, y123, x23, y23, x3, y3, level + 1);
 	}
 
 	/**
@@ -373,13 +403,16 @@ export class GrayRaster {
 		const x1234 = (x123 + x234) >> 1;
 		const y1234 = (y123 + y234) >> 1;
 
-		// Flatness test
+		// Flatness test with size-aware threshold
 		const dx = x4 - x1;
 		const dy = y4 - y1;
 		const d1 = abs((cx1 - x4) * dy - (cy1 - y4) * dx);
 		const d2 = abs((cx2 - x4) * dy - (cy2 - y4) * dx);
 
-		if (d1 + d2 <= (ONE_PIXEL >> 1) * (abs(dx) + abs(dy))) {
+		// Size-aware threshold: scale with chord length to reduce subdivisions at small sizes
+		const chordLen = abs(dx) + abs(dy);
+		const threshold = Math.max(ONE_PIXEL >> 2, chordLen >> 4);
+		if (d1 + d2 <= threshold * chordLen) {
 			this.renderLine(x4, y4);
 			this.x = x4;
 			this.y = y4;
@@ -403,9 +436,23 @@ export class GrayRaster {
 		// Negative pitch (bottom-up): origin at (rows-1)*|pitch| for y=0 to be at bottom
 		const pitch = bitmap.pitch;
 		const origin = pitch < 0 ? (bitmap.rows - 1) * -pitch : 0;
+		const bitmapWidth = bitmap.width;
+		const bitmapRows = bitmap.rows;
 
-		for (const { y, cells } of this.cells.iterateCells()) {
-			if (y < 0 || y >= bitmap.rows) continue;
+		// Get pool and ycells for direct iteration (avoids generator overhead)
+		const pool = this.cells.getPool();
+		const nullIndex = this.cells.getNullIndex();
+		const ycells = this.cells.getYCells();
+		const bandMinY = this.cells.getBandMinY();
+		const ycellsLen = ycells.length;
+
+		// Inline the scanline iteration - avoids generator object allocation per scanline
+		for (let i = 0; i < ycellsLen; i++) {
+			const firstCellIndex = ycells[i];
+			if (firstCellIndex === nullIndex) continue;
+
+			const y = bandMinY + i;
+			if (y < 0 || y >= bitmapRows) continue;
 
 			let cover = 0;
 			let x = 0;
@@ -413,13 +460,18 @@ export class GrayRaster {
 			// For negative pitch: row = origin - y * |pitch| (y=0 at bottom)
 			const row = pitch < 0 ? origin - y * -pitch : y * pitch;
 
-			for (const cell of cells) {
+			// Walk linked list directly through pool
+			let cellIndex = firstCellIndex;
+			while (cellIndex !== nullIndex) {
+				const cell = pool[cellIndex];
+
 				// Fill span from previous x to current cell
 				if (cell.x > x && cover !== 0) {
 					const gray = this.applyFillRule(cover, fillRule);
 					if (gray > 0) {
-						const start = Math.max(0, x);
-						const end = Math.min(bitmap.width, cell.x);
+						// Inline Math.max/min with ternary
+						const start = x < 0 ? 0 : x;
+						const end = cell.x > bitmapWidth ? bitmapWidth : cell.x;
 						this.fillSpan(bitmap, row, start, end, gray);
 					}
 				}
@@ -432,19 +484,20 @@ export class GrayRaster {
 				const area = scaledCover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 
-				if (gray > 0 && cell.x >= 0 && cell.x < bitmap.width) {
+				if (gray > 0 && cell.x >= 0 && cell.x < bitmapWidth) {
 					this.setPixel(bitmap, row, cell.x, gray);
 				}
 
 				cover += cell.cover;
 				x = cell.x + 1;
+				cellIndex = cell.next;
 			}
 
 			// Fill remaining span
-			if (x < bitmap.width && cover !== 0) {
+			if (x < bitmapWidth && cover !== 0) {
 				const gray = this.applyFillRule(cover, fillRule);
 				if (gray > 0) {
-					this.fillSpan(bitmap, row, x, bitmap.width, gray);
+					this.fillSpan(bitmap, row, x, bitmapWidth, gray);
 				}
 			}
 		}
@@ -470,9 +523,8 @@ export class GrayRaster {
 		gray: number,
 	): void {
 		if (bitmap.pixelMode === PixelMode.Gray) {
-			for (let x = start; x < end; x++) {
-				bitmap.buffer[row + x] = gray;
-			}
+			// Use native TypedArray.fill() for contiguous spans
+			bitmap.buffer.fill(gray, row + start, row + end);
 		} else if (bitmap.pixelMode === PixelMode.Mono) {
 			if (gray >= 128) {
 				for (let x = start; x < end; x++) {

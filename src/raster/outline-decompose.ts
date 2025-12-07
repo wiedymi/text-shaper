@@ -191,6 +191,12 @@ export function decomposePath(
 	let startY = 0;
 	let inContour = false;
 
+	// Precompute scale factors to avoid per-command branching
+	const scaleX = scale * ONE_PIXEL;
+	const scaleY = (flipY ? -scale : scale) * ONE_PIXEL;
+	const offX = offsetX * ONE_PIXEL;
+	const offY = offsetY * ONE_PIXEL;
+
 	for (const cmd of path.commands) {
 		switch (cmd.type) {
 			case "M": {
@@ -199,11 +205,9 @@ export function decomposePath(
 					raster.lineTo(startX, startY);
 				}
 
-				// Convert to subpixel coordinates
-				const x = toSubpixel(cmd.x, scale, offsetX);
-				const y = flipY
-					? toSubpixelFlipY(cmd.y, scale, offsetY)
-					: toSubpixel(cmd.y, scale, offsetY);
+				// Convert to subpixel coordinates with precomputed factors
+				const x = Math.round(cmd.x * scaleX + offX);
+				const y = Math.round(cmd.y * scaleY + offY);
 
 				raster.moveTo(x, y);
 				startX = x;
@@ -213,43 +217,28 @@ export function decomposePath(
 			}
 
 			case "L": {
-				const x = toSubpixel(cmd.x, scale, offsetX);
-				const y = flipY
-					? toSubpixelFlipY(cmd.y, scale, offsetY)
-					: toSubpixel(cmd.y, scale, offsetY);
-
+				const x = Math.round(cmd.x * scaleX + offX);
+				const y = Math.round(cmd.y * scaleY + offY);
 				raster.lineTo(x, y);
 				break;
 			}
 
 			case "Q": {
-				const cx = toSubpixel(cmd.x1, scale, offsetX);
-				const cy = flipY
-					? toSubpixelFlipY(cmd.y1, scale, offsetY)
-					: toSubpixel(cmd.y1, scale, offsetY);
-				const x = toSubpixel(cmd.x, scale, offsetX);
-				const y = flipY
-					? toSubpixelFlipY(cmd.y, scale, offsetY)
-					: toSubpixel(cmd.y, scale, offsetY);
-
+				const cx = Math.round(cmd.x1 * scaleX + offX);
+				const cy = Math.round(cmd.y1 * scaleY + offY);
+				const x = Math.round(cmd.x * scaleX + offX);
+				const y = Math.round(cmd.y * scaleY + offY);
 				raster.conicTo(cx, cy, x, y);
 				break;
 			}
 
 			case "C": {
-				const cx1 = toSubpixel(cmd.x1, scale, offsetX);
-				const cy1 = flipY
-					? toSubpixelFlipY(cmd.y1, scale, offsetY)
-					: toSubpixel(cmd.y1, scale, offsetY);
-				const cx2 = toSubpixel(cmd.x2, scale, offsetX);
-				const cy2 = flipY
-					? toSubpixelFlipY(cmd.y2, scale, offsetY)
-					: toSubpixel(cmd.y2, scale, offsetY);
-				const x = toSubpixel(cmd.x, scale, offsetX);
-				const y = flipY
-					? toSubpixelFlipY(cmd.y, scale, offsetY)
-					: toSubpixel(cmd.y, scale, offsetY);
-
+				const cx1 = Math.round(cmd.x1 * scaleX + offX);
+				const cy1 = Math.round(cmd.y1 * scaleY + offY);
+				const cx2 = Math.round(cmd.x2 * scaleX + offX);
+				const cy2 = Math.round(cmd.y2 * scaleY + offY);
+				const x = Math.round(cmd.x * scaleX + offX);
+				const y = Math.round(cmd.y * scaleY + offY);
 				raster.cubicTo(cx1, cy1, cx2, cy2, x, y);
 				break;
 			}

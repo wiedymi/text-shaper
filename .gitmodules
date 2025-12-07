@@ -13,3 +13,6 @@
 [submodule "reference/brotli.js"]
 	path = reference/brotli.js
 	url = https://github.com/foliojs/brotli.js.git
+[submodule "reference/node-freetype2"]
+	path = reference/node-freetype2
+	url = https://github.com/ericfreese/node-freetype2

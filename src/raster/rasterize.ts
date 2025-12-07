@@ -29,6 +29,105 @@ import {
 /** Cached hinting engines per font */
 const hintingEngineCache = new WeakMap<Font, HintingEngine>();
 
+/** Shared GrayRaster instance for reuse (avoids 2KB allocation per glyph) */
+let sharedRaster: GrayRaster | null = null;
+
+/** Get or create shared rasterizer */
+function getSharedRaster(): GrayRaster {
+	if (!sharedRaster) sharedRaster = new GrayRaster();
+	return sharedRaster;
+}
+
+/** Shared bitmap buffer for reuse */
+let sharedBuffer: Uint8Array | null = null;
+let sharedBufferSize = 0;
+
+/** Get or create shared buffer, reusing if possible */
+function getSharedBuffer(size: number): Uint8Array {
+	if (size <= sharedBufferSize && sharedBuffer) {
+		sharedBuffer.fill(0, 0, size);
+		return sharedBuffer;
+	}
+	// Allocate new buffer (with some extra capacity for future reuse)
+	const allocSize = Math.max(size, 4096);
+	sharedBuffer = new Uint8Array(allocSize);
+	sharedBufferSize = allocSize;
+	return sharedBuffer;
+}
+
+/** Create bitmap with shared buffer */
+function createBitmapShared(
+	width: number,
+	height: number,
+	pixelMode: PixelMode,
+): Bitmap {
+	const bytesPerPixel =
+		pixelMode === PixelMode.RGBA
+			? 4
+			: pixelMode === PixelMode.LCD || pixelMode === PixelMode.LCD_V
+				? 3
+				: pixelMode === PixelMode.Mono
+					? 0.125
+					: 1;
+	const pitch =
+		pixelMode === PixelMode.Mono
+			? Math.ceil(width / 8)
+			: Math.ceil(width * bytesPerPixel);
+	const size = pitch * height;
+	const buffer = getSharedBuffer(size);
+
+	return {
+		width,
+		rows: height,
+		pitch,
+		buffer: buffer.subarray(0, size),
+		pixelMode,
+	};
+}
+
+/** Cached hinted glyphs per font */
+const hintedGlyphCache = new WeakMap<Font, Map<string, HintedGlyph | null>>();
+
+/** Get cached hinted glyph or compute and cache it */
+function getCachedHintedGlyph(
+	engine: HintingEngine,
+	font: Font,
+	glyphId: GlyphId,
+	ppem: number,
+): HintedGlyph | null {
+	const key = `${glyphId}:${ppem}`;
+	let cache = hintedGlyphCache.get(font);
+	if (!cache) {
+		cache = new Map();
+		hintedGlyphCache.set(font, cache);
+	}
+
+	const cached = cache.get(key);
+	if (cached !== undefined) return cached;
+
+	// Compute hinted glyph
+	const outline = glyphToOutline(font, glyphId);
+	if (!outline) {
+		cache.set(key, null);
+		return null;
+	}
+
+	const error = setSize(engine, ppem, ppem);
+	if (error) {
+		cache.set(key, null);
+		return null;
+	}
+
+	const hinted = hintGlyph(engine, outline);
+	if (hinted.error || hinted.xCoords.length === 0) {
+		cache.set(key, null);
+		return null;
+	}
+
+	cache.set(key, hinted);
+	return hinted;
+}
+
 /** Get or create hinting engine for a font */
 function getHintingEngine(font: Font): HintingEngine | null {
 	if (!font.isTrueType || !font.hasHinting) return null;
@@ -194,11 +293,11 @@ export function rasterizePath(
 		flipY = true,
 	} = options;
 
-	// Create bitmap
-	const bitmap = createBitmap(width, height, pixelMode);
+	// Create bitmap with shared buffer
+	const bitmap = createBitmapShared(width, height, pixelMode);
 
-	// Create rasterizer
-	const raster = new GrayRaster();
+	// Reuse shared rasterizer
+	const raster = getSharedRaster();
 	raster.setClip(0, 0, width, height);
 
 	// Use band processing for large glyphs to ensure bounded memory
@@ -310,38 +409,43 @@ function rasterizeHintedGlyph(
 	const engine = getHintingEngine(font);
 	if (!engine) return null;
 
-	const outline = glyphToOutline(font, glyphId);
-	if (!outline) return null;
-
 	const ppem = Math.round(fontSize);
-	const error = setSize(engine, ppem, ppem);
-	if (error) return null;
 
-	const hinted = hintGlyph(engine, outline);
-	if (hinted.error || hinted.xCoords.length === 0) return null;
+	// Get cached hinted glyph (includes outline computation and hinting)
+	const hinted = getCachedHintedGlyph(engine, font, glyphId, ppem);
+	if (!hinted) return null;
 
 	// Calculate bounds from hinted coordinates (26.6 fixed point)
-	let minX = Infinity,
-		minY = Infinity,
-		maxX = -Infinity,
-		maxY = -Infinity;
-	for (let i = 0; i < hinted.xCoords.length; i++) {
-		const x = hinted.xCoords[i] / 64;
-		const y = hinted.yCoords[i] / 64;
-		minX = Math.min(minX, x);
-		minY = Math.min(minY, y);
-		maxX = Math.max(maxX, x);
-		maxY = Math.max(maxY, y);
+	// Keep in 26.6 format, divide once at end (batch conversion)
+	const xCoords = hinted.xCoords;
+	const yCoords = hinted.yCoords;
+	let minX26 = xCoords[0];
+	let minY26 = yCoords[0];
+	let maxX26 = xCoords[0];
+	let maxY26 = yCoords[0];
+	for (let i = 1; i < xCoords.length; i++) {
+		const x = xCoords[i];
+		const y = yCoords[i];
+		if (x < minX26) minX26 = x;
+		if (x > maxX26) maxX26 = x;
+		if (y < minY26) minY26 = y;
+		if (y > maxY26) maxY26 = y;
 	}
+
+	// Single division at end
+	const minX = minX26 / 64;
+	const minY = minY26 / 64;
+	const maxX = maxX26 / 64;
+	const maxY = maxY26 / 64;
 
 	if (!Number.isFinite(minX)) {
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
 	}
 
-	const bMinX = Math.floor(minX),
-		bMinY = Math.floor(minY);
-	const bMaxX = Math.ceil(maxX),
-		bMaxY = Math.ceil(maxY);
+	const bMinX = Math.floor(minX);
+	const bMinY = Math.floor(minY);
+	const bMaxX = Math.ceil(maxX);
+	const bMaxY = Math.ceil(maxY);
 	const width = bMaxX - bMinX + padding * 2;
 	const height = bMaxY - bMinY + padding * 2;
 
@@ -349,8 +453,11 @@ function rasterizeHintedGlyph(
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
 	}
 
-	const bitmap = createBitmap(width, height, pixelMode);
-	const raster = new GrayRaster();
+	// Use shared bitmap buffer
+	const bitmap = createBitmapShared(width, height, pixelMode);
+
+	// Reuse shared rasterizer
+	const raster = getSharedRaster();
 	raster.setClip(0, 0, width, height);
 	raster.reset();
 
@@ -418,7 +525,7 @@ export function rasterizeText(
 	const height = Math.ceil(maxAscent + maxDescent) + padding * 2;
 
 	const bitmap = createBitmap(width, height, pixelMode);
-	const raster = new GrayRaster();
+	const raster = getSharedRaster();
 	raster.setClip(0, 0, width, height);
 
 	// Render each glyph

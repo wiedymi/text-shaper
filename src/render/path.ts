@@ -58,17 +58,17 @@ export interface GlyphPath {
 export function contourToPath(contour: Contour): PathCommand[] {
 	if (contour.length === 0) return [];
 
-	const _commands: PathCommand[] = [];
-
-	// Check if this contour uses cubic beziers (CFF font)
-	const hasCubic = contour.some((p) => p.cubic);
-
-	if (hasCubic) {
-		// CFF-style contour with cubic beziers
-		return contourToPathCubic(contour);
+	// Fast check: if first off-curve point is cubic, use cubic path
+	// CFF glyphs always have cubic control points, TrueType never does
+	for (const p of contour) {
+		if (!p.onCurve) {
+			return p.cubic
+				? contourToPathCubic(contour)
+				: contourToPathQuadratic(contour);
+		}
 	}
 
-	// TrueType-style contour with quadratic beziers
+	// All points on-curve (rare, but possible) - use quadratic
 	return contourToPathQuadratic(contour);
 }
 
@@ -195,7 +195,9 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
 	commands.push({ type: "M", x: startPoint.x, y: startPoint.y });
 
 	const n = contour.length;
-	let i = allOffCurve ? 0 : (startIndex + 1) % n;
+	// Replace modulo with conditional increment for better performance
+	let i = allOffCurve ? 0 : (startIndex + 1);
+	if (i >= n) i = 0;
 	let current = startPoint;
 	let iterations = 0;
 
@@ -209,7 +211,7 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
 			current = point;
 		} else {
 			// Off-curve point - need to find the end point
-			const nextIndex = (i + 1) % n;
+			const nextIndex = i + 1 < n ? i + 1 : 0;
 			const nextPoint = contour[nextIndex];
 			if (!nextPoint) break;
 
@@ -239,7 +241,9 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
 			current = endPoint;
 		}
 
-		i = (i + 1) % n;
+		// Replace modulo with conditional increment
+		i++;
+		if (i >= n) i = 0;
 		iterations++;
 
 		// Check if we've returned to start
@@ -257,18 +261,46 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
 /**
  * Get path commands for a glyph
  */
+// Path cache: WeakMap allows garbage collection when Font is no longer referenced
+const pathCache = new WeakMap<Font, Map<GlyphId, GlyphPath | null>>();
+
+/**
+ * Get cached glyph path, computing and caching if not already cached
+ */
 export function getGlyphPath(font: Font, glyphId: GlyphId): GlyphPath | null {
-	const contours = font.getGlyphContours(glyphId);
-	if (!contours) return null;
+	// Check cache first
+	let fontCache = pathCache.get(font);
+	if (fontCache) {
+		const cached = fontCache.get(glyphId);
+		if (cached !== undefined) return cached;
+	}
+
+	// Compute path
+	const result = font.getGlyphContoursAndBounds(glyphId);
+	if (!result) {
+		// Cache null result too to avoid recomputing
+		if (!fontCache) {
+			fontCache = new Map();
+			pathCache.set(font, fontCache);
+		}
+		fontCache.set(glyphId, null);
+		return null;
+	}
 
 	const commands: PathCommand[] = [];
-	for (const contour of contours) {
+	for (const contour of result.contours) {
 		commands.push(...contourToPath(contour));
 	}
 
-	const bounds = font.getGlyphBounds(glyphId);
+	const path: GlyphPath = { commands, bounds: result.bounds };
 
-	return { commands, bounds };
+	// Cache and return
+	if (!fontCache) {
+		fontCache = new Map();
+		pathCache.set(font, fontCache);
+	}
+	fontCache.set(glyphId, path);
+	return path;
 }
 
 /**
@@ -280,38 +312,33 @@ export function pathToSVG(
 ): string {
 	const scale = options?.scale ?? 1;
 	const flipY = options?.flipY ?? true;
+	const ySign = flipY ? -1 : 1;
 
-	const parts: string[] = [];
+	// Direct string concatenation is faster than array.join for small strings
+	let result = "";
 
 	for (const cmd of path.commands) {
+		if (result) result += " ";
 		switch (cmd.type) {
 			case "M":
-				parts.push(
-					`M ${cmd.x * scale} ${flipY ? -cmd.y * scale : cmd.y * scale}`,
-				);
+				result += `M ${cmd.x * scale} ${cmd.y * scale * ySign}`;
 				break;
 			case "L":
-				parts.push(
-					`L ${cmd.x * scale} ${flipY ? -cmd.y * scale : cmd.y * scale}`,
-				);
+				result += `L ${cmd.x * scale} ${cmd.y * scale * ySign}`;
 				break;
 			case "Q":
-				parts.push(
-					`Q ${cmd.x1 * scale} ${flipY ? -cmd.y1 * scale : cmd.y1 * scale} ${cmd.x * scale} ${flipY ? -cmd.y * scale : cmd.y * scale}`,
-				);
+				result += `Q ${cmd.x1 * scale} ${cmd.y1 * scale * ySign} ${cmd.x * scale} ${cmd.y * scale * ySign}`;
 				break;
 			case "C":
-				parts.push(
-					`C ${cmd.x1 * scale} ${flipY ? -cmd.y1 * scale : cmd.y1 * scale} ${cmd.x2 * scale} ${flipY ? -cmd.y2 * scale : cmd.y2 * scale} ${cmd.x * scale} ${flipY ? -cmd.y * scale : cmd.y * scale}`,
-				);
+				result += `C ${cmd.x1 * scale} ${cmd.y1 * scale * ySign} ${cmd.x2 * scale} ${cmd.y2 * scale * ySign} ${cmd.x * scale} ${cmd.y * scale * ySign}`;
 				break;
 			case "Z":
-				parts.push("Z");
+				result += "Z";
 				break;
 		}
 	}
 
-	return parts.join(" ");
+	return result;
 }
 
 /**
@@ -629,45 +656,8 @@ export function shapedTextToSVG(
 					maxY = Math.max(maxY, c.y);
 				}
 			} else {
-				// Standard path transformation (no matrix or using native transform)
-				const transformedCommands = path.commands.map((cmd): PathCommand => {
-					switch (cmd.type) {
-						case "M":
-						case "L":
-							return {
-								type: cmd.type,
-								x: cmd.x * scale + offsetX,
-								y: -cmd.y * scale + offsetY,
-							};
-						case "Q":
-							return {
-								type: "Q",
-								x1: cmd.x1 * scale + offsetX,
-								y1: -cmd.y1 * scale + offsetY,
-								x: cmd.x * scale + offsetX,
-								y: -cmd.y * scale + offsetY,
-							};
-						case "C":
-							return {
-								type: "C",
-								x1: cmd.x1 * scale + offsetX,
-								y1: -cmd.y1 * scale + offsetY,
-								x2: cmd.x2 * scale + offsetX,
-								y2: -cmd.y2 * scale + offsetY,
-								x: cmd.x * scale + offsetX,
-								y: -cmd.y * scale + offsetY,
-							};
-						case "Z":
-							return { type: "Z" };
-						default:
-							return cmd;
-					}
-				});
-
-				pathStr = pathToSVG(
-					{ commands: transformedCommands, bounds: null },
-					{ flipY: false, scale: 1 },
-				);
+				// Direct SVG serialization - no intermediate array allocation
+				pathStr = pathToSVGDirect(path, scale, offsetX, offsetY);
 
 				// Update bounds
 				const b = path.bounds;
@@ -840,44 +830,8 @@ export function shapedTextToSVGWithVariation(
 			const offsetX = x + glyph.xOffset * scale;
 			const offsetY = y - glyph.yOffset * scale;
 
-			const transformedCommands = path.commands.map((cmd): PathCommand => {
-				switch (cmd.type) {
-					case "M":
-					case "L":
-						return {
-							type: cmd.type,
-							x: cmd.x * scale + offsetX,
-							y: -cmd.y * scale + offsetY,
-						};
-					case "Q":
-						return {
-							type: "Q",
-							x1: cmd.x1 * scale + offsetX,
-							y1: -cmd.y1 * scale + offsetY,
-							x: cmd.x * scale + offsetX,
-							y: -cmd.y * scale + offsetY,
-						};
-					case "C":
-						return {
-							type: "C",
-							x1: cmd.x1 * scale + offsetX,
-							y1: -cmd.y1 * scale + offsetY,
-							x2: cmd.x2 * scale + offsetX,
-							y2: -cmd.y2 * scale + offsetY,
-							x: cmd.x * scale + offsetX,
-							y: -cmd.y * scale + offsetY,
-						};
-					case "Z":
-						return { type: "Z" };
-					default:
-						return cmd;
-				}
-			});
-
-			const pathStr = pathToSVG(
-				{ commands: transformedCommands, bounds: null },
-				{ flipY: false, scale: 1 },
-			);
+			// Direct SVG serialization - no intermediate array allocation
+			const pathStr = pathToSVGDirect(path, scale, offsetX, offsetY);
 			paths.push(pathStr);
 
 			const b = path.bounds;
@@ -1146,4 +1100,40 @@ export function applyMatrixToContext(
  */
 export function matrixToSVGTransform(matrix: Matrix2D): string {
 	return `matrix(${matrix[0]} ${matrix[1]} ${matrix[2]} ${matrix[3]} ${matrix[4]} ${matrix[5]})`;
+}
+
+/**
+ * Direct SVG serialization with transform applied in single pass
+ * Avoids creating intermediate PathCommand arrays
+ */
+export function pathToSVGDirect(
+	path: GlyphPath,
+	scale: number,
+	offsetX: number,
+	offsetY: number,
+): string {
+	let result = "";
+
+	for (const cmd of path.commands) {
+		if (result) result += " ";
+		switch (cmd.type) {
+			case "M":
+				result += `M ${cmd.x * scale + offsetX} ${-cmd.y * scale + offsetY}`;
+				break;
+			case "L":
+				result += `L ${cmd.x * scale + offsetX} ${-cmd.y * scale + offsetY}`;
+				break;
+			case "Q":
+				result += `Q ${cmd.x1 * scale + offsetX} ${-cmd.y1 * scale + offsetY} ${cmd.x * scale + offsetX} ${-cmd.y * scale + offsetY}`;
+				break;
+			case "C":
+				result += `C ${cmd.x1 * scale + offsetX} ${-cmd.y1 * scale + offsetY} ${cmd.x2 * scale + offsetX} ${-cmd.y2 * scale + offsetY} ${cmd.x * scale + offsetX} ${-cmd.y * scale + offsetY}`;
+				break;
+			case "Z":
+				result += "Z";
+				break;
+		}
+	}
+
+	return result;
 }

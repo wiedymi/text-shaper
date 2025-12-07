@@ -1171,73 +1171,75 @@ export function getScriptTag(script: Script): string {
 	return tagMap[script] ?? "DFLT";
 }
 
+/** Static set of complex scripts (created once at module load) */
+const COMPLEX_SCRIPTS = new Set([
+	Script.Arabic,
+	Script.Syriac,
+	Script.Hebrew,
+	Script.Thaana,
+	Script.Nko,
+	Script.Devanagari,
+	Script.Bengali,
+	Script.Gurmukhi,
+	Script.Gujarati,
+	Script.Oriya,
+	Script.Tamil,
+	Script.Telugu,
+	Script.Kannada,
+	Script.Malayalam,
+	Script.Sinhala,
+	Script.Thai,
+	Script.Lao,
+	Script.Tibetan,
+	Script.Myanmar,
+	Script.Khmer,
+	Script.Mongolian,
+	Script.Hangul,
+]);
+
+/** Static set of RTL scripts (created once at module load) */
+const RTL_SCRIPTS = new Set([
+	Script.Arabic,
+	Script.Hebrew,
+	Script.Syriac,
+	Script.Thaana,
+	Script.Nko,
+	Script.Samaritan,
+	Script.Mandaic,
+	Script.ImperialAramaic,
+	Script.Phoenician,
+	Script.OldSouthArabian,
+	Script.OldNorthArabian,
+	Script.Avestan,
+	Script.InscriptionalParthian,
+	Script.InscriptionalPahlavi,
+	Script.PsalterPahlavi,
+	Script.Hatran,
+	Script.Lydian,
+	Script.Nabataean,
+	Script.Palmyrene,
+	Script.Manichaean,
+	Script.MendeKikakui,
+	Script.HanifiRohingya,
+	Script.Yezidi,
+	Script.OldSogdian,
+	Script.Sogdian,
+	Script.Elymaic,
+	Script.Chorasmian,
+	Script.OldUyghur,
+	Script.Adlam,
+]);
+
 /**
  * Check if a script requires complex shaping
  */
 export function isComplexScript(script: Script): boolean {
-	const complexScripts = new Set([
-		Script.Arabic,
-		Script.Syriac,
-		Script.Hebrew,
-		Script.Thaana,
-		Script.Nko,
-		Script.Devanagari,
-		Script.Bengali,
-		Script.Gurmukhi,
-		Script.Gujarati,
-		Script.Oriya,
-		Script.Tamil,
-		Script.Telugu,
-		Script.Kannada,
-		Script.Malayalam,
-		Script.Sinhala,
-		Script.Thai,
-		Script.Lao,
-		Script.Tibetan,
-		Script.Myanmar,
-		Script.Khmer,
-		Script.Mongolian,
-		Script.Hangul,
-	]);
-
-	return complexScripts.has(script);
+	return COMPLEX_SCRIPTS.has(script);
 }
 
 /**
  * Get script direction (LTR or RTL)
  */
 export function getScriptDirection(script: Script): "ltr" | "rtl" {
-	const rtlScripts = new Set([
-		Script.Arabic,
-		Script.Hebrew,
-		Script.Syriac,
-		Script.Thaana,
-		Script.Nko,
-		Script.Samaritan,
-		Script.Mandaic,
-		Script.ImperialAramaic,
-		Script.Phoenician,
-		Script.OldSouthArabian,
-		Script.OldNorthArabian,
-		Script.Avestan,
-		Script.InscriptionalParthian,
-		Script.InscriptionalPahlavi,
-		Script.PsalterPahlavi,
-		Script.Hatran,
-		Script.Lydian,
-		Script.Nabataean,
-		Script.Palmyrene,
-		Script.Manichaean,
-		Script.MendeKikakui,
-		Script.HanifiRohingya,
-		Script.Yezidi,
-		Script.OldSogdian,
-		Script.Sogdian,
-		Script.Elymaic,
-		Script.Chorasmian,
-		Script.OldUyghur,
-		Script.Adlam,
-	]);
-
-	return rtlScripts.has(script) ? "rtl" : "ltr";
+	return RTL_SCRIPTS.has(script) ? "rtl" : "ltr";
 }

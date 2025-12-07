@@ -25,6 +25,12 @@ export class GlyphBuffer {
 	/** Glyph position array */
 	positions: GlyphPosition[] = [];
 
+	/** Deleted glyph markers for deferred removal */
+	private _deleted: Uint8Array | null = null;
+
+	/** Count of deleted glyphs pending compaction */
+	private _deletedCount = 0;
+
 	/** Create buffer with pre-allocated capacity */
 	static withCapacity(capacity: number): GlyphBuffer {
 		const buffer = new GlyphBuffer();
@@ -79,6 +85,19 @@ export class GlyphBuffer {
 	insertGlyph(index: number, info: GlyphInfo, position: GlyphPosition): void {
 		this.infos.splice(index, 0, info);
 		this.positions.splice(index, 0, position);
+		// Expand deleted array if needed
+		if (this._deleted) {
+			const newDeleted = new Uint8Array(this.infos.length);
+			// Copy old values, shifting indices after insertion point
+			for (let i = 0; i < index; i++) {
+				newDeleted[i] = this._deleted[i];
+			}
+			newDeleted[index] = 0; // New glyph is not deleted
+			for (let i = index; i < this._deleted.length; i++) {
+				newDeleted[i + 1] = this._deleted[i];
+			}
+			this._deleted = newDeleted;
+		}
 	}
 
 	/** Remove glyphs in range [start, end) */
@@ -86,6 +105,58 @@ export class GlyphBuffer {
 		const count = end - start;
 		this.infos.splice(start, count);
 		this.positions.splice(start, count);
+		// Shrink deleted array if exists
+		if (this._deleted && this._deleted.length > this.infos.length) {
+			this._deleted = this._deleted.slice(0, this.infos.length);
+		}
+	}
+
+	/**
+	 * Mark a glyph for deferred deletion. Much faster than removeRange for
+	 * multiple deletions - call compact() once at end of GSUB phase.
+	 */
+	markDeleted(index: number): void {
+		if (!this._deleted) {
+			this._deleted = new Uint8Array(this.infos.length);
+		}
+		if (!this._deleted[index]) {
+			this._deleted[index] = 1;
+			this._deletedCount++;
+		}
+	}
+
+	/** Check if a glyph is marked for deletion */
+	isDeleted(index: number): boolean {
+		return this._deleted ? this._deleted[index] === 1 : false;
+	}
+
+	/** Returns true if there are pending deletions */
+	hasPendingDeletions(): boolean {
+		return this._deletedCount > 0;
+	}
+
+	/**
+	 * Compact buffer by removing all marked-for-deletion glyphs in a single O(n) pass.
+	 * Call this after GSUB phase.
+	 */
+	compact(): void {
+		if (this._deletedCount === 0 || !this._deleted) return;
+
+		let writeIdx = 0;
+		for (let readIdx = 0; readIdx < this.infos.length; readIdx++) {
+			if (!this._deleted[readIdx]) {
+				if (writeIdx !== readIdx) {
+					this.infos[writeIdx] = this.infos[readIdx];
+					this.positions[writeIdx] = this.positions[readIdx];
+				}
+				writeIdx++;
+			}
+		}
+
+		this.infos.length = writeIdx;
+		this.positions.length = writeIdx;
+		this._deleted = null;
+		this._deletedCount = 0;
 	}
 
 	/** Merge clusters from start to end (inclusive) */
