@@ -187,7 +187,53 @@ raster/
   hinting/
     interpreter.ts     # TrueType instruction interpreter
   rasterizer.ts        # Scanline rasterizer
+  blur.ts, cascade-blur.ts  # Blur algorithms
+  sdf.ts, msdf.ts      # Signed distance field rendering
+  atlas.ts             # Texture atlas generation
+  stroker.ts           # Path stroking
 ```
+
+### Fluent Module (`src/fluent/`)
+
+Ergonomic API for composing transforms and rendering operations.
+
+```
+fluent/
+  path-builder.ts      # PathBuilder class with lazy transforms
+  bitmap-builder.ts    # BitmapBuilder class for raster effects
+  pipe.ts              # Functional pipe utilities and operators
+  types.ts             # TransformState, RasterOptions, etc.
+  index.ts             # Entry points (glyph, char, path, bitmap, combine)
+```
+
+The fluent module provides two composition styles:
+
+1. **Builder pattern**: Method chaining with `PathBuilder` and `BitmapBuilder`
+2. **Pipe pattern**: Functional composition with curried operators
+
+```typescript
+// Builder style
+const rgba = glyph(font, glyphId)
+  ?.scale(2)
+  .rasterizeAuto()
+  .blur(5)
+  .toRGBA();
+
+// Pipe style
+const rgba = pipe(
+  getGlyphPath(font, glyphId),
+  $scale(2),
+  $rasterizeAuto(),
+  $blur(5),
+  $toRGBA
+);
+```
+
+**Design decisions:**
+- Transforms are lazy (accumulated as matrices) until `.apply()` or rendering
+- Path effects (embolden, stroke) are eager and force transform application
+- Bitmap operations are always eager (applied immediately)
+- All methods return new instances (immutable)
 
 ## Type System
 

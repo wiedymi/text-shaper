@@ -564,6 +564,7 @@ export {
 	copyBitmap,
 	emboldenBitmap,
 	resizeBitmap,
+	resizeBitmapBilinear,
 } from "./bitmap-utils.ts";
 // Re-export blur filters
 export {

@@ -252,6 +252,99 @@ const rule = getFillRuleFromFlags(path, FillRule.NonZero);
 // FillRule.EvenOdd - Even-odd alternating fill
 ```
 
+## Fluent API for Rasterization
+
+The fluent API provides a more ergonomic way to rasterize glyphs with transforms and effects:
+
+### Basic Rasterization
+
+```typescript
+import { glyph, char } from "text-shaper";
+
+// Rasterize with auto-computed bounds
+const rgba = glyph(font, glyphId)
+  ?.scale(2)
+  .rasterizeAuto({ padding: 2 })
+  .toRGBA();
+
+// From character
+const bitmap = char(font, "A")
+  ?.scale(3)
+  .rasterizeAuto()
+  .toBitmap();
+```
+
+### Bitmap Effects
+
+```typescript
+// Blur effects
+const blurred = glyph(font, glyphId)
+  ?.rasterizeAuto({ padding: 20 })
+  .blur(5)              // Gaussian blur
+  .toRGBA();
+
+// Fast blur for large radii
+const fastBlurred = glyph(font, glyphId)
+  ?.rasterizeAuto({ padding: 50 })
+  .fastBlur(20)         // O(1) cascade blur
+  .toRGBA();
+
+// Bitmap emboldening
+const bold = glyph(font, glyphId)
+  ?.rasterizeAuto()
+  .embolden(2, 2)
+  .toRGBA();
+```
+
+### Compositing
+
+```typescript
+// Shadow effect
+const glyphPath = glyph(font, glyphId)?.scale(2);
+const shadow = glyphPath?.clone()
+  .translate(4, 4)
+  .rasterizeAuto({ padding: 20 })
+  .cascadeBlur(8);
+const main = glyphPath?.rasterizeAuto({ padding: 20 });
+const result = shadow?.composite(main!).toRGBA();
+
+// Additive blending
+const glow = shadow?.add(main!).toRGBA();
+```
+
+### SDF/MSDF for GPU Rendering
+
+```typescript
+// Signed Distance Field
+const sdf = glyph(font, glyphId)
+  ?.toSdfAuto({ spread: 8, scale: 0.1 })
+  .toGray();
+
+// Multi-channel SDF (better quality)
+const msdf = glyph(font, glyphId)
+  ?.toMsdfAuto({ spread: 8, scale: 0.1 })
+  .toRGBA();
+```
+
+### Pipe Style
+
+```typescript
+import { pipe, $scale, $rasterizeAuto, $blur, $toRGBA, getGlyphPath } from "text-shaper";
+
+const path = getGlyphPath(font, glyphId);
+if (path) {
+  const rgba = pipe(
+    path,
+    $scale(2, 2),
+    $rasterizeAuto({ padding: 5 }),
+    $blur(3),
+    $toRGBA
+  );
+}
+```
+
+See the [Fluent API Reference](/api/fluent) for complete documentation.
+
 ## Performance Tips
 
 1. **Reuse atlases**: Build atlases once and reuse for rendering

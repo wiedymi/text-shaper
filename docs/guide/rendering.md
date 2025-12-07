@@ -390,6 +390,89 @@ console.log(lines);
 // ["The quick brown", "fox jumps over", "the lazy dog"]
 ```
 
+## Fluent API
+
+For a more ergonomic approach, use the fluent API which provides method chaining:
+
+### Builder Style
+
+```typescript
+import { glyph, char, combine } from "text-shaper";
+
+// Single glyph rendering
+const rgba = glyph(font, glyphId)
+  ?.scale(2)
+  .rotateDeg(15)
+  .rasterizeAuto({ padding: 2 })
+  .blur(5)
+  .toRGBA();
+
+// From character
+const svg = char(font, "A")
+  ?.scale(2)
+  .italic(12)
+  .toSVG();
+
+// Canvas rendering
+const path = glyph(font, glyphId)?.scale(2);
+path?.toCanvas(ctx, {
+  offsetX: 100,
+  offsetY: 200,
+  fill: "black"
+});
+
+// Combining multiple glyphs
+const h = glyph(font, font.glyphId("H".charCodeAt(0))!)?.translate(0, 0);
+const i = glyph(font, font.glyphId("i".charCodeAt(0))!)?.translate(50, 0);
+if (h && i) {
+  const combined = combine(h, i).scale(2).toSVG();
+}
+```
+
+### Pipe Style
+
+```typescript
+import { pipe, $scale, $rotate, $toSVG, getGlyphPath } from "text-shaper";
+
+const path = getGlyphPath(font, glyphId);
+if (path) {
+  const svg = pipe(
+    path,
+    $scale(2, 2),
+    $rotate(Math.PI / 4),
+    $toSVG()
+  );
+}
+```
+
+### Text Effects with Fluent API
+
+```typescript
+// Synthetic bold italic
+const boldItalic = glyph(font, glyphId)
+  ?.embolden(50)
+  .italic(12)
+  .scale(2)
+  .toSVG();
+
+// Stroked text
+const stroked = glyph(font, glyphId)
+  ?.stroke({ width: 20, lineCap: "round", lineJoin: "round" })
+  .scale(2)
+  .toSVG();
+
+// Shadow effect
+const glyphPath = glyph(font, glyphId)?.scale(2);
+const shadow = glyphPath?.clone()
+  .translate(4, 4)
+  .rasterizeAuto({ padding: 20 })
+  .cascadeBlur(8);
+const main = glyphPath?.rasterizeAuto({ padding: 20 });
+const result = shadow?.composite(main!).toRGBA();
+```
+
+See the [Fluent API Reference](/api/fluent) for complete documentation.
+
 ## Performance Optimization
 
 - Cache Path2D objects for frequently used glyphs

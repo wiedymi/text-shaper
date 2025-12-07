@@ -61,6 +61,7 @@ export default defineConfig({
             { text: 'Shaping', link: '/api/shaping' },
             { text: 'Rendering', link: '/api/rendering' },
             { text: 'Raster', link: '/api/raster' },
+            { text: 'Fluent API', link: '/api/fluent' },
             { text: 'Tables', link: '/api/tables' }
           ]
         }

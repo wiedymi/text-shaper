@@ -334,6 +334,88 @@ export function resizeBitmap(
 }
 
 /**
+ * Resize bitmap using bilinear interpolation
+ * Produces smoother results than nearest-neighbor, ideal for downsampling
+ */
+export function resizeBitmapBilinear(
+	bitmap: Bitmap,
+	newWidth: number,
+	newHeight: number,
+): Bitmap {
+	const result = createBitmap(newWidth, newHeight, bitmap.pixelMode);
+
+	const xRatio = (bitmap.width - 1) / Math.max(1, newWidth - 1);
+	const yRatio = (bitmap.rows - 1) / Math.max(1, newHeight - 1);
+
+	if (bitmap.pixelMode === PixelMode.Gray) {
+		for (let y = 0; y < newHeight; y++) {
+			const srcY = y * yRatio;
+			const y0 = Math.floor(srcY);
+			const y1 = Math.min(y0 + 1, bitmap.rows - 1);
+			const yFrac = srcY - y0;
+
+			for (let x = 0; x < newWidth; x++) {
+				const srcX = x * xRatio;
+				const x0 = Math.floor(srcX);
+				const x1 = Math.min(x0 + 1, bitmap.width - 1);
+				const xFrac = srcX - x0;
+
+				const p00 = bitmap.buffer[y0 * bitmap.pitch + x0] ?? 0;
+				const p10 = bitmap.buffer[y0 * bitmap.pitch + x1] ?? 0;
+				const p01 = bitmap.buffer[y1 * bitmap.pitch + x0] ?? 0;
+				const p11 = bitmap.buffer[y1 * bitmap.pitch + x1] ?? 0;
+
+				const top = p00 + (p10 - p00) * xFrac;
+				const bottom = p01 + (p11 - p01) * xFrac;
+				const value = top + (bottom - top) * yFrac;
+
+				result.buffer[y * result.pitch + x] = Math.round(value);
+			}
+		}
+	} else if (bitmap.pixelMode === PixelMode.Mono) {
+		// For mono, fall back to nearest-neighbor (bilinear doesn't make sense for 1-bit)
+		return resizeBitmap(bitmap, newWidth, newHeight);
+	} else if (
+		bitmap.pixelMode === PixelMode.LCD ||
+		bitmap.pixelMode === PixelMode.LCD_V
+	) {
+		for (let y = 0; y < newHeight; y++) {
+			const srcY = y * yRatio;
+			const y0 = Math.floor(srcY);
+			const y1 = Math.min(y0 + 1, bitmap.rows - 1);
+			const yFrac = srcY - y0;
+
+			for (let x = 0; x < newWidth; x++) {
+				const srcX = x * xRatio;
+				const x0 = Math.floor(srcX);
+				const x1 = Math.min(x0 + 1, bitmap.width - 1);
+				const xFrac = srcX - x0;
+
+				const idx00 = y0 * bitmap.pitch + x0 * 3;
+				const idx10 = y0 * bitmap.pitch + x1 * 3;
+				const idx01 = y1 * bitmap.pitch + x0 * 3;
+				const idx11 = y1 * bitmap.pitch + x1 * 3;
+
+				for (let c = 0; c < 3; c++) {
+					const p00 = bitmap.buffer[idx00 + c] ?? 0;
+					const p10 = bitmap.buffer[idx10 + c] ?? 0;
+					const p01 = bitmap.buffer[idx01 + c] ?? 0;
+					const p11 = bitmap.buffer[idx11 + c] ?? 0;
+
+					const top = p00 + (p10 - p00) * xFrac;
+					const bottom = p01 + (p11 - p01) * xFrac;
+					const value = top + (bottom - top) * yFrac;
+
+					result.buffer[y * result.pitch + x * 3 + c] = Math.round(value);
+				}
+			}
+		}
+	}
+
+	return result;
+}
+
+/**
  * Add two bitmaps together (additive blend)
  * Result: dst = clamp(dst + src, 0, 255)
  * Used for combining glyph with shadow/glow

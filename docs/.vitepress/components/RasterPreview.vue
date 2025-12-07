@@ -11,6 +11,10 @@ const fontSize = ref(32)
 const pixelMode = ref<'gray' | 'mono' | 'lcd'>('gray')
 const hinting = ref(true)
 const zoom = ref(4)
+const displayMode = ref<'pixels' | 'smooth'>('pixels')
+const supersampling = ref<1 | 2>(1)
+const gammaCorrection = ref(true)
+const dpr = ref(1)
 
 const canvas = ref<HTMLCanvasElement | null>(null)
 const rasterInfo = ref<{
@@ -19,6 +23,7 @@ const rasterInfo = ref<{
   bearingX: number
   bearingY: number
   advance: number
+  renderSize: number
 } | null>(null)
 const error = ref('')
 
@@ -31,7 +36,7 @@ async function rasterize() {
   error.value = ''
 
   try {
-    const { rasterizeGlyph, PixelMode, bitmapToRGBA } = await import('text-shaper')
+    const { rasterizeGlyph, PixelMode, bitmapToRGBA, resizeBitmapBilinear } = await import('text-shaper')
 
     const codepoint = character.value.codePointAt(0) || 0
     const glyphId = props.font.glyphId(codepoint)
@@ -49,10 +54,21 @@ async function rasterize() {
 
     // CFF fonts don't have TrueType hinting, so disable it
     const useHinting = hinting.value && props.font.hasHinting
-    const result = rasterizeGlyph(props.font, glyphId, fontSize.value, {
+
+    const currentDpr = dpr.value
+    const isSmooth = displayMode.value === 'smooth'
+    const ssaa = supersampling.value
+
+    // In smooth mode: render at final display size (fontSize * zoom * dpr * supersampling)
+    // In pixels mode: render at fontSize, then zoom up with nearest-neighbor
+    const renderSize = isSmooth
+      ? fontSize.value * zoom.value * currentDpr * ssaa
+      : fontSize.value
+
+    const result = rasterizeGlyph(props.font, glyphId, renderSize, {
       pixelMode: mode,
       hinting: useHinting,
-      padding: 2,
+      padding: 2 * (isSmooth ? ssaa : 1),
     })
 
     if (!result || !result.bitmap || result.bitmap.width === 0 || result.bitmap.rows === 0) {
@@ -61,71 +77,120 @@ async function rasterize() {
       return
     }
 
+    // Downsample if supersampling in smooth mode
+    let finalBitmap = result.bitmap
+    if (isSmooth && ssaa > 1) {
+      const targetWidth = Math.max(1, Math.round(result.bitmap.width / ssaa))
+      const targetHeight = Math.max(1, Math.round(result.bitmap.rows / ssaa))
+      finalBitmap = resizeBitmapBilinear(result.bitmap, targetWidth, targetHeight)
+    }
+
     // Get advance width from font
     const advance = Math.round(props.font.advanceWidth(glyphId) * fontSize.value / props.font.unitsPerEm)
 
+    // Report the logical bitmap size (at fontSize, not zoomed)
+    const logicalScale = isSmooth ? (zoom.value * currentDpr) : 1
     rasterInfo.value = {
-      width: result.bitmap.width,
-      height: result.bitmap.rows,
-      bearingX: result.bearingX,
-      bearingY: result.bearingY,
+      width: Math.round(finalBitmap.width / logicalScale),
+      height: Math.round(finalBitmap.rows / logicalScale),
+      bearingX: Math.round(result.bearingX / logicalScale),
+      bearingY: Math.round(result.bearingY / logicalScale),
       advance,
+      renderSize: Math.round(renderSize),
     }
 
     // Draw to canvas
     const ctx = canvas.value.getContext('2d')
     if (!ctx) return
 
-    // bitmap.width is always the pixel width (not subpixel count)
-    const bitmapWidth = result.bitmap.width
-    const bitmapHeight = result.bitmap.rows
-    const displayWidth = bitmapWidth * zoom.value
-    const displayHeight = bitmapHeight * zoom.value
+    const bitmapWidth = finalBitmap.width
+    const bitmapHeight = finalBitmap.rows
 
-    canvas.value.width = displayWidth
-    canvas.value.height = displayHeight
+    if (isSmooth) {
+      // Smooth mode: canvas matches bitmap size, CSS scales down
+      // This gives us crisp HiDPI rendering
+      canvas.value.width = bitmapWidth
+      canvas.value.height = bitmapHeight
+      canvas.value.style.width = `${bitmapWidth / currentDpr}px`
+      canvas.value.style.height = `${bitmapHeight / currentDpr}px`
+    } else {
+      // Pixels mode: zoom up the small bitmap
+      const displayWidth = bitmapWidth * zoom.value
+      const displayHeight = bitmapHeight * zoom.value
+      canvas.value.width = displayWidth
+      canvas.value.height = displayHeight
+      canvas.value.style.width = ''
+      canvas.value.style.height = ''
+    }
 
     // Clear
     ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, displayWidth, displayHeight)
+    ctx.fillRect(0, 0, canvas.value.width, canvas.value.height)
 
-    // Convert bitmap to RGBA
-    const rgba = bitmapToRGBA(result.bitmap)
+    // Convert bitmap to RGBA with optional gamma correction
+    let rgba = bitmapToRGBA(finalBitmap)
 
-    // Create ImageData with correct dimensions
+    // Apply gamma correction for smoother perceived anti-aliasing
+    // Without correction, gray values appear too dark, making edges look harsh
+    if (isSmooth && gammaCorrection.value && pixelMode.value === 'gray') {
+      // Gamma 1.8 lightens mid-tones for smoother edges
+      const gamma = 1.8
+
+      // Create new array since bitmapToRGBA returns Uint8Array
+      const corrected = new Uint8Array(rgba.length)
+      for (let i = 0; i < rgba.length; i += 4) {
+        // rgba[i] is the display value (255=white, 0=black for text)
+        const normalized = rgba[i] / 255
+        // Apply gamma curve - this lightens mid-tones
+        const value = Math.round(Math.pow(normalized, 1 / gamma) * 255)
+
+        corrected[i] = value
+        corrected[i + 1] = value
+        corrected[i + 2] = value
+        corrected[i + 3] = rgba[i + 3]
+      }
+      rgba = corrected
+    }
+
+    // Create ImageData
     const imageData = new ImageData(
       new Uint8ClampedArray(rgba),
       bitmapWidth,
       bitmapHeight
     )
 
-    // Draw at 1:1 scale first
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = bitmapWidth
-    tempCanvas.height = bitmapHeight
-    const tempCtx = tempCanvas.getContext('2d')
-    if (tempCtx) {
-      tempCtx.putImageData(imageData, 0, 0)
+    if (isSmooth) {
+      // Smooth mode: draw directly at 1:1
+      ctx.putImageData(imageData, 0, 0)
+    } else {
+      // Pixels mode: draw to temp canvas, then scale up
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = bitmapWidth
+      tempCanvas.height = bitmapHeight
+      const tempCtx = tempCanvas.getContext('2d')
+      if (tempCtx) {
+        tempCtx.putImageData(imageData, 0, 0)
 
-      // Scale up with nearest neighbor (pixelated)
-      ctx.imageSmoothingEnabled = false
-      ctx.drawImage(tempCanvas, 0, 0, displayWidth, displayHeight)
+        // Scale up with nearest neighbor
+        ctx.imageSmoothingEnabled = false
+        ctx.drawImage(tempCanvas, 0, 0, canvas.value.width, canvas.value.height)
 
-      // Draw grid if zoomed enough
-      if (zoom.value >= 4) {
-        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
-        ctx.lineWidth = 1
-        for (let x = 0; x <= bitmapWidth; x++) {
-          ctx.beginPath()
-          ctx.moveTo(x * zoom.value, 0)
-          ctx.lineTo(x * zoom.value, displayHeight)
-          ctx.stroke()
-        }
-        for (let y = 0; y <= bitmapHeight; y++) {
-          ctx.beginPath()
-          ctx.moveTo(0, y * zoom.value)
-          ctx.lineTo(displayWidth, y * zoom.value)
-          ctx.stroke()
+        // Draw grid if zoomed enough
+        if (zoom.value >= 4) {
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
+          ctx.lineWidth = 1
+          for (let x = 0; x <= bitmapWidth; x++) {
+            ctx.beginPath()
+            ctx.moveTo(x * zoom.value, 0)
+            ctx.lineTo(x * zoom.value, canvas.value.height)
+            ctx.stroke()
+          }
+          for (let y = 0; y <= bitmapHeight; y++) {
+            ctx.beginPath()
+            ctx.moveTo(0, y * zoom.value)
+            ctx.lineTo(canvas.value.width, y * zoom.value)
+            ctx.stroke()
+          }
         }
       }
     }
@@ -137,7 +202,7 @@ async function rasterize() {
 }
 
 watch(
-  [character, fontSize, pixelMode, hinting, zoom],
+  [character, fontSize, pixelMode, hinting, zoom, displayMode, supersampling, gammaCorrection],
   () => rasterize()
 )
 
@@ -147,6 +212,7 @@ watch(
 )
 
 onMounted(() => {
+  dpr.value = window.devicePixelRatio || 1
   rasterize()
 })
 </script>
@@ -190,6 +256,32 @@ onMounted(() => {
           <span>TrueType Hinting</span>
         </label>
       </div>
+
+      <div class="input-row">
+        <label>Display Mode</label>
+        <div class="mode-toggle">
+          <button :class="{ active: displayMode === 'pixels' }" @click="displayMode = 'pixels'">
+            Pixels
+          </button>
+          <button :class="{ active: displayMode === 'smooth' }" @click="displayMode = 'smooth'">
+            Smooth
+          </button>
+        </div>
+      </div>
+
+      <div class="input-row" v-if="displayMode === 'smooth'">
+        <label class="checkbox-label">
+          <input type="checkbox" :checked="supersampling === 2" @change="supersampling = ($event.target as HTMLInputElement).checked ? 2 : 1" />
+          <span>2x Supersampling</span>
+        </label>
+      </div>
+
+      <div class="input-row" v-if="displayMode === 'smooth'">
+        <label class="checkbox-label">
+          <input type="checkbox" v-model="gammaCorrection" />
+          <span>Gamma Correction</span>
+        </label>
+      </div>
     </div>
 
     <div v-if="!props.font" class="no-font">
@@ -202,7 +294,7 @@ onMounted(() => {
       <div class="preview-section">
         <label>Rasterized Bitmap</label>
         <div class="canvas-container">
-          <canvas ref="canvas"></canvas>
+          <canvas ref="canvas" :class="{ pixelated: displayMode === 'pixels' }"></canvas>
         </div>
 
         <div v-if="rasterInfo" class="info-grid">
@@ -246,6 +338,15 @@ onMounted(() => {
             </p>
           </template>
           <p v-else>This font does not contain TrueType hinting instructions.</p>
+        </div>
+
+        <div v-if="rasterInfo" class="mode-info">
+          <p v-if="displayMode === 'pixels'">
+            <strong>Pixels:</strong> Rasterized at {{ fontSize }}px, zoomed {{ zoom }}x with nearest-neighbor for pixel inspection.
+          </p>
+          <p v-else>
+            <strong>Smooth:</strong> Rasterized at {{ rasterInfo.renderSize }}px ({{ fontSize }}px × {{ zoom }}x × {{ dpr }}dpr<span v-if="supersampling > 1"> × {{ supersampling }}ssaa</span>) for crisp HiDPI display.<span v-if="supersampling > 1"> Downsampled with bilinear filtering for smoother edges.</span>
+          </p>
         </div>
       </div>
     </template>
@@ -355,7 +456,7 @@ onMounted(() => {
   overflow: auto;
 }
 
-.canvas-container canvas {
+.canvas-container canvas.pixelated {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }

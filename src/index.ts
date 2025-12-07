@@ -301,6 +301,7 @@ export {
 	mulBitmaps,
 	padBitmap,
 	resizeBitmap,
+	resizeBitmapBilinear,
 	shiftBitmap,
 	subBitmaps,
 } from "./raster/bitmap-utils.ts";
@@ -413,6 +414,7 @@ export {
 // Rendering utilities
 export type { GlyphPath, PathCommand, ShapedGlyph } from "./render/path.ts";
 export {
+	applyMatrixToContext,
 	contourToPath,
 	createPath2D,
 	getGlyphPath,
@@ -420,8 +422,13 @@ export {
 	getTextWidth,
 	glyphBufferToShapedGlyphs,
 	glyphToSVG,
+	matrixToSVGTransform,
 	pathToCanvas,
+	pathToCanvasWithMatrix,
+	pathToCanvasWithMatrix3D,
 	pathToSVG,
+	pathToSVGWithMatrix,
+	pathToSVGWithMatrix3D,
 	renderShapedText,
 	renderShapedTextWithVariation,
 	shapedTextToSVG,
@@ -558,3 +565,64 @@ export {
 	splitWords,
 	WordBreakProperty,
 } from "./unicode/segmentation.ts";
+// Fluent API - Builder classes
+export { PathBuilder, BitmapBuilder } from "./fluent/index.ts";
+// Fluent API - Entry points
+export { glyph, char, glyphVar, path, bitmap, combine } from "./fluent/index.ts";
+// Fluent API - Pipe function
+export { pipe } from "./fluent/index.ts";
+// Fluent API - Pipe operators (prefixed with $ to avoid conflicts with existing exports)
+export {
+	// Path transforms
+	scale as $scale,
+	translate as $translate,
+	rotate as $rotate,
+	rotateDeg as $rotateDeg,
+	shear as $shear,
+	italic as $italic,
+	matrix as $matrix,
+	perspective as $perspective,
+	// Path effects
+	emboldenPath as $emboldenPath,
+	condensePath as $condensePath,
+	obliquePath as $obliquePath,
+	strokePath as $strokePath,
+	strokeAsymmetric as $strokeAsymmetric,
+	strokeAsymmetricCombined as $strokeAsymmetricCombined,
+	clone as $clone,
+	combinePaths as $combinePaths,
+	// Rasterization
+	rasterize as $rasterize,
+	rasterizeAuto as $rasterizeAuto,
+	rasterizeWithGradient as $rasterizeWithGradient,
+	// SDF/MSDF rendering
+	renderSdf as $renderSdf,
+	renderMsdf as $renderMsdf,
+	// Bitmap effects
+	blur as $blur,
+	boxBlur as $boxBlur,
+	cascadeBlur as $cascadeBlur,
+	adaptiveBlur as $adaptiveBlur,
+	fastBlur as $fastBlur,
+	embolden as $embolden,
+	shift as $shift,
+	resize as $resize,
+	resizeBilinear as $resizeBilinear,
+	pad as $pad,
+	convert as $convert,
+	// Output
+	toRGBA as $toRGBA,
+	toGray as $toGray,
+	toSVG as $toSVG,
+	copy as $copy,
+	fromGlyph as $fromGlyph,
+} from "./fluent/index.ts";
+// Fluent API - Types
+export type {
+	TransformState,
+	RasterOptions,
+	AutoRasterOptions,
+	SVGOptions,
+	SVGElementOptions,
+	CanvasOptions,
+} from "./fluent/types.ts";

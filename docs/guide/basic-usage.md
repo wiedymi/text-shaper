@@ -226,3 +226,40 @@ try {
 	console.error("Shaping failed:", error);
 }
 ```
+
+## Fluent API
+
+For rendering individual glyphs with transforms and effects, TextShaper provides a fluent API:
+
+```typescript
+import { glyph, char } from "text-shaper";
+
+// Render a glyph with transforms
+const rgba = glyph(font, glyphId)
+  ?.scale(2)
+  .rotateDeg(15)
+  .rasterizeAuto({ padding: 2 })
+  .toRGBA();
+
+// Render from character
+const svg = char(font, "A")
+  ?.scale(2)
+  .italic(12)
+  .toSVG();
+
+// With effects
+const blurred = glyph(font, glyphId)
+  ?.scale(2)
+  .rasterizeAuto({ padding: 10 })
+  .blur(5)
+  .toRGBA();
+```
+
+The fluent API supports:
+- **Transforms**: `scale()`, `rotate()`, `translate()`, `shear()`, `italic()`, `perspective()`
+- **Path effects**: `embolden()`, `condense()`, `oblique()`, `stroke()`
+- **Rasterization**: `rasterize()`, `rasterizeAuto()`, `toSdf()`, `toMsdf()`
+- **Bitmap effects**: `blur()`, `fastBlur()`, `embolden()`, `composite()`
+- **Output**: `toRGBA()`, `toGray()`, `toSVG()`, `toCanvas()`
+
+See the [Fluent API Reference](/api/fluent) for complete documentation.

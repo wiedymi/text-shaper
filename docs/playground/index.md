@@ -96,7 +96,7 @@ Apply blur filters and gradient fills to glyphs.
 
 ## Outline Transforms
 
-Apply 2D transformations (rotation, scale, shear) to glyph outlines.
+Apply 2D and 3D transformations (rotation, scale, shear, perspective) to glyph outlines using vector or raster rendering.
 
 <TransformPreview :font="font" :font-name="fontName" />
 

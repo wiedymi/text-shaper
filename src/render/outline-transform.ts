@@ -150,9 +150,17 @@ export function transformPoint3x3(
 	m: Matrix3x3,
 ): { x: number; y: number } {
 	const w = m[2][0] * x + m[2][1] * y + m[2][2];
-	if (Math.abs(w) < 1e-10) {
-		// Point at infinity
-		return { x: 0, y: 0 };
+	// Clamp w to prevent extreme coordinates when approaching or crossing zero
+	// w <= 0 means point is at or behind the "camera" plane
+	// w very small means coordinates would explode
+	const minW = 0.01;
+	if (w < minW) {
+		// Clamp to minimum positive w to prevent inversion and explosion
+		const clampedW = minW;
+		return {
+			x: (m[0][0] * x + m[0][1] * y + m[0][2]) / clampedW,
+			y: (m[1][0] * x + m[1][1] * y + m[1][2]) / clampedW,
+		};
 	}
 	return {
 		x: (m[0][0] * x + m[0][1] * y + m[0][2]) / w,

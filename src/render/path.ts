@@ -2,6 +2,12 @@ import type { GlyphBuffer } from "../buffer/glyph-buffer.ts";
 import type { Font } from "../font/font.ts";
 import type { Contour, GlyphPoint } from "../font/tables/glyf.ts";
 import type { GlyphId } from "../types.ts";
+import {
+	type Matrix2D,
+	type Matrix3x3,
+	transformPoint2D,
+	transformPoint3x3,
+} from "./outline-transform.ts";
 
 /**
  * Path command types for glyph rendering
@@ -451,6 +457,10 @@ export function renderShapedText(
 		strokeWidth?: number;
 		lineCap?: CanvasLineCap;
 		lineJoin?: CanvasLineJoin;
+		/** 2D affine matrix to apply to glyph coordinates */
+		matrix?: Matrix2D;
+		/** 3D perspective matrix to apply to glyph coordinates (takes precedence over matrix) */
+		matrix3D?: Matrix3x3;
 	},
 ): void {
 	const fontSize = options?.fontSize ?? 16;
@@ -459,6 +469,8 @@ export function renderShapedText(
 	const fill = options?.fill ?? "black";
 	const stroke = options?.stroke;
 	const strokeWidth = options?.strokeWidth ?? 1;
+	const matrix = options?.matrix;
+	const matrix3D = options?.matrix3D;
 
 	const scale = fontSize / font.unitsPerEm;
 
@@ -477,12 +489,41 @@ export function renderShapedText(
 		const path = getGlyphPath(font, glyph.glyphId);
 		if (path) {
 			ctx.beginPath();
-			pathToCanvas(ctx, path, {
-				scale,
-				flipY: true,
-				offsetX: x + glyph.xOffset * scale,
-				offsetY: y - glyph.yOffset * scale,
-			});
+
+			if (matrix3D) {
+				// Build combined matrix: translate to position, scale, then apply 3D
+				const posX = x + glyph.xOffset * scale;
+				const posY = y - glyph.yOffset * scale;
+				// Create combined 3x3 matrix with scale and position baked in
+				const combined: Matrix3x3 = [
+					[matrix3D[0][0] * scale, matrix3D[0][1] * scale, matrix3D[0][0] * posX + matrix3D[0][1] * posY + matrix3D[0][2]],
+					[matrix3D[1][0] * scale, matrix3D[1][1] * scale, matrix3D[1][0] * posX + matrix3D[1][1] * posY + matrix3D[1][2]],
+					[matrix3D[2][0] * scale, matrix3D[2][1] * scale, matrix3D[2][0] * posX + matrix3D[2][1] * posY + matrix3D[2][2]],
+				];
+				pathToCanvasWithMatrix3D(ctx, path, combined);
+			} else if (matrix) {
+				// Build combined 2D matrix: translate to position, scale, then apply matrix
+				const posX = x + glyph.xOffset * scale;
+				const posY = y - glyph.yOffset * scale;
+				// Combined: matrix * [scale, 0, 0, scale, posX, posY]
+				const combined: Matrix2D = [
+					matrix[0] * scale,
+					matrix[1] * scale,
+					matrix[2] * scale,
+					matrix[3] * scale,
+					matrix[0] * posX + matrix[2] * posY + matrix[4],
+					matrix[1] * posX + matrix[3] * posY + matrix[5],
+				];
+				pathToCanvasWithMatrix(ctx, path, combined);
+			} else {
+				pathToCanvas(ctx, path, {
+					scale,
+					flipY: true,
+					offsetX: x + glyph.xOffset * scale,
+					offsetY: y - glyph.yOffset * scale,
+				});
+			}
+
 			if (fill !== "none") ctx.fill();
 			if (stroke) ctx.stroke();
 		}
@@ -505,12 +546,21 @@ export function shapedTextToSVG(
 		strokeWidth?: number;
 		lineCap?: "butt" | "round" | "square";
 		lineJoin?: "miter" | "round" | "bevel";
+		/** 2D affine matrix to apply to glyph coordinates */
+		matrix?: Matrix2D;
+		/** 3D perspective matrix to apply to glyph coordinates (takes precedence over matrix) */
+		matrix3D?: Matrix3x3;
+		/** If true, use native SVG transform attribute instead of transforming path data (2D only) */
+		useNativeTransform?: boolean;
 	},
 ): string {
 	const fontSize = options?.fontSize ?? 100;
 	const fill = options?.fill ?? "currentColor";
 	const stroke = options?.stroke;
 	const strokeWidth = options?.strokeWidth ?? 1;
+	const matrix = options?.matrix;
+	const matrix3D = options?.matrix3D;
+	const useNativeTransform = options?.useNativeTransform ?? false;
 	const scale = fontSize / font.unitsPerEm;
 
 	const paths: string[] = [];
@@ -527,53 +577,107 @@ export function shapedTextToSVG(
 			const offsetX = x + glyph.xOffset * scale;
 			const offsetY = y - glyph.yOffset * scale;
 
-			// Transform commands with offset
-			const transformedCommands = path.commands.map((cmd): PathCommand => {
-				switch (cmd.type) {
-					case "M":
-					case "L":
-						return {
-							type: cmd.type,
-							x: cmd.x * scale + offsetX,
-							y: -cmd.y * scale + offsetY,
-						};
-					case "Q":
-						return {
-							type: "Q",
-							x1: cmd.x1 * scale + offsetX,
-							y1: -cmd.y1 * scale + offsetY,
-							x: cmd.x * scale + offsetX,
-							y: -cmd.y * scale + offsetY,
-						};
-					case "C":
-						return {
-							type: "C",
-							x1: cmd.x1 * scale + offsetX,
-							y1: -cmd.y1 * scale + offsetY,
-							x2: cmd.x2 * scale + offsetX,
-							y2: -cmd.y2 * scale + offsetY,
-							x: cmd.x * scale + offsetX,
-							y: -cmd.y * scale + offsetY,
-						};
-					case "Z":
-						return { type: "Z" };
-					default:
-						return cmd;
+			let pathStr: string;
+
+			if (matrix3D && !useNativeTransform) {
+				// Apply 3D matrix to path coordinates
+				const combined: Matrix3x3 = [
+					[matrix3D[0][0] * scale, matrix3D[0][1] * scale, matrix3D[0][0] * offsetX + matrix3D[0][1] * offsetY + matrix3D[0][2]],
+					[matrix3D[1][0] * scale, matrix3D[1][1] * scale, matrix3D[1][0] * offsetX + matrix3D[1][1] * offsetY + matrix3D[1][2]],
+					[matrix3D[2][0] * scale, matrix3D[2][1] * scale, matrix3D[2][0] * offsetX + matrix3D[2][1] * offsetY + matrix3D[2][2]],
+				];
+				pathStr = pathToSVGWithMatrix3D(path, combined);
+
+				// Update bounds with transformed corners
+				const b = path.bounds;
+				const corners = [
+					transformPoint3x3(b.xMin * scale + offsetX, -b.yMax * scale + offsetY, matrix3D),
+					transformPoint3x3(b.xMax * scale + offsetX, -b.yMax * scale + offsetY, matrix3D),
+					transformPoint3x3(b.xMin * scale + offsetX, -b.yMin * scale + offsetY, matrix3D),
+					transformPoint3x3(b.xMax * scale + offsetX, -b.yMin * scale + offsetY, matrix3D),
+				];
+				for (const c of corners) {
+					minX = Math.min(minX, c.x);
+					maxX = Math.max(maxX, c.x);
+					minY = Math.min(minY, c.y);
+					maxY = Math.max(maxY, c.y);
 				}
-			});
+			} else if (matrix && !useNativeTransform) {
+				// Apply 2D matrix to path coordinates
+				const combined: Matrix2D = [
+					matrix[0] * scale,
+					matrix[1] * scale,
+					matrix[2] * scale,
+					matrix[3] * scale,
+					matrix[0] * offsetX + matrix[2] * offsetY + matrix[4],
+					matrix[1] * offsetX + matrix[3] * offsetY + matrix[5],
+				];
+				pathStr = pathToSVGWithMatrix(path, combined);
 
-			const pathStr = pathToSVG(
-				{ commands: transformedCommands, bounds: null },
-				{ flipY: false, scale: 1 },
-			);
+				// Update bounds with transformed corners
+				const b = path.bounds;
+				const corners = [
+					transformPoint2D(b.xMin * scale + offsetX, -b.yMax * scale + offsetY, matrix),
+					transformPoint2D(b.xMax * scale + offsetX, -b.yMax * scale + offsetY, matrix),
+					transformPoint2D(b.xMin * scale + offsetX, -b.yMin * scale + offsetY, matrix),
+					transformPoint2D(b.xMax * scale + offsetX, -b.yMin * scale + offsetY, matrix),
+				];
+				for (const c of corners) {
+					minX = Math.min(minX, c.x);
+					maxX = Math.max(maxX, c.x);
+					minY = Math.min(minY, c.y);
+					maxY = Math.max(maxY, c.y);
+				}
+			} else {
+				// Standard path transformation (no matrix or using native transform)
+				const transformedCommands = path.commands.map((cmd): PathCommand => {
+					switch (cmd.type) {
+						case "M":
+						case "L":
+							return {
+								type: cmd.type,
+								x: cmd.x * scale + offsetX,
+								y: -cmd.y * scale + offsetY,
+							};
+						case "Q":
+							return {
+								type: "Q",
+								x1: cmd.x1 * scale + offsetX,
+								y1: -cmd.y1 * scale + offsetY,
+								x: cmd.x * scale + offsetX,
+								y: -cmd.y * scale + offsetY,
+							};
+						case "C":
+							return {
+								type: "C",
+								x1: cmd.x1 * scale + offsetX,
+								y1: -cmd.y1 * scale + offsetY,
+								x2: cmd.x2 * scale + offsetX,
+								y2: -cmd.y2 * scale + offsetY,
+								x: cmd.x * scale + offsetX,
+								y: -cmd.y * scale + offsetY,
+							};
+						case "Z":
+							return { type: "Z" };
+						default:
+							return cmd;
+					}
+				});
+
+				pathStr = pathToSVG(
+					{ commands: transformedCommands, bounds: null },
+					{ flipY: false, scale: 1 },
+				);
+
+				// Update bounds
+				const b = path.bounds;
+				minX = Math.min(minX, offsetX + b.xMin * scale);
+				maxX = Math.max(maxX, offsetX + b.xMax * scale);
+				minY = Math.min(minY, offsetY - b.yMax * scale);
+				maxY = Math.max(maxY, offsetY - b.yMin * scale);
+			}
+
 			paths.push(pathStr);
-
-			// Update bounds
-			const b = path.bounds;
-			minX = Math.min(minX, offsetX + b.xMin * scale);
-			maxX = Math.max(maxX, offsetX + b.xMax * scale);
-			minY = Math.min(minY, offsetY - b.yMax * scale);
-			maxY = Math.max(maxY, offsetY - b.yMin * scale);
 		}
 
 		x += glyph.xAdvance * scale;
@@ -594,8 +698,11 @@ export function shapedTextToSVG(
 		? ` stroke="${stroke}" stroke-width="${strokeWidth}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
 		: "";
 
+	// Use native transform attribute if requested (only for 2D matrix)
+	const transformAttr = useNativeTransform && matrix ? ` transform="${matrixToSVGTransform(matrix)}"` : "";
+
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-  <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}/>
+  <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}${transformAttr}/>
 </svg>`;
 }
 
@@ -834,4 +941,209 @@ export function createPath2D(
 	const p = new Path2D();
 	pathToCanvas(p, path, options);
 	return p;
+}
+
+/**
+ * Render path to canvas with 2D affine matrix transformation applied to coordinates
+ * The matrix transforms each point before drawing
+ */
+export function pathToCanvasWithMatrix(
+	ctx: CanvasRenderingContext2D | Path2D,
+	path: GlyphPath,
+	matrix: Matrix2D,
+	options?: { flipY?: boolean },
+): void {
+	const flipY = options?.flipY ?? true;
+	const ySign = flipY ? -1 : 1;
+
+	for (const cmd of path.commands) {
+		switch (cmd.type) {
+			case "M": {
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				ctx.moveTo(p.x, p.y);
+				break;
+			}
+			case "L": {
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				ctx.lineTo(p.x, p.y);
+				break;
+			}
+			case "Q": {
+				const p1 = transformPoint2D(cmd.x1, cmd.y1 * ySign, matrix);
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				ctx.quadraticCurveTo(p1.x, p1.y, p.x, p.y);
+				break;
+			}
+			case "C": {
+				const p1 = transformPoint2D(cmd.x1, cmd.y1 * ySign, matrix);
+				const p2 = transformPoint2D(cmd.x2, cmd.y2 * ySign, matrix);
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p.x, p.y);
+				break;
+			}
+			case "Z":
+				ctx.closePath();
+				break;
+		}
+	}
+}
+
+/**
+ * Convert path to SVG with 2D affine matrix transformation applied to coordinates
+ */
+export function pathToSVGWithMatrix(
+	path: GlyphPath,
+	matrix: Matrix2D,
+	options?: { flipY?: boolean },
+): string {
+	const flipY = options?.flipY ?? true;
+	const ySign = flipY ? -1 : 1;
+	const parts: string[] = [];
+
+	for (const cmd of path.commands) {
+		switch (cmd.type) {
+			case "M": {
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`M ${p.x} ${p.y}`);
+				break;
+			}
+			case "L": {
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`L ${p.x} ${p.y}`);
+				break;
+			}
+			case "Q": {
+				const p1 = transformPoint2D(cmd.x1, cmd.y1 * ySign, matrix);
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`Q ${p1.x} ${p1.y} ${p.x} ${p.y}`);
+				break;
+			}
+			case "C": {
+				const p1 = transformPoint2D(cmd.x1, cmd.y1 * ySign, matrix);
+				const p2 = transformPoint2D(cmd.x2, cmd.y2 * ySign, matrix);
+				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`C ${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p.x} ${p.y}`);
+				break;
+			}
+			case "Z":
+				parts.push("Z");
+				break;
+		}
+	}
+
+	return parts.join(" ");
+}
+
+/**
+ * Render path to canvas with 3D perspective matrix transformation
+ * Uses homogeneous coordinates for perspective projection
+ */
+export function pathToCanvasWithMatrix3D(
+	ctx: CanvasRenderingContext2D | Path2D,
+	path: GlyphPath,
+	matrix: Matrix3x3,
+	options?: { flipY?: boolean },
+): void {
+	const flipY = options?.flipY ?? true;
+	const ySign = flipY ? -1 : 1;
+
+	for (const cmd of path.commands) {
+		switch (cmd.type) {
+			case "M": {
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				ctx.moveTo(p.x, p.y);
+				break;
+			}
+			case "L": {
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				ctx.lineTo(p.x, p.y);
+				break;
+			}
+			case "Q": {
+				const p1 = transformPoint3x3(cmd.x1, cmd.y1 * ySign, matrix);
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				ctx.quadraticCurveTo(p1.x, p1.y, p.x, p.y);
+				break;
+			}
+			case "C": {
+				const p1 = transformPoint3x3(cmd.x1, cmd.y1 * ySign, matrix);
+				const p2 = transformPoint3x3(cmd.x2, cmd.y2 * ySign, matrix);
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				ctx.bezierCurveTo(p1.x, p1.y, p2.x, p2.y, p.x, p.y);
+				break;
+			}
+			case "Z":
+				ctx.closePath();
+				break;
+		}
+	}
+}
+
+/**
+ * Convert path to SVG with 3D perspective matrix transformation
+ * Uses homogeneous coordinates for perspective projection
+ */
+export function pathToSVGWithMatrix3D(
+	path: GlyphPath,
+	matrix: Matrix3x3,
+	options?: { flipY?: boolean },
+): string {
+	const flipY = options?.flipY ?? true;
+	const ySign = flipY ? -1 : 1;
+	const parts: string[] = [];
+
+	for (const cmd of path.commands) {
+		switch (cmd.type) {
+			case "M": {
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`M ${p.x} ${p.y}`);
+				break;
+			}
+			case "L": {
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`L ${p.x} ${p.y}`);
+				break;
+			}
+			case "Q": {
+				const p1 = transformPoint3x3(cmd.x1, cmd.y1 * ySign, matrix);
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`Q ${p1.x} ${p1.y} ${p.x} ${p.y}`);
+				break;
+			}
+			case "C": {
+				const p1 = transformPoint3x3(cmd.x1, cmd.y1 * ySign, matrix);
+				const p2 = transformPoint3x3(cmd.x2, cmd.y2 * ySign, matrix);
+				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
+				parts.push(`C ${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p.x} ${p.y}`);
+				break;
+			}
+			case "Z":
+				parts.push("Z");
+				break;
+		}
+	}
+
+	return parts.join(" ");
+}
+
+/**
+ * Apply 2D affine matrix to canvas context using native transform
+ * Use ctx.save() before and ctx.restore() after to preserve context state
+ */
+export function applyMatrixToContext(
+	ctx: CanvasRenderingContext2D,
+	matrix: Matrix2D,
+): void {
+	// Canvas transform: (a, b, c, d, e, f)
+	// Matrix2D: [a, b, c, d, tx, ty]
+	// Canvas expects: [a, b, c, d, e, f] where e=tx, f=ty
+	ctx.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]);
+}
+
+/**
+ * Convert 2D affine matrix to SVG transform attribute string
+ * Returns a string like "matrix(a, b, c, d, tx, ty)"
+ */
+export function matrixToSVGTransform(matrix: Matrix2D): string {
+	return `matrix(${matrix[0]} ${matrix[1]} ${matrix[2]} ${matrix[3]} ${matrix[4]} ${matrix[5]})`;
 }
