@@ -305,7 +305,7 @@ describe("Shape Plan Compilation Benchmark", () => {
 						gBuffer.reset()
 						shapeInto(notoSans, uBuffer, gBuffer)
 					},
-					{ iterations: 200 },
+					{ warmup: 100, iterations: 1000 },
 				),
 			)
 
@@ -319,7 +319,7 @@ describe("Shape Plan Compilation Benchmark", () => {
 						hb.shape(hbNotoSans.font, buffer)
 						buffer.destroy()
 					},
-					{ iterations: 200 },
+					{ warmup: 100, iterations: 1000 },
 				),
 			)
 

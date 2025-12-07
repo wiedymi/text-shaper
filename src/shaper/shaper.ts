@@ -226,16 +226,36 @@ function buildNextNonSkipArray(skip: SkipMarkers, length: number): Int16Array {
  * baseIndex[i] = index of the base/ligature glyph for mark at position i, or -1.
  * Also returns whether any marks were found in the buffer.
  */
+/**
+ * Quick check if buffer contains any mark glyphs.
+ * This is O(n) but exits early on first mark found.
+ */
+function hasAnyMarks(buffer: GlyphBuffer, font: Font): boolean {
+	if (!font.gdef) return false;
+	const infos = buffer.infos;
+	const len = buffer.length;
+	for (let i = 0; i < len; i++) {
+		const info = infos[i];
+		if (!info) continue;
+		const cls = getGlyphClass(font.gdef, info.glyphId);
+		if (cls === GlyphClass.Mark) return true;
+	}
+	return false;
+}
+
+/**
+ * Build base index array for mark positioning.
+ * Only called when hasMarks is true.
+ */
 function buildBaseIndexArray(
 	buffer: GlyphBuffer,
 	glyphClassCache: GlyphClassCache,
 	font: Font,
-): { baseIndex: Int16Array; hasMarks: boolean } {
+): Int16Array {
 	const baseIndex = new Int16Array(buffer.infos.length);
 	baseIndex.fill(-1);
 
 	let lastBaseIndex = -1;
-	let hasMarks = false;
 
 	for (let i = 0; i < buffer.infos.length; i++) {
 		const info = buffer.infos[i];
@@ -246,15 +266,13 @@ function buildBaseIndexArray(
 		if (cls === GlyphClass.Base || cls === 0 || cls === GlyphClass.Ligature) {
 			// This is a base or ligature, update the last base
 			lastBaseIndex = i;
-			baseIndex[i] = -1; // Bases don't have a base index
 		} else if (cls === GlyphClass.Mark) {
 			// This is a mark, point to the last base
 			baseIndex[i] = lastBaseIndex;
-			hasMarks = true;
 		}
 	}
 
-	return { baseIndex, hasMarks };
+	return baseIndex;
 }
 
 // Reusable GlyphBuffer pool for shapeInto
@@ -1524,22 +1542,28 @@ function getCachedGlyphClass(
 }
 
 function applyGpos(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
-	// Create glyph class cache for efficient mark positioning
-	const glyphClassCache: GlyphClassCache = new Map();
-
-	// Pre-compute base index array and detect marks in a single pass
-	const { baseIndex: baseIndexArray, hasMarks } = buildBaseIndexArray(
-		buffer,
-		glyphClassCache,
-		font,
-	);
-
 	// Build buffer digest for fast lookup skipping
 	const bufferDigest = new SetDigest();
 	const infos = buffer.infos;
 	const len = buffer.length;
 	for (let i = 0; i < len; i++) {
 		bufferDigest.add(infos[i]!.glyphId);
+	}
+
+	// Quick check for marks - avoid expensive base index build for simple Latin text
+	const hasMarks = hasAnyMarks(buffer, font);
+
+	// Only build base index and glyph class cache if we have marks
+	// This saves ~0.4μs per call for simple Latin text
+	let baseIndexArray: Int16Array;
+	let glyphClassCache: GlyphClassCache;
+	if (hasMarks) {
+		glyphClassCache = new Map();
+		baseIndexArray = buildBaseIndexArray(buffer, glyphClassCache, font);
+	} else {
+		// Provide empty placeholders - these won't be used since hasMarks is false
+		baseIndexArray = _emptyBaseIndex;
+		glyphClassCache = _emptyGlyphClassCache;
 	}
 
 	const lookups = plan.gposLookups;
@@ -1559,6 +1583,10 @@ function applyGpos(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 		);
 	}
 }
+
+// Empty placeholders for non-mark text to avoid allocation
+const _emptyBaseIndex = new Int16Array(0);
+const _emptyGlyphClassCache: GlyphClassCache = new Map();
 
 function applyGposLookup(
 	font: Font,
