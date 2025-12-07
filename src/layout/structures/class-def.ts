@@ -46,22 +46,47 @@ interface ClassRangeRecord {
 	classValue: uint16;
 }
 
-/** Format 2: Ranges of glyph IDs with class values */
+/** Format 2: Ranges of glyph IDs with class values - uses hash for small ranges */
 class ClassDefFormat2 implements ClassDef {
 	private readonly ranges: ClassRangeRecord[];
+	private readonly glyphMap: Map<GlyphId, number> | null;
 
 	constructor(ranges: ClassRangeRecord[]) {
 		this.ranges = ranges;
+
+		// Calculate total glyphs covered
+		let totalGlyphs = 0;
+		for (const range of ranges) {
+			totalGlyphs += range.endGlyphId - range.startGlyphId + 1;
+		}
+
+		// Use hash map for small-medium tables (< 2000 glyphs) for O(1) lookup
+		// Larger tables stick with binary search to avoid memory overhead
+		if (totalGlyphs < 2000) {
+			this.glyphMap = new Map();
+			for (const range of ranges) {
+				for (let g = range.startGlyphId; g <= range.endGlyphId; g++) {
+					this.glyphMap.set(g, range.classValue);
+				}
+			}
+		} else {
+			this.glyphMap = null;
+		}
 	}
 
 	get(glyphId: GlyphId): number {
-		// Binary search through ranges
+		// O(1) hash lookup if available
+		if (this.glyphMap) {
+			return this.glyphMap.get(glyphId) ?? 0;
+		}
+
+		// Binary search for large tables
 		let low = 0;
 		let high = this.ranges.length - 1;
 
 		while (low <= high) {
 			const mid = (low + high) >>> 1;
-			const range = this.ranges[mid]!; // Pre-allocated array, always defined
+			const range = this.ranges[mid]!;
 
 			if (glyphId > range.endGlyphId) {
 				low = mid + 1;
@@ -72,7 +97,7 @@ class ClassDefFormat2 implements ClassDef {
 			}
 		}
 
-		return 0; // Default class
+		return 0;
 	}
 
 	glyphsInClass(classValue: number): GlyphId[] {

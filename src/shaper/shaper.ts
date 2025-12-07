@@ -530,6 +530,7 @@ function applySingleSubstLookup(
 ): void {
 	const infos = buffer.infos;
 	const len = infos.length;
+	const digest = lookup.digest;
 
 	// FAST PATH: No skip checking needed
 	if (lookup.flag === 0 || !font.gdef) {
@@ -540,6 +541,8 @@ function applySingleSubstLookup(
 				const delta = subtable.deltaGlyphId;
 				for (let i = 0; i < len; i++) {
 					const info = infos[i]!;
+					// Fast digest check before expensive Coverage lookup
+					if (!digest.mayHave(info.glyphId)) continue;
 					if (subtable.coverage.get(info.glyphId) !== null) {
 						info.glyphId = (info.glyphId + delta) & 0xffff;
 					}
@@ -548,6 +551,8 @@ function applySingleSubstLookup(
 				const subs = subtable.substituteGlyphIds;
 				for (let i = 0; i < len; i++) {
 					const info = infos[i]!;
+					// Fast digest check before expensive Coverage lookup
+					if (!digest.mayHave(info.glyphId)) continue;
 					const idx = subtable.coverage.get(info.glyphId);
 					if (idx !== null) {
 						const rep = subs[idx];
@@ -560,6 +565,8 @@ function applySingleSubstLookup(
 		// Multiple subtables - use function
 		for (let i = 0; i < len; i++) {
 			const info = infos[i]!;
+			// Fast digest check before expensive Coverage lookup
+			if (!digest.mayHave(info.glyphId)) continue;
 			const replacement = applySingleSubst(lookup, info.glyphId);
 			if (replacement !== null) {
 				info.glyphId = replacement;
@@ -573,6 +580,8 @@ function applySingleSubstLookup(
 	for (let i = 0; i < len; i++) {
 		if (skip[i]) continue;
 		const info = infos[i]!;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) continue;
 		const replacement = applySingleSubst(lookup, info.glyphId);
 		if (replacement !== null) {
 			info.glyphId = replacement;
@@ -673,6 +682,7 @@ function applyLigatureSubstLookup(
 	const infos = buffer.infos;
 	const len = infos.length;
 	const needsSkipCheck = lookup.flag !== 0 && font.gdef !== null;
+	const digest = lookup.digest;
 
 	// Pre-compute skip markers only if needed
 	let skip: Uint8Array | null = null;
@@ -694,6 +704,11 @@ function applyLigatureSubstLookup(
 		}
 		// Use pre-computed skip markers
 		if (skip?.[i]) {
+			i++;
+			continue;
+		}
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info.glyphId)) {
 			i++;
 			continue;
 		}
@@ -1484,12 +1499,15 @@ function applyPairPosLookup(
 	const infos = buffer.infos;
 	const positions = buffer.positions;
 	const len = infos.length;
+	const digest = lookup.digest;
 
 	// FAST PATH: No skip checking needed (no GDEF or no filtering flags)
 	// This handles simple Latin text with no marks - O(n) with zero allocation
 	if (lookup.flag === 0 || !font.gdef) {
 		for (let i = 0; i < len - 1; i++) {
 			const info1 = infos[i]!;
+			// Fast digest check before expensive Coverage lookup
+			if (!digest.mayHave(info1.glyphId)) continue;
 			const info2 = infos[i + 1]!;
 			const pos1 = positions[i]!;
 			const pos2 = positions[i + 1]!;
@@ -1510,6 +1528,8 @@ function applyPairPosLookup(
 		if (j < 0) break;
 
 		const info1 = infos[i]!;
+		// Fast digest check before expensive Coverage lookup
+		if (!digest.mayHave(info1.glyphId)) continue;
 		const info2 = infos[j]!;
 		const pos1 = positions[i]!;
 		const pos2 = positions[j]!;

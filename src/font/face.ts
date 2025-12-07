@@ -18,6 +18,9 @@ export class Face {
 	/** User-space axis values */
 	private _variations: Map<Tag, number>;
 
+	/** Cached advance width deltas for variable fonts (glyphId -> delta) */
+	private _advanceDeltas: Map<GlyphId, number> | null = null;
+
 	constructor(font: Font, variations?: Record<string, number> | Variation[]) {
 		this.font = font;
 		this._coords = [];
@@ -43,6 +46,9 @@ export class Face {
 	setVariations(variations: Record<string, number> | Variation[]): void {
 		const fvar = this.font.fvar;
 		if (!fvar) return;
+
+		// Clear delta cache when variations change
+		this._advanceDeltas = null;
 
 		// Convert to map
 		if (Array.isArray(variations)) {
@@ -110,12 +116,24 @@ export class Face {
 	 * Get advance width for a glyph, including variation deltas
 	 */
 	advanceWidth(glyphId: GlyphId): number {
-		let advance = this.font.advanceWidth(glyphId);
+		const advance = this.font.advanceWidth(glyphId);
 
 		// Apply HVAR delta if variable
 		if (this._coords.length > 0 && this.font.hvar) {
+			// Check cache first
+			if (this._advanceDeltas) {
+				const cached = this._advanceDeltas.get(glyphId);
+				if (cached !== undefined) {
+					return advance + cached;
+				}
+			} else {
+				this._advanceDeltas = new Map();
+			}
+
+			// Calculate and cache delta
 			const delta = getAdvanceWidthDelta(this.font.hvar, glyphId, this._coords);
-			advance += delta;
+			this._advanceDeltas.set(glyphId, delta);
+			return advance + delta;
 		}
 
 		return advance;

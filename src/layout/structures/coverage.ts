@@ -16,12 +16,18 @@ export interface Coverage {
 	readonly size: number;
 }
 
-/** Format 1: Individual glyph IDs */
+/** Format 1: Individual glyph IDs - uses hash table for O(1) lookup */
 class CoverageFormat1 implements Coverage {
 	private readonly glyphArray: Uint16Array;
+	private readonly glyphMap: Map<GlyphId, number>;
 
 	constructor(glyphArray: Uint16Array) {
 		this.glyphArray = glyphArray;
+		// Build hash table for O(1) lookups
+		this.glyphMap = new Map();
+		for (let i = 0; i < glyphArray.length; i++) {
+			this.glyphMap.set(glyphArray[i]!, i);
+		}
 	}
 
 	get size(): number {
@@ -29,29 +35,12 @@ class CoverageFormat1 implements Coverage {
 	}
 
 	get(glyphId: GlyphId): number | null {
-		// Binary search since glyphs are sorted
-		let low = 0;
-		let high = this.glyphArray.length - 1;
-
-		while (low <= high) {
-			const mid = (low + high) >>> 1;
-			const midVal = this.glyphArray[mid]!; // Uint16Array never returns undefined
-
-			if (midVal < glyphId) {
-				low = mid + 1;
-			} else if (midVal > glyphId) {
-				high = mid - 1;
-			} else {
-				return mid; // Found - return coverage index
-			}
-		}
-
-		return null; // Not found
+		// O(1) hash lookup instead of O(log n) binary search
+		return this.glyphMap.get(glyphId) ?? null;
 	}
 
 	covers(glyphId: GlyphId): boolean {
-		// Reuse binary search - no redundant Set needed
-		return this.get(glyphId) !== null;
+		return this.glyphMap.has(glyphId);
 	}
 
 	glyphs(): GlyphId[] {

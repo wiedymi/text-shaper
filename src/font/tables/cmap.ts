@@ -225,6 +225,52 @@ function parseCmapFormat4(reader: Reader): CmapFormat4 {
 	const glyphIdCount = remainingBytes / 2;
 	const glyphIdArray = reader.uint16Array(glyphIdCount);
 
+	// Helper function for binary search lookup (used for cache building and fallback)
+	const binarySearchLookup = (codepoint: number): GlyphId | undefined => {
+		let low = 0;
+		let high = segCount - 1;
+
+		while (low <= high) {
+			const mid = (low + high) >>> 1;
+			const endCode = endCodes[mid]!;
+
+			if (codepoint > endCode) {
+				low = mid + 1;
+			} else {
+				const startCode = startCodes[mid]!;
+				if (codepoint < startCode) {
+					high = mid - 1;
+				} else {
+					const idRangeOffset = idRangeOffsets[mid]!;
+					const idDelta = idDeltas[mid]!;
+
+					if (idRangeOffset === 0) {
+						return (codepoint + idDelta) & 0xffff;
+					}
+
+					const glyphIdIndex =
+						idRangeOffset / 2 - (segCount - mid) + (codepoint - startCode);
+
+					const glyphId = glyphIdArray[glyphIdIndex];
+					if (glyphId === undefined || glyphId === 0) {
+						return 0;
+					}
+					return (glyphId + idDelta) & 0xffff;
+				}
+			}
+		}
+		return undefined;
+	};
+
+	// Build ASCII cache for O(1) lookups of common characters (0-255)
+	// Uses 512 bytes but eliminates binary search for 95%+ of Latin text
+	const asciiCache = new Uint16Array(256);
+	for (let cp = 0; cp < 256; cp++) {
+		const gid = binarySearchLookup(cp);
+		// Store glyph ID + 1 so we can distinguish "not found" (0) from glyph 0
+		asciiCache[cp] = gid !== undefined ? gid + 1 : 0;
+	}
+
 	return {
 		format: 4,
 		segCount,
@@ -234,49 +280,16 @@ function parseCmapFormat4(reader: Reader): CmapFormat4 {
 		idRangeOffsets,
 		glyphIdArray,
 		lookup(codepoint: number): GlyphId | undefined {
-			if (codepoint > 0xffff) return undefined;
-
-			// Binary search for segment
-			let low = 0;
-			let high = segCount - 1;
-
-			while (low <= high) {
-				const mid = (low + high) >>> 1;
-				const endCode = endCodes[mid];
-				if (endCode === undefined) break;
-
-				if (codepoint > endCode) {
-					low = mid + 1;
-				} else {
-					const startCode = startCodes[mid];
-					if (startCode === undefined) break;
-					if (codepoint < startCode) {
-						high = mid - 1;
-					} else {
-						// Found segment
-						const idRangeOffset = idRangeOffsets[mid];
-						const idDelta = idDeltas[mid];
-						if (idRangeOffset === undefined || idDelta === undefined) break;
-
-						if (idRangeOffset === 0) {
-							return (codepoint + idDelta) & 0xffff;
-						}
-
-						// Calculate index into glyphIdArray
-						// idRangeOffset is relative to its own position in the array
-						const glyphIdIndex =
-							idRangeOffset / 2 - (segCount - mid) + (codepoint - startCode);
-
-						const glyphId = glyphIdArray[glyphIdIndex];
-						if (glyphId === undefined || glyphId === 0) {
-							return 0;
-						}
-						return (glyphId + idDelta) & 0xffff;
-					}
-				}
+			// FAST PATH: O(1) direct lookup for ASCII/Latin-1 (0-255)
+			if (codepoint < 256) {
+				const cached = asciiCache[codepoint]!;
+				return cached === 0 ? undefined : cached - 1;
 			}
 
-			return undefined;
+			if (codepoint > 0xffff) return undefined;
+
+			// SLOW PATH: Binary search for higher codepoints
+			return binarySearchLookup(codepoint);
 		},
 	};
 }
@@ -296,30 +309,48 @@ function parseCmapFormat12(reader: Reader): CmapFormat12 {
 		};
 	}
 
+	// Helper for binary search lookup
+	const binarySearchLookup = (codepoint: number): GlyphId | undefined => {
+		let low = 0;
+		let high = groups.length - 1;
+
+		while (low <= high) {
+			const mid = (low + high) >>> 1;
+			const group = groups[mid];
+			if (!group) break;
+
+			if (codepoint > group.endCharCode) {
+				low = mid + 1;
+			} else if (codepoint < group.startCharCode) {
+				high = mid - 1;
+			} else {
+				return group.startGlyphId + (codepoint - group.startCharCode);
+			}
+		}
+		return undefined;
+	};
+
+	// Build ASCII cache for O(1) lookups of common characters (0-127)
+	// Uses 256 bytes but eliminates binary search for ASCII text
+	const asciiCache = new Uint16Array(128);
+	for (let cp = 0; cp < 128; cp++) {
+		const gid = binarySearchLookup(cp);
+		// Store glyph ID + 1 so we can distinguish "not found" (0) from glyph 0
+		asciiCache[cp] = gid !== undefined ? gid + 1 : 0;
+	}
+
 	return {
 		format: 12,
 		groups,
 		lookup(codepoint: number): GlyphId | undefined {
-			// Binary search for group
-			let low = 0;
-			let high = groups.length - 1;
-
-			while (low <= high) {
-				const mid = (low + high) >>> 1;
-				const group = groups[mid];
-				if (!group) break;
-
-				if (codepoint > group.endCharCode) {
-					low = mid + 1;
-				} else if (codepoint < group.startCharCode) {
-					high = mid - 1;
-				} else {
-					// Found group
-					return group.startGlyphId + (codepoint - group.startCharCode);
-				}
+			// FAST PATH: O(1) direct lookup for ASCII (0-127)
+			if (codepoint < 128) {
+				const cached = asciiCache[codepoint]!;
+				return cached === 0 ? undefined : cached - 1;
 			}
 
-			return undefined;
+			// SLOW PATH: Binary search for higher codepoints
+			return binarySearchLookup(codepoint);
 		},
 	};
 }

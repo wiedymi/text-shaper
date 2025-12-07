@@ -17,6 +17,7 @@ import {
 	parseScriptList,
 	type ScriptList,
 } from "../../layout/structures/layout-common.ts";
+import { SetDigest } from "../../layout/structures/set-digest.ts";
 import type { GlyphId, GlyphPosition, int16, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 import {
@@ -80,6 +81,8 @@ export interface GposLookup {
 	type: GposLookupType;
 	flag: uint16;
 	markFilteringSet?: uint16;
+	/** Bloom filter for fast O(1) glyph rejection */
+	digest: SetDigest;
 }
 
 /** Single adjustment lookup (Type 1) */
@@ -238,62 +241,125 @@ function parseGposLookup(reader: Reader): AnyGposLookup | null {
 
 	const baseProps = { flag: lookupFlag, markFilteringSet };
 
+	// Helper to build digest from subtables with coverage
+	const buildDigest = (subtables: { coverage: Coverage }[]): SetDigest => {
+		const digest = new SetDigest();
+		for (const st of subtables) {
+			digest.addCoverage(st.coverage);
+		}
+		return digest;
+	};
+
+	// Helper for mark lookups (need markCoverage)
+	const buildMarkDigest = (
+		subtables: { markCoverage: Coverage }[],
+	): SetDigest => {
+		const digest = new SetDigest();
+		for (const st of subtables) {
+			digest.addCoverage(st.markCoverage);
+		}
+		return digest;
+	};
+
 	switch (lookupType) {
-		case GposLookupType.Single:
+		case GposLookupType.Single: {
+			const subtables = parseSinglePos(reader, subtableOffsets);
 			return {
 				type: GposLookupType.Single,
 				...baseProps,
-				subtables: parseSinglePos(reader, subtableOffsets),
+				subtables,
+				digest: buildDigest(subtables),
 			};
+		}
 
-		case GposLookupType.Pair:
+		case GposLookupType.Pair: {
+			const subtables = parsePairPos(reader, subtableOffsets);
 			return {
 				type: GposLookupType.Pair,
 				...baseProps,
-				subtables: parsePairPos(reader, subtableOffsets),
+				subtables,
+				digest: buildDigest(subtables),
 			};
+		}
 
-		case GposLookupType.Cursive:
+		case GposLookupType.Cursive: {
+			const subtables = parseCursivePos(reader, subtableOffsets);
 			return {
 				type: GposLookupType.Cursive,
 				...baseProps,
-				subtables: parseCursivePos(reader, subtableOffsets),
+				subtables,
+				digest: buildDigest(subtables),
 			};
+		}
 
-		case GposLookupType.MarkToBase:
+		case GposLookupType.MarkToBase: {
+			const subtables = parseMarkBasePos(reader, subtableOffsets);
 			return {
 				type: GposLookupType.MarkToBase,
 				...baseProps,
-				subtables: parseMarkBasePos(reader, subtableOffsets),
+				subtables,
+				digest: buildMarkDigest(subtables),
 			};
+		}
 
-		case GposLookupType.MarkToLigature:
+		case GposLookupType.MarkToLigature: {
+			const subtables = parseMarkLigaturePos(reader, subtableOffsets);
 			return {
 				type: GposLookupType.MarkToLigature,
 				...baseProps,
-				subtables: parseMarkLigaturePos(reader, subtableOffsets),
+				subtables,
+				digest: buildMarkDigest(subtables),
 			};
+		}
 
-		case GposLookupType.MarkToMark:
+		case GposLookupType.MarkToMark: {
+			const subtables = parseMarkMarkPos(reader, subtableOffsets);
+			// MarkMark uses mark1Coverage for the first mark
+			const digest = new SetDigest();
+			for (const st of subtables) {
+				digest.addCoverage(st.mark1Coverage);
+			}
 			return {
 				type: GposLookupType.MarkToMark,
 				...baseProps,
-				subtables: parseMarkMarkPos(reader, subtableOffsets),
+				subtables,
+				digest,
 			};
+		}
 
-		case GposLookupType.Context:
+		case GposLookupType.Context: {
+			const subtables = parseContextPos(reader, subtableOffsets);
+			const digest = new SetDigest();
+			for (const st of subtables) {
+				if ("coverage" in st && st.coverage) {
+					digest.addCoverage(st.coverage);
+				}
+			}
 			return {
 				type: GposLookupType.Context,
 				...baseProps,
-				subtables: parseContextPos(reader, subtableOffsets),
+				subtables,
+				digest,
 			};
+		}
 
-		case GposLookupType.ChainingContext:
+		case GposLookupType.ChainingContext: {
+			const subtables = parseChainingContextPos(reader, subtableOffsets);
+			const digest = new SetDigest();
+			for (const st of subtables) {
+				if ("coverage" in st && st.coverage) {
+					digest.addCoverage(st.coverage);
+				} else if ("inputCoverages" in st && st.inputCoverages?.[0]) {
+					digest.addCoverage(st.inputCoverages[0]);
+				}
+			}
 			return {
 				type: GposLookupType.ChainingContext,
 				...baseProps,
-				subtables: parseChainingContextPos(reader, subtableOffsets),
+				subtables,
+				digest,
 			};
+		}
 
 		case GposLookupType.Extension:
 			return parseExtensionLookup(reader, subtableOffsets, baseProps);
@@ -495,13 +561,33 @@ function parseExtensionLookup(
 
 	const actualType = extSubtables[0]?.type;
 
+	// Helper to build digest from subtables with coverage
+	const buildDigest = (subtables: { coverage: Coverage }[]): SetDigest => {
+		const digest = new SetDigest();
+		for (const st of subtables) {
+			digest.addCoverage(st.coverage);
+		}
+		return digest;
+	};
+
+	// Helper for mark lookups (need markCoverage)
+	const buildMarkDigest = (
+		subtables: { markCoverage: Coverage }[],
+	): SetDigest => {
+		const digest = new SetDigest();
+		for (const st of subtables) {
+			digest.addCoverage(st.markCoverage);
+		}
+		return digest;
+	};
+
 	switch (actualType) {
 		case GposLookupType.Single: {
 			const subtables: SinglePosSubtable[] = [];
 			for (const ext of extSubtables) {
 				subtables.push(...parseSinglePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Single, ...baseProps, subtables };
+			return { type: GposLookupType.Single, ...baseProps, subtables, digest: buildDigest(subtables) };
 		}
 
 		case GposLookupType.Pair: {
@@ -509,7 +595,7 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parsePairPos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Pair, ...baseProps, subtables };
+			return { type: GposLookupType.Pair, ...baseProps, subtables, digest: buildDigest(subtables) };
 		}
 
 		case GposLookupType.Cursive: {
@@ -517,7 +603,7 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseCursivePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Cursive, ...baseProps, subtables };
+			return { type: GposLookupType.Cursive, ...baseProps, subtables, digest: buildDigest(subtables) };
 		}
 
 		case GposLookupType.MarkToBase: {
@@ -525,7 +611,7 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseMarkBasePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.MarkToBase, ...baseProps, subtables };
+			return { type: GposLookupType.MarkToBase, ...baseProps, subtables, digest: buildMarkDigest(subtables) };
 		}
 
 		case GposLookupType.MarkToLigature: {
@@ -533,7 +619,7 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseMarkLigaturePos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.MarkToLigature, ...baseProps, subtables };
+			return { type: GposLookupType.MarkToLigature, ...baseProps, subtables, digest: buildMarkDigest(subtables) };
 		}
 
 		case GposLookupType.MarkToMark: {
@@ -541,7 +627,12 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseMarkMarkPos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.MarkToMark, ...baseProps, subtables };
+			// MarkMark uses mark1Coverage for the first mark
+			const digest = new SetDigest();
+			for (const st of subtables) {
+				digest.addCoverage(st.mark1Coverage);
+			}
+			return { type: GposLookupType.MarkToMark, ...baseProps, subtables, digest };
 		}
 
 		case GposLookupType.Context: {
@@ -549,7 +640,13 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseContextPos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.Context, ...baseProps, subtables };
+			const digest = new SetDigest();
+			for (const st of subtables) {
+				if ("coverage" in st && st.coverage) {
+					digest.addCoverage(st.coverage);
+				}
+			}
+			return { type: GposLookupType.Context, ...baseProps, subtables, digest };
 		}
 
 		case GposLookupType.ChainingContext: {
@@ -557,7 +654,15 @@ function parseExtensionLookup(
 			for (const ext of extSubtables) {
 				subtables.push(...parseChainingContextPos(ext.reader, [0]));
 			}
-			return { type: GposLookupType.ChainingContext, ...baseProps, subtables };
+			const digest = new SetDigest();
+			for (const st of subtables) {
+				if ("coverage" in st && st.coverage) {
+					digest.addCoverage(st.coverage);
+				} else if ("inputCoverages" in st && st.inputCoverages?.[0]) {
+					digest.addCoverage(st.inputCoverages[0]);
+				}
+			}
+			return { type: GposLookupType.ChainingContext, ...baseProps, subtables, digest };
 		}
 
 		default:
