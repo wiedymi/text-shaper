@@ -5,6 +5,7 @@ import {
 	GposLookupType,
 	ValueFormat,
 	getKerning,
+	applyKerningDirect,
 	type GposTable,
 	type SinglePosLookup,
 	type PairPosLookup,
@@ -2471,6 +2472,170 @@ describe("GPOS Extension Lookups (STIXTwoText)", () => {
 
 			// STIXTwoText should have at least some lookup types
 			expect(hasSingle || hasPair || hasMark).toBe(true);
+		}
+	});
+});
+
+describe("applyKerningDirect", () => {
+	let arialFont: Font;
+	let arialGpos: GposTable | null;
+	let stixFont: Font;
+	let stixGpos: GposTable | null;
+
+	beforeAll(async () => {
+		arialFont = await Font.fromFile(ARIAL_PATH);
+		arialGpos = arialFont.gpos;
+		stixFont = await Font.fromFile(STIX_TWO_ITALIC_PATH);
+		stixGpos = stixFont.gpos;
+	});
+
+	test("applies kerning directly to GlyphPosition objects", () => {
+		if (arialGpos) {
+			const pairLookups = arialGpos.lookups.filter(
+				(l): l is PairPosLookup => l.type === GposLookupType.Pair,
+			);
+
+			if (pairLookups.length > 0) {
+				const lookup = pairLookups[0]!;
+
+				// Test format 1
+				for (const subtable of lookup.subtables) {
+					if (subtable.format === 1 && subtable.pairSets.length > 0) {
+						// Find a glyph in coverage with a pair
+						for (let gid = 0; gid < 200; gid++) {
+							const covIdx = subtable.coverage.get(gid);
+							if (covIdx !== null) {
+								const pairSet = subtable.pairSets[covIdx];
+								if (pairSet && pairSet.pairValueRecords.length > 0) {
+									const record = pairSet.pairValueRecords[0]!;
+									const pos1 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+									const pos2 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+
+									const applied = applyKerningDirect(
+										lookup,
+										gid,
+										record.secondGlyph,
+										pos1,
+										pos2,
+									);
+
+									expect(applied).toBe(true);
+									// xAdvance should be modified if there's a value
+									if (record.value1.xAdvance !== undefined) {
+										expect(pos1.xAdvance).not.toBe(1000);
+									}
+									return; // Test passed, exit
+								}
+							}
+						}
+					}
+				}
+
+				// Test format 2
+				for (const subtable of lookup.subtables) {
+					if (subtable.format === 2) {
+						// Find glyphs in coverage and test class-based kerning
+						let foundKerning = false;
+						for (let gid1 = 0; gid1 < 200; gid1++) {
+							if (subtable.coverage.get(gid1) !== null) {
+								const class1 = subtable.classDef1.get(gid1);
+								const class1Record = subtable.class1Records[class1];
+
+								if (class1Record) {
+									for (let gid2 = 0; gid2 < 200; gid2++) {
+										const class2 = subtable.classDef2.get(gid2);
+										const class2Record = class1Record.class2Records[class2];
+
+										if (class2Record) {
+											const pos1 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+											const pos2 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+
+											const applied = applyKerningDirect(lookup, gid1, gid2, pos1, pos2);
+
+											if (applied) {
+												// If kerning was applied, positions should be modified
+												foundKerning = true;
+												expect(pos1.xAdvance !== 1000 || pos2.xAdvance !== 1000).toBe(true);
+												return; // Test passed
+											}
+										}
+									}
+								}
+							}
+						}
+						// If we found format 2 subtables but no kerning, that's also valid
+						if (foundKerning) {
+							return;
+						}
+					}
+				}
+			}
+		}
+	});
+
+	test("returns false when no kerning is found", () => {
+		if (arialGpos) {
+			const pairLookups = arialGpos.lookups.filter(
+				(l): l is PairPosLookup => l.type === GposLookupType.Pair,
+			);
+
+			if (pairLookups.length > 0) {
+				const lookup = pairLookups[0]!;
+				const pos1 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+				const pos2 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+
+				// Use invalid glyph IDs
+				const applied = applyKerningDirect(lookup, 99999, 99998, pos1, pos2);
+
+				expect(applied).toBe(false);
+				expect(pos1.xAdvance).toBe(1000);
+				expect(pos2.xAdvance).toBe(1000);
+			}
+		}
+	});
+
+	test("applies format 2 (class-based) kerning", () => {
+		if (stixGpos) {
+			const pairLookups = stixGpos.lookups.filter(
+				(l): l is PairPosLookup => l.type === GposLookupType.Pair,
+			);
+
+			for (const lookup of pairLookups) {
+				for (const subtable of lookup.subtables) {
+					if (subtable.format === 2) {
+						// Find glyphs in coverage and test class-based kerning
+						for (let gid1 = 0; gid1 < 300; gid1++) {
+							if (subtable.coverage.get(gid1) !== null) {
+								const class1 = subtable.classDef1.get(gid1);
+								const class1Record = subtable.class1Records[class1];
+
+								if (class1Record) {
+									for (let gid2 = 0; gid2 < 300; gid2++) {
+										const class2 = subtable.classDef2.get(gid2);
+										const class2Record = class1Record.class2Records[class2];
+
+										if (
+											class2Record &&
+											(class2Record.value1.xAdvance ||
+												class2Record.value2.xAdvance)
+										) {
+											const pos1 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+											const pos2 = { xAdvance: 1000, yAdvance: 0, xOffset: 0, yOffset: 0 };
+
+											const applied = applyKerningDirect(lookup, gid1, gid2, pos1, pos2);
+
+											expect(applied).toBe(true);
+											// At least one should be modified (non-zero xAdvance)
+											expect(pos1.xAdvance !== 1000 || pos2.xAdvance !== 1000).toBe(true);
+											return; // Test passed
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	});
 });

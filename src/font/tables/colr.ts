@@ -1025,8 +1025,8 @@ function calculateAxisScalar(
 	peak: number,
 	end: number,
 ): number {
-	// If peak is 0, no contribution
-	if (peak === 0) return 1.0;
+	// If region is degenerate (all zeros), no variation - return neutral
+	if (start === 0 && peak === 0 && end === 0) return 1.0;
 
 	// If coord exactly at peak, full contribution
 	if (coord === peak) return 1.0;

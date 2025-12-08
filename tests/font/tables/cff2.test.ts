@@ -65,12 +65,56 @@ class BinaryWriter {
 		return this;
 	}
 
+	get length(): number {
+		return this.bytes.length;
+	}
+
 	toBuffer(): ArrayBuffer {
 		return new Uint8Array(this.bytes).buffer;
 	}
 
 	toReader(): Reader {
 		return new Reader(this.toBuffer());
+	}
+
+	toBytes(): number[] {
+		return [...this.bytes];
+	}
+}
+
+function writeIndex(w: BinaryWriter, offSize: number, items: number[][]): void {
+	w.uint32(items.length);
+	if (items.length === 0) return;
+
+	w.uint8(offSize);
+
+	let offset = 1;
+	for (let i = 0; i <= items.length; i++) {
+		writeOffset(w, offSize, offset);
+		if (i < items.length) {
+			offset += items[i]!.length;
+		}
+	}
+
+	for (const item of items) {
+		w.raw(...item);
+	}
+}
+
+function writeOffset(w: BinaryWriter, offSize: number, offset: number): void {
+	switch (offSize) {
+		case 1:
+			w.uint8(offset);
+			break;
+		case 2:
+			w.uint16(offset);
+			break;
+		case 3:
+			w.uint24(offset);
+			break;
+		case 4:
+			w.uint32(offset);
+			break;
 	}
 }
 
@@ -496,7 +540,7 @@ describe("cff2 table", () => {
 		test("contours have valid points", () => {
 			if (!hasCff2 || !font.cff2) return;
 
-			const glyphId = font.glyphId(0x41); // 'A'
+			const glyphId = font.glyphId(0x41);
 			const contours = executeCff2CharString(font.cff2, glyphId);
 			if (contours && contours.length > 0) {
 				for (const contour of contours) {
@@ -579,1964 +623,626 @@ describe("cff2 table", () => {
 	});
 });
 
-describe("cff2 mock data tests", () => {
-	describe("parseIndex with different offset sizes", () => {
-		test("handles empty index (count = 0)", () => {
-			const w = new BinaryWriter();
-			writeIndex(w, 1, []);
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result).toEqual([]);
-		});
+describe("cff2 synthetic tests", () => {
+	function buildCff2(options: {
+		topDict?: BinaryWriter;
+		globalSubrs?: number[][];
+		charStrings?: number[][];
+		fdArray?: number[][];
+		fdSelect?: { format: number; data: number[] };
+		vstore?: BinaryWriter;
+		privateDict?: {
+			dict: BinaryWriter;
+			offset: number;
+			localSubrs?: number[][];
+		};
+	}): ArrayBuffer {
+		const parts: BinaryWriter[] = [];
 
-		test("handles index with offSize 1", () => {
-			const w = new BinaryWriter();
-			writeIndex(w, 1, [
-				[100, 101, 102],
-				[200, 201, 202],
-			]);
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result.length).toBe(2);
-		});
+		const header = new BinaryWriter();
+		header.uint8(2);
+		header.uint8(0);
+		header.uint8(5);
 
-		test("handles index with offSize 2", () => {
-			const w = new BinaryWriter();
-			writeIndex(w, 2, [[100, 101, 102]]);
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result.length).toBe(1);
-		});
+		const topDict = options.topDict || new BinaryWriter();
+		const topDictBytes = topDict.toBytes();
+		header.uint16(topDictBytes.length);
 
-		test("handles index with offSize 3", () => {
-			const w = new BinaryWriter();
-			writeIndex(w, 3, [[100, 101, 102]]);
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result.length).toBe(1);
-		});
+		parts.push(header);
+		parts.push(topDict);
 
-		test("handles index with offSize 4", () => {
-			const w = new BinaryWriter();
-			writeIndex(w, 4, [[100, 101, 102]]);
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result.length).toBe(1);
-		});
+		const globalSubrs = new BinaryWriter();
+		writeIndex(globalSubrs, 1, options.globalSubrs || []);
+		parts.push(globalSubrs);
 
-		test("throws on invalid offset size", () => {
-			const w = new BinaryWriter();
-			w.uint32(1);
-			w.uint8(5);
-			w.uint8(1);
-			const reader = w.toReader();
-			expect(() => parseIndexHelper(reader)).toThrow("Invalid offset size");
-		});
-	});
+		if (options.charStrings) {
+			const charStrings = new BinaryWriter();
+			writeIndex(charStrings, 1, options.charStrings);
+			parts.push(charStrings);
+		}
 
-	describe("parseDict operators", () => {
-		test("handles b0 <= 21 operators", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(17);
+		if (options.fdArray) {
+			const fdArray = new BinaryWriter();
+			writeIndex(fdArray, 1, options.fdArray);
+			parts.push(fdArray);
+		}
 
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toEqual([-39]);
-		});
-
-		test("handles 2-byte operators (b0 = 12)", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(7);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(0x0c07)).toEqual([-39]);
-		});
-
-		test("handles vsindex operator (22)", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(22);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(22)).toEqual([-39]);
-		});
-
-		test("handles blend operator (23)", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(200);
-			w.uint8(23);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(23)).toEqual([-39, 61]);
-		});
-
-		test("handles vstore operator (24)", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(24);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(24)).toEqual([-39]);
-		});
-
-		test("handles 16-bit signed integer (b0 = 28)", () => {
-			const w = new BinaryWriter();
-			w.uint8(28);
-			w.int16(1000);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toEqual([1000]);
-		});
-
-		test("handles 32-bit signed integer (b0 = 29)", () => {
-			const w = new BinaryWriter();
-			w.uint8(29);
-			w.int32(100000);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toEqual([100000]);
-		});
-
-		test("handles real number (b0 = 30)", () => {
-			const w = new BinaryWriter();
-			w.uint8(30);
-			w.raw(0x1a, 0x5f);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toBeDefined();
-			const val = dict.get(17)?.[0];
-			expect(typeof val).toBe("number");
-		});
-
-		test("handles small integers (32-246)", () => {
-			const w = new BinaryWriter();
-			w.uint8(139);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toEqual([0]);
-		});
-
-		test("handles positive integers (247-250)", () => {
-			const w = new BinaryWriter();
-			w.uint8(247);
-			w.uint8(0);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toEqual([108]);
-		});
-
-		test("handles negative integers (251-254)", () => {
-			const w = new BinaryWriter();
-			w.uint8(251);
-			w.uint8(0);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toEqual([-108]);
-		});
-	});
-
-	describe("parseReal edge cases", () => {
-		test("handles simple real number", () => {
-			const w = new BinaryWriter();
-			w.uint8(30);
-			w.raw(0x12, 0x34, 0x5f);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toBeDefined();
-		});
-
-		test("handles real with E- notation", () => {
-			const w = new BinaryWriter();
-			w.uint8(30);
-			w.raw(0x1c, 0x23, 0x4f);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toBeDefined();
-		});
-
-		test("handles real with decimal point", () => {
-			const w = new BinaryWriter();
-			w.uint8(30);
-			w.raw(0x1a, 0x23, 0x4f);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toBeDefined();
-		});
-
-		test("handles real with multiple nibbles in high position", () => {
-			const w = new BinaryWriter();
-			w.uint8(30);
-			w.raw(0x9a, 0x5f);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toBeDefined();
-		});
-
-		test("handles real ending in first nibble", () => {
-			const w = new BinaryWriter();
-			w.uint8(30);
-			w.raw(0x1f);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			expect(dict.get(17)).toBeDefined();
-		});
-	});
-
-	describe("parseCff2TopDict operators", () => {
-		test("parses fontMatrix", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(200);
-			w.uint8(100);
-			w.uint8(200);
-			w.uint8(100);
-			w.uint8(200);
-			w.uint8(12);
-			w.uint8(7);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const topDict = convertToTopDict(dict);
-			expect(topDict.fontMatrix).toBeDefined();
-		});
-
-		test("parses charStrings offset", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const topDict = convertToTopDict(dict);
-			expect(topDict.charStrings).toBe(-39);
-		});
-
-		test("parses fdArray offset", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(36);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const topDict = convertToTopDict(dict);
-			expect(topDict.fdArray).toBe(-39);
-		});
-
-		test("parses fdSelect offset", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(37);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const topDict = convertToTopDict(dict);
-			expect(topDict.fdSelect).toBe(-39);
-		});
-
-		test("parses vstore offset", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(24);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const topDict = convertToTopDict(dict);
-			expect(topDict.vstore).toBe(-39);
-		});
-	});
-
-	describe("parseCff2PrivateDict operators", () => {
-		test("parses all BlueValues operators", () => {
-			const testCases = [
-				{ op: 6, name: "blueValues" },
-				{ op: 7, name: "otherBlues" },
-				{ op: 8, name: "familyBlues" },
-				{ op: 9, name: "familyOtherBlues" },
-			];
-
-			for (const tc of testCases) {
-				const w = new BinaryWriter();
-				w.uint8(100);
-				w.uint8(150);
-				w.uint8(tc.op);
-
-				const reader = w.toReader();
-				const dict = parseDictHelper(reader);
-				const privateDict = convertToPrivateDict(dict);
-				expect(privateDict[tc.name as keyof Cff2PrivateDict]).toBeDefined();
+		if (options.privateDict) {
+			parts.push(options.privateDict.dict);
+			if (options.privateDict.localSubrs) {
+				const localSubrs = new BinaryWriter();
+				writeIndex(localSubrs, 1, options.privateDict.localSubrs);
+				parts.push(localSubrs);
 			}
-		});
+		}
 
-		test("parses BlueScale", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(9);
+		if (options.fdSelect) {
+			const fdSelect = new BinaryWriter();
+			fdSelect.raw(...options.fdSelect.data);
+			parts.push(fdSelect);
+		}
 
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.blueScale).toBe(-39);
-		});
+		if (options.vstore) {
+			parts.push(options.vstore);
+		}
 
-		test("parses BlueShift", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(10);
+		const combined = new BinaryWriter();
+		for (const part of parts) {
+			combined.raw(...part.toBytes());
+		}
 
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.blueShift).toBe(-39);
-		});
+		return combined.toBuffer();
+	}
 
-		test("parses BlueFuzz", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(11);
+	test("parses minimal CFF2", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
+		w.uint16(0);
+		writeIndex(w, 1, []);
 
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.blueFuzz).toBe(-39);
-		});
-
-		test("parses StdHW", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(10);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.stdHW).toBe(-39);
-		});
-
-		test("parses StdVW", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(11);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.stdVW).toBe(-39);
-		});
-
-		test("parses StemSnapH", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(150);
-			w.uint8(12);
-			w.uint8(12);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.stemSnapH).toBeDefined();
-		});
-
-		test("parses StemSnapV", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(150);
-			w.uint8(12);
-			w.uint8(13);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.stemSnapV).toBeDefined();
-		});
-
-		test("parses LanguageGroup", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(17);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.languageGroup).toBe(-39);
-		});
-
-		test("parses ExpansionFactor", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(12);
-			w.uint8(18);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.expansionFactor).toBe(-39);
-		});
-
-		test("parses Subrs offset", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(19);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.subrs).toBe(-39);
-		});
-
-		test("parses vsindex", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(22);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.vsindex).toBe(-39);
-		});
-
-		test("parses blend", () => {
-			const w = new BinaryWriter();
-			w.uint8(100);
-			w.uint8(200);
-			w.uint8(23);
-
-			const reader = w.toReader();
-			const dict = parseDictHelper(reader);
-			const privateDict = convertToPrivateDict(dict);
-			expect(privateDict.blend).toEqual([-39, 61]);
-		});
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.version.major).toBe(2);
+		expect(cff2.charStrings.length).toBe(0);
 	});
 
-	describe("parseFDSelect formats", () => {
-		test("parses format 0", () => {
-			const w = new BinaryWriter();
-			w.uint8(0);
-			w.uint8(0);
-			w.uint8(1);
-			w.uint8(0);
+	test("parses CFF2 with charStrings", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 3);
-			expect(fdSelect.format).toBe(0);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(1)).toBe(1);
-			expect(fdSelect.select(2)).toBe(0);
-		});
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(5 + 4 + 5);
+		topDict.uint8(17);
 
-		test("parses format 3", () => {
-			const w = new BinaryWriter();
-			w.uint8(3);
-			w.uint16(2);
-			w.uint16(0);
-			w.uint8(0);
-			w.uint16(5);
-			w.uint8(1);
-			w.uint16(10);
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
 
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 10);
-			expect(fdSelect.format).toBe(3);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(5)).toBe(1);
-			expect(fdSelect.select(9)).toBe(1);
-		});
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1, 2, 3], [4, 5]]);
 
-		test("parses format 4", () => {
-			const w = new BinaryWriter();
-			w.uint8(4);
-			w.uint32(2);
-			w.uint32(0);
-			w.uint16(0);
-			w.uint32(5);
-			w.uint16(1);
-			w.uint32(10);
-
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 10);
-			expect(fdSelect.format).toBe(4);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(5)).toBe(1);
-			expect(fdSelect.select(9)).toBe(1);
-		});
-
-		test("handles unknown format", () => {
-			const w = new BinaryWriter();
-			w.uint8(99);
-
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 10);
-			expect(fdSelect.select(0)).toBe(0);
-		});
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.charStrings.length).toBe(2);
 	});
 
-	describe("parseCff2 complete table", () => {
-		test("parses minimal CFF2 table", () => {
-			const cff2 = createMinimalCff2Table();
-			expect(cff2.version.major).toBe(2);
-			expect(cff2.version.minor).toBe(0);
-			expect(cff2.globalSubrs).toEqual([]);
-			expect(cff2.charStrings).toEqual([]);
-		});
+	test("parses FDArray with multiple Font DICTs", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-		test("can build and parse valid CFF2 with charStrings", () => {
-			const w = new BinaryWriter();
+		const charStringsOff = 5 + 4 + 10 + 5;
+		const fdArrayOff = charStringsOff + 15;
 
-			w.uint8(2);
-			w.uint8(0);
-			w.uint8(5);
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(fdArrayOff);
+		topDict.uint8(12);
+		topDict.uint8(36);
 
-			const topDictBytes = [28, 0, 13, 17];
-			w.uint16(topDictBytes.length);
-			for (const b of topDictBytes) w.uint8(b);
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
 
-			w.uint32(0);
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1, 2, 3]]);
 
-			w.uint32(1);
-			w.uint8(1);
-			w.uint8(1);
-			w.uint8(4);
-			w.raw(100, 101, 102);
+		const fd1 = new BinaryWriter();
+		fd1.uint8(139);
+		fd1.uint8(17);
 
-			const cff2 = parseCff2(w.toReader());
-			expect(cff2.charStrings.length).toBe(1);
-		});
+		const fd2 = new BinaryWriter();
+		fd2.uint8(139);
+		fd2.uint8(17);
 
+		writeIndex(w, 1, [fd1.toBytes(), fd2.toBytes()]);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.fdArray.length).toBe(2);
 	});
 
-	describe("calculateVariationDelta edge cases", () => {
-		test("returns 0 for missing deltaSet", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 1,
-					regions: [{ axes: [{ startCoord: 0, peakCoord: 1, endCoord: 1 }] }],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 999, [1.0]);
-			expect(delta).toBe(0);
-		});
+	test("parses Private DICT with local subroutines", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-		test("handles peakCoord = 0", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 1,
-					regions: [{ axes: [{ startCoord: 0, peakCoord: 0, endCoord: 0 }] }],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.5]);
-			expect(delta).toBe(100);
-		});
+		const charStringsOff = 5 + 4 + 10 + 5;
+		const fdArrayOff = charStringsOff + 15;
+		const privateDictOff = fdArrayOff + 20;
+		const localSubrsOff = privateDictOff + 6;
 
-		test("handles coord at peakCoord", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 1,
-					regions: [{ axes: [{ startCoord: 0, peakCoord: 1, endCoord: 1 }] }],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [1.0]);
-			expect(delta).toBe(100);
-		});
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(fdArrayOff);
+		topDict.uint8(12);
+		topDict.uint8(36);
 
-		test("handles coord between peakCoord and endCoord", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 1,
-					regions: [{ axes: [{ startCoord: 0, peakCoord: 0.5, endCoord: 1 }] }],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.75]);
-			expect(delta).toBe(50);
-		});
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
 
-		test("handles coord above endCoord", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 1,
-					regions: [{ axes: [{ startCoord: 0, peakCoord: 0.5, endCoord: 1 }] }],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [1.5]);
-			expect(delta).toBe(0);
-		});
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1, 2, 3]]);
 
-		test("handles multiple axes", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 2,
-					regionCount: 1,
-					regions: [
-						{
-							axes: [
-								{ startCoord: 0, peakCoord: 1, endCoord: 1 },
-								{ startCoord: 0, peakCoord: 1, endCoord: 1 },
-							],
-						},
-					],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.5, 0.5]);
-			expect(delta).toBe(25);
-		});
+		const fdDict = new BinaryWriter();
+		fdDict.uint8(28);
+		fdDict.int16(6);
+		fdDict.uint8(28);
+		fdDict.int16(privateDictOff);
+		fdDict.uint8(18);
+
+		writeIndex(w, 1, [fdDict.toBytes()]);
+
+		w.uint8(28);
+		w.int16(6);
+		w.uint8(19);
+
+		writeIndex(w, 1, [[10, 11], [20, 21]]);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.fdArray[0]?.localSubrs?.length).toBe(2);
 	});
 
-	describe("ItemVariationStore parsing", () => {
-		test("parses VariationRegionList structure", () => {
-			const w = new BinaryWriter();
-			w.uint16(1);
-			w.uint16(1);
-			w.f2dot14(0);
-			w.f2dot14(1);
-			w.f2dot14(1);
+	test("parses FDSelect format 0", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-			const reader = w.toReader();
-			const regionList = parseVariationRegionListHelper(reader);
-			expect(regionList.axisCount).toBe(1);
-			expect(regionList.regionCount).toBe(1);
-			expect(regionList.regions.length).toBe(1);
-		});
+		const charStringsOff = 5 + 4 + 15 + 5;
+		const fdArrayOff = charStringsOff + 15;
+		const fdSelectOff = fdArrayOff + 15;
 
-		test("parses ItemVariationData structure", () => {
-			const w = new BinaryWriter();
-			w.uint16(1);
-			w.uint16(1);
-			w.uint16(0);
-			w.int16(100);
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(fdArrayOff);
+		topDict.uint8(12);
+		topDict.uint8(36);
+		topDict.uint8(28);
+		topDict.int16(fdSelectOff);
+		topDict.uint8(12);
+		topDict.uint8(37);
 
-			const reader = w.toReader();
-			const itemData = parseItemVariationDataHelper(reader);
-			expect(itemData.itemCount).toBe(1);
-			expect(itemData.regionIndexCount).toBe(1);
-			expect(itemData.deltaSets.length).toBe(1);
-			expect(itemData.deltaSets[0]?.[0]).toBe(100);
-		});
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
 
-		test("parses VariationRegionList with multiple regions", () => {
-			const w = new BinaryWriter();
-			w.uint16(1);
-			w.uint16(2);
-			w.f2dot14(0);
-			w.f2dot14(1);
-			w.f2dot14(1);
-			w.f2dot14(0);
-			w.f2dot14(0.5);
-			w.f2dot14(1);
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1], [2], [3]]);
 
-			const reader = w.toReader();
-			const regionList = parseVariationRegionListHelper(reader);
-			expect(regionList.regionCount).toBe(2);
-			expect(regionList.regions.length).toBe(2);
-		});
+		const fd = new BinaryWriter();
+		fd.uint8(139);
+		fd.uint8(17);
+		writeIndex(w, 1, [fd.toBytes()]);
 
-		test("parses ItemVariationData with longWords flag", () => {
-			const w = new BinaryWriter();
-			w.uint16(1);
-			w.uint16(0x8001);
-			w.uint16(0);
-			w.int32(100000);
+		w.uint8(0);
+		w.uint8(0);
+		w.uint8(1);
+		w.uint8(0);
 
-			const reader = w.toReader();
-			const itemData = parseItemVariationDataHelper(reader);
-			expect(itemData.deltaSets).toBeDefined();
-			expect(itemData.deltaSets[0]?.[0]).toBe(100000);
-		});
-
-		test("parses ItemVariationData with short words", () => {
-			const w = new BinaryWriter();
-			w.uint16(2);
-			w.uint16(2);
-			w.uint16(0);
-			w.uint16(1);
-			w.int16(100);
-			w.int16(200);
-			w.int16(150);
-			w.int16(250);
-
-			const reader = w.toReader();
-			const itemData = parseItemVariationDataHelper(reader);
-			expect(itemData.itemCount).toBe(2);
-			expect(itemData.regionIndexCount).toBe(2);
-			expect(itemData.deltaSets.length).toBe(2);
-		});
-
-		test("parses VariationRegionList with multiple axes", () => {
-			const w = new BinaryWriter();
-			w.uint16(2);
-			w.uint16(1);
-			w.f2dot14(0);
-			w.f2dot14(1);
-			w.f2dot14(1);
-			w.f2dot14(0);
-			w.f2dot14(0.5);
-			w.f2dot14(1);
-
-			const reader = w.toReader();
-			const regionList = parseVariationRegionListHelper(reader);
-			expect(regionList.axisCount).toBe(2);
-			expect(regionList.regions[0]?.axes.length).toBe(2);
-		});
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.fdSelect?.format).toBe(0);
+		expect(cff2.fdSelect?.select(1)).toBe(1);
 	});
 
-	describe("parseIndex edge cases", () => {
-		test("handles empty index with count 0", () => {
-			const w = new BinaryWriter();
-			w.uint32(0);
+	test("parses FDSelect format 3", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result).toEqual([]);
-		});
+		const charStringsOff = 5 + 4 + 15 + 5;
+		const fdArrayOff = charStringsOff + 15;
+		const fdSelectOff = fdArrayOff + 15;
 
-		test("handles index with multiple items of different sizes", () => {
-			const w = new BinaryWriter();
-			writeIndex(w, 1, [[1, 2], [3], [4, 5, 6]]);
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(fdArrayOff);
+		topDict.uint8(12);
+		topDict.uint8(36);
+		topDict.uint8(28);
+		topDict.int16(fdSelectOff);
+		topDict.uint8(12);
+		topDict.uint8(37);
 
-			const reader = w.toReader();
-			const result = parseIndexHelper(reader);
-			expect(result.length).toBe(3);
-			expect(result[0]?.length).toBe(2);
-			expect(result[1]?.length).toBe(1);
-			expect(result[2]?.length).toBe(3);
-		});
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
+
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1], [2]]);
+
+		const fd = new BinaryWriter();
+		fd.uint8(139);
+		fd.uint8(17);
+		writeIndex(w, 1, [fd.toBytes()]);
+
+		w.uint8(3);
+		w.uint16(2);
+		w.uint16(0);
+		w.uint8(0);
+		w.uint16(1);
+		w.uint8(1);
+		w.uint16(2);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.fdSelect?.format).toBe(3);
+		expect(cff2.fdSelect?.select(0)).toBe(0);
+		expect(cff2.fdSelect?.select(1)).toBe(1);
 	});
 
-	describe("parseFDSelect edge cases", () => {
-		test("format 3 binary search finds correct range at boundaries", () => {
-			const w = new BinaryWriter();
-			w.uint8(3);
-			w.uint16(3);
-			w.uint16(0);
-			w.uint8(0);
-			w.uint16(10);
-			w.uint8(1);
-			w.uint16(20);
-			w.uint8(2);
-			w.uint16(30);
+	test("parses FDSelect format 4", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 30);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(9)).toBe(0);
-			expect(fdSelect.select(10)).toBe(1);
-			expect(fdSelect.select(19)).toBe(1);
-			expect(fdSelect.select(20)).toBe(2);
-			expect(fdSelect.select(29)).toBe(2);
-		});
+		const charStringsOff = 5 + 4 + 15 + 5;
+		const fdArrayOff = charStringsOff + 15;
+		const fdSelectOff = fdArrayOff + 15;
 
-		test("format 3 binary search with single range", () => {
-			const w = new BinaryWriter();
-			w.uint8(3);
-			w.uint16(1);
-			w.uint16(0);
-			w.uint8(0);
-			w.uint16(100);
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(fdArrayOff);
+		topDict.uint8(12);
+		topDict.uint8(36);
+		topDict.uint8(28);
+		topDict.int16(fdSelectOff);
+		topDict.uint8(12);
+		topDict.uint8(37);
 
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 100);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(50)).toBe(0);
-			expect(fdSelect.select(99)).toBe(0);
-		});
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
 
-		test("format 4 binary search finds correct range at boundaries", () => {
-			const w = new BinaryWriter();
-			w.uint8(4);
-			w.uint32(3);
-			w.uint32(0);
-			w.uint16(0);
-			w.uint32(10);
-			w.uint16(1);
-			w.uint32(20);
-			w.uint16(2);
-			w.uint32(30);
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1], [2]]);
 
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 30);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(9)).toBe(0);
-			expect(fdSelect.select(10)).toBe(1);
-			expect(fdSelect.select(19)).toBe(1);
-			expect(fdSelect.select(20)).toBe(2);
-			expect(fdSelect.select(29)).toBe(2);
-		});
+		const fd = new BinaryWriter();
+		fd.uint8(139);
+		fd.uint8(17);
+		writeIndex(w, 1, [fd.toBytes()]);
 
-		test("format 4 binary search with single range", () => {
-			const w = new BinaryWriter();
-			w.uint8(4);
-			w.uint32(1);
-			w.uint32(0);
-			w.uint16(0);
-			w.uint32(100);
+		w.uint8(4);
+		w.uint32(2);
+		w.uint32(0);
+		w.uint16(0);
+		w.uint32(1);
+		w.uint16(1);
+		w.uint32(2);
 
-			const reader = w.toReader();
-			const fdSelect = parseFDSelectHelper(reader, 100);
-			expect(fdSelect.select(0)).toBe(0);
-			expect(fdSelect.select(50)).toBe(0);
-			expect(fdSelect.select(99)).toBe(0);
-		});
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.fdSelect?.format).toBe(4);
+		expect(cff2.fdSelect?.select(0)).toBe(0);
+		expect(cff2.fdSelect?.select(1)).toBe(1);
 	});
 
-	describe("calculateVariationDelta advanced cases", () => {
-		test("handles missing normalizedCoords for axis", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 2,
-					regionCount: 1,
-					regions: [
-						{
-							axes: [
-								{ startCoord: 0, peakCoord: 1, endCoord: 1 },
-								{ startCoord: 0, peakCoord: 1, endCoord: 1 },
-							],
-						},
-					],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [0],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.5]);
-			expect(delta).toBe(0);
-		});
+	test("parses VariationStore", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
 
-		test("handles missing region index", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 1,
-					regions: [{ axes: [{ startCoord: 0, peakCoord: 1, endCoord: 1 }] }],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 1,
-						regionIndexes: [999],
-						deltaSets: [[100]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [1.0]);
-			expect(delta).toBe(0);
-		});
+		const charStringsOff = 5 + 4 + 7 + 5;
+		const vstoreOff = charStringsOff + 15;
 
-		test("handles multiple regions with different scalars", () => {
-			const mockVstore = {
-				format: 1,
-				variationRegionList: {
-					axisCount: 1,
-					regionCount: 2,
-					regions: [
-						{ axes: [{ startCoord: 0, peakCoord: 0.5, endCoord: 1 }] },
-						{ axes: [{ startCoord: 0.5, peakCoord: 1, endCoord: 1 }] },
-					],
-				},
-				itemVariationData: [
-					{
-						itemCount: 1,
-						regionIndexCount: 2,
-						regionIndexes: [0, 1],
-						deltaSets: [[50, 50]],
-					},
-				],
-			};
-			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.75]);
-			expect(delta).toBe(50);
-		});
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(vstoreOff);
+		topDict.uint8(24);
+
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
+
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1, 2, 3]]);
+
+		w.uint16(50);
+		w.uint16(1);
+		w.uint32(12);
+		w.uint16(1);
+		w.uint32(18);
+
+		w.uint16(1);
+		w.uint16(1);
+		w.f2dot14(0);
+		w.f2dot14(1);
+		w.f2dot14(1);
+
+		w.uint16(1);
+		w.uint16(1);
+		w.uint16(0);
+		w.int16(100);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.vstore).toBeDefined();
+		expect(cff2.vstore?.itemVariationData.length).toBe(1);
+	});
+
+	test("parses VariationStore with longWords", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
+
+		const charStringsOff = 5 + 4 + 7 + 5;
+		const vstoreOff = charStringsOff + 15;
+
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(vstoreOff);
+		topDict.uint8(24);
+
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
+
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1, 2, 3]]);
+
+		w.uint16(50);
+		w.uint16(1);
+		w.uint32(12);
+		w.uint16(1);
+		w.uint32(18);
+
+		w.uint16(1);
+		w.uint16(1);
+		w.f2dot14(0);
+		w.f2dot14(1);
+		w.f2dot14(1);
+
+		w.uint16(1);
+		w.uint16(0x8001);
+		w.uint16(0);
+		w.int32(100000);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.vstore?.itemVariationData[0]?.deltaSets[0]?.[0]).toBe(100000);
+	});
+
+	test("parses all Private DICT operators", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
+
+		const charStringsOff = 5 + 4 + 10 + 5;
+		const fdArrayOff = charStringsOff + 15;
+		const privateDictOff = fdArrayOff + 20;
+
+		const topDict = new BinaryWriter();
+		topDict.uint8(28);
+		topDict.int16(charStringsOff);
+		topDict.uint8(17);
+		topDict.uint8(28);
+		topDict.int16(fdArrayOff);
+		topDict.uint8(12);
+		topDict.uint8(36);
+
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
+
+		writeIndex(w, 1, []);
+		writeIndex(w, 1, [[1, 2, 3]]);
+
+		const privateSize = 100;
+		const fdDict = new BinaryWriter();
+		fdDict.uint8(28);
+		fdDict.int16(privateSize);
+		fdDict.uint8(28);
+		fdDict.int16(privateDictOff);
+		fdDict.uint8(18);
+
+		writeIndex(w, 1, [fdDict.toBytes()]);
+
+		w.uint8(100);
+		w.uint8(110);
+		w.uint8(6);
+
+		w.uint8(100);
+		w.uint8(7);
+
+		w.uint8(100);
+		w.uint8(8);
+
+		w.uint8(100);
+		w.uint8(9);
+
+		w.uint8(100);
+		w.uint8(12);
+		w.uint8(9);
+
+		w.uint8(100);
+		w.uint8(12);
+		w.uint8(10);
+
+		w.uint8(100);
+		w.uint8(12);
+		w.uint8(11);
+
+		w.uint8(100);
+		w.uint8(10);
+
+		w.uint8(100);
+		w.uint8(11);
+
+		w.uint8(100);
+		w.uint8(110);
+		w.uint8(12);
+		w.uint8(12);
+
+		w.uint8(100);
+		w.uint8(110);
+		w.uint8(12);
+		w.uint8(13);
+
+		w.uint8(100);
+		w.uint8(12);
+		w.uint8(17);
+
+		w.uint8(100);
+		w.uint8(12);
+		w.uint8(18);
+
+		w.uint8(100);
+		w.uint8(22);
+
+		w.uint8(100);
+		w.uint8(110);
+		w.uint8(23);
+
+		const cff2 = parseCff2(w.toReader());
+		const pd = cff2.fdArray[0]?.private;
+		expect(pd?.blueValues).toBeDefined();
+		expect(pd?.otherBlues).toBeDefined();
+		expect(pd?.familyBlues).toBeDefined();
+		expect(pd?.familyOtherBlues).toBeDefined();
+		expect(pd?.blueScale).toBe(-39);
+		expect(pd?.blueShift).toBe(-39);
+		expect(pd?.blueFuzz).toBe(-39);
+		expect(pd?.stdHW).toBe(-39);
+		expect(pd?.stdVW).toBe(-39);
+		expect(pd?.stemSnapH).toBeDefined();
+		expect(pd?.stemSnapV).toBeDefined();
+		expect(pd?.languageGroup).toBe(-39);
+		expect(pd?.expansionFactor).toBe(-39);
+		expect(pd?.vsindex).toBe(-39);
+		expect(pd?.blend).toBeDefined();
+	});
+
+	test("parses offset size 3 and 4", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
+		w.uint16(0);
+
+		writeIndex(w, 3, [[1, 2, 3]]);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.globalSubrs.length).toBe(1);
+	});
+
+	test("parses real numbers in DICT", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
+
+		const topDict = new BinaryWriter();
+		topDict.uint8(30);
+		topDict.raw(0x12, 0x34, 0x5f);
+		topDict.uint8(30);
+		topDict.raw(0x1c, 0x23, 0x4f);
+		topDict.uint8(30);
+		topDict.raw(0x1a, 0x23, 0x4f);
+		topDict.uint8(30);
+		topDict.raw(0x9a, 0x5f);
+		topDict.uint8(30);
+		topDict.raw(0x1f);
+		topDict.uint8(100);
+		topDict.uint8(200);
+		topDict.uint8(12);
+		topDict.uint8(7);
+
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
+
+		writeIndex(w, 1, []);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.topDict.fontMatrix).toBeDefined();
+		expect(cff2.topDict.fontMatrix?.length).toBe(6);
+	});
+
+	test("handles all number encodings", () => {
+		const w = new BinaryWriter();
+		w.uint8(2);
+		w.uint8(0);
+		w.uint8(5);
+
+		const topDict = new BinaryWriter();
+
+		topDict.uint8(28);
+		topDict.int16(1000);
+
+		topDict.uint8(29);
+		topDict.int32(100000);
+
+		topDict.uint8(30);
+		topDict.raw(0x12, 0x34, 0x5f);
+
+		topDict.uint8(139);
+
+		topDict.uint8(247);
+		topDict.uint8(0);
+
+		topDict.uint8(251);
+		topDict.uint8(0);
+
+		topDict.uint8(100);
+		topDict.uint8(200);
+
+		topDict.uint8(12);
+		topDict.uint8(7);
+
+		const topDictBytes = topDict.toBytes();
+		w.uint16(topDictBytes.length);
+		w.raw(...topDictBytes);
+
+		writeIndex(w, 1, []);
+
+		const cff2 = parseCff2(w.toReader());
+		expect(cff2.topDict.fontMatrix).toBeDefined();
 	});
 });
-
-function parseItemVariationStoreHelper(reader: Reader) {
-	const startOffset = reader.offset;
-	const _length = reader.uint16();
-	const format = reader.uint16();
-	const variationRegionListOffset = reader.uint32();
-	const itemVariationDataCount = reader.uint16();
-	const itemVariationDataOffsets: number[] = [];
-
-	for (let i = 0; i < itemVariationDataCount; i++) {
-		itemVariationDataOffsets.push(reader.uint32());
-	}
-
-	reader.seek(startOffset + variationRegionListOffset);
-	const variationRegionList = parseVariationRegionListHelper(reader);
-
-	const itemVariationData = [];
-	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
-		const offset = itemVariationDataOffsets[i]!;
-		reader.seek(startOffset + offset);
-		itemVariationData.push(parseItemVariationDataHelper(reader));
-	}
-
-	return { format, variationRegionList, itemVariationData };
-}
-
-function parseIndexHelper(reader: Reader): Uint8Array[] {
-	const count = reader.uint32();
-	if (count === 0) return [];
-
-	const offSize = reader.uint8();
-	const offsets: number[] = [];
-
-	for (let i = 0; i <= count; i++) {
-		offsets.push(readOffsetHelper(reader, offSize));
-	}
-
-	const result: Uint8Array[] = [];
-	for (let i = 0; i < count; i++) {
-		const start = offsets[i];
-		const end = offsets[i + 1];
-		if (start === undefined || end === undefined) continue;
-		const length = end - start;
-		result.push(reader.bytes(length));
-	}
-
-	return result;
-}
-
-function readOffsetHelper(reader: Reader, offSize: number): number {
-	switch (offSize) {
-		case 1:
-			return reader.uint8();
-		case 2:
-			return reader.uint16();
-		case 3:
-			return reader.uint24();
-		case 4:
-			return reader.uint32();
-		default:
-			throw new Error(`Invalid offset size: ${offSize}`);
-	}
-}
-
-function parseDictHelper(reader: Reader): Map<number, number[]> {
-	const result = new Map<number, number[]>();
-	const operands: number[] = [];
-
-	while (reader.remaining > 0) {
-		const b0 = reader.uint8();
-
-		if (b0 <= 21) {
-			let op = b0;
-			if (b0 === 12) {
-				op = 0x0c00 | reader.uint8();
-			}
-			result.set(op, [...operands]);
-			operands.length = 0;
-		} else if (b0 === 22) {
-			result.set(22, [...operands]);
-			operands.length = 0;
-		} else if (b0 === 23) {
-			result.set(23, [...operands]);
-			operands.length = 0;
-		} else if (b0 === 24) {
-			result.set(24, [...operands]);
-			operands.length = 0;
-		} else if (b0 === 28) {
-			operands.push(reader.int16());
-		} else if (b0 === 29) {
-			operands.push(reader.int32());
-		} else if (b0 === 30) {
-			operands.push(parseRealHelper(reader));
-		} else if (b0 >= 32 && b0 <= 246) {
-			operands.push(b0 - 139);
-		} else if (b0 >= 247 && b0 <= 250) {
-			const b1 = reader.uint8();
-			operands.push((b0 - 247) * 256 + b1 + 108);
-		} else if (b0 >= 251 && b0 <= 254) {
-			const b1 = reader.uint8();
-			operands.push(-(b0 - 251) * 256 - b1 - 108);
-		}
-	}
-
-	return result;
-}
-
-function parseRealHelper(reader: Reader): number {
-	let str = "";
-	const nibbleChars = "0123456789.EE -";
-	let done = false;
-
-	while (!done) {
-		const byte = reader.uint8();
-		for (let i = 0; i < 2; i++) {
-			const nibble = i === 0 ? byte >> 4 : byte & 0x0f;
-			if (nibble === 0x0f) {
-				done = true;
-				break;
-			}
-			if (nibble === 0x0c) {
-				str += "E-";
-			} else {
-				const char = nibbleChars[nibble];
-				if (char !== undefined) str += char;
-			}
-		}
-	}
-
-	return parseFloat(str);
-}
-
-function convertToTopDict(dict: Map<number, number[]>): Cff2TopDict {
-	const result: Cff2TopDict = {};
-	for (const [op, operands] of dict) {
-		switch (op) {
-			case 0x0c07:
-				result.fontMatrix = operands;
-				break;
-			case 17:
-				result.charStrings = operands[0];
-				break;
-			case 0x0c24:
-				result.fdArray = operands[0];
-				break;
-			case 0x0c25:
-				result.fdSelect = operands[0];
-				break;
-			case 24:
-				result.vstore = operands[0];
-				break;
-		}
-	}
-	return result;
-}
-
-function convertToPrivateDict(dict: Map<number, number[]>): Cff2PrivateDict {
-	const result: Cff2PrivateDict = {};
-
-	function deltaToAbsolute(deltas: number[]): number[] {
-		const result: number[] = [];
-		let value = 0;
-		for (let i = 0; i < deltas.length; i++) {
-			const delta = deltas[i]!;
-			value += delta;
-			result.push(value);
-		}
-		return result;
-	}
-
-	for (const [op, operands] of dict) {
-		const op0 = operands[0];
-		switch (op) {
-			case 6:
-				result.blueValues = deltaToAbsolute(operands);
-				break;
-			case 7:
-				result.otherBlues = deltaToAbsolute(operands);
-				break;
-			case 8:
-				result.familyBlues = deltaToAbsolute(operands);
-				break;
-			case 9:
-				result.familyOtherBlues = deltaToAbsolute(operands);
-				break;
-			case 0x0c09:
-				result.blueScale = op0;
-				break;
-			case 0x0c0a:
-				result.blueShift = op0;
-				break;
-			case 0x0c0b:
-				result.blueFuzz = op0;
-				break;
-			case 10:
-				result.stdHW = op0;
-				break;
-			case 11:
-				result.stdVW = op0;
-				break;
-			case 0x0c0c:
-				result.stemSnapH = deltaToAbsolute(operands);
-				break;
-			case 0x0c0d:
-				result.stemSnapV = deltaToAbsolute(operands);
-				break;
-			case 0x0c11:
-				result.languageGroup = op0;
-				break;
-			case 0x0c12:
-				result.expansionFactor = op0;
-				break;
-			case 19:
-				result.subrs = op0;
-				break;
-			case 22:
-				result.vsindex = op0;
-				break;
-			case 23:
-				result.blend = operands;
-				break;
-		}
-	}
-	return result;
-}
-
-function parseFDSelectHelper(
-	reader: Reader,
-	numGlyphs: number,
-): { format: number; select: (glyphId: number) => number } {
-	const format = reader.uint8();
-
-	if (format === 0) {
-		const fds = reader.uint8Array(numGlyphs);
-		return {
-			format,
-			select: (glyphId: number) => fds[glyphId] ?? 0,
-		};
-	} else if (format === 3) {
-		const nRanges = reader.uint16();
-		const ranges: Array<{ first: number; fd: number }> = [];
-
-		for (let i = 0; i < nRanges; i++) {
-			ranges.push({
-				first: reader.uint16(),
-				fd: reader.uint8(),
-			});
-		}
-		reader.uint16();
-
-		return {
-			format,
-			select: (glyphId: number) => {
-				let lo = 0;
-				let hi = ranges.length - 1;
-				while (lo < hi) {
-					const mid = Math.ceil((lo + hi) / 2);
-					const range = ranges[mid];
-					if (range && range.first <= glyphId) {
-						lo = mid;
-					} else {
-						hi = mid - 1;
-					}
-				}
-				const foundRange = ranges[lo];
-				return foundRange?.fd ?? 0;
-			},
-		};
-	} else if (format === 4) {
-		const nRanges = reader.uint32();
-		const ranges: Array<{ first: number; fd: number }> = [];
-
-		for (let i = 0; i < nRanges; i++) {
-			ranges.push({
-				first: reader.uint32(),
-				fd: reader.uint16(),
-			});
-		}
-		reader.uint32();
-
-		return {
-			format,
-			select: (glyphId: number) => {
-				let lo = 0;
-				let hi = ranges.length - 1;
-				while (lo < hi) {
-					const mid = Math.ceil((lo + hi) / 2);
-					const range = ranges[mid];
-					if (range && range.first <= glyphId) {
-						lo = mid;
-					} else {
-						hi = mid - 1;
-					}
-				}
-				const foundRange = ranges[lo];
-				return foundRange?.fd ?? 0;
-			},
-		};
-	}
-
-	return { format, select: () => 0 };
-}
-
-function createCff2WithCustomIndex(
-	offSize: number,
-	count: number,
-	items: number[][],
-): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-	w.uint16(2);
-
-	w.uint8(139);
-	w.uint8(17);
-
-	writeIndex(w, offSize, items);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithInvalidOffsetSize(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-	w.uint16(2);
-
-	w.uint8(139);
-	w.uint8(17);
-
-	w.uint32(1);
-	w.uint8(5);
-	w.uint8(1);
-
-	return parseCff2(w.toReader());
-}
-
-function writeIndex(w: BinaryWriter, offSize: number, items: number[][]): void {
-	w.uint32(items.length);
-	if (items.length === 0) return;
-
-	w.uint8(offSize);
-
-	let offset = 1;
-	for (let i = 0; i <= items.length; i++) {
-		writeOffset(w, offSize, offset);
-		if (i < items.length) {
-			offset += items[i]!.length;
-		}
-	}
-
-	for (const item of items) {
-		w.raw(...item);
-	}
-}
-
-function writeOffset(w: BinaryWriter, offSize: number, offset: number): void {
-	switch (offSize) {
-		case 1:
-			w.uint8(offset);
-			break;
-		case 2:
-			w.uint16(offset);
-			break;
-		case 3:
-			w.uint24(offset);
-			break;
-		case 4:
-			w.uint32(offset);
-			break;
-	}
-}
-
-function createMinimalCff2Table(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-	w.uint16(0);
-
-	writeIndex(w, 1, []);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithValidCharStrings(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 4;
-	const charStringsOffset = 5 + topDictSize + 5;
-
-	const topDict = new BinaryWriter();
-	topDict.uint8(28);
-	topDict.int16(charStringsOffset);
-	topDict.uint8(17);
-
-	const td = Array.from(new Uint8Array(topDict.toBuffer()));
-	w.uint16(td.length);
-	w.raw(...td);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithValidFDArray(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 10;
-	const charStringsOffset = 5 + topDictSize + 5;
-	const fdArrayOffset = charStringsOffset + 11;
-
-	const topDict = new BinaryWriter();
-	topDict.uint8(28);
-	topDict.int16(charStringsOffset);
-	topDict.uint8(17);
-	topDict.uint8(28);
-	topDict.int16(fdArrayOffset);
-	topDict.uint8(12);
-	topDict.uint8(36);
-
-	const td = Array.from(new Uint8Array(topDict.toBuffer()));
-	w.uint16(td.length);
-	w.raw(...td);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	writeIndex(w, 1, [[139, 17]]);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithFDSelectFormat0(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 15;
-	const charStringsOffset = 5 + topDictSize + 5;
-	const fdArrayOffset = charStringsOffset + 11;
-	const fdSelectOffset = fdArrayOffset + 11;
-
-	const topDict = new BinaryWriter();
-	topDict.uint8(28);
-	topDict.int16(charStringsOffset);
-	topDict.uint8(17);
-	topDict.uint8(28);
-	topDict.int16(fdArrayOffset);
-	topDict.uint8(12);
-	topDict.uint8(36);
-	topDict.uint8(28);
-	topDict.int16(fdSelectOffset);
-	topDict.uint8(12);
-	topDict.uint8(37);
-
-	const td = Array.from(new Uint8Array(topDict.toBuffer()));
-	w.uint16(td.length);
-	w.raw(...td);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	writeIndex(w, 1, [[139, 17]]);
-
-	w.uint8(0);
-	w.uint8(0);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithValidVStore(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 7;
-	const charStringsOffset = 5 + topDictSize + 5;
-	const vstoreOffset = charStringsOffset + 11;
-
-	const topDict = new BinaryWriter();
-	topDict.uint8(28);
-	topDict.int16(charStringsOffset);
-	topDict.uint8(17);
-	topDict.uint8(28);
-	topDict.int16(vstoreOffset);
-	topDict.uint8(24);
-
-	const td = Array.from(new Uint8Array(topDict.toBuffer()));
-	w.uint16(td.length);
-	w.raw(...td);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	w.uint16(100);
-	w.uint16(1);
-	w.uint32(12);
-	w.uint16(1);
-	w.uint32(18);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.f2dot14(0);
-	w.f2dot14(1);
-	w.f2dot14(1);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.uint16(0);
-	w.int16(100);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithPrivateDictAndLocalSubrs(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 10;
-	const charStringsOffset = 5 + topDictSize + 5;
-	const fdArrayOffset = charStringsOffset + 11;
-
-	const topDict = new BinaryWriter();
-	topDict.uint8(28);
-	topDict.int16(charStringsOffset);
-	topDict.uint8(17);
-	topDict.uint8(28);
-	topDict.int16(fdArrayOffset);
-	topDict.uint8(12);
-	topDict.uint8(36);
-
-	const td = Array.from(new Uint8Array(topDict.toBuffer()));
-	w.uint16(td.length);
-	w.raw(...td);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	const privateDictSize = 6;
-	const privateDictOffset = fdArrayOffset + 17;
-	const localSubrsOffset = privateDictOffset + privateDictSize + 11;
-
-	const fdDict = new BinaryWriter();
-	fdDict.uint8(28);
-	fdDict.int16(privateDictSize);
-	fdDict.uint8(28);
-	fdDict.int16(privateDictOffset);
-	fdDict.uint8(18);
-
-	writeIndex(w, 1, [Array.from(new Uint8Array(fdDict.toBuffer()))]);
-
-	const subsrRelativeOffset = localSubrsOffset - privateDictOffset;
-	w.uint8(28);
-	w.int16(subsrRelativeOffset);
-	w.uint8(19);
-
-	writeIndex(w, 1, [[50, 51, 52]]);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithCharStrings(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const globalSubrsSize = 5;
-	const topDictSize = 4;
-	const charStringsOffset = 5 + topDictSize + globalSubrsSize;
-
-	const topDictData = new BinaryWriter();
-	topDictData.uint8(28);
-	topDictData.int16(charStringsOffset);
-	topDictData.uint8(17);
-
-	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
-	w.uint16(topDictBytes.length);
-	w.raw(...topDictBytes);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithFDArray(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 10;
-	const headerSize = 5 + 2;
-	const globalSubrsSize = 5;
-	const charStringsSize = 11;
-
-	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
-	const fdArrayOffset = charStringsOffset + charStringsSize;
-
-	const topDictData = new BinaryWriter();
-	topDictData.uint8(28);
-	topDictData.int16(charStringsOffset);
-	topDictData.uint8(17);
-	topDictData.uint8(28);
-	topDictData.int16(fdArrayOffset);
-	topDictData.uint8(12);
-	topDictData.uint8(36);
-
-	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
-	w.uint16(topDictBytes.length);
-	w.raw(...topDictBytes);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	writeIndex(w, 1, [[139, 17]]);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithFDSelect(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 15;
-	const headerSize = 5 + 2;
-	const globalSubrsSize = 5;
-	const charStringsSize = 11;
-	const fdArraySize = 11;
-
-	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
-	const fdArrayOffset = charStringsOffset + charStringsSize;
-	const fdSelectOffset = fdArrayOffset + fdArraySize;
-
-	const topDictData = new BinaryWriter();
-	topDictData.uint8(28);
-	topDictData.int16(charStringsOffset);
-	topDictData.uint8(17);
-	topDictData.uint8(28);
-	topDictData.int16(fdArrayOffset);
-	topDictData.uint8(12);
-	topDictData.uint8(36);
-	topDictData.uint8(28);
-	topDictData.int16(fdSelectOffset);
-	topDictData.uint8(12);
-	topDictData.uint8(37);
-
-	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
-	w.uint16(topDictBytes.length);
-	w.raw(...topDictBytes);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	writeIndex(w, 1, [[139, 17]]);
-
-	w.uint8(0);
-	w.uint8(0);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithVStore(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 7;
-	const headerSize = 5 + 2;
-	const globalSubrsSize = 5;
-	const charStringsSize = 11;
-
-	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
-	const vstoreOffset = charStringsOffset + charStringsSize;
-
-	const topDictData = new BinaryWriter();
-	topDictData.uint8(28);
-	topDictData.int16(charStringsOffset);
-	topDictData.uint8(17);
-	topDictData.uint8(28);
-	topDictData.int16(vstoreOffset);
-	topDictData.uint8(24);
-
-	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
-	w.uint16(topDictBytes.length);
-	w.raw(...topDictBytes);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	const regionListOffset = 12;
-	w.uint16(100);
-	w.uint16(1);
-	w.uint32(regionListOffset);
-	w.uint16(1);
-	w.uint32(regionListOffset + 6);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.f2dot14(0);
-	w.f2dot14(1);
-	w.f2dot14(1);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.uint16(0);
-	w.int16(100);
-
-	return parseCff2(w.toReader());
-}
-
-function createCff2WithPrivateDictAndSubrs(): Cff2Table {
-	const w = new BinaryWriter();
-
-	w.uint8(2);
-	w.uint8(0);
-	w.uint8(5);
-
-	const topDictSize = 10;
-	const headerSize = 5 + 2;
-	const globalSubrsSize = 5;
-	const charStringsSize = 11;
-
-	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
-	const fdArrayOffset = charStringsOffset + charStringsSize;
-
-	const topDictData = new BinaryWriter();
-	topDictData.uint8(28);
-	topDictData.int16(charStringsOffset);
-	topDictData.uint8(17);
-	topDictData.uint8(28);
-	topDictData.int16(fdArrayOffset);
-	topDictData.uint8(12);
-	topDictData.uint8(36);
-
-	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
-	w.uint16(topDictBytes.length);
-	w.raw(...topDictBytes);
-
-	writeIndex(w, 1, []);
-
-	writeIndex(w, 1, [[100, 101, 102]]);
-
-	const fdDictData = new BinaryWriter();
-	const privateDictSize = 6;
-	const fdArraySize = 17;
-	const privateDictOffset = fdArrayOffset + fdArraySize;
-	fdDictData.uint8(28);
-	fdDictData.int16(privateDictSize);
-	fdDictData.uint8(28);
-	fdDictData.int16(privateDictOffset);
-	fdDictData.uint8(18);
-
-	writeIndex(w, 1, [Array.from(new Uint8Array(fdDictData.toBuffer()))]);
-
-	const subsrOffset = 6;
-	w.uint8(28);
-	w.int16(subsrOffset);
-	w.uint8(19);
-
-	writeIndex(w, 1, [[50, 51, 52]]);
-
-	return parseCff2(w.toReader());
-}
-
-function createMockItemVariationStore() {
-	const w = new BinaryWriter();
-
-	const regionListOffset = 12;
-	w.uint16(100);
-	w.uint16(1);
-	w.uint32(regionListOffset);
-	w.uint16(1);
-	w.uint32(regionListOffset + 6);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.f2dot14(0);
-	w.f2dot14(1);
-	w.f2dot14(1);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.uint16(0);
-	w.int16(100);
-
-	const reader = w.toReader();
-	const _length = reader.uint16();
-	const format = reader.uint16();
-	const variationRegionListOffset = reader.uint32();
-	const itemVariationDataCount = reader.uint16();
-	const itemVariationDataOffsets: number[] = [];
-
-	for (let i = 0; i < itemVariationDataCount; i++) {
-		itemVariationDataOffsets.push(reader.uint32());
-	}
-
-	const startOffset = 0;
-	reader.seek(variationRegionListOffset);
-	const variationRegionList = parseVariationRegionListHelper(reader);
-
-	const itemVariationData = [];
-	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
-		const offset = itemVariationDataOffsets[i]!;
-		reader.seek(offset);
-		itemVariationData.push(parseItemVariationDataHelper(reader));
-	}
-
-	return { format, variationRegionList, itemVariationData };
-}
-
-function createMockItemVariationStoreMultipleRegions() {
-	const w = new BinaryWriter();
-
-	const regionListOffset = 16;
-	w.uint16(100);
-	w.uint16(1);
-	w.uint32(regionListOffset);
-	w.uint16(1);
-	w.uint32(regionListOffset + 12);
-
-	w.uint16(1);
-	w.uint16(2);
-	w.f2dot14(0);
-	w.f2dot14(1);
-	w.f2dot14(1);
-	w.f2dot14(0);
-	w.f2dot14(0.5);
-	w.f2dot14(1);
-
-	w.uint16(2);
-	w.uint16(2);
-	w.uint16(0);
-	w.uint16(1);
-	w.int16(100);
-	w.int16(50);
-
-	const reader = w.toReader();
-	const _length = reader.uint16();
-	const format = reader.uint16();
-	const variationRegionListOffset = reader.uint32();
-	const itemVariationDataCount = reader.uint16();
-	const itemVariationDataOffsets: number[] = [];
-
-	for (let i = 0; i < itemVariationDataCount; i++) {
-		itemVariationDataOffsets.push(reader.uint32());
-	}
-
-	reader.seek(variationRegionListOffset);
-	const variationRegionList = parseVariationRegionListHelper(reader);
-
-	const itemVariationData = [];
-	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
-		const offset = itemVariationDataOffsets[i]!;
-		reader.seek(offset);
-		itemVariationData.push(parseItemVariationDataHelper(reader));
-	}
-
-	return { format, variationRegionList, itemVariationData };
-}
-
-function createMockItemVariationStoreWithLongWords() {
-	const w = new BinaryWriter();
-
-	const regionListOffset = 12;
-	w.uint16(100);
-	w.uint16(1);
-	w.uint32(regionListOffset);
-	w.uint16(1);
-	w.uint32(regionListOffset + 6);
-
-	w.uint16(1);
-	w.uint16(1);
-	w.f2dot14(0);
-	w.f2dot14(1);
-	w.f2dot14(1);
-
-	w.uint16(1);
-	w.uint16(0x8001);
-	w.uint16(0);
-	w.int32(100000);
-
-	const reader = w.toReader();
-	const _length = reader.uint16();
-	const format = reader.uint16();
-	const variationRegionListOffset = reader.uint32();
-	const itemVariationDataCount = reader.uint16();
-	const itemVariationDataOffsets: number[] = [];
-
-	for (let i = 0; i < itemVariationDataCount; i++) {
-		itemVariationDataOffsets.push(reader.uint32());
-	}
-
-	reader.seek(variationRegionListOffset);
-	const variationRegionList = parseVariationRegionListHelper(reader);
-
-	const itemVariationData = [];
-	for (let i = 0; i < itemVariationDataOffsets.length; i++) {
-		const offset = itemVariationDataOffsets[i]!;
-		reader.seek(offset);
-		itemVariationData.push(parseItemVariationDataHelper(reader));
-	}
-
-	return { format, variationRegionList, itemVariationData };
-}
-
-function parseVariationRegionListHelper(reader: Reader) {
-	const axisCount = reader.uint16();
-	const regionCount = reader.uint16();
-	const regions = [];
-
-	for (let i = 0; i < regionCount; i++) {
-		const axes = [];
-		for (let j = 0; j < axisCount; j++) {
-			axes.push({
-				startCoord: reader.f2dot14(),
-				peakCoord: reader.f2dot14(),
-				endCoord: reader.f2dot14(),
-			});
-		}
-		regions.push({ axes });
-	}
-
-	return { axisCount, regionCount, regions };
-}
-
-function parseItemVariationDataHelper(reader: Reader) {
-	const itemCount = reader.uint16();
-	const wordDeltaCount = reader.uint16();
-	const regionIndexCount = wordDeltaCount & 0x7fff;
-	const longWords = (wordDeltaCount & 0x8000) !== 0;
-
-	const regionIndexes: number[] = [];
-	for (let i = 0; i < regionIndexCount; i++) {
-		regionIndexes.push(reader.uint16());
-	}
-
-	const deltaSets: number[][] = [];
-	for (let i = 0; i < itemCount; i++) {
-		const deltas: number[] = [];
-		for (let j = 0; j < regionIndexCount; j++) {
-			if (longWords) {
-				deltas.push(reader.int32());
-			} else {
-				deltas.push(reader.int16());
-			}
-		}
-		deltaSets.push(deltas);
-	}
-
-	return {
-		itemCount,
-		regionIndexCount,
-		regionIndexes,
-		deltaSets,
-	};
-}

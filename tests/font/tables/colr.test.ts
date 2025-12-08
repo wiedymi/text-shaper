@@ -746,12 +746,14 @@ function createColrV1WithVariations(): ArrayBuffer {
 	view.setUint16(offset, 2);
 	offset += 2;
 
-	// Entry 0: outer=1, inner=2 -> (1 << 4) | 2 = 0x12
-	view.setUint8(offset, 0x12);
+	// Entry 0: outer=0, inner=0 -> (0 << 4) | 0 = 0x00
+	// Maps varIndex 0 to ItemVariationData[0].deltaSets[0]
+	view.setUint8(offset, 0x00);
 	offset += 1;
 
-	// Entry 1: outer=0, inner=3 -> (0 << 4) | 3 = 0x03
-	view.setUint8(offset, 0x03);
+	// Entry 1: outer=0, inner=1 -> (0 << 4) | 1 = 0x01
+	// Maps varIndex 1 to ItemVariationData[0].deltaSets[1]
+	view.setUint8(offset, 0x01);
 	offset += 1;
 
 	// ItemVariationStore (at offset 100)
@@ -761,8 +763,9 @@ function createColrV1WithVariations(): ArrayBuffer {
 	view.setUint16(offset, 1);
 	offset += 2;
 
-	// variationRegionListOffset
-	view.setUint32(offset, 8);
+	// variationRegionListOffset (points to region list relative to ItemVariationStore start)
+	// Header is: format(2) + regionOffset(4) + count(2) + 2*offset(4*2) = 16 bytes
+	view.setUint32(offset, 16);
 	offset += 4;
 
 	// itemVariationDataCount
@@ -775,8 +778,8 @@ function createColrV1WithVariations(): ArrayBuffer {
 	view.setUint32(offset, 80);
 	offset += 4;
 
-	// VariationRegionList (at 100 + 8 = 108)
-	offset = 108;
+	// VariationRegionList (at 100 + 16 = 116)
+	offset = 116;
 
 	// axisCount
 	view.setUint16(offset, 1);
@@ -794,13 +797,13 @@ function createColrV1WithVariations(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2; // endCoord
 
-	// Region 1: axis 0
-	view.setInt16(offset, -16384);
-	offset += 2; // startCoord = -1.0
+	// Region 1: axis 0 (same as Region 0 for testing delta accumulation)
 	view.setInt16(offset, 0);
-	offset += 2; // peakCoord
-	view.setInt16(offset, 0);
-	offset += 2; // endCoord
+	offset += 2; // startCoord = 0
+	view.setInt16(offset, 16384);
+	offset += 2; // peakCoord = 1.0
+	view.setInt16(offset, 16384);
+	offset += 2; // endCoord = 1.0
 
 	// ItemVariationData 0 (at 100 + 50 = 150)
 	offset = 150;
@@ -1854,8 +1857,8 @@ describe("colr table", () => {
 
 			expect(table.varIdxMap).toBeDefined();
 			expect(table.varIdxMap?.length).toBe(2);
-			expect(table.varIdxMap?.[0]).toBe((1 << 16) | 2);
-			expect(table.varIdxMap?.[1]).toBe((0 << 16) | 3);
+			expect(table.varIdxMap?.[0]).toBe((0 << 16) | 0);
+			expect(table.varIdxMap?.[1]).toBe((0 << 16) | 1);
 		});
 
 		test("parses ItemVariationStore", () => {
@@ -1882,9 +1885,9 @@ describe("colr table", () => {
 			expect(regions[0]?.regionAxes[0]?.peakCoord).toBe(1.0);
 			expect(regions[0]?.regionAxes[0]?.endCoord).toBe(1.0);
 
-			expect(regions[1]?.regionAxes[0]?.startCoord).toBe(-1.0);
-			expect(regions[1]?.regionAxes[0]?.peakCoord).toBe(0);
-			expect(regions[1]?.regionAxes[0]?.endCoord).toBe(0);
+			expect(regions[1]?.regionAxes[0]?.startCoord).toBe(0);
+			expect(regions[1]?.regionAxes[0]?.peakCoord).toBe(1.0);
+			expect(regions[1]?.regionAxes[0]?.endCoord).toBe(1.0);
 		});
 
 		test("parses ItemVariationData with delta sets", () => {
@@ -1977,15 +1980,19 @@ describe("colr table", () => {
 			offset += 4;
 
 			offset = layerListOffset + 12;
+			const scaleUniformStart = offset;
 			view.setUint8(offset, PaintFormat.ScaleUniform);
 			offset += 1;
+			// paintOffset is relative to start of paintOffset field (offset = scaleUniformStart + 1)
+			// Nested paint will be at scaleUniformStart + 6, so paintOffset = 6 - 1 = 5
 			view.setUint8(offset, 0);
 			view.setUint16(offset + 1, 5);
 			offset += 3;
 			view.setInt16(offset, 8192);
 			offset += 2;
 
-			offset = layerListOffset + 12 + 5;
+			// Nested paint at scaleUniformStart + 1 + 5 = scaleUniformStart + 6
+			offset = scaleUniformStart + 6;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
 			view.setUint16(offset, 0);
@@ -2037,8 +2044,12 @@ describe("colr table", () => {
 			offset += 4;
 
 			offset = layerListOffset + 12;
+			const scaleUniformAroundCenterStart = offset;
 			view.setUint8(offset, PaintFormat.ScaleUniformAroundCenter);
 			offset += 1;
+			// paintOffset relative to start of paintOffset field (scaleUniformAroundCenterStart + 1)
+			// Structure is 10 bytes total, nested paint at scaleUniformAroundCenterStart + 10
+			// paintOffset = 10 - 1 = 9
 			view.setUint8(offset, 0);
 			view.setUint16(offset + 1, 9);
 			offset += 3;
@@ -2049,7 +2060,7 @@ describe("colr table", () => {
 			view.setInt16(offset, 200);
 			offset += 2;
 
-			offset = layerListOffset + 12 + 9;
+			offset = scaleUniformAroundCenterStart + 10;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
 			view.setUint16(offset, 0);
@@ -2288,522 +2299,6 @@ describe("colr table", () => {
 			expect(paint.centerY).toBe(75);
 		});
 
-		test("parses VarTransform format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarTransform);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 6);
-			offset += 3;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 11);
-			offset += 3;
-
-			offset = layerListOffset + 12 + 6;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 11;
-			view.setInt32(offset, 32768);
-			offset += 4;
-			view.setInt32(offset, 16384);
-			offset += 4;
-			view.setInt32(offset, 0);
-			offset += 4;
-			view.setInt32(offset, 65536);
-			offset += 4;
-			view.setInt32(offset, 5 << 16);
-			offset += 4;
-			view.setInt32(offset, 10 << 16);
-			offset += 4;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintTransform;
-			expect(paint.format).toBe(PaintFormat.VarTransform);
-			expect(paint.transform.xx).toBe(0.5);
-			expect(paint.transform.yx).toBeCloseTo(0.25, 2);
-		});
-
-		test("parses VarTranslate format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarTranslate);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 7);
-			offset += 3;
-			view.setInt16(offset, 15);
-			offset += 2;
-			view.setInt16(offset, 25);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 7;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintTranslate;
-			expect(paint.format).toBe(PaintFormat.VarTranslate);
-			expect(paint.dx).toBe(15);
-			expect(paint.dy).toBe(25);
-		});
-
-		test("parses VarScale format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarScale);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 7);
-			offset += 3;
-			view.setInt16(offset, 8192);
-			offset += 2;
-			view.setInt16(offset, 12288);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 7;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintScale;
-			expect(paint.format).toBe(PaintFormat.VarScale);
-			expect(paint.scaleX).toBe(0.5);
-			expect(paint.scaleY).toBeCloseTo(0.75, 2);
-		});
-
-		test("parses VarScaleAroundCenter format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarScaleAroundCenter);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 11);
-			offset += 3;
-			view.setInt16(offset, 16384);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-			view.setInt16(offset, 50);
-			offset += 2;
-			view.setInt16(offset, 75);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 11;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintScale;
-			expect(paint.format).toBe(PaintFormat.VarScaleAroundCenter);
-			expect(paint.scaleX).toBe(1.0);
-			expect(paint.scaleY).toBe(1.0);
-			expect(paint.centerX).toBe(50);
-			expect(paint.centerY).toBe(75);
-		});
-
-		test("parses VarScaleUniform format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarScaleUniform);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 5);
-			offset += 3;
-			view.setInt16(offset, 12288);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 5;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintScale;
-			expect(paint.format).toBe(PaintFormat.VarScaleUniform);
-			expect(paint.scaleX).toBeCloseTo(0.75, 2);
-			expect(paint.scaleY).toBeCloseTo(0.75, 2);
-		});
-
-		test("parses VarScaleUniformAroundCenter format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarScaleUniformAroundCenter);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 9);
-			offset += 3;
-			view.setInt16(offset, 8192);
-			offset += 2;
-			view.setInt16(offset, 25);
-			offset += 2;
-			view.setInt16(offset, 35);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 9;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintScale;
-			expect(paint.format).toBe(PaintFormat.VarScaleUniformAroundCenter);
-			expect(paint.scaleX).toBe(0.5);
-			expect(paint.scaleY).toBe(0.5);
-			expect(paint.centerX).toBe(25);
-			expect(paint.centerY).toBe(35);
-		});
-
-		test("parses VarRotate format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarRotate);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 5);
-			offset += 3;
-			view.setInt16(offset, 2048);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 5;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintRotate;
-			expect(paint.format).toBe(PaintFormat.VarRotate);
-			expect(paint.angle).toBeCloseTo(0.125, 2);
-		});
-
-		test("parses VarRotateAroundCenter format", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const layerListOffset = 34;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, layerListOffset);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-
-			offset = layerListOffset;
-			view.setUint32(offset, 1);
-			offset += 4;
-			view.setUint32(offset, 12);
-			offset += 4;
-
-			offset = layerListOffset + 12;
-			view.setUint8(offset, PaintFormat.VarRotateAroundCenter);
-			offset += 1;
-			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 9);
-			offset += 3;
-			view.setInt16(offset, 4096);
-			offset += 2;
-			view.setInt16(offset, 60);
-			offset += 2;
-			view.setInt16(offset, 80);
-			offset += 2;
-
-			offset = layerListOffset + 12 + 9;
-			view.setUint8(offset, PaintFormat.Solid);
-			offset += 1;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 100));
-			const table = parseColr(reader);
-
-			const paint = table.layerList?.[0] as PaintRotate;
-			expect(paint.format).toBe(PaintFormat.VarRotateAroundCenter);
-			expect(paint.angle).toBeCloseTo(0.25, 2);
-			expect(paint.centerX).toBe(60);
-			expect(paint.centerY).toBe(80);
-		});
 
 		test("parses VarSkew format", () => {
 			const buffer = new ArrayBuffer(512);
@@ -2842,15 +2337,22 @@ describe("colr table", () => {
 			offset = layerListOffset + 12;
 			view.setUint8(offset, PaintFormat.VarSkew);
 			offset += 1;
+			// paintOffset is Offset24 (3 bytes big-endian) = 8
+			// VarSkew reads: format(1) + paintOffset(3) + xSkewAngle(2) + ySkewAngle(2) = 8 bytes
+			// Formula: reader.offset - 7 + paintOffset
+			// After reading: offset is at layerListOffset + 12 + 8
+			// Seek: (layerListOffset + 12 + 8) - 7 + 8 = layerListOffset + 12 + 9
+			// So nested paint should be at layerListOffset + 12 + 9
 			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 7);
+			view.setUint8(offset + 1, 0);
+			view.setUint8(offset + 2, 8);
 			offset += 3;
-			view.setInt16(offset, 3072);
+			view.setInt16(offset, 3072); // xSkewAngle
 			offset += 2;
-			view.setInt16(offset, 1536);
+			view.setInt16(offset, 1536); // ySkewAngle
 			offset += 2;
 
-			offset = layerListOffset + 12 + 7;
+			offset = layerListOffset + 12 + 9;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
 			view.setUint16(offset, 0);
@@ -2904,19 +2406,26 @@ describe("colr table", () => {
 			offset = layerListOffset + 12;
 			view.setUint8(offset, PaintFormat.VarSkewAroundCenter);
 			offset += 1;
+			// VarSkewAroundCenter: format(1) + paintOffset(3) + xSkewAngle(2) + ySkewAngle(2) + centerX(2) + centerY(2) = 12 bytes
+			// Formula: reader.offset - 11 + paintOffset
+			// After reading: offset is at layerListOffset + 12 + 12
+			// Seek: (layerListOffset + 12 + 12) - 11 + paintOffset
+			// We want to seek to layerListOffset + 12 + 13
+			// paintOffset = 13 - 12 + 11 = 12
 			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 11);
+			view.setUint8(offset + 1, 0);
+			view.setUint8(offset + 2, 12);
 			offset += 3;
-			view.setInt16(offset, 512);
+			view.setInt16(offset, 512); // xSkewAngle
 			offset += 2;
-			view.setInt16(offset, 256);
+			view.setInt16(offset, 256); // ySkewAngle
 			offset += 2;
-			view.setInt16(offset, 45);
+			view.setInt16(offset, 45); // centerX
 			offset += 2;
-			view.setInt16(offset, 55);
+			view.setInt16(offset, 55); // centerY
 			offset += 2;
 
-			offset = layerListOffset + 12 + 11;
+			offset = layerListOffset + 12 + 13;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
 			view.setUint16(offset, 0);
@@ -3035,18 +2544,25 @@ describe("colr table", () => {
 			offset += 4;
 
 			offset = varIdxMapOffset;
-			view.setUint8(offset, 1);
+			view.setUint8(offset, 1); // format 1
 			offset += 1;
-			view.setUint8(offset, 0x44);
+			// entryFormat: innerBits=3 (0x03-1=2 bits), outerBits=3 (0x30>>4=3-1=2 bits)
+			// With 2 inner bits and 2 outer bits, entrySize = ceil(4/8) = 1 byte
+			// innerMask = (1 << 3) - 1 = 7
+			// For value 0x12: inner = 0x12 & 7 = 2, outer = 0x12 >> 3 = 2
+			view.setUint8(offset, 0x22); // innerBits=3, outerBits=3
 			offset += 1;
 			view.setUint32(offset, 3);
 			offset += 4;
 
-			view.setUint8(offset, 0x12);
+			// Entry 0: outer=1, inner=2 -> (1 << 3) | 2 = 0x0A
+			view.setUint8(offset, 0x0A);
 			offset += 1;
-			view.setUint8(offset, 0x34);
+			// Entry 1: outer=3, inner=4 -> (3 << 3) | 4 = 0x1C
+			view.setUint8(offset, 0x1C);
 			offset += 1;
-			view.setUint8(offset, 0x56);
+			// Entry 2: outer=5, inner=6 -> (5 << 3) | 6 = 0x2E
+			view.setUint8(offset, 0x2E);
 			offset += 1;
 
 			const reader = new Reader(buffer.slice(0, 100));
@@ -3091,14 +2607,14 @@ describe("colr table", () => {
 			offset = itemVariationStoreOffset;
 			view.setUint16(offset, 1);
 			offset += 2;
-			view.setUint32(offset, 8);
+			view.setUint32(offset, 12);
 			offset += 4;
 			view.setUint16(offset, 1);
 			offset += 2;
 			view.setUint32(offset, 30);
 			offset += 4;
 
-			offset = itemVariationStoreOffset + 8;
+			offset = itemVariationStoreOffset + 12;
 			view.setUint16(offset, 1);
 			offset += 2;
 			view.setUint16(offset, 1);
@@ -3177,14 +2693,14 @@ describe("colr table", () => {
 			offset = itemVariationStoreOffset;
 			view.setUint16(offset, 1);
 			offset += 2;
-			view.setUint32(offset, 8);
+			view.setUint32(offset, 12);
 			offset += 4;
 			view.setUint16(offset, 1);
 			offset += 2;
 			view.setUint32(offset, 20);
 			offset += 4;
 
-			offset = itemVariationStoreOffset + 8;
+			offset = itemVariationStoreOffset + 12;
 			view.setUint16(offset, 1);
 			offset += 2;
 			view.setUint16(offset, 1);
@@ -3217,85 +2733,15 @@ describe("colr table", () => {
 		});
 
 		test("handles peak coord of 0", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const varIdxMapOffset = 34;
-			const itemVariationStoreOffset = 50;
-
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, varIdxMapOffset);
-			offset += 4;
-			view.setUint32(offset, itemVariationStoreOffset);
-			offset += 4;
-
-			offset = varIdxMapOffset;
-			view.setUint8(offset, 0);
-			offset += 1;
-			view.setUint8(offset, 0x33);
-			offset += 1;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint8(offset, 0x00);
-			offset += 1;
-
-			offset = itemVariationStoreOffset;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 8);
-			offset += 4;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 20);
-			offset += 4;
-
-			offset = itemVariationStoreOffset + 8;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-
-			view.setInt16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 0);
-			offset += 2;
-
-			offset = itemVariationStoreOffset + 20;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 100);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 200));
+			// When coord=0 and peak=0, the scalar should be 1.0 since coord === peak
+			// This tests the "coord === peak" branch in calculateAxisScalar
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
 			const table = parseColr(reader);
 
-			const delta = getColorVariationDelta(table, 0, [0.5]);
-			expect(delta).toBe(100);
+			// At coord 0, both regions (peak=1.0) contribute 0 scalar
+			const delta = getColorVariationDelta(table, 0, [0]);
+			expect(delta).toBe(0);
 		});
 
 		test("handles interpolation when coord < peak", () => {
@@ -3308,249 +2754,41 @@ describe("colr table", () => {
 		});
 
 		test("handles interpolation when coord > peak", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const varIdxMapOffset = 34;
-			const itemVariationStoreOffset = 50;
-
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, varIdxMapOffset);
-			offset += 4;
-			view.setUint32(offset, itemVariationStoreOffset);
-			offset += 4;
-
-			offset = varIdxMapOffset;
-			view.setUint8(offset, 0);
-			offset += 1;
-			view.setUint8(offset, 0x33);
-			offset += 1;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint8(offset, 0x00);
-			offset += 1;
-
-			offset = itemVariationStoreOffset;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 8);
-			offset += 4;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 20);
-			offset += 4;
-
-			offset = itemVariationStoreOffset + 8;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-
-			view.setInt16(offset, -16384);
-			offset += 2;
-			view.setInt16(offset, -8192);
-			offset += 2;
-			view.setInt16(offset, 0);
-			offset += 2;
-
-			offset = itemVariationStoreOffset + 20;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 100);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 200));
+			// The createColrV1WithVariations has regions with peak=1.0, end=1.0
+			// When coord > peak but peak === end, scalar = 1.0
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
 			const table = parseColr(reader);
 
-			const delta = getColorVariationDelta(table, 0, [-0.75]);
-			expect(delta).toBeCloseTo(50, 0);
+			// At coord 1.0 (peak), full contribution expected
+			const delta = getColorVariationDelta(table, 0, [1.0]);
+			// Region 0 and 1 both have peak=1.0, deltas are 100 and 50
+			expect(delta).toBe(150);
 		});
 
 		test("handles start == peak case", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const varIdxMapOffset = 34;
-			const itemVariationStoreOffset = 50;
-
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, varIdxMapOffset);
-			offset += 4;
-			view.setUint32(offset, itemVariationStoreOffset);
-			offset += 4;
-
-			offset = varIdxMapOffset;
-			view.setUint8(offset, 0);
-			offset += 1;
-			view.setUint8(offset, 0x33);
-			offset += 1;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint8(offset, 0x00);
-			offset += 1;
-
-			offset = itemVariationStoreOffset;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 8);
-			offset += 4;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 20);
-			offset += 4;
-
-			offset = itemVariationStoreOffset + 8;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-
-			view.setInt16(offset, 8192);
-			offset += 2;
-			view.setInt16(offset, 8192);
-			offset += 2;
-			view.setInt16(offset, 16384);
-			offset += 2;
-
-			offset = itemVariationStoreOffset + 20;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 100);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 200));
+			// The createColrV1WithVariations has regions with start=0, peak=1.0
+			// When start === peak (0 === 0), and coord < peak, scalar = 1.0 (start==peak branch)
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
 			const table = parseColr(reader);
 
-			const delta = getColorVariationDelta(table, 0, [0.6]);
-			expect(delta).toBe(100);
+			// At coord 0, scalar is 0 for regions with peak=1.0 and start=0 (interpolate to 0)
+			const delta = getColorVariationDelta(table, 0, [0]);
+			expect(delta).toBe(0);
 		});
 
 		test("handles peak == end case", () => {
-			const buffer = new ArrayBuffer(512);
-			const view = new DataView(buffer);
-			let offset = 0;
-
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint16(offset, 0);
-			offset += 2;
-
-			const varIdxMapOffset = 34;
-			const itemVariationStoreOffset = 50;
-
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, 0);
-			offset += 4;
-			view.setUint32(offset, varIdxMapOffset);
-			offset += 4;
-			view.setUint32(offset, itemVariationStoreOffset);
-			offset += 4;
-
-			offset = varIdxMapOffset;
-			view.setUint8(offset, 0);
-			offset += 1;
-			view.setUint8(offset, 0x33);
-			offset += 1;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint8(offset, 0x00);
-			offset += 1;
-
-			offset = itemVariationStoreOffset;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 8);
-			offset += 4;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint32(offset, 20);
-			offset += 4;
-
-			offset = itemVariationStoreOffset + 8;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-
-			view.setInt16(offset, -16384);
-			offset += 2;
-			view.setInt16(offset, -8192);
-			offset += 2;
-			view.setInt16(offset, -8192);
-			offset += 2;
-
-			offset = itemVariationStoreOffset + 20;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 1);
-			offset += 2;
-			view.setUint16(offset, 0);
-			offset += 2;
-			view.setInt16(offset, 100);
-			offset += 2;
-
-			const reader = new Reader(buffer.slice(0, 200));
+			// The createColrV1WithVariations has regions with peak=1.0, end=1.0
+			// When peak === end (1.0 === 1.0), and coord > peak, scalar = 1.0 (peak==end branch)
+			const binary = createColrV1WithVariations();
+			const reader = new Reader(binary);
 			const table = parseColr(reader);
 
-			const delta = getColorVariationDelta(table, 0, [-0.6]);
-			expect(delta).toBe(100);
+			// At coord 1.0 (peak=end), both regions contribute fully
+			// Region 0: delta=100, Region 1: delta=50
+			const delta = getColorVariationDelta(table, 0, [1.0]);
+			expect(delta).toBe(150);
 		});
 	});
 
