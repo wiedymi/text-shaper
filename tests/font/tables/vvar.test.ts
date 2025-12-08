@@ -740,3 +740,582 @@ describe("synthetic VVAR parsing - Reader basics", () => {
 		expect(reader.uint32()).toBe(200);
 	});
 });
+
+describe("parseDeltaSetIndexMap variations", () => {
+	function createVvarWithMapping(
+		mappingType: "advance" | "tsb" | "bsb" | "vorg",
+		format: 0 | 1,
+		entryFormat: number,
+		mapEntries: { outer: number; inner: number }[],
+	): ArrayBuffer {
+		const headerSize = 24;
+		const ivsOffset = headerSize;
+		const ivsHeaderSize = 8;
+		const ivsDataOffset = ivsOffset + ivsHeaderSize + 4;
+		const regionListOffset = ivsDataOffset + 30;
+		const regionListSize = 4 + 1 * 1 * 6;
+
+		const innerIndexBitCount = (entryFormat & 0x0f) + 1;
+		const mapEntrySize = ((entryFormat >> 4) & 0x03) + 1;
+		const mapCount = mapEntries.length;
+
+		const mappingHeaderSize = 2 + (format === 0 ? 2 : 4);
+		const mappingDataSize = mapCount * mapEntrySize;
+		const mappingOffset = regionListOffset + regionListSize;
+		const mappingSize = mappingHeaderSize + mappingDataSize;
+
+		const totalSize = mappingOffset + mappingSize + 20;
+		const buffer = new ArrayBuffer(totalSize);
+		const view = new DataView(buffer);
+
+		let offset = 0;
+
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint32(offset, ivsOffset, false); offset += 4;
+
+		view.setUint32(offset, mappingType === "advance" ? mappingOffset : 0, false); offset += 4;
+		view.setUint32(offset, mappingType === "tsb" ? mappingOffset : 0, false); offset += 4;
+		view.setUint32(offset, mappingType === "bsb" ? mappingOffset : 0, false); offset += 4;
+		view.setUint32(offset, mappingType === "vorg" ? mappingOffset : 0, false); offset += 4;
+
+		offset = ivsOffset;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, regionListOffset - ivsOffset, false); offset += 4;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, ivsDataOffset - ivsOffset, false); offset += 4;
+
+		offset = ivsDataOffset;
+		view.setUint16(offset, 5, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		for (let i = 0; i < 5; i++) {
+			view.setInt16(offset, 10, false); offset += 2;
+		}
+
+		offset = regionListOffset;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setInt16(offset, -16384, false); offset += 2;
+		view.setInt16(offset, 16384, false); offset += 2;
+		view.setInt16(offset, 16384, false); offset += 2;
+
+		offset = mappingOffset;
+		view.setUint8(offset, format); offset += 1;
+		view.setUint8(offset, entryFormat); offset += 1;
+		if (format === 0) {
+			view.setUint16(offset, mapCount, false); offset += 2;
+		} else {
+			view.setUint32(offset, mapCount, false); offset += 4;
+		}
+
+		for (const entry of mapEntries) {
+			const combined = (entry.outer << innerIndexBitCount) | entry.inner;
+			for (let i = mapEntrySize - 1; i >= 0; i--) {
+				view.setUint8(offset, (combined >> (i * 8)) & 0xff);
+				offset += 1;
+			}
+		}
+
+		return buffer;
+	}
+
+	test("parseDeltaSetIndexMap format 0", () => {
+		const data = createVvarWithMapping("advance", 0, 0x10, [
+			{ outer: 0, inner: 0 },
+			{ outer: 0, inner: 1 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).not.toBeNull();
+		expect(vvar.advanceHeightMapping!.format).toBe(0);
+		expect(vvar.advanceHeightMapping!.mapCount).toBe(2);
+	});
+
+	test("parseDeltaSetIndexMap format 1", () => {
+		const data = createVvarWithMapping("advance", 1, 0x10, [
+			{ outer: 0, inner: 0 },
+			{ outer: 0, inner: 1 },
+			{ outer: 0, inner: 2 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).not.toBeNull();
+		expect(vvar.advanceHeightMapping!.format).toBe(1);
+		expect(vvar.advanceHeightMapping!.mapCount).toBe(3);
+	});
+
+	test("parseDeltaSetIndexMap with 1-byte entries", () => {
+		const data = createVvarWithMapping("advance", 0, 0x00, [
+			{ outer: 0, inner: 0 },
+			{ outer: 0, inner: 1 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).not.toBeNull();
+		expect(vvar.advanceHeightMapping!.mapData.length).toBe(2);
+	});
+
+	test("parseDeltaSetIndexMap with 2-byte entries", () => {
+		const data = createVvarWithMapping("advance", 0, 0x17, [
+			{ outer: 1, inner: 5 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).not.toBeNull();
+		expect(vvar.advanceHeightMapping!.mapData[0].outer).toBe(1);
+		expect(vvar.advanceHeightMapping!.mapData[0].inner).toBe(5);
+	});
+
+	test("parseDeltaSetIndexMap with 3-byte entries", () => {
+		const data = createVvarWithMapping("advance", 0, 0x27, [
+			{ outer: 0, inner: 1 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).not.toBeNull();
+		expect(vvar.advanceHeightMapping!.mapData.length).toBe(1);
+	});
+
+	test("parseDeltaSetIndexMap with 4-byte entries", () => {
+		const data = createVvarWithMapping("advance", 0, 0x37, [
+			{ outer: 0, inner: 1 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.advanceHeightMapping).not.toBeNull();
+		expect(vvar.advanceHeightMapping!.mapData.length).toBe(1);
+	});
+
+	test("TSB mapping with format 1", () => {
+		const data = createVvarWithMapping("tsb", 1, 0x10, [
+			{ outer: 0, inner: 0 },
+			{ outer: 0, inner: 1 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.tsbMapping).not.toBeNull();
+		expect(vvar.tsbMapping!.format).toBe(1);
+		expect(vvar.tsbMapping!.mapCount).toBe(2);
+	});
+
+	test("BSB mapping with format 0", () => {
+		const data = createVvarWithMapping("bsb", 0, 0x10, [
+			{ outer: 0, inner: 0 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.bsbMapping).not.toBeNull();
+		expect(vvar.bsbMapping!.format).toBe(0);
+	});
+
+	test("VORG mapping with format 1", () => {
+		const data = createVvarWithMapping("vorg", 1, 0x10, [
+			{ outer: 0, inner: 0 },
+		]);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.vOrgMapping).not.toBeNull();
+		expect(vvar.vOrgMapping!.format).toBe(1);
+	});
+});
+
+describe("ItemVariationData with longWords", () => {
+	function createVvarWithLongWords(useLongWords: boolean): ArrayBuffer {
+		const headerSize = 24;
+		const ivsOffset = headerSize;
+		const ivsHeaderSize = 8;
+		const ivsDataOffset = ivsOffset + ivsHeaderSize + 4;
+		const regionListOffset = ivsDataOffset + 100;
+		const regionListSize = 4 + 2 * 2 * 6;
+
+		const totalSize = regionListOffset + regionListSize + 20;
+		const buffer = new ArrayBuffer(totalSize);
+		const view = new DataView(buffer);
+
+		let offset = 0;
+
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint32(offset, ivsOffset, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+
+		offset = ivsOffset;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, regionListOffset - ivsOffset, false); offset += 4;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, ivsDataOffset - ivsOffset, false); offset += 4;
+
+		offset = ivsDataOffset;
+		view.setUint16(offset, 2, false); offset += 2;
+
+		const wordDeltaCount = useLongWords ? 0x8001 : 0x0001;
+		view.setUint16(offset, wordDeltaCount, false); offset += 2;
+		view.setUint16(offset, 2, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+
+		if (useLongWords) {
+			view.setInt32(offset, 1000, false); offset += 4;
+			view.setInt16(offset, 50, false); offset += 2;
+			view.setInt32(offset, -500, false); offset += 4;
+			view.setInt16(offset, -25, false); offset += 2;
+		} else {
+			view.setInt16(offset, 100, false); offset += 2;
+			view.setInt8(offset, 5); offset += 1;
+			view.setInt16(offset, -50, false); offset += 2;
+			view.setInt8(offset, -2); offset += 1;
+		}
+
+		offset = regionListOffset;
+		view.setUint16(offset, 2, false); offset += 2;
+		view.setUint16(offset, 2, false); offset += 2;
+
+		for (let i = 0; i < 2; i++) {
+			for (let j = 0; j < 2; j++) {
+				view.setInt16(offset, -16384, false); offset += 2;
+				view.setInt16(offset, 16384, false); offset += 2;
+				view.setInt16(offset, 16384, false); offset += 2;
+			}
+		}
+
+		return buffer;
+	}
+
+	test("parses ItemVariationData with longWords set (int32 deltas)", () => {
+		const data = createVvarWithLongWords(true);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.itemVariationStore.itemVariationData.length).toBe(1);
+		const varData = vvar.itemVariationStore.itemVariationData[0];
+		expect(varData.itemCount).toBe(2);
+		expect(varData.deltaSets.length).toBe(2);
+		expect(varData.deltaSets[0][0]).toBe(1000);
+		expect(varData.deltaSets[0][1]).toBe(50);
+		expect(varData.deltaSets[1][0]).toBe(-500);
+		expect(varData.deltaSets[1][1]).toBe(-25);
+	});
+
+	test("parses ItemVariationData without longWords (int16/int8 deltas)", () => {
+		const data = createVvarWithLongWords(false);
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.itemVariationStore.itemVariationData.length).toBe(1);
+		const varData = vvar.itemVariationStore.itemVariationData[0];
+		expect(varData.itemCount).toBe(2);
+		expect(varData.deltaSets.length).toBe(2);
+		expect(varData.deltaSets[0][0]).toBe(100);
+		expect(varData.deltaSets[0][1]).toBe(5);
+		expect(varData.deltaSets[1][0]).toBe(-50);
+		expect(varData.deltaSets[1][1]).toBe(-2);
+	});
+});
+
+describe("delta functions with mappings edge cases", () => {
+	function createVvarWithSparseMapping(): ArrayBuffer {
+		const headerSize = 24;
+		const ivsOffset = headerSize;
+		const ivsHeaderSize = 8;
+		const ivsDataOffset = ivsOffset + ivsHeaderSize + 4;
+		const regionListOffset = ivsDataOffset + 30;
+		const regionListSize = 4 + 1 * 1 * 6;
+		const mappingOffset = regionListOffset + regionListSize;
+
+		const totalSize = mappingOffset + 100;
+		const buffer = new ArrayBuffer(totalSize);
+		const view = new DataView(buffer);
+
+		let offset = 0;
+
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint32(offset, ivsOffset, false); offset += 4;
+		view.setUint32(offset, mappingOffset, false); offset += 4;
+		view.setUint32(offset, mappingOffset + 20, false); offset += 4;
+		view.setUint32(offset, mappingOffset + 40, false); offset += 4;
+		view.setUint32(offset, mappingOffset + 60, false); offset += 4;
+
+		offset = ivsOffset;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, regionListOffset - ivsOffset, false); offset += 4;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, ivsDataOffset - ivsOffset, false); offset += 4;
+
+		offset = ivsDataOffset;
+		view.setUint16(offset, 3, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setInt16(offset, 10, false); offset += 2;
+		view.setInt16(offset, 20, false); offset += 2;
+		view.setInt16(offset, 30, false); offset += 2;
+
+		offset = regionListOffset;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setInt16(offset, -16384, false); offset += 2;
+		view.setInt16(offset, 16384, false); offset += 2;
+		view.setInt16(offset, 16384, false); offset += 2;
+
+		offset = mappingOffset;
+		view.setUint8(offset, 0); offset += 1;
+		view.setUint8(offset, 0x10); offset += 1;
+		view.setUint16(offset, 2, false); offset += 2;
+		view.setUint16(offset, 0x0000, false); offset += 2;
+		view.setUint16(offset, 0x0002, false); offset += 2;
+
+		offset = mappingOffset + 20;
+		view.setUint8(offset, 0); offset += 1;
+		view.setUint8(offset, 0x10); offset += 1;
+		view.setUint16(offset, 2, false); offset += 2;
+		view.setUint16(offset, 0x0000, false); offset += 2;
+		view.setUint16(offset, 0x0001, false); offset += 2;
+
+		offset = mappingOffset + 40;
+		view.setUint8(offset, 0); offset += 1;
+		view.setUint8(offset, 0x10); offset += 1;
+		view.setUint16(offset, 2, false); offset += 2;
+		view.setUint16(offset, 0x0000, false); offset += 2;
+		view.setUint16(offset, 0x0002, false); offset += 2;
+
+		offset = mappingOffset + 60;
+		view.setUint8(offset, 0); offset += 1;
+		view.setUint8(offset, 0x10); offset += 1;
+		view.setUint16(offset, 2, false); offset += 2;
+		view.setUint16(offset, 0x0000, false); offset += 2;
+		view.setUint16(offset, 0x0001, false); offset += 2;
+
+		return buffer;
+	}
+
+	test("getAdvanceHeightDelta with mapping - valid entry", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getAdvanceHeightDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(10);
+	});
+
+	test("getAdvanceHeightDelta with mapping - glyph beyond map", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getAdvanceHeightDelta(vvar, 99, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getTsbDelta with mapping - glyph within range", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getTsbDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(10);
+	});
+
+	test("getTsbDelta with mapping - glyph beyond map length", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getTsbDelta(vvar, 50, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getBsbDelta with mapping - glyph within range", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getBsbDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(10);
+	});
+
+	test("getBsbDelta with mapping - glyph beyond map length", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getBsbDelta(vvar, 50, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getVorgDelta with mapping - glyph within range", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getVorgDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(10);
+	});
+
+	test("getVorgDelta with mapping - glyph beyond map length", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getVorgDelta(vvar, 50, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("getAdvanceHeightDelta with mapping - undefined entry in mapData", () => {
+		const data = createVvarWithSparseMapping();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		if (vvar.advanceHeightMapping) {
+			const originalEntry = vvar.advanceHeightMapping.mapData[1];
+			vvar.advanceHeightMapping.mapData[1] = undefined as any;
+
+			const delta = getAdvanceHeightDelta(vvar, 1, [1.0]);
+			expect(delta).toBe(0);
+
+			vvar.advanceHeightMapping.mapData[1] = originalEntry;
+		}
+	});
+});
+
+describe("comprehensive edge case coverage", () => {
+	function createVvarWithZeroRegions(): ArrayBuffer {
+		const headerSize = 24;
+		const ivsOffset = headerSize;
+		const ivsHeaderSize = 8;
+		const ivsDataOffset = ivsOffset + ivsHeaderSize + 4;
+		const regionListOffset = ivsDataOffset + 10;
+
+		const totalSize = regionListOffset + 20;
+		const buffer = new ArrayBuffer(totalSize);
+		const view = new DataView(buffer);
+
+		let offset = 0;
+
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint32(offset, ivsOffset, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+		view.setUint32(offset, 0, false); offset += 4;
+
+		offset = ivsOffset;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, regionListOffset - ivsOffset, false); offset += 4;
+		view.setUint16(offset, 1, false); offset += 2;
+		view.setUint32(offset, ivsDataOffset - ivsOffset, false); offset += 4;
+
+		offset = ivsDataOffset;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+
+		offset = regionListOffset;
+		view.setUint16(offset, 0, false); offset += 2;
+		view.setUint16(offset, 0, false); offset += 2;
+
+		return buffer;
+	}
+
+	test("handles ItemVariationData with zero items", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.itemVariationStore.itemVariationData.length).toBe(1);
+		expect(vvar.itemVariationStore.itemVariationData[0].itemCount).toBe(0);
+		expect(vvar.itemVariationStore.itemVariationData[0].deltaSets.length).toBe(0);
+	});
+
+	test("handles variation store with zero regions", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		expect(vvar.itemVariationStore.variationRegions.length).toBe(0);
+	});
+
+	test("calculateDelta handles missing varData", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		const delta = getAdvanceHeightDelta(vvar, 0, [1.0]);
+		expect(delta).toBe(0);
+	});
+
+	test("calculateDelta handles inner >= itemCount", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		if (vvar.advanceHeightMapping) {
+			vvar.advanceHeightMapping.mapData.push({ outer: 0, inner: 999 });
+			const delta = getAdvanceHeightDelta(vvar, vvar.advanceHeightMapping.mapData.length - 1, [1.0]);
+			expect(delta).toBe(0);
+		}
+	});
+
+	test("calculateDelta handles missing deltaSet", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		if (vvar.itemVariationStore.itemVariationData.length > 0) {
+			vvar.itemVariationStore.itemVariationData[0].itemCount = 5;
+			vvar.itemVariationStore.itemVariationData[0].deltaSets = [undefined as any];
+			const delta = getAdvanceHeightDelta(vvar, 0, [1.0]);
+			expect(delta).toBe(0);
+		}
+	});
+
+	test("calculateDelta handles invalid region index", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		if (vvar.itemVariationStore.itemVariationData.length > 0) {
+			vvar.itemVariationStore.itemVariationData[0].itemCount = 1;
+			vvar.itemVariationStore.itemVariationData[0].deltaSets = [[100]];
+			vvar.itemVariationStore.itemVariationData[0].regionIndexes = [999];
+			const delta = getAdvanceHeightDelta(vvar, 0, [1.0]);
+			expect(delta).toBe(0);
+		}
+	});
+
+	test("calculateDelta handles undefined deltaSet element", () => {
+		const data = createVvarWithZeroRegions();
+		const reader = new Reader(new DataView(data));
+		const vvar = parseVvar(reader);
+
+		if (vvar.itemVariationStore.itemVariationData.length > 0) {
+			vvar.itemVariationStore.variationRegions = [{
+				regionAxes: [{
+					startCoord: -1.0,
+					peakCoord: 1.0,
+					endCoord: 1.0
+				}]
+			}];
+			vvar.itemVariationStore.itemVariationData[0].itemCount = 1;
+			vvar.itemVariationStore.itemVariationData[0].deltaSets = [[undefined as any]];
+			vvar.itemVariationStore.itemVariationData[0].regionIndexes = [0];
+			const delta = getAdvanceHeightDelta(vvar, 0, [1.0]);
+			expect(delta).toBe(0);
+		}
+	});
+});

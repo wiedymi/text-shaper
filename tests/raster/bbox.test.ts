@@ -35,6 +35,17 @@ describe("Quadratic extrema calculation", () => {
 		const extrema = getQuadraticExtrema(5, 5, 5);
 		expect(extrema).toHaveLength(0);
 	});
+
+	test("returns empty array when t is exactly at boundary", () => {
+		// Test case where t would be exactly 0 or 1
+		// For t=0: p0 - p1 = 0 => p0 = p1
+		const extrema1 = getQuadraticExtrema(5, 5, 10);
+		expect(extrema1).toHaveLength(0);
+
+		// For t=1: (p0-p1)/(p0-2p1+p2) = 1 => p0-p1 = p0-2p1+p2 => p1 = p2
+		const extrema2 = getQuadraticExtrema(0, 10, 10);
+		expect(extrema2).toHaveLength(0);
+	});
 });
 
 describe("Cubic extrema calculation", () => {
@@ -63,6 +74,30 @@ describe("Cubic extrema calculation", () => {
 	test("filters out extrema outside [0,1]", () => {
 		const extrema = getCubicExtrema(0, 10, -5, 1);
 		expect(extrema.every((t) => t >= 0 && t <= 1)).toBe(true);
+	});
+
+	test("handles negative discriminant (no real solutions)", () => {
+		// Create cubic where b^2 - 4ac < 0
+		// Using values that result in negative discriminant
+		const extrema = getCubicExtrema(0, 0.1, 0.2, 1);
+		// Should return empty array or valid extrema
+		expect(Array.isArray(extrema)).toBe(true);
+		expect(extrema.every((t) => t >= 0 && t <= 1)).toBe(true);
+	});
+
+	test("handles discriminant exactly zero (one solution)", () => {
+		// Create cubic where b^2 - 4ac = 0 and t is in (0,1)
+		// p0=0, p1=0.5, p2=0, p3=0.5
+		// a = 3(p3 - 3p2 + 3p1 - p0) = 3(0.5 - 0 + 1.5 - 0) = 6
+		// b = 6(p2 - 2p1 + p0) = 6(0 - 1 + 0) = -6
+		// c = 3(p1 - p0) = 3(0.5 - 0) = 1.5
+		// discriminant = b^2 - 4ac = 36 - 36 = 0
+		// t = -b / (2a) = 6 / 12 = 0.5
+		const extrema = getCubicExtrema(0, 0.5, 0, 0.5);
+		expect(Array.isArray(extrema)).toBe(true);
+		// Should have exactly 1 extremum when discriminant is 0 and t in (0,1)
+		expect(extrema.length).toBe(1);
+		expect(extrema[0]).toBeCloseTo(0.5);
 	});
 });
 
@@ -284,5 +319,48 @@ describe("Exact path bounds", () => {
 		expect(bounds).not.toBeNull();
 		expect(bounds!.xMin).toBe(0);
 		expect(bounds!.xMax).toBe(100);
+	});
+
+	test("returns null for path with only Z commands", () => {
+		const path: GlyphPath = {
+			commands: [{ type: "Z" }, { type: "Z" }],
+			bounds: null,
+		};
+		const bounds = getExactBounds(path);
+		expect(bounds).toBeNull();
+	});
+
+	test("calculates bounds for quadratic with X extrema", () => {
+		// Quadratic that has extremum in X direction
+		// From (0,0) to (0,100) with control at (100,50)
+		// The curve bulges out in X direction
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 0, y: 0 },
+				{ type: "Q", x1: 100, y1: 50, x: 0, y: 100 },
+			],
+			bounds: null,
+		};
+		const bounds = getExactBounds(path);
+		expect(bounds).not.toBeNull();
+		// xMax should be > 0 due to the curve bulging out
+		expect(bounds!.xMax).toBeGreaterThan(0);
+		expect(bounds!.xMax).toBeCloseTo(50);
+	});
+
+	test("calculates bounds for cubic with X extrema", () => {
+		// Cubic that has extremum in X direction
+		// From (0,0) to (0,100) with controls that push the curve out in X
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 0, y: 0 },
+				{ type: "C", x1: 100, y1: 0, x2: 100, y2: 100, x: 0, y: 100 },
+			],
+			bounds: null,
+		};
+		const bounds = getExactBounds(path);
+		expect(bounds).not.toBeNull();
+		// xMax should extend beyond 0 due to curve extrema
+		expect(bounds!.xMax).toBeGreaterThan(0);
 	});
 });

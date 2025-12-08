@@ -545,4 +545,237 @@ describe("edge cases", () => {
 			expect(delta.y).toBe(0);
 		}
 	});
+
+	test("calculateTupleScalar with coord > peak in intermediate region", () => {
+		const peakTuple = [0.5, 0.0, 0.0];
+		const axisCoords = [0.75, 0.0, 0.0];
+		const intermediateStart = [0.0, 0.0, 0.0];
+		const intermediateEnd = [1.0, 0.0, 0.0];
+		const scalar = calculateTupleScalar(
+			peakTuple,
+			axisCoords,
+			intermediateStart,
+			intermediateEnd,
+		);
+		expect(scalar).toBeCloseTo(0.5, 2);
+	});
+
+	test("calculateTupleScalar with undefined intermediate coords", () => {
+		const peakTuple = [1.0, 0.0];
+		const axisCoords = [0.5, 0.0];
+		const intermediateStart = [0.25];
+		const intermediateEnd = [1.0];
+		const scalar = calculateTupleScalar(
+			peakTuple,
+			axisCoords,
+			intermediateStart,
+			intermediateEnd,
+		);
+		expect(typeof scalar).toBe("number");
+	});
+});
+
+
+describe("getGlyphDelta with point numbers", () => {
+	test("handles delta lookup with private point numbers", async () => {
+		const font = await Font.fromFile(SFNS_PATH);
+		const gvar = font.gvar;
+		if (gvar) {
+			const glyphIdWithVars = gvar.glyphVariationData.findIndex((g) => {
+				return g.tupleVariationHeaders.some(
+					(h) => h.pointNumbers !== null && h.pointNumbers.length > 0,
+				);
+			});
+
+			if (glyphIdWithVars >= 0) {
+				const glyphData = gvar.glyphVariationData[glyphIdWithVars];
+				const headerWithPoints = glyphData?.tupleVariationHeaders.find(
+					(h) => h.pointNumbers !== null && h.pointNumbers.length > 0,
+				);
+
+				if (headerWithPoints?.pointNumbers) {
+					const pointIndex = headerWithPoints.pointNumbers[0];
+					if (pointIndex !== undefined) {
+						const axisCoords = [1.0, 0.0, 0.0, 0.0];
+						const delta = getGlyphDelta(
+							gvar,
+							glyphIdWithVars,
+							pointIndex,
+							axisCoords,
+						);
+						expect(typeof delta.x).toBe("number");
+						expect(typeof delta.y).toBe("number");
+					}
+				}
+			}
+		}
+	});
+
+	test("handles delta lookup for point not in variation", async () => {
+		const font = await Font.fromFile(SFNS_PATH);
+		const gvar = font.gvar;
+		if (gvar) {
+			const glyphIdWithVars = gvar.glyphVariationData.findIndex((g) => {
+				return g.tupleVariationHeaders.some(
+					(h) => h.pointNumbers !== null && h.pointNumbers.length > 0,
+				);
+			});
+
+			if (glyphIdWithVars >= 0) {
+				const axisCoords = [1.0, 0.0, 0.0, 0.0];
+				const delta = getGlyphDelta(gvar, glyphIdWithVars, 9999, axisCoords);
+				expect(delta.x).toBe(0);
+				expect(delta.y).toBe(0);
+			}
+		}
+	});
+
+	test("handles delta lookup for all points (null pointNumbers)", async () => {
+		const font = await Font.fromFile(SFNS_PATH);
+		const gvar = font.gvar;
+		if (gvar) {
+			const glyphIdWithAllPoints = gvar.glyphVariationData.findIndex((g) => {
+				return g.tupleVariationHeaders.some((h) => h.pointNumbers === null);
+			});
+
+			if (glyphIdWithAllPoints >= 0) {
+				const axisCoords = [1.0, 0.0, 0.0, 0.0];
+				const delta = getGlyphDelta(gvar, glyphIdWithAllPoints, 0, axisCoords);
+				expect(typeof delta.x).toBe("number");
+				expect(typeof delta.y).toBe("number");
+			}
+		}
+	});
+
+	test("handles delta lookup with undefined delta in array", async () => {
+		const font = await Font.fromFile(SFNS_PATH);
+		const gvar = font.gvar;
+		if (gvar) {
+			const glyphIdWithVars = gvar.glyphVariationData.findIndex(
+				(g) => g.tupleVariationHeaders.length > 0,
+			);
+			if (glyphIdWithVars >= 0) {
+				const axisCoords = [1.0, 0.0, 0.0, 0.0];
+				const delta = getGlyphDelta(gvar, glyphIdWithVars, 9999, axisCoords);
+				expect(delta.x).toBe(0);
+				expect(delta.y).toBe(0);
+			}
+		}
+	});
+});
+
+function createMockGvarWithPackedPoints(packedPointsData: Uint8Array): any {
+	const headerSize = 20;
+	const tupleHeaderSize = 4;
+	const sharedTuplesSize = 0;
+
+	const gvarData = new Uint8Array(
+		headerSize + tupleHeaderSize + packedPointsData.length + 100,
+	);
+	const view = new DataView(gvarData.buffer);
+
+	view.setUint16(0, 1);
+	view.setUint16(2, 0);
+	view.setUint16(4, 1);
+	view.setUint16(6, 0);
+	view.setUint32(8, headerSize);
+	view.setUint16(12, 1);
+	view.setUint16(14, 0);
+	view.setUint32(16, headerSize);
+
+	view.setUint16(headerSize, 0);
+	view.setUint16(headerSize + 2, 0);
+
+	view.setUint16(headerSize + 4, 0x8001);
+	view.setUint16(headerSize + 6, packedPointsData.length + 10);
+
+	gvarData.set(packedPointsData, headerSize + 8 + tupleHeaderSize);
+
+	const reader = new Reader(gvarData.buffer);
+	return parseGvar(reader, 1);
+}
+
+describe("comprehensive real font data tests", () => {
+	test("test all variations with non-zero scalars", async () => {
+		const font = await Font.fromFile(NEW_YORK_PATH);
+		const gvar = font.gvar;
+		if (!gvar) return;
+
+		let foundAllPointsVariation = false;
+
+		for (let g = 0; g < Math.min(200, gvar.glyphVariationData.length); g++) {
+			const glyphData = gvar.glyphVariationData[g];
+			if (!glyphData || glyphData.tupleVariationHeaders.length === 0) continue;
+
+			for (const header of glyphData.tupleVariationHeaders) {
+				if (!header.peakTuple) continue;
+
+				const axisCoords = header.peakTuple.map((v) =>
+					Math.abs(v) > 0.01 ? (v > 0 ? 1.0 : -1.0) : 0.0,
+				);
+
+				const scalar = calculateTupleScalar(
+					header.peakTuple,
+					axisCoords,
+					header.intermediateStartTuple,
+					header.intermediateEndTuple,
+				);
+
+				if (scalar > 0 && header.deltas.length > 0) {
+					if (header.pointNumbers !== null && header.pointNumbers.length > 0) {
+						const pointIndex = header.pointNumbers[0]!;
+						const delta = getGlyphDelta(gvar, g, pointIndex, axisCoords);
+						expect(typeof delta.x).toBe("number");
+						expect(typeof delta.y).toBe("number");
+					} else if (header.pointNumbers === null && header.deltas.length > 0) {
+						foundAllPointsVariation = true;
+						for (let p = 0; p < Math.min(10, header.deltas.length); p++) {
+							const delta = getGlyphDelta(gvar, g, p, axisCoords);
+							expect(typeof delta.x).toBe("number");
+							expect(typeof delta.y).toBe("number");
+						}
+					}
+				}
+			}
+		}
+
+		if (!foundAllPointsVariation) {
+			console.log(
+				"Note: No 'all points' variations found in New York font (this is normal)",
+			);
+		}
+	});
+
+	test("test SF Compact for more edge cases", async () => {
+		const font = await Font.fromFile(SF_COMPACT_PATH);
+		const gvar = font.gvar;
+		if (!gvar) return;
+
+		for (let g = 0; g < Math.min(100, gvar.glyphVariationData.length); g++) {
+			const glyphData = gvar.glyphVariationData[g];
+			if (!glyphData || glyphData.tupleVariationHeaders.length === 0) continue;
+
+			for (const header of glyphData.tupleVariationHeaders) {
+				if (!header.peakTuple || header.deltas.length === 0) continue;
+
+				const axisCoords = header.peakTuple.map((v) =>
+					v !== 0 ? (v > 0 ? 1.0 : -1.0) : 0.0,
+				);
+
+				if (header.pointNumbers !== null) {
+					for (const pointIndex of header.pointNumbers.slice(0, 3)) {
+						const delta = getGlyphDelta(gvar, g, pointIndex, axisCoords);
+						expect(Number.isInteger(delta.x)).toBe(true);
+						expect(Number.isInteger(delta.y)).toBe(true);
+					}
+				} else {
+					for (let p = 0; p < Math.min(5, header.deltas.length); p++) {
+						const delta = getGlyphDelta(gvar, g, p, axisCoords);
+						expect(Number.isInteger(delta.x)).toBe(true);
+						expect(Number.isInteger(delta.y)).toBe(true);
+					}
+				}
+			}
+		}
+	});
 });

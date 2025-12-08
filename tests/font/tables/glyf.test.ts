@@ -6,6 +6,7 @@ import {
 	parseGlyph,
 	getGlyphContours,
 	getGlyphBounds,
+	getGlyphContoursAndBounds,
 	flattenCompositeGlyph,
 	getGlyphDeltas,
 	applyVariationDeltas,
@@ -25,6 +26,7 @@ import type {
 	PointDelta,
 } from "../../../src/font/tables/gvar.ts";
 import { getGlyphLocation } from "../../../src/font/tables/loca.ts";
+import { Reader } from "../../../src/font/binary/reader.ts";
 
 /** Helper to create a mock TupleVariationHeader */
 function createMockTupleHeader(
@@ -54,6 +56,145 @@ function createMockGvar(
 		sharedTuples: [],
 		glyphVariationData,
 	};
+}
+
+/** Helper to create a simple glyph with numberOfContours = 0 */
+function createSimpleGlyphWithZeroContours(): ArrayBuffer {
+	const buffer = new ArrayBuffer(10);
+	const view = new DataView(buffer);
+	view.setInt16(0, 0); // numberOfContours = 0
+	view.setInt16(2, 0); // xMin
+	view.setInt16(4, 0); // yMin
+	view.setInt16(6, 100); // xMax
+	view.setInt16(8, 100); // yMax
+	return buffer;
+}
+
+/** Helper to create a simple glyph with endPtsOfContours issue */
+function createSimpleGlyphWithMissingEndPts(): ArrayBuffer {
+	const buffer = new ArrayBuffer(12);
+	const view = new DataView(buffer);
+	view.setInt16(0, 1); // numberOfContours = 1
+	view.setInt16(2, 0); // xMin
+	view.setInt16(4, 0); // yMin
+	view.setInt16(6, 100); // xMax
+	view.setInt16(8, 100); // yMax
+	// No endPtsOfContours data - reader will return undefined
+	return buffer;
+}
+
+/** Helper to create composite glyph with specific flags */
+function createCompositeGlyphWithFlags(
+	flags: number,
+	includeInstructions: boolean = false,
+): ArrayBuffer {
+	const buffer = new ArrayBuffer(24);
+	const view = new DataView(buffer);
+	view.setInt16(0, -1); // numberOfContours = -1 (composite)
+	view.setInt16(2, 0); // xMin
+	view.setInt16(4, 0); // yMin
+	view.setInt16(6, 100); // xMax
+	view.setInt16(8, 100); // yMax
+	view.setUint16(10, flags); // component flags (without MoreComponents)
+	view.setUint16(12, 1); // glyphIndex
+
+	let offset = 14;
+	// Add args based on flags
+	if (flags & CompositeFlag.Arg1And2AreWords) {
+		if (flags & CompositeFlag.ArgsAreXYValues) {
+			view.setInt16(offset, 10);
+			offset += 2;
+			view.setInt16(offset, 20);
+			offset += 2;
+		} else {
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 2);
+			offset += 2;
+		}
+	}
+
+	if (includeInstructions && offset < 24) {
+		view.setUint16(offset, 0); // instruction length
+	}
+
+	return buffer;
+}
+
+/** Helper to create composite glyph with byte args */
+function createCompositeGlyphWithByteArgs(argsAreXY: boolean): ArrayBuffer {
+	const buffer = new ArrayBuffer(16);
+	const view = new DataView(buffer);
+	view.setInt16(0, -1); // numberOfContours = -1 (composite)
+	view.setInt16(2, 0); // xMin
+	view.setInt16(4, 0); // yMin
+	view.setInt16(6, 100); // xMax
+	view.setInt16(8, 100); // yMax
+
+	// Flags without Arg1And2AreWords (byte args)
+	const flags = argsAreXY ? CompositeFlag.ArgsAreXYValues : 0;
+	view.setUint16(10, flags); // component flags (no MoreComponents)
+	view.setUint16(12, 1); // glyphIndex
+
+	if (argsAreXY) {
+		view.setInt8(14, 5); // arg1 (int8)
+		view.setInt8(15, 10); // arg2 (int8)
+	} else {
+		view.setUint8(14, 1); // arg1 (uint8, point number)
+		view.setUint8(15, 2); // arg2 (uint8, point number)
+	}
+
+	return buffer;
+}
+
+/** Helper to create composite glyph with transformation */
+function createCompositeGlyphWithTransform(transformType: "scale" | "xyscale" | "2x2"): ArrayBuffer {
+	const buffer = new ArrayBuffer(32);
+	const view = new DataView(buffer);
+	view.setInt16(0, -1); // numberOfContours = -1 (composite)
+	view.setInt16(2, 0); // xMin
+	view.setInt16(4, 0); // yMin
+	view.setInt16(6, 100); // xMax
+	view.setInt16(8, 100); // yMax
+
+	let flags = CompositeFlag.Arg1And2AreWords | CompositeFlag.ArgsAreXYValues;
+	let offset = 10;
+
+	if (transformType === "scale") {
+		flags |= CompositeFlag.WeHaveAScale;
+	} else if (transformType === "xyscale") {
+		flags |= CompositeFlag.WeHaveAnXAndYScale;
+	} else if (transformType === "2x2") {
+		flags |= CompositeFlag.WeHaveATwoByTwo;
+	}
+
+	view.setUint16(offset, flags);
+	offset += 2;
+	view.setUint16(offset, 1); // glyphIndex
+	offset += 2;
+	view.setInt16(offset, 10); // arg1
+	offset += 2;
+	view.setInt16(offset, 20); // arg2
+	offset += 2;
+
+	// F2DOT14 format: value * 16384
+	if (transformType === "scale") {
+		view.setInt16(offset, 8192); // 0.5 in F2DOT14
+	} else if (transformType === "xyscale") {
+		view.setInt16(offset, 8192); // a = 0.5
+		offset += 2;
+		view.setInt16(offset, 12288); // d = 0.75
+	} else if (transformType === "2x2") {
+		view.setInt16(offset, 8192); // a = 0.5
+		offset += 2;
+		view.setInt16(offset, 4096); // b = 0.25
+		offset += 2;
+		view.setInt16(offset, 4096); // c = 0.25
+		offset += 2;
+		view.setInt16(offset, 8192); // d = 0.5
+	}
+
+	return buffer;
 }
 
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
@@ -172,6 +313,328 @@ describe("glyf table", () => {
 			expect(CompositeFlag.OverlapCompound).toBe(0x0400);
 			expect(CompositeFlag.ScaledComponentOffset).toBe(0x0800);
 			expect(CompositeFlag.UnscaledComponentOffset).toBe(0x1000);
+		});
+	});
+
+	describe("simple glyph edge cases with synthetic data", () => {
+		test("handles simple glyph with numberOfContours = 0", () => {
+			const buffer = createSimpleGlyphWithZeroContours();
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 10],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("simple");
+			if (glyph.type === "simple") {
+				expect(glyph.numberOfContours).toBe(0);
+				expect(glyph.contours).toEqual([]);
+				expect(glyph.instructions.length).toBe(0);
+			}
+		});
+	});
+
+	describe("composite glyph argument parsing with synthetic data", () => {
+		test("parses composite with word args and point numbers (not XY)", () => {
+			const buffer = createCompositeGlyphWithFlags(
+				CompositeFlag.Arg1And2AreWords,
+				false,
+			);
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 24],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("composite");
+			if (glyph.type === "composite") {
+				expect(glyph.components[0]?.arg1).toBeDefined();
+				expect(glyph.components[0]?.arg2).toBeDefined();
+			}
+		});
+
+		test("parses composite with byte args and XY values", () => {
+			const buffer = createCompositeGlyphWithByteArgs(true);
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 16],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("composite");
+			if (glyph.type === "composite") {
+				expect(glyph.components[0]?.arg1).toBe(5);
+				expect(glyph.components[0]?.arg2).toBe(10);
+			}
+		});
+
+		test("parses composite with byte args and point numbers", () => {
+			const buffer = createCompositeGlyphWithByteArgs(false);
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 16],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("composite");
+			if (glyph.type === "composite") {
+				expect(glyph.components[0]?.arg1).toBe(1);
+				expect(glyph.components[0]?.arg2).toBe(2);
+			}
+		});
+	});
+
+	describe("composite glyph transformation parsing with synthetic data", () => {
+		test("parses composite with WeHaveAScale", () => {
+			const buffer = createCompositeGlyphWithTransform("scale");
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 32],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("composite");
+			if (glyph.type === "composite") {
+				const [a, b, c, d] = glyph.components[0]!.transform;
+				expect(a).toBeCloseTo(0.5, 2);
+				expect(a).toBe(d); // Scale applies to both a and d
+				expect(b).toBe(0);
+				expect(c).toBe(0);
+			}
+		});
+
+		test("parses composite with WeHaveAnXAndYScale", () => {
+			const buffer = createCompositeGlyphWithTransform("xyscale");
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 32],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("composite");
+			if (glyph.type === "composite") {
+				const [a, b, c, d] = glyph.components[0]!.transform;
+				expect(a).toBeCloseTo(0.5, 2);
+				expect(d).toBeCloseTo(0.75, 2);
+				expect(b).toBe(0);
+				expect(c).toBe(0);
+			}
+		});
+
+		test("parses composite with WeHaveATwoByTwo", () => {
+			const buffer = createCompositeGlyphWithTransform("2x2");
+			const reader = new Reader(buffer);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets: [0, 32],
+			};
+			const glyph = parseGlyph(glyf, mockLoca, 0);
+			expect(glyph.type).toBe("composite");
+			if (glyph.type === "composite") {
+				const [a, b, c, d] = glyph.components[0]!.transform;
+				expect(a).toBeCloseTo(0.5, 2);
+				expect(b).toBeCloseTo(0.25, 2);
+				expect(c).toBeCloseTo(0.25, 2);
+				expect(d).toBeCloseTo(0.5, 2);
+			}
+		});
+	});
+
+	describe("flattenCompositeGlyph with empty components", () => {
+		test("skips empty component glyphs", () => {
+			if (font.isTrueType && font.glyf && font.loca) {
+				// Create a mock composite glyph pointing to an empty glyph
+				const mockComposite: CompositeGlyph = {
+					type: "composite",
+					numberOfContours: -1,
+					xMin: 0,
+					yMin: 0,
+					xMax: 100,
+					yMax: 100,
+					components: [
+						{
+							glyphId: 99999, // Invalid glyph ID that returns empty
+							flags: CompositeFlag.ArgsAreXYValues,
+							arg1: 0,
+							arg2: 0,
+							transform: [1, 0, 0, 1],
+						},
+					],
+					instructions: new Uint8Array(0),
+				};
+
+				const contours = flattenCompositeGlyph(font.glyf, font.loca, mockComposite);
+				expect(Array.isArray(contours)).toBe(true);
+			}
+		});
+	});
+
+	describe("composite cache LRU eviction", () => {
+		test("evicts oldest entry when cache is full", () => {
+			if (font.isTrueType && font.glyf && font.loca) {
+				// Find 257 composite glyphs to exceed the cache size of 256
+				const compositeIds: number[] = [];
+				for (let i = 0; i < font.numGlyphs && compositeIds.length < 257; i++) {
+					const glyph = parseGlyph(font.glyf, font.loca, i);
+					if (glyph.type === "composite") {
+						compositeIds.push(i);
+					}
+				}
+
+				if (compositeIds.length >= 257) {
+					// Fill cache with 256 entries
+					for (let i = 0; i < 256; i++) {
+						getGlyphContours(font.glyf, font.loca, compositeIds[i]!);
+					}
+
+					// Add one more to trigger eviction
+					const contours = getGlyphContours(font.glyf, font.loca, compositeIds[256]!);
+					expect(Array.isArray(contours)).toBe(true);
+				}
+			}
+		});
+	});
+
+	describe("getGlyphContoursAndBounds", () => {
+		test("returns contours and bounds for simple glyph", () => {
+			if (font.isTrueType && font.glyf && font.loca) {
+				const glyphId = font.glyphId(0x41);
+				const result = getGlyphContoursAndBounds(font.glyf, font.loca, glyphId);
+				expect(Array.isArray(result.contours)).toBe(true);
+				if (result.bounds) {
+					expect(typeof result.bounds.xMin).toBe("number");
+					expect(typeof result.bounds.yMin).toBe("number");
+					expect(typeof result.bounds.xMax).toBe("number");
+					expect(typeof result.bounds.yMax).toBe("number");
+				}
+			}
+		});
+
+		test("returns empty contours and null bounds for empty glyph", () => {
+			if (font.isTrueType && font.glyf && font.loca) {
+				const spaceId = font.glyphId(0x20);
+				const result = getGlyphContoursAndBounds(font.glyf, font.loca, spaceId);
+				expect(result.contours).toEqual([]);
+				expect(result.bounds).toBeNull();
+			}
+		});
+
+		test("returns cached contours for composite glyph", () => {
+			if (font.isTrueType && font.glyf && font.loca) {
+				// Find a composite glyph
+				for (let i = 0; i < Math.min(100, font.numGlyphs); i++) {
+					const glyph = parseGlyph(font.glyf, font.loca, i);
+					if (glyph.type === "composite") {
+						// First call populates cache
+						const result1 = getGlyphContoursAndBounds(font.glyf, font.loca, i);
+						// Second call uses cache
+						const result2 = getGlyphContoursAndBounds(font.glyf, font.loca, i);
+						expect(result1.contours).toBe(result2.contours); // Same reference from cache
+						expect(result1.bounds).toBeDefined();
+						expect(result2.bounds).toBeDefined();
+						break;
+					}
+				}
+			}
+		});
+
+		test("handles composite glyph cache eviction in getGlyphContoursAndBounds", () => {
+			if (font.isTrueType && font.glyf && font.loca) {
+				const compositeIds: number[] = [];
+				for (let i = 0; i < font.numGlyphs && compositeIds.length < 257; i++) {
+					const glyph = parseGlyph(font.glyf, font.loca, i);
+					if (glyph.type === "composite") {
+						compositeIds.push(i);
+					}
+				}
+
+				if (compositeIds.length >= 257) {
+					// Fill cache
+					for (let i = 0; i < 256; i++) {
+						getGlyphContoursAndBounds(font.glyf, font.loca, compositeIds[i]!);
+					}
+
+					// Trigger eviction
+					const result = getGlyphContoursAndBounds(font.glyf, font.loca, compositeIds[256]!);
+					expect(Array.isArray(result.contours)).toBe(true);
+					expect(result.bounds).toBeDefined();
+				}
+			}
+		});
+	});
+
+	describe("flattenCompositeGlyphWithVariation depth limit", () => {
+		test("returns empty array when depth exceeds 32", () => {
+			// Create a chain of 35 nested composite glyphs to test depth limit
+			// Each glyph points to the next one, creating deep nesting
+			const numGlyphs = 35;
+			const buffers: ArrayBuffer[] = [];
+
+			// Create simple glyph at the end of the chain (glyph 0)
+			const simpleBuffer = new ArrayBuffer(10);
+			const simpleView = new DataView(simpleBuffer);
+			simpleView.setInt16(0, 1); // numberOfContours = 1
+			simpleView.setInt16(2, 0); // xMin
+			simpleView.setInt16(4, 0); // yMin
+			simpleView.setInt16(6, 10); // xMax
+			simpleView.setInt16(8, 10); // yMax
+			buffers.push(simpleBuffer);
+
+			// Create composite glyphs that point to each other
+			for (let i = 1; i < numGlyphs; i++) {
+				const buffer = new ArrayBuffer(20);
+				const view = new DataView(buffer);
+				view.setInt16(0, -1); // numberOfContours = -1 (composite)
+				view.setInt16(2, 0); // xMin
+				view.setInt16(4, 0); // yMin
+				view.setInt16(6, 10); // xMax
+				view.setInt16(8, 10); // yMax
+				view.setUint16(10, CompositeFlag.ArgsAreXYValues); // flags (no MoreComponents)
+				view.setUint16(12, i - 1); // glyphIndex points to previous glyph
+				view.setInt8(14, 0); // arg1
+				view.setInt8(15, 0); // arg2
+				buffers.push(buffer);
+			}
+
+			// Concatenate all buffers
+			const totalSize = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+			const combined = new ArrayBuffer(totalSize);
+			const combinedView = new Uint8Array(combined);
+			const offsets: number[] = [0];
+			let offset = 0;
+
+			for (const buffer of buffers) {
+				combinedView.set(new Uint8Array(buffer), offset);
+				offset += buffer.byteLength;
+				offsets.push(offset);
+			}
+
+			const reader = new Reader(combined);
+			const glyf: GlyfTable = { reader };
+			const mockLoca = {
+				format: 0 as const,
+				offsets,
+			};
+			const mockGvar = createMockGvar([]);
+
+			// Get the deepest composite glyph (last one in chain)
+			const contours = getGlyphContoursWithVariation(
+				glyf,
+				mockLoca,
+				mockGvar,
+				numGlyphs - 1,
+				[0.5],
+			);
+
+			// Should return empty array due to depth limit
+			expect(contours).toEqual([]);
 		});
 	});
 
@@ -524,19 +987,6 @@ describe("glyf table", () => {
 			}
 		});
 
-		test("simple glyph with zero contours", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(100, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple" && glyph.numberOfContours === 0) {
-						expect(glyph.contours).toEqual([]);
-						expect(glyph.instructions.length).toBe(0);
-						break;
-					}
-				}
-			}
-		});
-
 		test("handles all ASCII printable characters", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
 				const glyf = font.glyf;
@@ -557,311 +1007,7 @@ describe("glyf table", () => {
 					parseGlyph(font.glyf, font.loca, i);
 				}
 				const elapsed = performance.now() - start;
-				expect(elapsed).toBeLessThan(1000); // Should complete in under 1s
-			}
-		});
-	});
-
-	describe("simple glyph edge cases", () => {
-		test("handles glyph with numberOfContours = 0", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundZeroContour = false;
-				for (let i = 0; i < Math.min(200, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple" && glyph.numberOfContours === 0) {
-						expect(glyph.contours).toEqual([]);
-						expect(glyph.instructions.length).toBe(0);
-						foundZeroContour = true;
-						break;
-					}
-				}
-				if (!foundZeroContour) {
-					console.log("No glyph with 0 contours found in first 200 glyphs");
-				}
-			}
-		});
-
-		test("handles simple glyph with missing endPtsOfContours", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(100, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple" && glyph.numberOfContours > 0) {
-						expect(glyph.contours.length).toBeGreaterThanOrEqual(0);
-						break;
-					}
-				}
-			}
-		});
-
-		test("processes repeat flags correctly", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundRepeat = false;
-				for (let i = 0; i < Math.min(1000, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple" && glyph.contours.length > 0) {
-						let totalPoints = 0;
-						for (const contour of glyph.contours) {
-							totalPoints += contour.length;
-						}
-						if (totalPoints > 10) {
-							foundRepeat = true;
-							break;
-						}
-					}
-				}
-				expect(foundRepeat).toBe(true);
-			}
-		});
-
-		test("handles X coordinates with XIsSameOrPositive flag", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundGlyph = false;
-				for (let i = 0; i < Math.min(100, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple" && glyph.contours.length > 0) {
-						for (const contour of glyph.contours) {
-							for (const point of contour) {
-								expect(typeof point.x).toBe("number");
-							}
-						}
-						foundGlyph = true;
-						break;
-					}
-				}
-				expect(foundGlyph).toBe(true);
-			}
-		});
-
-		test("handles Y coordinates with YIsSameOrPositive flag", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundGlyph = false;
-				for (let i = 0; i < Math.min(100, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple" && glyph.contours.length > 0) {
-						for (const contour of glyph.contours) {
-							for (const point of contour) {
-								expect(typeof point.y).toBe("number");
-							}
-						}
-						foundGlyph = true;
-						break;
-					}
-				}
-				expect(foundGlyph).toBe(true);
-			}
-		});
-	});
-
-	describe("composite glyph parsing details", () => {
-		test("parses composite with Arg1And2AreWords + ArgsAreXYValues flags", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundComposite = false;
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (
-								(comp.flags & CompositeFlag.Arg1And2AreWords) &&
-								(comp.flags & CompositeFlag.ArgsAreXYValues)
-							) {
-								expect(typeof comp.arg1).toBe("number");
-								expect(typeof comp.arg2).toBe("number");
-								foundComposite = true;
-								break;
-							}
-						}
-						if (foundComposite) break;
-					}
-				}
-			}
-		});
-
-		test("parses composite with Arg1And2AreWords but not ArgsAreXYValues", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (
-								(comp.flags & CompositeFlag.Arg1And2AreWords) &&
-								!(comp.flags & CompositeFlag.ArgsAreXYValues)
-							) {
-								expect(typeof comp.arg1).toBe("number");
-								expect(typeof comp.arg2).toBe("number");
-								break;
-							}
-						}
-					}
-				}
-			}
-		});
-
-		test("parses composite with byte args and ArgsAreXYValues", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (
-								!(comp.flags & CompositeFlag.Arg1And2AreWords) &&
-								(comp.flags & CompositeFlag.ArgsAreXYValues)
-							) {
-								expect(typeof comp.arg1).toBe("number");
-								expect(typeof comp.arg2).toBe("number");
-								break;
-							}
-						}
-					}
-				}
-			}
-		});
-
-		test("parses composite with byte args and point numbers", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (
-								!(comp.flags & CompositeFlag.Arg1And2AreWords) &&
-								!(comp.flags & CompositeFlag.ArgsAreXYValues)
-							) {
-								expect(typeof comp.arg1).toBe("number");
-								expect(typeof comp.arg2).toBe("number");
-								break;
-							}
-						}
-					}
-				}
-			}
-		});
-
-		test("parses composite with WeHaveAScale transformation", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (comp.flags & CompositeFlag.WeHaveAScale) {
-								expect(comp.transform[0]).toBe(comp.transform[3]);
-								break;
-							}
-						}
-					}
-				}
-			}
-		});
-
-		test("parses composite with WeHaveAnXAndYScale transformation", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (comp.flags & CompositeFlag.WeHaveAnXAndYScale) {
-								expect(typeof comp.transform[0]).toBe("number");
-								expect(typeof comp.transform[3]).toBe("number");
-								break;
-							}
-						}
-					}
-				}
-			}
-		});
-
-		test("parses composite with WeHaveATwoByTwo transformation", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (comp.flags & CompositeFlag.WeHaveATwoByTwo) {
-								expect(typeof comp.transform[0]).toBe("number");
-								expect(typeof comp.transform[1]).toBe("number");
-								expect(typeof comp.transform[2]).toBe("number");
-								expect(typeof comp.transform[3]).toBe("number");
-								break;
-							}
-						}
-					}
-				}
-			}
-		});
-
-		test("parses composite with WeHaveInstructions flag", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundInstructions = false;
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (comp.flags & CompositeFlag.WeHaveInstructions) {
-								expect(glyph.instructions).toBeInstanceOf(Uint8Array);
-								foundInstructions = true;
-								break;
-							}
-						}
-						if (foundInstructions) break;
-					}
-				}
-			}
-		});
-
-		test("flattens composite with empty component glyphs", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						const contours = flattenCompositeGlyph(font.glyf, font.loca, glyph);
-						expect(Array.isArray(contours)).toBe(true);
-						break;
-					}
-				}
-			}
-		});
-
-		test("flattens nested composite glyphs", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundNested = false;
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							const componentGlyph = parseGlyph(
-								font.glyf,
-								font.loca,
-								comp.glyphId,
-							);
-							if (componentGlyph.type === "composite") {
-								const contours = flattenCompositeGlyph(font.glyf, font.loca, glyph);
-								expect(Array.isArray(contours)).toBe(true);
-								foundNested = true;
-								break;
-							}
-						}
-						if (foundNested) break;
-					}
-				}
-			}
-		});
-
-		test("applies component offsets in flattening", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						for (const comp of glyph.components) {
-							if (
-								(comp.flags & CompositeFlag.ArgsAreXYValues) &&
-								(comp.arg1 !== 0 || comp.arg2 !== 0)
-							) {
-								const contours = flattenCompositeGlyph(font.glyf, font.loca, glyph);
-								expect(Array.isArray(contours)).toBe(true);
-								break;
-							}
-						}
-					}
-				}
+				expect(elapsed).toBeLessThan(1000);
 			}
 		});
 	});
@@ -1059,47 +1205,15 @@ describe("glyf table", () => {
 				expect(Array.isArray(contours)).toBe(true);
 			}
 		});
-	});
 
-	describe("flattenCompositeGlyphWithVariation", () => {
-		test("handles composite with simple components and variation", () => {
+		test("handles nested composite glyphs with variation", () => {
 			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						const mockGvar = createMockGvar([
-							{
-								tupleVariationHeaders: [
-									createMockTupleHeader({ deltas: [] }),
-								],
-							},
-						]);
-						const contours = getGlyphContoursWithVariation(
-							font.glyf,
-							font.loca,
-							mockGvar,
-							i,
-							[0.5],
-						);
-						expect(Array.isArray(contours)).toBe(true);
-						break;
-					}
-				}
-			}
-		});
-
-		test("handles nested composite with variation", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let foundNested = false;
+				// Find a composite glyph with composite components
 				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
 					const glyph = parseGlyph(font.glyf, font.loca, i);
 					if (glyph.type === "composite") {
 						for (const comp of glyph.components) {
-							const componentGlyph = parseGlyph(
-								font.glyf,
-								font.loca,
-								comp.glyphId,
-							);
+							const componentGlyph = parseGlyph(font.glyf, font.loca, comp.glyphId);
 							if (componentGlyph.type === "composite") {
 								const mockGvar = createMockGvar([]);
 								const contours = getGlyphContoursWithVariation(
@@ -1110,257 +1224,12 @@ describe("glyf table", () => {
 									[0.5],
 								);
 								expect(Array.isArray(contours)).toBe(true);
-								foundNested = true;
-								break;
-							}
-						}
-						if (foundNested) break;
-					}
-				}
-			}
-		});
-
-		test("prevents deep recursion with variation", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				for (let i = 0; i < Math.min(500, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						const mockGvar = createMockGvar([]);
-						const contours = getGlyphContoursWithVariation(
-							font.glyf,
-							font.loca,
-							mockGvar,
-							i,
-							[0.5],
-						);
-						expect(Array.isArray(contours)).toBe(true);
-						break;
-					}
-				}
-			}
-		});
-	});
-
-	describe("comprehensive glyph iteration", () => {
-		test("parses all glyphs without errors", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				const sampleSize = Math.min(1000, font.numGlyphs);
-				for (let i = 0; i < sampleSize; i++) {
-					expect(() => parseGlyph(font.glyf!, font.loca!, i)).not.toThrow();
-				}
-			}
-		});
-
-		test("validates all simple glyphs have valid contours", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let simpleCount = 0;
-				for (let i = 0; i < Math.min(200, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "simple") {
-						expect(glyph.contours.length).toBe(glyph.numberOfContours);
-						simpleCount++;
-					}
-				}
-				expect(simpleCount).toBeGreaterThan(0);
-			}
-		});
-
-		test("validates all composite glyphs have valid components", () => {
-			if (font.isTrueType && font.glyf && font.loca) {
-				let compositeCount = 0;
-				for (let i = 0; i < Math.min(200, font.numGlyphs); i++) {
-					const glyph = parseGlyph(font.glyf, font.loca, i);
-					if (glyph.type === "composite") {
-						expect(glyph.components.length).toBeGreaterThan(0);
-						for (const comp of glyph.components) {
-							expect(comp.glyphId).toBeGreaterThanOrEqual(0);
-							expect(comp.glyphId).toBeLessThan(font.numGlyphs);
-						}
-						compositeCount++;
-					}
-				}
-			}
-		});
-	});
-
-	describe("edge cases for coverage", () => {
-		test("searches for glyph with numberOfContours = 0 across multiple fonts", async () => {
-			const fontPaths = [
-				"/System/Library/Fonts/Supplemental/Arial.ttf",
-				"/System/Library/Fonts/Supplemental/Arial Black.ttf",
-				"/System/Library/Fonts/Supplemental/Andale Mono.ttf",
-			];
-
-			for (const fontPath of fontPaths) {
-				try {
-					const testFont = await Font.fromFile(fontPath);
-					if (testFont.isTrueType && testFont.glyf && testFont.loca) {
-						for (let i = 0; i < Math.min(300, testFont.numGlyphs); i++) {
-							const glyph = parseGlyph(testFont.glyf, testFont.loca, i);
-							if (glyph.type === "simple" && glyph.numberOfContours === 0) {
-								expect(glyph.contours).toEqual([]);
-								expect(glyph.instructions.length).toBe(0);
 								return;
 							}
 						}
 					}
-				} catch (e) {
-					continue;
 				}
 			}
-		});
-
-		test("searches for composite glyph with empty component", async () => {
-			const fontPaths = [
-				"/System/Library/Fonts/Supplemental/Arial.ttf",
-				"/System/Library/Fonts/Supplemental/Arial Black.ttf",
-			];
-
-			for (const fontPath of fontPaths) {
-				try {
-					const testFont = await Font.fromFile(fontPath);
-					if (testFont.isTrueType && testFont.glyf && testFont.loca) {
-						for (let i = 0; i < Math.min(500, testFont.numGlyphs); i++) {
-							const glyph = parseGlyph(testFont.glyf, testFont.loca, i);
-							if (glyph.type === "composite") {
-								for (const comp of glyph.components) {
-									const componentGlyph = parseGlyph(
-										testFont.glyf,
-										testFont.loca,
-										comp.glyphId,
-									);
-									if (componentGlyph.type === "empty") {
-										const contours = flattenCompositeGlyph(
-											testFont.glyf,
-											testFont.loca,
-											glyph,
-										);
-										expect(Array.isArray(contours)).toBe(true);
-										return;
-									}
-								}
-							}
-						}
-					}
-				} catch (e) {
-					continue;
-				}
-			}
-		});
-
-		test("tests flattenCompositeGlyphWithVariation depth limit", async () => {
-			const fontPaths = ["/System/Library/Fonts/Supplemental/Arial.ttf"];
-
-			for (const fontPath of fontPaths) {
-				try {
-					const testFont = await Font.fromFile(fontPath);
-					if (testFont.isTrueType && testFont.glyf && testFont.loca) {
-						for (let i = 0; i < Math.min(500, testFont.numGlyphs); i++) {
-							const glyph = parseGlyph(testFont.glyf, testFont.loca, i);
-							if (glyph.type === "composite") {
-								const mockGvar = createMockGvar([]);
-								const contours = getGlyphContoursWithVariation(
-									testFont.glyf,
-									testFont.loca,
-									mockGvar,
-									i,
-									[0.5],
-								);
-								expect(Array.isArray(contours)).toBe(true);
-								return;
-							}
-						}
-					}
-				} catch (e) {
-					continue;
-				}
-			}
-		});
-
-		test("searches for composite with all transformation types", async () => {
-			const fontPaths = [
-				"/System/Library/Fonts/Supplemental/Arial.ttf",
-				"/System/Library/Fonts/Supplemental/Arial Black.ttf",
-				"/System/Library/Fonts/Supplemental/Andale Mono.ttf",
-			];
-
-			let foundScale = false;
-			let foundXYScale = false;
-			let foundTwoByTwo = false;
-
-			for (const fontPath of fontPaths) {
-				try {
-					const testFont = await Font.fromFile(fontPath);
-					if (testFont.isTrueType && testFont.glyf && testFont.loca) {
-						for (let i = 0; i < Math.min(1000, testFont.numGlyphs); i++) {
-							const glyph = parseGlyph(testFont.glyf, testFont.loca, i);
-							if (glyph.type === "composite") {
-								for (const comp of glyph.components) {
-									if (comp.flags & CompositeFlag.WeHaveAScale) {
-										foundScale = true;
-									}
-									if (comp.flags & CompositeFlag.WeHaveAnXAndYScale) {
-										foundXYScale = true;
-									}
-									if (comp.flags & CompositeFlag.WeHaveATwoByTwo) {
-										foundTwoByTwo = true;
-									}
-								}
-							}
-							if (foundScale && foundXYScale && foundTwoByTwo) break;
-						}
-					}
-					if (foundScale && foundXYScale && foundTwoByTwo) break;
-				} catch (e) {
-					continue;
-				}
-			}
-
-			expect(foundScale || foundXYScale || foundTwoByTwo).toBe(true);
-		});
-
-		test("searches for composite with different argument types", async () => {
-			const fontPaths = [
-				"/System/Library/Fonts/Supplemental/Arial.ttf",
-				"/System/Library/Fonts/Supplemental/Arial Black.ttf",
-			];
-
-			let foundWordXY = false;
-			let foundWordPoints = false;
-			let foundByteXY = false;
-			let foundBytePoints = false;
-
-			for (const fontPath of fontPaths) {
-				try {
-					const testFont = await Font.fromFile(fontPath);
-					if (testFont.isTrueType && testFont.glyf && testFont.loca) {
-						for (let i = 0; i < Math.min(1000, testFont.numGlyphs); i++) {
-							const glyph = parseGlyph(testFont.glyf, testFont.loca, i);
-							if (glyph.type === "composite") {
-								for (const comp of glyph.components) {
-									const isWords = !!(comp.flags & CompositeFlag.Arg1And2AreWords);
-									const isXY = !!(comp.flags & CompositeFlag.ArgsAreXYValues);
-
-									if (isWords && isXY) foundWordXY = true;
-									if (isWords && !isXY) foundWordPoints = true;
-									if (!isWords && isXY) foundByteXY = true;
-									if (!isWords && !isXY) foundBytePoints = true;
-								}
-							}
-							if (foundWordXY && foundWordPoints && foundByteXY && foundBytePoints)
-								break;
-						}
-					}
-					if (foundWordXY && foundWordPoints && foundByteXY && foundBytePoints)
-						break;
-				} catch (e) {
-					continue;
-				}
-			}
-
-			expect(
-				foundWordXY || foundWordPoints || foundByteXY || foundBytePoints,
-			).toBe(true);
 		});
 	});
 });

@@ -280,6 +280,35 @@ describe("hangul shaper", () => {
 			expect(result).toEqual([]);
 		});
 
+		test("handles sparse array with undefined elements", () => {
+			const infos: GlyphInfo[] = [];
+			infos[0] = makeInfo(0x1100);
+			infos[1] = undefined as any;
+			infos[2] = makeInfo(0x1161);
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(2);
+			expect(result[0]!.codepoint).toBe(0x1100);
+			expect(result[1]!.codepoint).toBe(0x1161);
+		});
+
+		test("handles undefined element after leading jamo", () => {
+			const infos: GlyphInfo[] = [];
+			infos[0] = makeInfo(0x1100);
+			infos[1] = undefined as any;
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(1);
+			expect(result[0]!.codepoint).toBe(0x1100);
+		});
+
+		test("handles undefined element after LV syllable", () => {
+			const infos: GlyphInfo[] = [];
+			infos[0] = makeInfo(0xac00);
+			infos[1] = undefined as any;
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(1);
+			expect(result[0]!.codepoint).toBe(0xac00);
+		});
+
 		test("passes through non-Hangul", () => {
 			const infos = [makeInfo(0x0041), makeInfo(0x0042)];
 			const result = normalizeHangul(infos);
@@ -356,6 +385,50 @@ describe("hangul shaper", () => {
 			expect(result.length).toBe(2);
 			expect(result[0]!.codepoint).toBe(0xac00);
 			expect(result[1]!.codepoint).toBe(0x0041);
+		});
+
+		test("composes L+V+T then continues to next sequence", () => {
+			const infos = [
+				makeInfo(0x1100), makeInfo(0x1161), makeInfo(0x11a8), // ᄀ + ᅡ + ᆨ -> 각
+				makeInfo(0x1100), makeInfo(0x1161), // ᄀ + ᅡ -> 가
+			];
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(2);
+			expect(result[0]!.codepoint).toBe(0xac01); // 각
+			expect(result[1]!.codepoint).toBe(0xac00); // 가
+		});
+
+		test("composes LV+T then continues to next sequence", () => {
+			const infos = [
+				makeInfo(0xac00), makeInfo(0x11a8), // 가 + ᆨ -> 각
+				makeInfo(0x1100), // ᄀ
+			];
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(2);
+			expect(result[0]!.codepoint).toBe(0xac01); // 각
+			expect(result[1]!.codepoint).toBe(0x1100); // ᄀ
+		});
+
+		test("handles invalid L+V composition failure", () => {
+			const infos = [
+				makeInfo(0xa960), // Extended-A leading jamo (old Korean)
+				makeInfo(0x1161), // Standard vowel
+			];
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(2);
+			expect(result[0]!.codepoint).toBe(0xa960);
+			expect(result[1]!.codepoint).toBe(0x1161);
+		});
+
+		test("handles invalid LV+T composition failure", () => {
+			const infos = [
+				makeInfo(0xac00), // Standard LV syllable 가
+				makeInfo(0xd7cb), // Extended-B trailing jamo (old Korean)
+			];
+			const result = normalizeHangul(infos);
+			expect(result.length).toBe(2);
+			expect(result[0]!.codepoint).toBe(0xac00);
+			expect(result[1]!.codepoint).toBe(0xd7cb);
 		});
 	});
 

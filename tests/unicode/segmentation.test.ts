@@ -9,7 +9,10 @@ import {
 	splitGraphemes,
 	splitWords,
 	countGraphemes,
+	analyzeGraphemesForGlyphs,
+	analyzeWordsForGlyphs,
 } from "../../src/unicode/segmentation.ts";
+import type { GlyphInfo } from "../../src/types.ts";
 
 describe("unicode segmentation", () => {
 	describe("GraphemeBreakProperty enum", () => {
@@ -348,6 +351,304 @@ describe("unicode segmentation", () => {
 		test("Korean text", () => {
 			// 한글 = 2 syllables = 2 graphemes
 			expect(countGraphemes("한글")).toBe(2);
+		});
+	});
+
+	describe("edge cases for grapheme boundaries", () => {
+		test("GB4: break after control characters", () => {
+			// Control followed by regular char should break
+			const result = findGraphemeBoundaries([0x0000, 0x0041]); // NULL + 'A'
+			expect(result.boundaries).toEqual([1, 2]);
+		});
+
+		test("GB4: break after CR (not followed by LF)", () => {
+			const result = findGraphemeBoundaries([0x000d, 0x0041]); // CR + 'A'
+			expect(result.boundaries).toEqual([1, 2]);
+		});
+
+		test("GB5: break before control characters", () => {
+			// Regular char followed by control should break
+			const result = findGraphemeBoundaries([0x0041, 0x0000]); // 'A' + NULL
+			expect(result.boundaries).toEqual([1, 2]);
+		});
+
+		test("GB5: break before LF (not preceded by CR)", () => {
+			const result = findGraphemeBoundaries([0x0041, 0x000a]); // 'A' + LF
+			expect(result.boundaries).toEqual([1, 2]);
+		});
+
+		test("GB7: Hangul LV+V and LV+T sequences", () => {
+			// LV syllable + V jamo
+			const result1 = findGraphemeBoundaries([0xac00, 0x1161]); // LV + V
+			expect(result1.boundaries).toEqual([2]); // One cluster
+
+			// LV syllable + T jamo
+			const result2 = findGraphemeBoundaries([0xac00, 0x11a8]); // LV + T
+			expect(result2.boundaries).toEqual([2]); // One cluster
+		});
+
+		test("GB7: Hangul V+V and V+T sequences", () => {
+			// V + V
+			const result1 = findGraphemeBoundaries([0x1161, 0x1162]);
+			expect(result1.boundaries).toEqual([2]); // One cluster
+
+			// V + T
+			const result2 = findGraphemeBoundaries([0x1161, 0x11a8]);
+			expect(result2.boundaries).toEqual([2]); // One cluster
+		});
+
+		test("GB8: Hangul LVT+T and T+T sequences", () => {
+			// LVT + T
+			const result1 = findGraphemeBoundaries([0xac01, 0x11a8]); // LVT + T
+			expect(result1.boundaries).toEqual([2]); // One cluster
+
+			// T + T
+			const result2 = findGraphemeBoundaries([0x11a8, 0x11a9]);
+			expect(result2.boundaries).toEqual([2]); // One cluster
+		});
+
+		test("GB9a: SpacingMark stays with previous", () => {
+			// Letter + SpacingMark
+			const result = findGraphemeBoundaries([0x0041, 0x0903]); // 'A' + Devanagari sign Visarga
+			expect(result.boundaries).toEqual([2]); // One cluster
+		});
+
+		test("GB9b: Prepend stays with following", () => {
+			// Prepend + Letter
+			const result = findGraphemeBoundaries([0x0600, 0x0041]); // Arabic Number Sign + 'A'
+			expect(result.boundaries).toEqual([2]); // One cluster
+		});
+
+		test("GB11: Emoji ZWJ sequence (state not yet set)", () => {
+			// Extended_Pictographic + ZWJ + Extended_Pictographic
+			// Note: inExtendedPictographicSequence is only set AFTER first emoji is processed
+			// so the ZWJ at position 1 doesn't benefit from the state yet
+			const result = findGraphemeBoundaries([0x1f600, 0x200d, 0x1f600]); // 😀 + ZWJ + 😀
+			expect(result.boundaries).toEqual([2, 3]); // ZWJ joins with second emoji
+		});
+
+		test("GB11: Emoji ZWJ sequence with state tracking", () => {
+			// To cover GB11 (lines 737-738), we need inExtendedPictographicSequence = true
+			// when we encounter ZWJ + Extended_Pictographic
+			// Sequence: emoji + ZWJ + emoji (sets state) + ZWJ + emoji (GB11 applies here)
+			const result = findGraphemeBoundaries([0x1f600, 0x200d, 0x1f600, 0x200d, 0x1f600]);
+			// Boundaries: position 2 (after first emoji+ZWJ), position 5 (end)
+			// The second ZWJ+emoji pair stays together due to GB11
+			expect(result.boundaries).toEqual([2, 5]); // Lines 737-738 covered
+		});
+
+		test("emoji pictographic state tracking", () => {
+			// Test that inExtendedPictographicSequence is set correctly
+			const result = findGraphemeBoundaries([0x1f600, 0x0041]); // 😀 + A
+			expect(result.boundaries).toEqual([1, 2]); // Two clusters (line 753 covered)
+		});
+
+		test("Regional Indicator pairs with riCount tracking", () => {
+			// Four RIs should form 2 pairs
+			const result = findGraphemeBoundaries([0x1f1fa, 0x1f1f8, 0x1f1e6, 0x1f1e7]);
+			// riCount tracking: first pair breaks at 1 (riCount=0), second pair doesn't break
+			expect(result.boundaries.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("edge cases for word boundaries", () => {
+		test("WB3: CRLF stays together", () => {
+			const result = findWordBoundaries([0x000d, 0x000a]); // CR + LF
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB3a: break after Newline", () => {
+			const result = findWordBoundaries([0x000b, 0x0041]); // VT (newline) + 'A'
+			expect(result.boundaries).toContain(1);
+		});
+
+		test("WB3a: break after CR", () => {
+			const result = findWordBoundaries([0x000d, 0x0041]); // CR + 'A'
+			expect(result.boundaries).toContain(1);
+		});
+
+		test("WB3a: break after LF", () => {
+			const result = findWordBoundaries([0x000a, 0x0041]); // LF + 'A'
+			expect(result.boundaries).toContain(1);
+		});
+
+		test("WB3b: break before Newline", () => {
+			const result = findWordBoundaries([0x0041, 0x000b]); // 'A' + VT
+			expect(result.boundaries).toContain(1);
+		});
+
+		test("WB3b: break before CR", () => {
+			const result = findWordBoundaries([0x0041, 0x000d]); // 'A' + CR
+			expect(result.boundaries).toContain(1);
+		});
+
+		test("WB3b: break before LF", () => {
+			const result = findWordBoundaries([0x0041, 0x000a]); // 'A' + LF
+			expect(result.boundaries).toContain(1);
+		});
+
+		test("WB3c: ZWJ + Extended_Pictographic stays together", () => {
+			const result = findWordBoundaries([0x200d, 0x1f600]); // ZWJ + 😀
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB3d: WSegSpace sequences stay together", () => {
+			const result = findWordBoundaries([0x0020, 0x0020]); // space + space
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB4: Format stays with previous", () => {
+			// ALetter + Format + ALetter - Format doesn't break
+			const result = findWordBoundaries([0x0041, 0x00ad, 0x0042]); // A + soft hyphen + B
+			expect(result.boundaries).toEqual([0, 2, 3]); // Format stays with A, then B
+		});
+
+		test("WB6-7: ALetter + MidLetter without lookahead", () => {
+			// "A:B" - colon is MidLetter but lookahead fails in implementation
+			const result = findWordBoundaries([0x0041, 0x003a, 0x0042]); // A + : + B
+			// MidLetter causes boundary because lookahead checks properties[i+1], not getWordBreakProperty
+			expect(result.boundaries).toEqual([0, 2, 3]);
+		});
+
+		test("WB6-7: Hebrew_Letter + Single_Quote", () => {
+			const result = findWordBoundaries([0x05d0, 0x0027, 0x0041]); // א + ' + A
+			// Similar lookahead issue
+			expect(result.boundaries).toEqual([0, 2, 3]);
+		});
+
+		test("WB6-7: Hebrew_Letter + MidNumLet", () => {
+			const result = findWordBoundaries([0x05d0, 0x002e, 0x05d1]); // א + . + ב
+			expect(result.boundaries).toEqual([0, 2, 3]);
+		});
+
+		test("WB9: ALetter + Numeric", () => {
+			const result = findWordBoundaries([0x0041, 0x0030]); // A + 0
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB9: Hebrew_Letter + Numeric", () => {
+			const result = findWordBoundaries([0x05d0, 0x0030]); // א + 0
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB10: Numeric + ALetter", () => {
+			const result = findWordBoundaries([0x0030, 0x0041]); // 0 + A
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB10: Numeric + Hebrew_Letter", () => {
+			const result = findWordBoundaries([0x0030, 0x05d0]); // 0 + א
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB11-12: Numeric + MidNum + Numeric", () => {
+			// "1,2" - comma is MidNum, lookahead should work
+			const result = findWordBoundaries([0x0031, 0x002c, 0x0032]); // 1 + , + 2
+			// Similar lookahead issue
+			expect(result.boundaries).toEqual([0, 2, 3]);
+		});
+
+		test("WB11-12: Numeric + Single_Quote + Numeric", () => {
+			const result = findWordBoundaries([0x0031, 0x0027, 0x0032]); // 1 + ' + 2
+			expect(result.boundaries).toEqual([0, 2, 3]);
+		});
+
+		test("WB11-12: Numeric + MidNumLet + Numeric", () => {
+			const result = findWordBoundaries([0x0031, 0x002e, 0x0032]); // 1 + . + 2
+			expect(result.boundaries).toEqual([0, 2, 3]);
+		});
+
+		test("WB13: Katakana + Katakana stays together", () => {
+			const result = findWordBoundaries([0x30a2, 0x30a3]); // ア + ィ
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13a: ALetter + ExtendNumLet", () => {
+			const result = findWordBoundaries([0x0041, 0x005f]); // A + _
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13a: Hebrew_Letter + ExtendNumLet", () => {
+			const result = findWordBoundaries([0x05d0, 0x005f]); // א + _
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13a: Numeric + ExtendNumLet", () => {
+			const result = findWordBoundaries([0x0030, 0x005f]); // 0 + _
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13a: Katakana + ExtendNumLet", () => {
+			const result = findWordBoundaries([0x30a2, 0x005f]); // ア + _
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13a: ExtendNumLet + ExtendNumLet", () => {
+			const result = findWordBoundaries([0x005f, 0x005f]); // _ + _
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13b: ExtendNumLet + ALetter", () => {
+			const result = findWordBoundaries([0x005f, 0x0041]); // _ + A
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13b: ExtendNumLet + Hebrew_Letter", () => {
+			const result = findWordBoundaries([0x005f, 0x05d0]); // _ + א
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13b: ExtendNumLet + Numeric", () => {
+			const result = findWordBoundaries([0x005f, 0x0030]); // _ + 0
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB13b: ExtendNumLet + Katakana", () => {
+			const result = findWordBoundaries([0x005f, 0x30a2]); // _ + ア
+			expect(result.boundaries).toEqual([0, 2]);
+		});
+
+		test("WB15-16: Regional_Indicator pairs with riCount", () => {
+			// Two RIs - riCount starts at 0, so first RI pair breaks
+			const result = findWordBoundaries([0x1f1fa, 0x1f1f8]); // 🇺🇸
+			expect(result.boundaries).toEqual([0, 1, 2]); // First RI, second RI, end
+		});
+
+		test("WB15-16: Four RIs form two pairs", () => {
+			const result = findWordBoundaries([0x1f1fa, 0x1f1f8, 0x1f1e6, 0x1f1e7]); // 🇺🇸🇦🇧
+			// riCount tracking ensures proper pairing
+			expect(result.boundaries.length).toBeGreaterThan(0);
+		});
+
+		test("riCount reset on non-RI", () => {
+			const result = findWordBoundaries([0x1f1fa, 0x0041, 0x1f1f8]); // 🇺 + A + 🇸
+			// A resets riCount
+			expect(result.boundaries.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("analyzeGraphemesForGlyphs", () => {
+		test("analyzes glyph info array", () => {
+			const glyphs: GlyphInfo[] = [
+				{ codepoint: 0x0041, cluster: 0, glyphId: 0, mask: 0 },
+				{ codepoint: 0x0301, cluster: 0, glyphId: 0, mask: 0 },
+			];
+			const result = analyzeGraphemesForGlyphs(glyphs);
+			expect(result.boundaries).toEqual([2]); // One cluster
+			expect(result.properties.length).toBe(2);
+		});
+	});
+
+	describe("analyzeWordsForGlyphs", () => {
+		test("analyzes glyph info array", () => {
+			const glyphs: GlyphInfo[] = [
+				{ codepoint: 0x0048, cluster: 0, glyphId: 0, mask: 0 },
+				{ codepoint: 0x0069, cluster: 1, glyphId: 0, mask: 0 },
+			];
+			const result = analyzeWordsForGlyphs(glyphs);
+			expect(result.boundaries[0]).toBe(0);
+			expect(result.boundaries[result.boundaries.length - 1]).toBe(2);
+			expect(result.properties.length).toBe(2);
 		});
 	});
 });

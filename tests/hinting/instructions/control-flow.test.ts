@@ -271,6 +271,16 @@ describe("Control Flow Instructions", () => {
 			expect(ctx.IP).toBe(originalIP);
 			expect(ctx.error).toBeNull();
 		});
+
+		test("IF errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			IF(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
 	});
 
 	describe("Jump Instructions", () => {
@@ -336,6 +346,36 @@ describe("Control Flow Instructions", () => {
 			JROF(ctx);
 
 			expect(ctx.IP).toBe(8);
+		});
+
+		test("JMPR errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			JMPR(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
+
+		test("JROT errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			JROT(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
+
+		test("JROF errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			JROF(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
 		});
 	});
 
@@ -454,6 +494,26 @@ describe("Control Flow Instructions", () => {
 			expect(ctx.error).toContain("missing ENDF");
 		});
 
+		test("FDEF errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			FDEF(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
+
+		test("FDEF errors when no slot for function", () => {
+			const ctx = createTestContext();
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.FDefs[0] = null as any;
+
+			FDEF(ctx);
+
+			expect(ctx.error).toContain("no slot for function");
+		});
+
 		test("CALL calls function", () => {
 			const ctx = createTestContext();
 			ctx.currentRange = CodeRange.Glyph;
@@ -485,6 +545,16 @@ describe("Control Flow Instructions", () => {
 			expect(+ctx.currentRange).toBe(+CodeRange.Font);
 		});
 
+		test("CALL errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			CALL(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
+
 		test("CALL errors on invalid function number", () => {
 			const ctx = createTestContext();
 			ctx.stack[ctx.stackTop++] = 999;
@@ -512,6 +582,20 @@ describe("Control Flow Instructions", () => {
 			CALL(ctx);
 
 			expect(ctx.error).toContain("call stack overflow");
+		});
+
+		test("CALL errors when no call frame available", () => {
+			const ctx = createTestContext();
+			ctx.FDefs[0]!.active = true;
+			ctx.FDefs[0]!.start = 0;
+			ctx.FDefs[0]!.range = CodeRange.Font;
+			ctx.callStack[0] = null as any;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			CALL(ctx);
+
+			expect(ctx.error).toContain("no call frame available");
+			expect(ctx.callStackTop).toBe(0);
 		});
 
 		test("ENDF returns from function", () => {
@@ -550,6 +634,16 @@ describe("Control Flow Instructions", () => {
 			ENDF(ctx);
 
 			expect(ctx.error).toContain("not in function call");
+		});
+
+		test("ENDF errors when missing call frame", () => {
+			const ctx = createTestContext();
+			ctx.callStackTop = 1;
+			ctx.callStack[0] = null as any;
+
+			ENDF(ctx);
+
+			expect(ctx.error).toContain("missing call frame");
 		});
 
 		test("ENDF loops for LOOPCALL", () => {
@@ -663,6 +757,31 @@ describe("Control Flow Instructions", () => {
 
 			expect(ctx.error).toContain("call stack overflow");
 		});
+
+		test("LOOPCALL errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			LOOPCALL(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
+
+		test("LOOPCALL errors when no call frame available", () => {
+			const ctx = createTestContext();
+			ctx.FDefs[0]!.active = true;
+			ctx.FDefs[0]!.start = 0;
+			ctx.FDefs[0]!.range = CodeRange.Font;
+			ctx.callStack[0] = null as any;
+			ctx.stack[ctx.stackTop++] = 1;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			LOOPCALL(ctx);
+
+			expect(ctx.error).toContain("no call frame available");
+			expect(ctx.callStackTop).toBe(0);
+		});
 	});
 
 	describe("Instruction Definition", () => {
@@ -684,7 +803,7 @@ describe("Control Flow Instructions", () => {
 			expect(ctx.IP).toBe(4);
 		});
 
-		test("IDEF handles push instructions", () => {
+		test("IDEF handles NPUSHB instructions", () => {
 			const ctx = createTestContext();
 			// IDEF (0x89) + NPUSHB (0x40) + count + data + ENDF (0x2d)
 			ctx.code = new Uint8Array([0x89, 0x40, 0x03, 0x01, 0x02, 0x03, 0x2d]);
@@ -697,6 +816,21 @@ describe("Control Flow Instructions", () => {
 
 			expect(ctx.IDefs[0x30]!.active).toBe(true);
 			expect(ctx.IP).toBe(7);
+		});
+
+		test("IDEF handles NPUSHW instructions", () => {
+			const ctx = createTestContext();
+			// IDEF (0x89) + NPUSHW (0x41) + count + data + ENDF (0x2d)
+			ctx.code = new Uint8Array([0x89, 0x41, 0x02, 0x00, 0x01, 0x00, 0x02, 0x2d]);
+			ctx.codeSize = 8;
+			ctx.IP = 1;
+			ctx.currentRange = CodeRange.Font;
+			ctx.stack[ctx.stackTop++] = 0x31;
+
+			IDEF(ctx);
+
+			expect(ctx.IDefs[0x31]!.active).toBe(true);
+			expect(ctx.IP).toBe(8);
 		});
 
 		test("IDEF handles PUSHB[n] variants", () => {
@@ -761,6 +895,26 @@ describe("Control Flow Instructions", () => {
 			IDEF(ctx);
 
 			expect(ctx.error).toContain("missing ENDF");
+		});
+
+		test("IDEF errors on stack underflow", () => {
+			const ctx = createTestContext();
+			ctx.stackTop = 0;
+
+			IDEF(ctx);
+
+			expect(ctx.error).toContain("stack underflow");
+			expect(ctx.stackTop).toBe(0);
+		});
+
+		test("IDEF errors when no slot for opcode", () => {
+			const ctx = createTestContext();
+			ctx.stack[ctx.stackTop++] = 0x20;
+			ctx.IDefs[0x20] = null as any;
+
+			IDEF(ctx);
+
+			expect(ctx.error).toContain("no slot for opcode");
 		});
 	});
 });

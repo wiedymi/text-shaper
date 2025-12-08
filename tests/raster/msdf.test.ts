@@ -13,6 +13,9 @@ import {
 	signedDistanceToLine,
 	signedDistanceToQuadratic,
 	signedDistanceToCubic,
+	signedDistanceToEdge,
+	isPointInside,
+	flattenEdge,
 	median,
 } from "../../src/raster/msdf.ts";
 import { PixelMode } from "../../src/raster/types.ts";
@@ -95,6 +98,17 @@ describe("MSDF utilities", () => {
 			// Distance from (0, 10) to line y=x
 			// Perpendicular distance = |10 - 0| / sqrt(2) = 10/sqrt(2) ≈ 7.07
 			expect(Math.abs(result.distance)).toBeCloseTo(7.07, 1);
+		});
+
+		test("degenerate segment with zero length", () => {
+			const result = signedDistanceToLine(
+				5, 5, // point away from degenerate segment
+				{ x: 0, y: 0 }, // p0
+				{ x: 0, y: 0 }, // p1 (same as p0)
+			);
+			// Should return distance to point (0, 0)
+			expect(Math.abs(result.distance)).toBeCloseTo(Math.sqrt(50), 1);
+			expect(result.t).toBe(0);
 		});
 	});
 
@@ -215,6 +229,26 @@ describe("Edge coloring", () => {
 
 		// Smooth transition - can share the same color
 		expect(edges[0].color).toBe(edges[1].color);
+	});
+
+	test("single edge contour gets color 0", () => {
+		const edges: MsdfEdge[] = [
+			{ type: "line", p0: { x: 0, y: 0 }, p1: { x: 10, y: 10 }, color: 0, minX: 0, maxX: 10, minY: 0, maxY: 10 },
+		];
+
+		assignEdgeColors([edges]);
+
+		// Single edge gets color 0
+		expect(edges[0].color).toBe(0);
+	});
+
+	test("empty contour is skipped", () => {
+		const edges: MsdfEdge[] = [];
+
+		assignEdgeColors([edges]);
+
+		// Should not crash
+		expect(edges.length).toBe(0);
 	});
 });
 
@@ -519,6 +553,87 @@ describe("MSDF Rasterizer", () => {
 		);
 		expect(originalMedian).toBeLessThan(128);
 	});
+
+	test("unclosed contour without Z", () => {
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 10, y: 10 },
+				{ type: "L", x: 20, y: 10 },
+				{ type: "L", x: 20, y: 20 },
+				{ type: "L", x: 10, y: 20 },
+				// No Z - contour ends without closing
+			],
+			bounds: { xMin: 10, yMin: 10, xMax: 20, yMax: 20 },
+		};
+
+		const bitmap = renderMsdf(path, {
+			width: 30,
+			height: 30,
+			scale: 1,
+			spread: 4,
+		});
+
+		// Should still render something
+		expect(bitmap.width).toBe(30);
+		expect(bitmap.rows).toBe(30);
+	});
+
+	test("multiple contours with M commands", () => {
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 5, y: 5 },
+				{ type: "L", x: 15, y: 5 },
+				{ type: "L", x: 15, y: 15 },
+				{ type: "L", x: 5, y: 15 },
+				{ type: "Z" },
+				{ type: "M", x: 20, y: 20 },
+				{ type: "L", x: 30, y: 20 },
+				{ type: "L", x: 30, y: 30 },
+				{ type: "L", x: 20, y: 30 },
+				{ type: "Z" },
+			],
+			bounds: { xMin: 5, yMin: 5, xMax: 30, yMax: 30 },
+		};
+
+		const bitmap = renderMsdf(path, {
+			width: 40,
+			height: 40,
+			scale: 1,
+			spread: 4,
+		});
+
+		// Both contours should be rendered
+		expect(bitmap.width).toBe(40);
+		expect(bitmap.rows).toBe(40);
+	});
+
+	test("M command after unclosed contour", () => {
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 5, y: 5 },
+				{ type: "L", x: 15, y: 5 },
+				{ type: "L", x: 15, y: 15 },
+				// No Z - contour not closed
+				{ type: "M", x: 20, y: 20 }, // New M command triggers contour push
+				{ type: "L", x: 30, y: 20 },
+				{ type: "L", x: 30, y: 30 },
+				{ type: "L", x: 20, y: 30 },
+				{ type: "Z" },
+			],
+			bounds: { xMin: 5, yMin: 5, xMax: 30, yMax: 30 },
+		};
+
+		const bitmap = renderMsdf(path, {
+			width: 40,
+			height: 40,
+			scale: 1,
+			spread: 4,
+		});
+
+		// Both contours should be handled
+		expect(bitmap.width).toBe(40);
+		expect(bitmap.rows).toBe(40);
+	});
 });
 
 describe("MSDF Atlas", () => {
@@ -629,5 +744,255 @@ describe("MSDF Atlas", () => {
 
 		expect(isPowerOf2(atlas.bitmap.width)).toBe(true);
 		expect(isPowerOf2(atlas.bitmap.rows)).toBe(true);
+	});
+
+	test("atlas packing with constrained dimensions", async () => {
+		const font = await Font.fromFile(fontPath);
+
+		const atlas = buildMsdfAtlas(font, [font.glyphId(65)!, font.glyphId(66)!, font.glyphId(67)!], {
+			fontSize: 32,
+			padding: 2,
+			spread: 4,
+			maxWidth: 64,
+			maxHeight: 64,
+		});
+
+		expect(atlas.bitmap.width).toBeLessThanOrEqual(64);
+		expect(atlas.bitmap.rows).toBeLessThanOrEqual(64);
+	});
+
+	test("atlas that cannot fit all glyphs", async () => {
+		const font = await Font.fromFile(fontPath);
+
+		const glyphIds: number[] = [];
+		for (let codepoint = 32; codepoint <= 126; codepoint++) {
+			const glyphId = font.glyphId(codepoint);
+			if (glyphId !== undefined && glyphId !== 0) {
+				glyphIds.push(glyphId);
+			}
+		}
+
+		const atlas = buildMsdfAtlas(font, glyphIds, {
+			fontSize: 64,
+			padding: 2,
+			spread: 4,
+			maxWidth: 128,
+			maxHeight: 128,
+		});
+
+		// Some glyphs may not fit, but atlas should still be created
+		expect(atlas.bitmap).toBeDefined();
+		expect(atlas.bitmap.width).toBeLessThanOrEqual(128);
+		expect(atlas.bitmap.rows).toBeLessThanOrEqual(128);
+	});
+
+	test("msdfAtlasToRGB handles row padding", async () => {
+		const font = await Font.fromFile(fontPath);
+
+		const atlas = buildMsdfAtlas(font, [font.glyphId(65)!], {
+			fontSize: 32,
+			spread: 4,
+		});
+
+		// Force a scenario where pitch != width * 3 by creating a custom bitmap
+		const paddedBitmap = {
+			...atlas.bitmap,
+			pitch: atlas.bitmap.width * 3 + 16, // Add padding
+		};
+
+		const paddedAtlas = {
+			...atlas,
+			bitmap: paddedBitmap,
+		};
+
+		const rgb = msdfAtlasToRGB(paddedAtlas);
+
+		// Should handle padding and return correct size
+		expect(rgb.length).toBe(atlas.bitmap.width * atlas.bitmap.rows * 3);
+	});
+
+	test("empty glyph set creates empty atlas", async () => {
+		const font = await Font.fromFile(fontPath);
+
+		const atlas = buildMsdfAtlas(font, [], {
+			fontSize: 32,
+			spread: 4,
+		});
+
+		expect(atlas.glyphs.size).toBe(0);
+		expect(atlas.bitmap).toBeDefined();
+	});
+
+	test("glyph with no path is skipped", async () => {
+		const font = await Font.fromFile(fontPath);
+
+		// Space character (32) typically has no path
+		const spaceGlyphId = font.glyphId(32);
+		const aGlyphId = font.glyphId(65);
+
+		const glyphIds: number[] = [];
+		if (spaceGlyphId !== undefined) glyphIds.push(spaceGlyphId);
+		if (aGlyphId !== undefined) glyphIds.push(aGlyphId);
+
+		const atlas = buildMsdfAtlas(font, glyphIds, {
+			fontSize: 32,
+			spread: 4,
+		});
+
+		// Space may or may not be included, but should not crash
+		expect(atlas.bitmap).toBeDefined();
+	});
+});
+
+describe("Edge helper functions", () => {
+	test("signedDistanceToEdge for line edge", () => {
+		const edge: MsdfEdge = {
+			type: "line",
+			p0: { x: 0, y: 0 },
+			p1: { x: 10, y: 0 },
+			color: 0,
+			minX: 0,
+			maxX: 10,
+			minY: 0,
+			maxY: 0,
+		};
+
+		const result = signedDistanceToEdge(5, 5, edge);
+		expect(Math.abs(result.distance)).toBeCloseTo(5, 1);
+	});
+
+	test("signedDistanceToEdge for quadratic edge", () => {
+		const edge: MsdfEdge = {
+			type: "quadratic",
+			p0: { x: 0, y: 0 },
+			p1: { x: 5, y: 10 },
+			p2: { x: 10, y: 0 },
+			color: 0,
+			minX: 0,
+			maxX: 10,
+			minY: 0,
+			maxY: 10,
+		};
+
+		const result = signedDistanceToEdge(5, 0, edge);
+		expect(result).toBeDefined();
+		expect(typeof result.distance).toBe("number");
+		expect(typeof result.t).toBe("number");
+	});
+
+	test("signedDistanceToEdge for cubic edge", () => {
+		const edge: MsdfEdge = {
+			type: "cubic",
+			p0: { x: 0, y: 0 },
+			p1: { x: 3, y: 10 },
+			p2: { x: 7, y: 10 },
+			p3: { x: 10, y: 0 },
+			color: 0,
+			minX: 0,
+			maxX: 10,
+			minY: 0,
+			maxY: 10,
+		};
+
+		const result = signedDistanceToEdge(5, 0, edge);
+		expect(result).toBeDefined();
+		expect(typeof result.distance).toBe("number");
+		expect(typeof result.t).toBe("number");
+	});
+
+	test("isPointInside with simple square", () => {
+		const edges: MsdfEdge[] = [
+			{ type: "line", p0: { x: 0, y: 0 }, p1: { x: 10, y: 0 }, color: 0, minX: 0, maxX: 10, minY: 0, maxY: 0 },
+			{ type: "line", p0: { x: 10, y: 0 }, p1: { x: 10, y: 10 }, color: 1, minX: 10, maxX: 10, minY: 0, maxY: 10 },
+			{ type: "line", p0: { x: 10, y: 10 }, p1: { x: 0, y: 10 }, color: 2, minX: 0, maxX: 10, minY: 10, maxY: 10 },
+			{ type: "line", p0: { x: 0, y: 10 }, p1: { x: 0, y: 0 }, color: 0, minX: 0, maxX: 0, minY: 0, maxY: 10 },
+		];
+
+		const contours = [edges];
+
+		expect(isPointInside(5, 5, contours)).toBe(true);
+		expect(isPointInside(15, 15, contours)).toBe(false);
+		expect(isPointInside(-1, 5, contours)).toBe(false);
+	});
+
+	test("isPointInside with quadratic curves", () => {
+		const edges: MsdfEdge[] = [
+			{ type: "quadratic", p0: { x: 0, y: 0 }, p1: { x: 5, y: 5 }, p2: { x: 10, y: 0 }, color: 0, minX: 0, maxX: 10, minY: 0, maxY: 5 },
+			{ type: "line", p0: { x: 10, y: 0 }, p1: { x: 0, y: 0 }, color: 1, minX: 0, maxX: 10, minY: 0, maxY: 0 },
+		];
+
+		const contours = [edges];
+
+		expect(isPointInside(5, 2, contours)).toBe(true);
+		expect(isPointInside(5, -1, contours)).toBe(false);
+	});
+
+	test("isPointInside with cubic curves", () => {
+		const edges: MsdfEdge[] = [
+			{ type: "cubic", p0: { x: 0, y: 0 }, p1: { x: 3, y: 5 }, p2: { x: 7, y: 5 }, p3: { x: 10, y: 0 }, color: 0, minX: 0, maxX: 10, minY: 0, maxY: 5 },
+			{ type: "line", p0: { x: 10, y: 0 }, p1: { x: 0, y: 0 }, color: 1, minX: 0, maxX: 10, minY: 0, maxY: 0 },
+		];
+
+		const contours = [edges];
+
+		expect(isPointInside(5, 2, contours)).toBe(true);
+		expect(isPointInside(5, -1, contours)).toBe(false);
+	});
+
+	test("flattenEdge for line", () => {
+		const edge: MsdfEdge = {
+			type: "line",
+			p0: { x: 0, y: 0 },
+			p1: { x: 10, y: 10 },
+			color: 0,
+			minX: 0,
+			maxX: 10,
+			minY: 0,
+			maxY: 10,
+		};
+
+		const points = flattenEdge(edge);
+		expect(points).toHaveLength(2);
+		expect(points[0]).toEqual({ x: 0, y: 0 });
+		expect(points[1]).toEqual({ x: 10, y: 10 });
+	});
+
+	test("flattenEdge for quadratic", () => {
+		const edge: MsdfEdge = {
+			type: "quadratic",
+			p0: { x: 0, y: 0 },
+			p1: { x: 5, y: 10 },
+			p2: { x: 10, y: 0 },
+			color: 0,
+			minX: 0,
+			maxX: 10,
+			minY: 0,
+			maxY: 10,
+		};
+
+		const points = flattenEdge(edge);
+		expect(points.length).toBeGreaterThan(2);
+		expect(points[0]).toEqual({ x: 0, y: 0 });
+		expect(points[points.length - 1]).toEqual({ x: 10, y: 0 });
+	});
+
+	test("flattenEdge for cubic", () => {
+		const edge: MsdfEdge = {
+			type: "cubic",
+			p0: { x: 0, y: 0 },
+			p1: { x: 3, y: 10 },
+			p2: { x: 7, y: 10 },
+			p3: { x: 10, y: 0 },
+			color: 0,
+			minX: 0,
+			maxX: 10,
+			minY: 0,
+			maxY: 10,
+		};
+
+		const points = flattenEdge(edge);
+		expect(points.length).toBeGreaterThan(2);
+		expect(points[0]).toEqual({ x: 0, y: 0 });
+		expect(points[points.length - 1]).toEqual({ x: 10, y: 0 });
 	});
 });

@@ -1528,4 +1528,524 @@ describe("morx table", () => {
 			}
 		});
 	});
+
+	describe("synthetic test data for uncovered paths", () => {
+		test("parses rearrangement subtable (type 0) with synthetic data", () => {
+			const buffer = new ArrayBuffer(2048);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const chainStart = offset;
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 2000;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 1900;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.Rearrangement);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			const nClasses = 4;
+			view.setUint32(offset, nClasses);
+			offset += 4;
+			const classTableOffset = 16;
+			view.setUint32(offset, classTableOffset);
+			offset += 4;
+			const stateArrayOffset = 40;
+			view.setUint32(offset, stateArrayOffset);
+			offset += 4;
+			const entryTableOffset = 60;
+			view.setUint32(offset, entryTableOffset);
+			offset += 4;
+
+			const classTableStart = subtableStart + 12 + classTableOffset;
+			view.setUint16(classTableStart, 2);
+			view.setUint16(classTableStart + 2, 6);
+			view.setUint16(classTableStart + 4, 1);
+			view.setUint16(classTableStart + 6, 6);
+
+			view.setUint16(classTableStart + 8, 10);
+			view.setUint16(classTableStart + 10, 5);
+			view.setUint16(classTableStart + 12, 2);
+
+			const entryTableStart = subtableStart + 12 + entryTableOffset;
+			for (let i = 0; i < 256; i++) {
+				view.setUint16(entryTableStart + i * 4, 0);
+				view.setUint16(entryTableStart + i * 4 + 2, i % 10);
+			}
+
+			const stateArrayStart = subtableStart + 12 + stateArrayOffset;
+			for (let s = 0; s < 4; s++) {
+				for (let c = 0; c < nClasses; c++) {
+					view.setUint16(stateArrayStart + (s * nClasses + c) * 2, (c + s) % 4);
+				}
+			}
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxRearrangementSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.Rearrangement);
+			expect(subtable.stateTable).toBeDefined();
+			expect(subtable.stateTable.nClasses).toBe(nClasses);
+			expect(subtable.stateTable.stateArray.length).toBeGreaterThan(0);
+		});
+
+		test("parses insertion subtable (type 5) with synthetic data", () => {
+			const buffer = new ArrayBuffer(4096);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 4000;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 3900;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.Insertion);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			const nClasses = 3;
+			view.setUint32(offset, nClasses);
+			offset += 4;
+			const classTableOffset = 20;
+			view.setUint32(offset, classTableOffset);
+			offset += 4;
+			const stateArrayOffset = 50;
+			view.setUint32(offset, stateArrayOffset);
+			offset += 4;
+			const entryTableOffset = 70;
+			view.setUint32(offset, entryTableOffset);
+			offset += 4;
+			const insertionActionOffset = 2200;
+			view.setUint32(offset, insertionActionOffset);
+			offset += 4;
+
+			const classTableStart = subtableStart + 12 + classTableOffset;
+			view.setUint16(classTableStart, 2);
+			view.setUint16(classTableStart + 2, 6);
+			view.setUint16(classTableStart + 4, 1);
+			view.setUint16(classTableStart + 6, 6);
+			view.setUint16(classTableStart + 8, 8);
+			view.setUint16(classTableStart + 10, 5);
+			view.setUint16(classTableStart + 12, 2);
+
+			const entryTableStart = subtableStart + 12 + entryTableOffset;
+			for (let i = 0; i < 256; i++) {
+				view.setUint16(entryTableStart + i * 8, 0);
+				view.setUint16(entryTableStart + i * 8 + 2, i % 10);
+				view.setUint16(entryTableStart + i * 8 + 4, 0xffff);
+				view.setUint16(entryTableStart + i * 8 + 6, 0xffff);
+			}
+
+			const stateArrayStart = subtableStart + 12 + stateArrayOffset;
+			for (let s = 0; s < 4; s++) {
+				for (let c = 0; c < nClasses; c++) {
+					view.setUint16(stateArrayStart + (s * nClasses + c) * 2, (c + s) % 4);
+				}
+			}
+
+			const insertionGlyphsStart = subtableStart + 12 + insertionActionOffset;
+			view.setUint16(insertionGlyphsStart, 100);
+			view.setUint16(insertionGlyphsStart + 2, 101);
+			view.setUint16(insertionGlyphsStart + 4, 102);
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxInsertionSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.Insertion);
+			expect(subtable.stateTable).toBeDefined();
+			expect(subtable.stateTable.nClasses).toBe(nClasses);
+			expect(Array.isArray(subtable.insertionGlyphs)).toBe(true);
+			expect(subtable.insertionGlyphs.length).toBeGreaterThan(0);
+			expect(subtable.stateTable.stateArray.length).toBeGreaterThan(0);
+		});
+
+		test("parses lookup table format 2 (segment single)", () => {
+			const buffer = new ArrayBuffer(100);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 80;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 60;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.NonContextual);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 6);
+			offset += 2;
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 12);
+			offset += 2;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			view.setUint16(offset, 20);
+			offset += 2;
+			view.setUint16(offset, 10);
+			offset += 2;
+			view.setUint16(offset, 200);
+			offset += 2;
+
+			view.setUint16(offset, 30);
+			offset += 2;
+			view.setUint16(offset, 25);
+			offset += 2;
+			view.setUint16(offset, 300);
+			offset += 2;
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxNonContextualSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.NonContextual);
+			expect(subtable.lookupTable.format).toBe(2);
+			expect(subtable.lookupTable.mapping).toBeInstanceOf(Map);
+			expect(subtable.lookupTable.mapping.get(10)).toBe(200);
+			expect(subtable.lookupTable.mapping.get(15)).toBe(200);
+			expect(subtable.lookupTable.mapping.get(20)).toBe(200);
+			expect(subtable.lookupTable.mapping.get(25)).toBe(300);
+			expect(subtable.lookupTable.mapping.get(30)).toBe(300);
+		});
+
+		test("parses lookup table format 6 (single table)", () => {
+			const buffer = new ArrayBuffer(100);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 80;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 60;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.NonContextual);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			view.setUint16(offset, 6);
+			offset += 2;
+			view.setUint16(offset, 4);
+			offset += 2;
+			view.setUint16(offset, 3);
+			offset += 2;
+			view.setUint16(offset, 12);
+			offset += 2;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			view.setUint16(offset, 10);
+			offset += 2;
+			view.setUint16(offset, 100);
+			offset += 2;
+
+			view.setUint16(offset, 20);
+			offset += 2;
+			view.setUint16(offset, 200);
+			offset += 2;
+
+			view.setUint16(offset, 30);
+			offset += 2;
+			view.setUint16(offset, 300);
+			offset += 2;
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxNonContextualSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.NonContextual);
+			expect(subtable.lookupTable.format).toBe(6);
+			expect(subtable.lookupTable.mapping).toBeInstanceOf(Map);
+			expect(subtable.lookupTable.mapping.get(10)).toBe(100);
+			expect(subtable.lookupTable.mapping.get(20)).toBe(200);
+			expect(subtable.lookupTable.mapping.get(30)).toBe(300);
+		});
+
+		test("parses lookup table format 8 (trimmed array)", () => {
+			const buffer = new ArrayBuffer(100);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 80;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 60;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.NonContextual);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			view.setUint16(offset, 8);
+			offset += 2;
+			view.setUint16(offset, 50);
+			offset += 2;
+			view.setUint16(offset, 5);
+			offset += 2;
+
+			view.setUint16(offset, 100);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint16(offset, 200);
+			offset += 2;
+			view.setUint16(offset, 300);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxNonContextualSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.NonContextual);
+			expect(subtable.lookupTable.format).toBe(8);
+			expect(subtable.lookupTable.mapping).toBeInstanceOf(Map);
+			expect(subtable.lookupTable.mapping.get(50)).toBe(100);
+			expect(subtable.lookupTable.mapping.get(52)).toBe(200);
+			expect(subtable.lookupTable.mapping.get(53)).toBe(300);
+			expect(subtable.lookupTable.mapping.has(51)).toBe(false);
+			expect(subtable.lookupTable.mapping.has(54)).toBe(false);
+		});
+
+		test("parses lookup table format 0 (simple array)", () => {
+			const buffer = new ArrayBuffer(100);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 40;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 20;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.NonContextual);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxNonContextualSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.NonContextual);
+			expect(subtable.lookupTable.format).toBe(0);
+			expect(subtable.lookupTable.mapping).toBeInstanceOf(Map);
+			expect(subtable.lookupTable.mapping.size).toBe(0);
+		});
+
+		test("parses lookup table format 4 (segment array)", () => {
+			const buffer = new ArrayBuffer(100);
+			const view = new DataView(buffer);
+			let offset = 0;
+
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			view.setUint32(offset, 0);
+			offset += 4;
+			const chainLength = 80;
+			view.setUint32(offset, chainLength);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+			view.setUint32(offset, 1);
+			offset += 4;
+
+			const subtableStart = offset;
+			const subtableLength = 60;
+			view.setUint32(offset, subtableLength);
+			offset += 4;
+			view.setUint32(offset, MorxSubtableType.NonContextual);
+			offset += 4;
+			view.setUint32(offset, 0);
+			offset += 4;
+
+			view.setUint16(offset, 4);
+			offset += 2;
+			view.setUint16(offset, 6);
+			offset += 2;
+			view.setUint16(offset, 2);
+			offset += 2;
+			view.setUint16(offset, 12);
+			offset += 2;
+			view.setUint16(offset, 1);
+			offset += 2;
+			view.setUint16(offset, 0);
+			offset += 2;
+
+			view.setUint16(offset, 20);
+			offset += 2;
+			view.setUint16(offset, 10);
+			offset += 2;
+			view.setUint16(offset, 10);
+			offset += 2;
+
+			view.setUint16(offset, 30);
+			offset += 2;
+			view.setUint16(offset, 25);
+			offset += 2;
+			view.setUint16(offset, 20);
+			offset += 2;
+
+			const { Reader } = require("../../../src/font/binary/reader.ts");
+			const reader = new Reader(view);
+			const morx = parseMorx(reader);
+
+			expect(morx.version).toBe(2);
+			expect(morx.chains.length).toBe(1);
+			const chain = morx.chains[0];
+			expect(chain.subtables.length).toBe(1);
+			const subtable = chain.subtables[0] as MorxNonContextualSubtable;
+			expect(subtable.type).toBe(MorxSubtableType.NonContextual);
+			expect(subtable.lookupTable.format).toBe(4);
+			expect(subtable.lookupTable.mapping).toBeInstanceOf(Map);
+		});
+	});
 });

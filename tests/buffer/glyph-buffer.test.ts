@@ -473,4 +473,266 @@ describe("GlyphBuffer", () => {
 			expect(buffer.language).toBe("ar");
 		});
 	});
+
+	describe("reset", () => {
+		test("clears buffer state", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1)]);
+			buffer.markDeleted(0);
+			buffer.reset();
+
+			expect(buffer.length).toBe(0);
+			expect(buffer.infos).toEqual([]);
+			expect(buffer.positions).toEqual([]);
+			expect(buffer.hasPendingDeletions()).toBe(false);
+		});
+	});
+
+	describe("initFromCodepoints", () => {
+		test("initializes from codepoints with custom mapper", () => {
+			const buffer = new GlyphBuffer();
+			const codepoints = [0x41, 0x42, 0x43]; // A, B, C
+			const clusters = [0, 1, 2];
+			const getGlyphId = (cp: number) => cp + 100;
+
+			buffer.initFromCodepoints(codepoints, clusters, getGlyphId);
+
+			expect(buffer.length).toBe(3);
+			expect(buffer.infos[0].glyphId).toBe(165); // 0x41 + 100
+			expect(buffer.infos[0].cluster).toBe(0);
+			expect(buffer.infos[0].codepoint).toBe(0x41);
+			expect(buffer.infos[0].mask).toBe(0xffffffff);
+		});
+
+		test("initializes positions to zero", () => {
+			const buffer = new GlyphBuffer();
+			const codepoints = [0x41];
+			const clusters = [0];
+			const getGlyphId = (cp: number) => cp;
+
+			buffer.initFromCodepoints(codepoints, clusters, getGlyphId);
+
+			expect(buffer.positions[0]).toEqual({
+				xAdvance: 0,
+				yAdvance: 0,
+				xOffset: 0,
+				yOffset: 0,
+			});
+		});
+
+		test("expands pool when needed", () => {
+			const buffer = new GlyphBuffer();
+			const codepoints = [0x41, 0x42, 0x43, 0x44, 0x45];
+			const clusters = [0, 1, 2, 3, 4];
+			const getGlyphId = (cp: number) => cp;
+
+			buffer.initFromCodepoints(codepoints, clusters, getGlyphId);
+
+			expect(buffer.length).toBe(5);
+			expect(buffer.infos.length).toBe(5);
+			expect(buffer.positions.length).toBe(5);
+		});
+
+		test("reuses pool on subsequent calls", () => {
+			const buffer = new GlyphBuffer();
+			const getGlyphId = (cp: number) => cp;
+
+			buffer.initFromCodepoints([0x41, 0x42], [0, 1], getGlyphId);
+			const firstInfo = buffer.infos[0];
+
+			buffer.initFromCodepoints([0x43, 0x44], [0, 1], getGlyphId);
+			const secondInfo = buffer.infos[0];
+
+			// Should reuse same object
+			expect(firstInfo).toBe(secondInfo);
+		});
+
+		test("clears deletion state", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0)]);
+			buffer.markDeleted(0);
+
+			const getGlyphId = (cp: number) => cp;
+			buffer.initFromCodepoints([0x41], [0], getGlyphId);
+
+			expect(buffer.hasPendingDeletions()).toBe(false);
+		});
+	});
+
+	describe("initFromCodepointsWithFont", () => {
+		test("initializes from codepoints with font", () => {
+			const buffer = new GlyphBuffer();
+			const codepoints = [0x41, 0x42];
+			const clusters = [0, 1];
+			const mockFont = {
+				glyphId: (cp: number) => cp + 50,
+			} as any;
+
+			buffer.initFromCodepointsWithFont(codepoints, clusters, mockFont);
+
+			expect(buffer.length).toBe(2);
+			expect(buffer.infos[0].glyphId).toBe(115); // 0x41 + 50
+			expect(buffer.infos[0].codepoint).toBe(0x41);
+			expect(buffer.infos[0].cluster).toBe(0);
+		});
+
+		test("expands pool when needed", () => {
+			const buffer = new GlyphBuffer();
+			const codepoints = [0x41, 0x42, 0x43];
+			const clusters = [0, 1, 2];
+			const mockFont = {
+				glyphId: (cp: number) => cp,
+			} as any;
+
+			buffer.initFromCodepointsWithFont(codepoints, clusters, mockFont);
+
+			expect(buffer.length).toBe(3);
+		});
+
+		test("reuses pool objects", () => {
+			const buffer = new GlyphBuffer();
+			const mockFont = {
+				glyphId: (cp: number) => cp,
+			} as any;
+
+			buffer.initFromCodepointsWithFont([0x41], [0], mockFont);
+			const firstInfo = buffer.infos[0];
+
+			buffer.initFromCodepointsWithFont([0x42], [0], mockFont);
+			const secondInfo = buffer.infos[0];
+
+			expect(firstInfo).toBe(secondInfo);
+		});
+	});
+
+	describe("markDeleted and compact", () => {
+		test("marks glyph for deletion", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1)]);
+			buffer.markDeleted(0);
+
+			expect(buffer.isDeleted(0)).toBe(true);
+			expect(buffer.isDeleted(1)).toBe(false);
+			expect(buffer.hasPendingDeletions()).toBe(true);
+		});
+
+		test("tracks deletion count", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1), createInfo(3, 2)]);
+			buffer.markDeleted(0);
+			buffer.markDeleted(2);
+
+			expect(buffer.hasPendingDeletions()).toBe(true);
+		});
+
+		test("does not double-count deletions", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1)]);
+			buffer.markDeleted(0);
+			buffer.markDeleted(0);
+
+			expect(buffer.hasPendingDeletions()).toBe(true);
+		});
+
+		test("compact removes marked glyphs", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([
+				createInfo(1, 0),
+				createInfo(2, 1),
+				createInfo(3, 2),
+			]);
+			buffer.setAdvance(0, 100);
+			buffer.setAdvance(1, 200);
+			buffer.setAdvance(2, 300);
+			buffer.markDeleted(1);
+			buffer.compact();
+
+			expect(buffer.length).toBe(2);
+			expect(buffer.infos[0].glyphId).toBe(1);
+			expect(buffer.infos[1].glyphId).toBe(3);
+			expect(buffer.positions[0].xAdvance).toBe(100);
+			expect(buffer.positions[1].xAdvance).toBe(300);
+		});
+
+		test("compact handles multiple deletions", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([
+				createInfo(1, 0),
+				createInfo(2, 1),
+				createInfo(3, 2),
+				createInfo(4, 3),
+			]);
+			buffer.markDeleted(0);
+			buffer.markDeleted(2);
+			buffer.compact();
+
+			expect(buffer.length).toBe(2);
+			expect(buffer.infos[0].glyphId).toBe(2);
+			expect(buffer.infos[1].glyphId).toBe(4);
+		});
+
+		test("compact clears deletion state", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1)]);
+			buffer.markDeleted(0);
+			buffer.compact();
+
+			expect(buffer.hasPendingDeletions()).toBe(false);
+		});
+
+		test("compact does nothing with no deletions", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1)]);
+			buffer.compact();
+
+			expect(buffer.length).toBe(2);
+		});
+
+		test("isDeleted returns false when no deletions", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0)]);
+
+			expect(buffer.isDeleted(0)).toBe(false);
+		});
+	});
+
+	describe("insertGlyph with deleted array", () => {
+		test("expands deleted array on insert", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1)]);
+			buffer.markDeleted(0);
+			buffer.insertGlyph(1, createInfo(3, 1), createPosition(100));
+
+			expect(buffer.length).toBe(3);
+			expect(buffer.isDeleted(0)).toBe(true);
+			expect(buffer.isDeleted(1)).toBe(false);
+			expect(buffer.isDeleted(2)).toBe(false);
+		});
+
+		test("shifts deleted markers correctly", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([createInfo(1, 0), createInfo(2, 1), createInfo(3, 2)]);
+			buffer.markDeleted(1);
+			buffer.insertGlyph(1, createInfo(4, 1), createPosition(100));
+
+			expect(buffer.isDeleted(1)).toBe(false);
+			expect(buffer.isDeleted(2)).toBe(true);
+		});
+	});
+
+	describe("removeRange with deleted array", () => {
+		test("shrinks deleted array when needed", () => {
+			const buffer = new GlyphBuffer();
+			buffer.initFromInfos([
+				createInfo(1, 0),
+				createInfo(2, 1),
+				createInfo(3, 2),
+				createInfo(4, 3),
+			]);
+			buffer.markDeleted(0);
+			buffer.removeRange(2, 4);
+
+			expect(buffer.length).toBe(2);
+		});
+	});
 });

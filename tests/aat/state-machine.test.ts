@@ -666,10 +666,10 @@ describe("state-machine", () => {
 	});
 
 	describe("rearrangement verbs", () => {
-		test("verb 2: xD => Dx tests edge case", () => {
+		test("verb 2: xD => Dx swaps last two glyphs", () => {
 			const classTable: ClassTable = {
 				format: 2,
-				classArray: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+				classArray: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
 			};
 			const subtable: MorxRearrangementSubtable = {
 				type: MorxSubtableType.Rearrangement,
@@ -691,7 +691,7 @@ describe("state-machine", () => {
 							{ newState: 1, flags: 0 },
 							{ newState: 1, flags: 0 },
 							{ newState: 1, flags: 0 },
-							{ newState: 2, flags: 0x8000 },
+							{ newState: 2, flags: 0 },
 						],
 						[
 							{ newState: 2, flags: 0 },
@@ -709,7 +709,8 @@ describe("state-machine", () => {
 				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
 			];
 			processRearrangement(subtable, infos);
-			expect(infos.length).toBe(3);
+			expect(infos[1]?.glyphId).toBe(30);
+			expect(infos[2]?.glyphId).toBe(20);
 		});
 
 		test("verb 3: AxD => DxA swaps first and last", () => {
@@ -759,11 +760,35 @@ describe("state-machine", () => {
 			expect(infos[2]?.glyphId).toBe(10);
 		});
 
-		function createVerbTestSubtable(verb: number, arrayLength: number): MorxRearrangementSubtable {
+		function createVerbTestSubtable(verb: number, glyphCount: number): MorxRearrangementSubtable {
 			const classTable: ClassTable = {
 				format: 2,
-				classArray: Array(arrayLength + 10).fill(4),
+				classArray: Array(100).fill(4),
 			};
+			const stateArray: Array<Array<RearrangementEntry>> = [];
+			stateArray.push([
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0 },
+				{ newState: 1, flags: 0x8000 | 0x4000 },
+			]);
+			for (let i = 1; i < glyphCount - 1; i++) {
+				stateArray.push([
+					{ newState: i, flags: 0 },
+					{ newState: i, flags: 0 },
+					{ newState: i, flags: 0 },
+					{ newState: i, flags: 0 },
+					{ newState: i + 1, flags: 0x4000 },
+				]);
+			}
+			stateArray.push([
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0 },
+				{ newState: 0, flags: 0x2000 | 0x4000 | verb },
+			]);
 			return {
 				type: MorxSubtableType.Rearrangement,
 				coverage: { vertical: false, descending: false, logical: false },
@@ -771,61 +796,189 @@ describe("state-machine", () => {
 				stateTable: {
 					nClasses: 5,
 					classTable,
-					stateArray: [
-						[
-							{ newState: 0, flags: 0 },
-							{ newState: 0, flags: 0 },
-							{ newState: 0, flags: 0 },
-							{ newState: 0, flags: 0 },
-							{ newState: 1, flags: 0x8000 },
-						],
-						[
-							{ newState: 1, flags: 0 },
-							{ newState: 1, flags: 0 },
-							{ newState: 1, flags: 0 },
-							{ newState: 1, flags: 0 },
-							{ newState: 1, flags: 0x8000 },
-						],
-						[
-							{ newState: 2, flags: 0 },
-							{ newState: 2, flags: 0 },
-							{ newState: 2, flags: 0 },
-							{ newState: 2, flags: 0 },
-							{ newState: 2, flags: 0x8000 },
-						],
-						[
-							{ newState: 3, flags: 0 },
-							{ newState: 3, flags: 0 },
-							{ newState: 3, flags: 0 },
-							{ newState: 3, flags: 0 },
-							{ newState: 3, flags: 0x8000 },
-						],
-						[
-							{ newState: 0, flags: 0x2000 | verb },
-							{ newState: 0, flags: 0 },
-							{ newState: 0, flags: 0 },
-							{ newState: 0, flags: 0 },
-							{ newState: 0, flags: 0 },
-						],
-					],
+					stateArray,
 				},
 			};
 		}
 
-		test("verb 4-15: covers all rearrangement verb code paths", () => {
-			for (let verb = 4; verb <= 15; verb++) {
-				const subtable = createVerbTestSubtable(verb, 6);
-				const infos: GlyphInfo[] = [
-					{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
-					{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
-					{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
-					{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
-					{ glyphId: 50, cluster: 4, mask: 0, codepoint: 69 },
-				];
-				processRearrangement(subtable, infos);
-				expect(infos.length).toBe(5);
-				expect(infos.every(info => info !== undefined)).toBe(true);
-			}
+		test("verb 4: ABx => xAB", () => {
+			const subtable = createVerbTestSubtable(4, 3);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(30);
+			expect(infos[1]?.glyphId).toBe(10);
+			expect(infos[2]?.glyphId).toBe(20);
+		});
+
+		test("verb 5: ABx => xBA", () => {
+			const subtable = createVerbTestSubtable(5, 3);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(30);
+			expect(infos[1]?.glyphId).toBe(20);
+			expect(infos[2]?.glyphId).toBe(10);
+		});
+
+		test("verb 6: xCD => CDx", () => {
+			const subtable = createVerbTestSubtable(6, 3);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(20);
+			expect(infos[1]?.glyphId).toBe(30);
+			expect(infos[2]?.glyphId).toBe(10);
+		});
+
+		test("verb 7: xCD => DCx", () => {
+			const subtable = createVerbTestSubtable(7, 3);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(30);
+			expect(infos[1]?.glyphId).toBe(20);
+			expect(infos[2]?.glyphId).toBe(10);
+		});
+
+		test("verb 8: AxCD => CDxA", () => {
+			const subtable = createVerbTestSubtable(8, 4);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(30);
+			expect(infos[1]?.glyphId).toBe(20);
+			expect(infos[2]?.glyphId).toBe(40);
+			expect(infos[3]?.glyphId).toBe(10);
+		});
+
+		test("verb 9: AxCD => DCxA", () => {
+			const subtable = createVerbTestSubtable(9, 4);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(40);
+			expect(infos[1]?.glyphId).toBe(20);
+			expect(infos[2]?.glyphId).toBe(30);
+			expect(infos[3]?.glyphId).toBe(10);
+		});
+
+		test("verb 10: ABxD => DxAB", () => {
+			const subtable = createVerbTestSubtable(10, 4);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(40);
+			expect(infos[1]?.glyphId).toBe(30);
+			expect(infos[2]?.glyphId).toBe(10);
+			expect(infos[3]?.glyphId).toBe(20);
+		});
+
+		test("verb 11: ABxD => DxBA", () => {
+			const subtable = createVerbTestSubtable(11, 4);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(40);
+			expect(infos[1]?.glyphId).toBe(30);
+			expect(infos[2]?.glyphId).toBe(20);
+			expect(infos[3]?.glyphId).toBe(10);
+		});
+
+		test("verb 12: ABxCD => CDxAB", () => {
+			const subtable = createVerbTestSubtable(12, 5);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+				{ glyphId: 50, cluster: 4, mask: 0, codepoint: 69 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(40);
+			expect(infos[1]?.glyphId).toBe(50);
+			expect(infos[2]?.glyphId).toBe(30);
+			expect(infos[3]?.glyphId).toBe(10);
+			expect(infos[4]?.glyphId).toBe(20);
+		});
+
+		test("verb 13: ABxCD => CDxBA", () => {
+			const subtable = createVerbTestSubtable(13, 5);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+				{ glyphId: 50, cluster: 4, mask: 0, codepoint: 69 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(40);
+			expect(infos[1]?.glyphId).toBe(50);
+			expect(infos[2]?.glyphId).toBe(30);
+			expect(infos[3]?.glyphId).toBe(20);
+			expect(infos[4]?.glyphId).toBe(10);
+		});
+
+		test("verb 14: ABxCD => DCxAB", () => {
+			const subtable = createVerbTestSubtable(14, 5);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+				{ glyphId: 50, cluster: 4, mask: 0, codepoint: 69 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(50);
+			expect(infos[1]?.glyphId).toBe(40);
+			expect(infos[2]?.glyphId).toBe(30);
+			expect(infos[3]?.glyphId).toBe(10);
+			expect(infos[4]?.glyphId).toBe(20);
+		});
+
+		test("verb 15: ABxCD => DCxBA", () => {
+			const subtable = createVerbTestSubtable(15, 5);
+			const infos: GlyphInfo[] = [
+				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
+				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 40, cluster: 3, mask: 0, codepoint: 68 },
+				{ glyphId: 50, cluster: 4, mask: 0, codepoint: 69 },
+			];
+			processRearrangement(subtable, infos);
+			expect(infos[0]?.glyphId).toBe(50);
+			expect(infos[1]?.glyphId).toBe(40);
+			expect(infos[2]?.glyphId).toBe(30);
+			expect(infos[3]?.glyphId).toBe(20);
+			expect(infos[4]?.glyphId).toBe(10);
 		});
 
 		test("covers all rearrangement verb code paths", () => {
@@ -931,10 +1084,10 @@ describe("state-machine", () => {
 	});
 
 	describe("ligature edge cases", () => {
-		test("handles ligature with store flag", () => {
+		test("handles ligature with store flag and multiple components", () => {
 			const classTable: ClassTable = {
 				format: 2,
-				classArray: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+				classArray: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
 			};
 			const stateTable: StateTable<LigatureEntry> = {
 				nClasses: 5,
@@ -952,7 +1105,14 @@ describe("state-machine", () => {
 						{ newState: 1, flags: 0, ligActionIndex: 0 },
 						{ newState: 1, flags: 0, ligActionIndex: 0 },
 						{ newState: 1, flags: 0, ligActionIndex: 0 },
-						{ newState: 1, flags: 0xa000, ligActionIndex: 0 },
+						{ newState: 2, flags: 0x8000, ligActionIndex: 0 },
+					],
+					[
+						{ newState: 2, flags: 0, ligActionIndex: 0 },
+						{ newState: 2, flags: 0, ligActionIndex: 0 },
+						{ newState: 2, flags: 0, ligActionIndex: 0 },
+						{ newState: 2, flags: 0, ligActionIndex: 0 },
+						{ newState: 0, flags: 0xa000, ligActionIndex: 0 },
 					],
 				],
 			};
@@ -962,18 +1122,19 @@ describe("state-machine", () => {
 				coverage: { vertical: false, descending: false, logical: false },
 				subFeatureFlags: 0,
 				stateTable,
-				ligatureActions: [0xc0000000],
-				components: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				ligatureActions: [0x40000000, 0xc0000000],
+				components: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35],
 				ligatures: [999, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 			};
 
 			const infos: GlyphInfo[] = [
 				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
 				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
+				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
 			];
 
 			const result = processLigature(subtable, infos);
-			expect(result.length).toBeGreaterThanOrEqual(1);
+			expect(result.length).toBeLessThan(3);
 		});
 
 		test("handles empty stack pop", () => {
@@ -1013,10 +1174,10 @@ describe("state-machine", () => {
 			expect(result.length).toBe(1);
 		});
 
-		test("handles multi-action ligature chain", () => {
+		test("handles multi-action ligature chain with deletion", () => {
 			const classTable: ClassTable = {
 				format: 2,
-				classArray: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+				classArray: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
 			};
 			const stateTable: StateTable<LigatureEntry> = {
 				nClasses: 5,
@@ -1041,6 +1202,13 @@ describe("state-machine", () => {
 						{ newState: 2, flags: 0, ligActionIndex: 0 },
 						{ newState: 2, flags: 0, ligActionIndex: 0 },
 						{ newState: 2, flags: 0, ligActionIndex: 0 },
+						{ newState: 3, flags: 0x8000, ligActionIndex: 0 },
+					],
+					[
+						{ newState: 3, flags: 0, ligActionIndex: 0 },
+						{ newState: 3, flags: 0, ligActionIndex: 0 },
+						{ newState: 3, flags: 0, ligActionIndex: 0 },
+						{ newState: 3, flags: 0, ligActionIndex: 0 },
 						{ newState: 0, flags: 0xa000, ligActionIndex: 0 },
 					],
 				],
@@ -1052,21 +1220,24 @@ describe("state-machine", () => {
 				subFeatureFlags: 0,
 				stateTable,
 				ligatureActions: [
-					0x40000000,
+					0x00000000,
+					0x00000000,
+					0x00000000,
 					0xc0000000,
 				],
-				components: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-				ligatures: [999, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				components: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+				ligatures: [888, 999, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
 			};
 
 			const infos: GlyphInfo[] = [
 				{ glyphId: 10, cluster: 0, mask: 0, codepoint: 65 },
 				{ glyphId: 20, cluster: 1, mask: 0, codepoint: 66 },
 				{ glyphId: 30, cluster: 2, mask: 0, codepoint: 67 },
+				{ glyphId: 5, cluster: 3, mask: 0, codepoint: 68 },
 			];
 
 			const result = processLigature(subtable, infos);
-			expect(result.length).toBeGreaterThanOrEqual(1);
+			expect(result.length).toBeLessThan(infos.length);
 		});
 	});
 

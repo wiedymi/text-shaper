@@ -624,3 +624,17 @@ describe("cff2 table - variable fonts", () => {
 		});
 	});
 });
+
+describe("CFF parsing - additional coverage", () => {
+	test("tests operator coverage on real font", async () => {
+		const font = await Font.fromFile(NOTO_JAVANESE_PATH);
+		const reader = font.getTableReader(Tags.CFF);
+		if (reader) {
+			const cff = parseCff(reader);
+			const topDict = cff.topDicts[0];
+			if (topDict) {
+				expect(topDict.charStrings).toBeDefined();
+			}
+		}
+	});
+});

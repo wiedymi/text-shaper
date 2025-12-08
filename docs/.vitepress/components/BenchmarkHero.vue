@@ -14,14 +14,6 @@ interface Benchmark {
 
 const benchmarks: Benchmark[] = [
 	{
-		title: "Font loading",
-		results: [
-			{ name: "text-shaper", value: 223630, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 51190, unit: "ops/s" },
-			{ name: "opentype.js", value: 208, unit: "ops/s" },
-		],
-	},
-	{
 		title: "Glyph path extraction",
 		results: [
 			{ name: "text-shaper", value: 831300, unit: "ops/s" },
@@ -30,24 +22,31 @@ const benchmarks: Benchmark[] = [
 		],
 	},
 	{
-		title: "English shaping (701 chars)",
+		title: "English shaping (1056 chars)",
 		results: [
-			{ name: "harfbuzzjs", value: 7370, unit: "ops/s" },
-			{ name: "text-shaper", value: 6250, unit: "ops/s" },
+			{ name: "text-shaper", value: 6120, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 5090, unit: "ops/s" },
 		],
 	},
 	{
-		title: "Myanmar shaping (729 chars)",
+		title: "Myanmar shaping (1916 chars)",
 		results: [
-			{ name: "text-shaper", value: 9500, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 1030, unit: "ops/s" },
+			{ name: "text-shaper", value: 3970, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 369, unit: "ops/s" },
+		],
+	},
+	{
+		title: "UI Simulation (8 labels)",
+		results: [
+			{ name: "text-shaper", value: 95550, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 19980, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Rasterization @ 96px",
 		results: [
-			{ name: "text-shaper", value: 11220, unit: "ops/s" },
-			{ name: "freetype2", value: 2570, unit: "ops/s" },
+			{ name: "text-shaper", value: 13260, unit: "ops/s" },
+			{ name: "freetype2", value: 2040, unit: "ops/s" },
 		],
 	},
 ]

@@ -127,6 +127,10 @@ export function getJoiningType(cp: number): ArabicJoiningType {
 	// Non-joining: below Arabic range
 	if (cp < ARABIC_START) return ArabicJoiningType.NonJoining;
 
+	// Syriac block (0x0700-0x074F) - limited support for left-joining
+	// SYRIAC LETTER ALAPH (0x0710) and similar are left-joining in Syriac
+	if (cp >= 0x0710 && cp <= 0x0712) return ArabicJoiningType.LeftJoining;
+
 	// Extended marks (0x08D3-0x08FF)
 	if (cp >= 0x08d3 && cp <= 0x08ff) return ArabicJoiningType.Transparent;
 
@@ -153,6 +157,10 @@ function getJoiningTypeNumeric(cp: number): number {
 
 	// Non-joining: below Arabic range
 	if (cp < 0x0600) return JT_NON_JOINING;
+
+	// Syriac block (0x0700-0x074F) - limited support for left-joining
+	// SYRIAC LETTER ALAPH (0x0710) and similar are left-joining in Syriac
+	if (cp >= 0x0710 && cp <= 0x0712) return JT_LEFT_JOINING;
 
 	// Extended marks (0x08D3-0x08FF)
 	if (cp >= 0x08d3 && cp <= 0x08ff) return JT_TRANSPARENT;

@@ -966,6 +966,308 @@ describe("gdef table - detailed parsing validation", () => {
 });
 
 describe("gdef table - parseAttachList with mock reader", () => {
+	test("attachList with coverage format 1", () => {
+		const buf = new ArrayBuffer(100);
+		const view = new DataView(buf);
+
+		// Header at offset 0
+		view.setUint16(0, 6, false);			// coverageOffset
+		view.setUint16(2, 2, false);			// glyphCount = 2
+
+		// Attach point offsets
+		view.setUint16(4, 14, false);			// attachPointOffset[0] = 14
+		view.setUint16(6, 20, false);			// attachPointOffset[1] = 20 (will be read later)
+
+		// Coverage format 1 at offset 6 (wait, we need to fix offsets)
+		// Let me recalculate: header is 4 bytes (coverageOffset + glyphCount)
+		// Then we have glyphCount * 2 bytes for attach point offsets
+		// So coverage should be after header
+
+		let readOffset = 0;
+		const reader = {
+			offset16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			uint16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			uint16Array: (count: number) => {
+				const arr: number[] = [];
+				for (let i = 0; i < count; i++) {
+					arr.push(view.getUint16(readOffset, false));
+					readOffset += 2;
+				}
+				return arr;
+			},
+			sliceFrom: (sliceOffset: number) => {
+				let sliceReadOffset = 0;
+				return {
+					offset16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16Array: (count: number) => {
+						const arr: number[] = [];
+						for (let i = 0; i < count; i++) {
+							arr.push(view.getUint16(sliceOffset + sliceReadOffset, false));
+							sliceReadOffset += 2;
+						}
+						return arr;
+					},
+					skip: (n: number) => {
+						sliceReadOffset += n;
+					},
+					sliceFrom: (subOffset: number) => {
+						let subReadOffset = 0;
+						return {
+							uint16: () => {
+								const val = view.getUint16(subOffset + subReadOffset, false);
+								subReadOffset += 2;
+								return val;
+							},
+							uint16Array: (count: number) => {
+								const arr: number[] = [];
+								for (let i = 0; i < count; i++) {
+									arr.push(view.getUint16(subOffset + subReadOffset, false));
+									subReadOffset += 2;
+								}
+								return arr;
+							},
+						};
+					},
+				};
+			},
+			skip: () => {},
+		} as any as Reader;
+
+		// Setup proper structure
+		const buf2 = new ArrayBuffer(100);
+		const view2 = new DataView(buf2);
+
+		// Header (starts at 0)
+		view2.setUint16(0, 6, false);			// coverageOffset = 6
+		view2.setUint16(2, 2, false);			// glyphCount = 2
+
+		// Attach point offsets array (starts at 4)
+		view2.setUint16(4, 14, false);			// attachPointOffset[0] = 14 (relative to start)
+		view2.setUint16(6, 20, false);			// attachPointOffset[1] = 20
+
+		// Coverage format 1 at offset 6... wait that conflicts. Let me fix:
+		// Coverage needs its own space. Let's put it at offset 8
+		view2.setUint16(0, 10, false);			// coverageOffset = 10
+		view2.setUint16(2, 2, false);			// glyphCount = 2
+		view2.setUint16(4, 18, false);			// attachPointOffset[0] = 18
+		view2.setUint16(6, 24, false);			// attachPointOffset[1] = 24
+
+		// Coverage format 1 at offset 10
+		view2.setUint16(10, 1, false);			// format = 1
+		view2.setUint16(12, 2, false);			// count = 2
+		view2.setUint16(14, 100, false);		// glyphId[0] = 100
+		view2.setUint16(16, 101, false);		// glyphId[1] = 101
+
+		// AttachPoint[0] at offset 18
+		view2.setUint16(18, 2, false);			// pointCount = 2
+		view2.setUint16(20, 5, false);			// pointIndex[0] = 5
+		view2.setUint16(22, 10, false);			// pointIndex[1] = 10
+
+		// AttachPoint[1] at offset 24
+		view2.setUint16(24, 1, false);			// pointCount = 1
+		view2.setUint16(26, 7, false);			// pointIndex[0] = 7
+
+		let readOffset2 = 0;
+		const reader2 = {
+			offset16: () => {
+				const val = view2.getUint16(readOffset2, false);
+				readOffset2 += 2;
+				return val;
+			},
+			uint16: () => {
+				const val = view2.getUint16(readOffset2, false);
+				readOffset2 += 2;
+				return val;
+			},
+			uint16Array: (count: number) => {
+				const arr: number[] = [];
+				for (let i = 0; i < count; i++) {
+					arr.push(view2.getUint16(readOffset2, false));
+					readOffset2 += 2;
+				}
+				return arr;
+			},
+			sliceFrom: (sliceOffset: number) => {
+				let sliceReadOffset = 0;
+				return {
+					offset16: () => {
+						const val = view2.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16: () => {
+						const val = view2.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16Array: (count: number) => {
+						const arr: number[] = [];
+						for (let i = 0; i < count; i++) {
+							arr.push(view2.getUint16(sliceOffset + sliceReadOffset, false));
+							sliceReadOffset += 2;
+						}
+						return arr;
+					},
+					skip: (n: number) => {
+						sliceReadOffset += n;
+					},
+					sliceFrom: (subOffset: number) => {
+						let subReadOffset = 0;
+						return {
+							uint16: () => {
+								const val = view2.getUint16(subOffset + subReadOffset, false);
+								subReadOffset += 2;
+								return val;
+							},
+							uint16Array: (count: number) => {
+								const arr: number[] = [];
+								for (let i = 0; i < count; i++) {
+									arr.push(view2.getUint16(subOffset + subReadOffset, false));
+									subReadOffset += 2;
+								}
+								return arr;
+							},
+						};
+					},
+				};
+			},
+			skip: () => {},
+		} as any as Reader;
+
+		const attachList = parseAttachList(reader2);
+		expect(attachList.size).toBe(2);
+		expect(attachList.has(100)).toBe(true);
+		expect(attachList.has(101)).toBe(true);
+		const attach0 = attachList.get(100);
+		expect(attach0?.pointIndices).toEqual([5, 10]);
+		const attach1 = attachList.get(101);
+		expect(attach1?.pointIndices).toEqual([7]);
+	});
+
+	test("attachList with coverage format 2 (ranges)", () => {
+		const buf = new ArrayBuffer(100);
+		const view = new DataView(buf);
+
+		// Header at offset 0
+		view.setUint16(0, 8, false);			// coverageOffset = 8
+		view.setUint16(2, 2, false);			// glyphCount = 2
+
+		// Attach point offsets (starts at 4)
+		view.setUint16(4, 20, false);			// attachPointOffset[0] = 20
+		view.setUint16(6, 26, false);			// attachPointOffset[1] = 26
+
+		// Coverage format 2 at offset 8
+		view.setUint16(8, 2, false);			// format = 2
+		view.setUint16(10, 1, false);			// rangeCount = 1
+		view.setUint16(12, 150, false);			// start = 150
+		view.setUint16(14, 151, false);			// end = 151 (covers 150, 151)
+		view.setUint16(16, 0, false);			// startCoverageIndex = 0
+
+		// AttachPoint[0] at offset 20
+		view.setUint16(20, 2, false);			// pointCount = 2
+		view.setUint16(22, 3, false);			// pointIndex[0] = 3
+		view.setUint16(24, 8, false);			// pointIndex[1] = 8
+
+		// AttachPoint[1] at offset 26
+		view.setUint16(26, 1, false);			// pointCount = 1
+		view.setUint16(28, 12, false);			// pointIndex[0] = 12
+
+		let readOffset = 0;
+		const reader = {
+			offset16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			uint16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			uint16Array: (count: number) => {
+				const arr: number[] = [];
+				for (let i = 0; i < count; i++) {
+					arr.push(view.getUint16(readOffset, false));
+					readOffset += 2;
+				}
+				return arr;
+			},
+			sliceFrom: (sliceOffset: number) => {
+				let sliceReadOffset = 0;
+				return {
+					offset16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16Array: (count: number) => {
+						const arr: number[] = [];
+						for (let i = 0; i < count; i++) {
+							arr.push(view.getUint16(sliceOffset + sliceReadOffset, false));
+							sliceReadOffset += 2;
+						}
+						return arr;
+					},
+					skip: (n: number) => {
+						sliceReadOffset += n;
+					},
+					sliceFrom: (subOffset: number) => {
+						let subReadOffset = 0;
+						return {
+							uint16: () => {
+								const val = view.getUint16(subOffset + subReadOffset, false);
+								subReadOffset += 2;
+								return val;
+							},
+							uint16Array: (count: number) => {
+								const arr: number[] = [];
+								for (let i = 0; i < count; i++) {
+									arr.push(view.getUint16(subOffset + subReadOffset, false));
+									subReadOffset += 2;
+								}
+								return arr;
+							},
+						};
+					},
+				};
+			},
+			skip: () => {},
+		} as any as Reader;
+
+		const attachList = parseAttachList(reader);
+		expect(attachList.size).toBe(2);
+		expect(attachList.has(150)).toBe(true);
+		expect(attachList.has(151)).toBe(true);
+
+		const attach0 = attachList.get(150);
+		expect(attach0?.pointIndices).toEqual([3, 8]);
+
+		const attach1 = attachList.get(151);
+		expect(attach1?.pointIndices).toEqual([12]);
+	});
+
 	test("attachList empty when coverage returns no glyphs", () => {
 		const buf = new ArrayBuffer(100);
 		const view = new DataView(buf);
@@ -1340,6 +1642,169 @@ describe("gdef table - parseLigCaretList with mock reader", () => {
 		expect(caret?.caretValues).toEqual([300]);
 	});
 
+	test("ligCaretList with coverage format 2 (ranges)", () => {
+		const buf = new ArrayBuffer(100);
+		const view = new DataView(buf);
+
+		// Header at offset 0
+		view.setUint16(0, 8, false);			// coverageOffset = 8
+		view.setUint16(2, 3, false);			// ligGlyphCount = 3
+
+		// Ligature glyph offsets (starts at 4)
+		view.setUint16(4, 18, false);			// ligGlyphOffset[0] = 18
+		view.setUint16(6, 24, false);			// ligGlyphOffset[1] = 24
+		view.setUint16(8, 30, false);			// ligGlyphOffset[2] = 30 (wait, offset 8 is coverage)
+
+		// Let me recalculate: header is 2 + 2 = 4 bytes
+		// Then ligGlyphCount * 2 bytes for offsets = 3 * 2 = 6 bytes
+		// So total before coverage = 4 + 6 = 10 bytes
+		view.setUint16(0, 10, false);			// coverageOffset = 10
+		view.setUint16(2, 3, false);			// ligGlyphCount = 3
+		view.setUint16(4, 20, false);			// ligGlyphOffset[0] = 20
+		view.setUint16(6, 26, false);			// ligGlyphOffset[1] = 26
+		view.setUint16(8, 32, false);			// ligGlyphOffset[2] = 32
+
+		// Coverage format 2 at offset 10
+		view.setUint16(10, 2, false);			// format = 2
+		view.setUint16(12, 1, false);			// rangeCount = 1
+		view.setUint16(14, 200, false);			// start = 200
+		view.setUint16(16, 202, false);			// end = 202 (covers 200, 201, 202)
+		view.setUint16(18, 0, false);			// startCoverageIndex = 0
+
+		// LigGlyph[0] at offset 20
+		view.setUint16(20, 1, false);			// caretCount = 1
+		view.setUint16(22, 4, false);			// caretValueOffset = 4
+
+		// CaretValue format 1 at 24 (20 + 4)
+		view.setUint16(24, 1, false);			// format = 1
+		view.setInt16(26, 500, false);			// coordinate = 500
+
+		// LigGlyph[1] at offset 26... wait that's already used
+		// Let me recalculate again with proper spacing
+		view.setUint16(0, 10, false);			// coverageOffset = 10
+		view.setUint16(2, 3, false);			// ligGlyphCount = 3
+		view.setUint16(4, 30, false);			// ligGlyphOffset[0] = 30
+		view.setUint16(6, 40, false);			// ligGlyphOffset[1] = 40
+		view.setUint16(8, 50, false);			// ligGlyphOffset[2] = 50
+
+		// Coverage format 2 at offset 10
+		view.setUint16(10, 2, false);			// format = 2
+		view.setUint16(12, 1, false);			// rangeCount = 1
+		view.setUint16(14, 200, false);			// start = 200
+		view.setUint16(16, 202, false);			// end = 202
+		view.setUint16(18, 0, false);			// startCoverageIndex
+
+		// LigGlyph[0] at offset 30
+		view.setUint16(30, 1, false);			// caretCount = 1
+		view.setUint16(32, 4, false);			// caretValueOffset = 4 (relative to 30, so 34)
+		// CaretValue at 34
+		view.setUint16(34, 1, false);			// format = 1
+		view.setInt16(36, 500, false);			// value = 500
+
+		// LigGlyph[1] at offset 40
+		view.setUint16(40, 1, false);			// caretCount = 1
+		view.setUint16(42, 4, false);			// caretValueOffset = 4
+		// CaretValue at 44
+		view.setUint16(44, 2, false);			// format = 2
+		view.setUint16(46, 10, false);			// point index = 10
+
+		// LigGlyph[2] at offset 50
+		view.setUint16(50, 1, false);			// caretCount = 1
+		view.setUint16(52, 4, false);			// caretValueOffset = 4
+		// CaretValue at 54
+		view.setUint16(54, 3, false);			// format = 3
+		view.setInt16(56, 400, false);			// value = 400
+
+		let readOffset = 0;
+		const reader = {
+			offset16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			uint16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			int16: () => {
+				const val = view.getInt16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			uint16Array: (count: number) => {
+				const arr: number[] = [];
+				for (let i = 0; i < count; i++) {
+					arr.push(view.getUint16(readOffset, false));
+					readOffset += 2;
+				}
+				return arr;
+			},
+			sliceFrom: (sliceOffset: number) => {
+				let sliceReadOffset = 0;
+				return {
+					offset16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					int16: () => {
+						const val = view.getInt16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16Array: (count: number) => {
+						const arr: number[] = [];
+						for (let i = 0; i < count; i++) {
+							arr.push(view.getUint16(sliceOffset + sliceReadOffset, false));
+							sliceReadOffset += 2;
+						}
+						return arr;
+					},
+					skip: (n: number) => {
+						sliceReadOffset += n;
+					},
+					sliceFrom: (subOffset: number) => {
+						let subReadOffset = 0;
+						return {
+							uint16: () => {
+								const val = view.getUint16(subOffset + subReadOffset, false);
+								subReadOffset += 2;
+								return val;
+							},
+							int16: () => {
+								const val = view.getInt16(subOffset + subReadOffset, false);
+								subReadOffset += 2;
+								return val;
+							},
+						};
+					},
+				};
+			},
+			skip: () => {},
+		} as any as Reader;
+
+		const ligCaretList = parseLigCaretList(reader);
+		expect(ligCaretList.size).toBe(3);
+		expect(ligCaretList.has(200)).toBe(true);
+		expect(ligCaretList.has(201)).toBe(true);
+		expect(ligCaretList.has(202)).toBe(true);
+
+		const caret0 = ligCaretList.get(200);
+		expect(caret0?.caretValues).toEqual([500]);
+
+		const caret1 = ligCaretList.get(201);
+		expect(caret1?.caretValues).toEqual([10]);
+
+		const caret2 = ligCaretList.get(202);
+		expect(caret2?.caretValues).toEqual([400]);
+	});
+
 	test("ligCaretList empty when coverage returns no glyphs", () => {
 		const buf = new ArrayBuffer(100);
 		const view = new DataView(buf);
@@ -1584,6 +2049,103 @@ describe("gdef table - parseMarkGlyphSets with mock reader", () => {
 
 		const markSets = parseMarkGlyphSets(reader);
 		expect(markSets.has(999, 50)).toBe(false);
+	});
+});
+
+describe("gdef table - parseGdef code coverage", () => {
+	test("parseGdef with non-zero attachListOffset calls parseAttachList", () => {
+		// This test ensures line 65 is covered (parseAttachList is called when attachListOffset !== 0)
+		const buf = new ArrayBuffer(200);
+		const view = new DataView(buf);
+
+		// GDEF header (version 1.0) at offset 0
+		view.setUint16(0, 1, false);			// majorVersion = 1
+		view.setUint16(2, 0, false);			// minorVersion = 0
+		view.setUint16(4, 12, false);			// glyphClassDefOffset = 12
+		view.setUint16(6, 30, false);			// attachListOffset = 30 (non-zero)
+		view.setUint16(8, 0, false);			// ligCaretListOffset = 0
+		view.setUint16(10, 20, false);			// markAttachClassDefOffset = 20
+
+		// GlyphClassDef at offset 12 (minimal)
+		view.setUint16(12, 1, false);			// format = 1
+		view.setUint16(14, 0, false);			// startGlyphID = 0
+		view.setUint16(16, 0, false);			// glyphCount = 0
+
+		// MarkAttachClassDef at offset 20 (minimal)
+		view.setUint16(20, 1, false);			// format = 1
+		view.setUint16(22, 0, false);			// startGlyphID = 0
+		view.setUint16(24, 0, false);			// glyphCount = 0
+
+		// AttachList at offset 30 (minimal - will return empty map but that's ok)
+		view.setUint16(30, 6, false);			// coverageOffset = 6
+		view.setUint16(32, 0, false);			// glyphCount = 0
+
+		// Coverage at offset 36 (30 + 6) (minimal)
+		view.setUint16(36, 1, false);			// format = 1
+		view.setUint16(38, 0, false);			// count = 0
+
+		let readOffset = 0;
+		const reader = {
+			uint16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			offset16: () => {
+				const val = view.getUint16(readOffset, false);
+				readOffset += 2;
+				return val;
+			},
+			sliceFrom: (sliceOffset: number) => {
+				let sliceReadOffset = 0;
+				return {
+					uint16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					offset16: () => {
+						const val = view.getUint16(sliceOffset + sliceReadOffset, false);
+						sliceReadOffset += 2;
+						return val;
+					},
+					uint16Array: (count: number) => {
+						const arr: number[] = [];
+						for (let i = 0; i < count; i++) {
+							arr.push(view.getUint16(sliceOffset + sliceReadOffset, false));
+							sliceReadOffset += 2;
+						}
+						return arr;
+					},
+					skip: (n: number) => {
+						sliceReadOffset += n;
+					},
+					sliceFrom: (subOffset: number) => {
+						let subReadOffset = 0;
+						return {
+							uint16: () => {
+								const val = view.getUint16(subOffset + subReadOffset, false);
+								subReadOffset += 2;
+								return val;
+							},
+							uint16Array: (count: number) => {
+								const arr: number[] = [];
+								for (let i = 0; i < count; i++) {
+									arr.push(view.getUint16(subOffset + subReadOffset, false));
+									subReadOffset += 2;
+								}
+								return arr;
+							},
+						};
+					},
+				};
+			},
+		} as any as Reader;
+
+		const gdef = parseGdef(reader);
+		expect(gdef.version.major).toBe(1);
+		// Just verify attachList was created (even if empty), proving parseAttachList was called
+		expect(gdef.attachList).not.toBeNull();
 	});
 });
 

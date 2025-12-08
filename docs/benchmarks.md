@@ -1,19 +1,19 @@
 # Benchmarks
 
 <BenchmarkSummary :items="[
-  { category: 'Path Extraction', vsHarfbuzz: '22x faster', vsOpentype: '13x faster' },
-  { category: 'SVG Generation', vsHarfbuzz: '1.5-1.9x faster', vsOpentype: '4-6x faster', highlight: true },
-  { category: 'Cyrillic Shaping', vsHarfbuzz: 'on par to 1.1x faster', vsOpentype: '3-4x faster' },
-  { category: 'CJK Shaping', vsHarfbuzz: 'on par to 1.15x faster', vsOpentype: '4-7x faster' },
-  { category: 'Latin Shaping', vsHarfbuzz: 'on par', vsOpentype: '10x faster' },
-  { category: 'Arabic Shaping', vsHarfbuzz: '1.6x slower', vsOpentype: '4x faster' },
-  { category: 'Hebrew Shaping', vsHarfbuzz: '1.7x slower', vsOpentype: '2x faster' },
-  { category: 'Hindi Shaping', vsHarfbuzz: '3x faster', vsOpentype: '6x faster', highlight: true },
-  { category: 'Myanmar Shaping', vsHarfbuzz: '10x faster', vsOpentype: '6x faster', highlight: true },
-  { category: 'Khmer Shaping', vsHarfbuzz: '1.6x faster', vsOpentype: '3x faster', highlight: true },
-  { category: 'UI Simulation', vsHarfbuzz: '6x faster', highlight: true },
-  { category: 'Rasterization', vsFreetype: '1.8-13x faster', highlight: true },
-  { category: 'Cache Benefits', improvement: '135x speedup on repeated shaping' }
+  { category: 'Path Extraction', vsHarfbuzz: '16x faster', vsOpentype: '10x faster' },
+  { category: 'Latin Shaping', vsHarfbuzz: '1.2x faster', vsOpentype: '17x faster', highlight: true },
+  { category: 'Cyrillic Shaping', vsHarfbuzz: '1.2x faster', vsOpentype: '29x faster' },
+  { category: 'CJK Shaping', vsHarfbuzz: '1.3-1.5x faster', vsOpentype: '11-13x faster', highlight: true },
+  { category: 'Arabic Shaping', vsHarfbuzz: 'on par', vsOpentype: '86x faster' },
+  { category: 'Hebrew Shaping', vsHarfbuzz: '2x slower', vsOpentype: '9x faster' },
+  { category: 'Hindi Shaping', vsHarfbuzz: '3.2x faster', vsOpentype: '9x faster', highlight: true },
+  { category: 'Thai Shaping', vsHarfbuzz: '1.8x faster', vsOpentype: '12x faster', highlight: true },
+  { category: 'Myanmar Shaping', vsHarfbuzz: '10.8x faster', vsOpentype: '17x faster', highlight: true },
+  { category: 'Khmer Shaping', vsHarfbuzz: '2.2x faster', vsOpentype: '8x faster', highlight: true },
+  { category: 'UI Simulation', vsHarfbuzz: '4.8x faster', highlight: true },
+  { category: 'Rasterization', vsFreetype: '1.5-11x faster', highlight: true },
+  { category: 'Cache Benefits', improvement: '12x speedup on repeated shaping' }
 ]" />
 
 <div class="env-info">
@@ -25,12 +25,12 @@
 
 ## Glyph Paths
 
-22x faster than HarfBuzz, 13x faster than opentype.js for path extraction.
+16x faster than HarfBuzz, 10x faster than opentype.js for path extraction.
 
 <BenchmarkChart title="Extract 10 glyph paths" :results="[
-  { name: 'text-shaper', opsPerSec: 1060000 },
-  { name: 'opentype.js', opsPerSec: 80220 },
-  { name: 'harfbuzzjs', opsPerSec: 46830 }
+  { name: 'text-shaper', opsPerSec: 831300 },
+  { name: 'opentype.js', opsPerSec: 86850 },
+  { name: 'harfbuzzjs', opsPerSec: 52350 }
 ]" />
 
 <BenchmarkChart title="SVG path generation (10 glyphs)" :results="[
@@ -76,125 +76,114 @@ Full text-to-SVG pipeline including shaping and path generation. 1.5-1.9x faster
 
 ### Cyrillic Scripts
 
-On par with HarfBuzz for Cyrillic text, 20x faster than opentype.js.
+1.2x faster than HarfBuzz for Cyrillic text, 29x faster than opentype.js.
 
 <BenchmarkChart title="Russian paragraph (1001 chars)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 19250 },
-  { name: 'text-shaper', opsPerSec: 16380 },
-  { name: 'opentype.js', opsPerSec: 804 }
-]" />
-
-<BenchmarkChart title="Ukrainian paragraph (788 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 28170 },
-  { name: 'harfbuzzjs', opsPerSec: 22700 },
-  { name: 'opentype.js', opsPerSec: 1240 }
-]" />
-
-<BenchmarkChart title="Belarusian paragraph (712 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 32380 },
-  { name: 'harfbuzzjs', opsPerSec: 25920 },
-  { name: 'opentype.js', opsPerSec: 1480 }
+  { name: 'text-shaper', opsPerSec: 21990 },
+  { name: 'harfbuzzjs', opsPerSec: 18350 },
+  { name: 'opentype.js', opsPerSec: 761 }
 ]" />
 
 ### CJK Scripts
 
-1.3x faster than HarfBuzz for CJK text, 10-13x faster than opentype.js.
+1.3-1.5x faster than HarfBuzz for CJK text, 11-13x faster than opentype.js.
 
 <BenchmarkChart title="Chinese Simplified (329 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 63740 },
-  { name: 'harfbuzzjs', opsPerSec: 49190 },
-  { name: 'opentype.js', opsPerSec: 5580 }
+  { name: 'text-shaper', opsPerSec: 63550 },
+  { name: 'harfbuzzjs', opsPerSec: 43540 },
+  { name: 'opentype.js', opsPerSec: 4850 }
 ]" />
 
 <BenchmarkChart title="Japanese (418 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 46430 },
-  { name: 'harfbuzzjs', opsPerSec: 36030 },
-  { name: 'opentype.js', opsPerSec: 3490 }
+  { name: 'text-shaper', opsPerSec: 43750 },
+  { name: 'harfbuzzjs', opsPerSec: 33660 },
+  { name: 'opentype.js', opsPerSec: 3310 }
 ]" />
 
 <BenchmarkChart title="Korean (449 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 32160 },
-  { name: 'harfbuzzjs', opsPerSec: 23620 },
-  { name: 'opentype.js', opsPerSec: 3300 }
+  { name: 'text-shaper', opsPerSec: 34940 },
+  { name: 'harfbuzzjs', opsPerSec: 25470 },
+  { name: 'opentype.js', opsPerSec: 3100 }
 ]" />
 
 ### Latin Scripts
 
-1.2x faster than HarfBuzz, 11x faster than opentype.js for Latin text.
+1.2x faster than HarfBuzz, 17x faster than opentype.js for Latin text.
 
 <BenchmarkChart title="English paragraph (1056 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 6700 },
-  { name: 'harfbuzzjs', opsPerSec: 5450 },
-  { name: 'opentype.js', opsPerSec: 611 }
+  { name: 'text-shaper', opsPerSec: 6120 },
+  { name: 'harfbuzzjs', opsPerSec: 5090 },
+  { name: 'opentype.js', opsPerSec: 363 }
 ]" />
 
 ### RTL Scripts
 
-On par with HarfBuzz, 18-60x faster than opentype.js for RTL text.
+On par with HarfBuzz for Arabic, 86x faster than opentype.js.
 
 <BenchmarkChart title="Arabic paragraph (1121 chars)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 3510 },
-  { name: 'text-shaper', opsPerSec: 3340 },
-  { name: 'opentype.js', opsPerSec: 56 }
+  { name: 'text-shaper', opsPerSec: 3620 },
+  { name: 'harfbuzzjs', opsPerSec: 3450 },
+  { name: 'opentype.js', opsPerSec: 42 }
 ]" />
 
 <BenchmarkChart title="Hebrew paragraph (1220 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 9730 },
-  { name: 'harfbuzzjs', opsPerSec: 8170 },
-  { name: 'opentype.js', opsPerSec: 536 }
+  { name: 'harfbuzzjs', opsPerSec: 7050 },
+  { name: 'text-shaper', opsPerSec: 3590 },
+  { name: 'opentype.js', opsPerSec: 387 }
 ]" />
 
 ### Complex Scripts
 
-TextShaper outperforms HarfBuzz on Indic and Southeast Asian scripts, 8-15x faster than opentype.js.
+TextShaper outperforms HarfBuzz on Indic and Southeast Asian scripts, 8-17x faster than opentype.js.
 
 <BenchmarkChart title="Hindi paragraph (1275 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 3970 },
-  { name: 'harfbuzzjs', opsPerSec: 1430 },
-  { name: 'opentype.js', opsPerSec: 477 }
+  { name: 'text-shaper', opsPerSec: 4090 },
+  { name: 'harfbuzzjs', opsPerSec: 1260 },
+  { name: 'opentype.js', opsPerSec: 456 }
 ]" />
 
 <BenchmarkChart title="Myanmar paragraph (1916 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 3840 },
-  { name: 'harfbuzzjs', opsPerSec: 393 },
-  { name: 'opentype.js', opsPerSec: 251 }
+  { name: 'text-shaper', opsPerSec: 3970 },
+  { name: 'harfbuzzjs', opsPerSec: 369 },
+  { name: 'opentype.js', opsPerSec: 230 }
 ]" />
 
 <BenchmarkChart title="Khmer paragraph (1128 chars)" :results="[
   { name: 'text-shaper', opsPerSec: 4690 },
-  { name: 'harfbuzzjs', opsPerSec: 2180 },
-  { name: 'opentype.js', opsPerSec: 645 }
+  { name: 'harfbuzzjs', opsPerSec: 2110 },
+  { name: 'opentype.js', opsPerSec: 575 }
 ]" />
 
 <BenchmarkChart title="Thai paragraph (1301 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 4810 },
-  { name: 'harfbuzzjs', opsPerSec: 3510 },
-  { name: 'opentype.js', opsPerSec: 508 }
+  { name: 'text-shaper', opsPerSec: 5270 },
+  { name: 'harfbuzzjs', opsPerSec: 2910 },
+  { name: 'opentype.js', opsPerSec: 452 }
 ]" />
 
 ### Greek
 
-1.3x faster than HarfBuzz, 29x faster than opentype.js for Greek text.
+1.2x faster than HarfBuzz, 28x faster than opentype.js for Greek text.
 
 <BenchmarkChart title="Greek paragraph (997 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 23550 },
-  { name: 'harfbuzzjs', opsPerSec: 18070 },
-  { name: 'opentype.js', opsPerSec: 820 }
+  { name: 'text-shaper', opsPerSec: 21360 },
+  { name: 'harfbuzzjs', opsPerSec: 17520 },
+  { name: 'opentype.js', opsPerSec: 750 }
 ]" />
 
 ## Caching Performance
 
 Shape plan caching provides significant speedups for repeated shaping.
 
-<BenchmarkChart title="Shape Plan Cache - Latin" :results="[
-  { name: 'text-shaper', opsPerSec: 367640, note: 'warm' },
-  { name: '(cold)', opsPerSec: 2730 }
+<BenchmarkChart title="Repeated Shaping - Hello" :results="[
+  { name: 'text-shaper', opsPerSec: 695640 },
+  { name: 'harfbuzzjs', opsPerSec: 486630 },
+  { name: '(first call)', opsPerSec: 57010 }
 ]" />
 
-<BenchmarkChart title="Repeated Shaping - Hello" :results="[
-  { name: 'text-shaper', opsPerSec: 649890 },
-  { name: 'harfbuzzjs', opsPerSec: 263250 },
-  { name: '(first call)', opsPerSec: 42250 }
+<BenchmarkChart title="Repeated Shaping - paragraph (85 chars)" :results="[
+  { name: 'text-shaper', opsPerSec: 80220 },
+  { name: 'harfbuzzjs', opsPerSec: 61320 },
+  { name: '(first call)', opsPerSec: 16430 }
 ]" />
 
 <BenchmarkChart title="Glyph Path Cache" :results="[
@@ -205,71 +194,71 @@ Shape plan caching provides significant speedups for repeated shaping.
 ## Real-World Simulations
 
 <BenchmarkChart title="UI Simulation - 8 labels with paths" :results="[
-  { name: 'text-shaper', opsPerSec: 87300 },
-  { name: 'harfbuzzjs', opsPerSec: 14610 }
+  { name: 'text-shaper', opsPerSec: 95550 },
+  { name: 'harfbuzzjs', opsPerSec: 19980 }
 ]" />
 
 <BenchmarkChart title="Document Simulation - 4 paragraphs" :results="[
-  { name: 'text-shaper', opsPerSec: 34120 },
-  { name: 'harfbuzzjs', opsPerSec: 31880 }
+  { name: 'text-shaper', opsPerSec: 36690 },
+  { name: 'harfbuzzjs', opsPerSec: 33660 }
 ]" />
 
 ## Rasterization
 
-Compared against FreeType2 (WebAssembly). TextShaper is faster at all sizes.
+Compared against FreeType2 (WebAssembly). TextShaper is 1.6-11x faster at all sizes.
 
 <BenchmarkChart title="12px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 47030 },
-  { name: 'freetype2', opsPerSec: 25780 }
+  { name: 'text-shaper', opsPerSec: 18520 },
+  { name: 'freetype2', opsPerSec: 11450 }
 ]" />
 
 <BenchmarkChart title="24px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 40770 },
-  { name: 'freetype2', opsPerSec: 17910 }
+  { name: 'text-shaper', opsPerSec: 38950 },
+  { name: 'freetype2', opsPerSec: 16560 }
 ]" />
 
 <BenchmarkChart title="48px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 26120 },
-  { name: 'freetype2', opsPerSec: 8060 }
+  { name: 'text-shaper', opsPerSec: 26770 },
+  { name: 'freetype2', opsPerSec: 6390 }
 ]" />
 
 <BenchmarkChart title="96px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 13480 },
-  { name: 'freetype2', opsPerSec: 2630 }
+  { name: 'text-shaper', opsPerSec: 13260 },
+  { name: 'freetype2', opsPerSec: 2040 }
 ]" />
 
 <BenchmarkChart title="200px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 8010 },
-  { name: 'freetype2', opsPerSec: 612 }
+  { name: 'text-shaper', opsPerSec: 6780 },
+  { name: 'freetype2', opsPerSec: 614 }
 ]" />
 
 ### Render Modes
 
 <BenchmarkChart title="LCD subpixel (24px)" :results="[
-  { name: 'text-shaper', opsPerSec: 40340 },
-  { name: 'freetype2', opsPerSec: 21820 }
+  { name: 'text-shaper', opsPerSec: 38810 },
+  { name: 'freetype2', opsPerSec: 14310 }
 ]" />
 
 <BenchmarkChart title="Hinted (12px)" :results="[
-  { name: 'text-shaper', opsPerSec: 72730 },
-  { name: 'freetype2', opsPerSec: 11790 }
+  { name: 'text-shaper', opsPerSec: 71690 },
+  { name: 'freetype2', opsPerSec: 19880 }
 ]" />
 
 ### Throughput
 
 <BenchmarkChart title="62 glyphs at 16px" :results="[
-  { name: 'text-shaper', opsPerSec: 3990 },
-  { name: 'freetype2', opsPerSec: 1710 }
+  { name: 'text-shaper', opsPerSec: 3470 },
+  { name: 'freetype2', opsPerSec: 435 }
 ]" />
 
 <BenchmarkChart title="Varying sizes - 15 sizes per iteration" :results="[
-  { name: 'text-shaper', opsPerSec: 12610 },
-  { name: 'freetype2', opsPerSec: 3340 }
+  { name: 'text-shaper', opsPerSec: 10940 },
+  { name: 'freetype2', opsPerSec: 2530 }
 ]" />
 
 <BenchmarkChart title="Very large - 5 glyphs at 200px" :results="[
-  { name: 'text-shaper', opsPerSec: 8010 },
-  { name: 'freetype2', opsPerSec: 612 }
+  { name: 'text-shaper', opsPerSec: 6780 },
+  { name: 'freetype2', opsPerSec: 614 }
 ]" />
 
 ## OpenType Features

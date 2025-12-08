@@ -229,6 +229,19 @@ describe("Point Movement Instructions", () => {
 			expect(ctx.error).toBeNull();
 		});
 
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([128]);
+			ctx.cvtSize = 1;
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid point
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIAP(ctx, false);
+
+			expect(ctx.error).toContain("invalid point");
+		});
+
 		test("sets error for invalid CVT index", () => {
 			const ctx = createTestContext();
 			ctx.cvtSize = 5;
@@ -255,7 +268,58 @@ describe("Point Movement Instructions", () => {
 			expect(ctx.GS.rp2).toBe(2);
 		});
 
-		test("applies minimum distance", () => {
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 0;
+			ctx.stack[ctx.stackTop++] = 999;
+
+			MDRP(ctx, 0);
+
+			expect(ctx.error).toContain("invalid point");
+		});
+
+		test("sets error for invalid rp0", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 2;
+
+			MDRP(ctx, 0);
+
+			expect(ctx.error).toContain("invalid rp0");
+		});
+
+		test("applies auto-flip when enabled", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 2;
+			ctx.GS.autoFlip = true;
+			ctx.pts.org[2] = { x: 200, y: 0 };
+			ctx.pts.org[1] = { x: 100, y: 0 }; // Negative original distance
+			ctx.pts.cur[2] = { x: 200, y: 0 };
+			ctx.pts.cur[1] = { x: 100, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 1;
+
+			MDRP(ctx, 0);
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("applies rounding when flag is set", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 0;
+			ctx.pts.org[0] = { x: 100, y: 0 };
+			ctx.pts.org[1] = { x: 165, y: 0 }; // Distance will be rounded
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+			ctx.pts.cur[1] = { x: 165, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 1;
+
+			MDRP(ctx, 0x04); // doRound flag
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("applies minimum distance for positive values", () => {
 			const ctx = createTestContext();
 			ctx.GS.minimumDistance = 64;
 			ctx.GS.rp0 = 0;
@@ -267,6 +331,23 @@ describe("Point Movement Instructions", () => {
 			ctx.stack[ctx.stackTop++] = 1;
 
 			MDRP(ctx, 0x08); // keepMinDist flag
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("applies minimum distance for negative values", () => {
+			const ctx = createTestContext();
+			ctx.GS.minimumDistance = 64;
+			ctx.GS.rp0 = 1;
+			ctx.GS.autoFlip = false; // Don't flip
+			ctx.pts.org[1] = { x: 110, y: 0 };
+			ctx.pts.org[0] = { x: 100, y: 0 }; // orgDist = -10 (negative, close to zero)
+			ctx.pts.cur[1] = { x: 110, y: 0 };
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MDRP(ctx, 0x08); // keepMinDist flag only (no rounding to keep it negative)
 
 			expect(ctx.error).toBeNull();
 		});
@@ -296,6 +377,141 @@ describe("Point Movement Instructions", () => {
 
 			expect(ctx.error).toBeNull();
 			expect(ctx.GS.rp2).toBe(2);
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([128]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 0;
+
+			ctx.stack[ctx.stackTop++] = 999;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0);
+
+			expect(ctx.error).toContain("invalid point");
+		});
+
+		test("sets error for invalid CVT index", () => {
+			const ctx = createTestContext();
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 0;
+
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 999;
+
+			MIRP(ctx, 0);
+
+			expect(ctx.error).toContain("invalid CVT index");
+		});
+
+		test("sets error for invalid rp0", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([128]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 999;
+
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0);
+
+			expect(ctx.error).toContain("invalid rp0");
+		});
+
+		test("uses original distance when diff > controlValueCutIn", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([1000]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 0;
+			ctx.GS.controlValueCutIn = 50;
+
+			ctx.pts.org[0] = { x: 100, y: 0 };
+			ctx.pts.org[2] = { x: 200, y: 0 }; // orgDist = 100
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+			ctx.pts.cur[2] = { x: 200, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0);
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("applies rounding when flag is set", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([165]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 0;
+
+			ctx.pts.org[0] = { x: 100, y: 0 };
+			ctx.pts.org[2] = { x: 265, y: 0 };
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+			ctx.pts.cur[2] = { x: 265, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0x04); // doRound flag
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("applies minimum distance for positive original distance", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([10]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 0;
+			ctx.GS.minimumDistance = 64;
+
+			ctx.pts.org[0] = { x: 100, y: 0 };
+			ctx.pts.org[2] = { x: 110, y: 0 }; // orgDist = 10 (positive)
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+			ctx.pts.cur[2] = { x: 110, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0x08); // keepMinDist flag
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("applies minimum distance for negative original distance", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([-10]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 1;
+			ctx.GS.minimumDistance = 64;
+			ctx.GS.controlValueCutIn = 100; // Large enough to use CVT value
+
+			ctx.pts.org[1] = { x: 110, y: 0 };
+			ctx.pts.org[0] = { x: 100, y: 0 }; // orgDist = -10 (negative)
+			ctx.pts.cur[1] = { x: 110, y: 0 };
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0x0C); // keepMinDist + doRound flags
+
+			expect(ctx.error).toBeNull();
+		});
+
+		test("sets rp0 when flag is set", () => {
+			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([128]);
+			ctx.cvtSize = 1;
+			ctx.GS.rp0 = 0;
+
+			ctx.stack[ctx.stackTop++] = 3;
+			ctx.stack[ctx.stackTop++] = 0;
+
+			MIRP(ctx, 0x10); // setRp0 flag
+
+			expect(ctx.GS.rp0).toBe(3);
 		});
 
 		test("auto-flips CVT distance", () => {
@@ -333,6 +549,32 @@ describe("Point Movement Instructions", () => {
 			expect(ctx.pts.cur[2]!.x).toBe(250); // +50
 		});
 
+		test("sets error for invalid reference point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp2 = 999; // Invalid
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 2;
+
+			SHP(ctx, false);
+
+			expect(ctx.error).toContain("invalid reference point");
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp2 = 0;
+			ctx.pts.org[0] = { x: 100, y: 0 };
+			ctx.pts.cur[0] = { x: 150, y: 0 };
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			SHP(ctx, false);
+
+			expect(ctx.error).toContain("invalid point");
+		});
+
 		test("processes loop count", () => {
 			const ctx = createTestContext();
 			ctx.GS.rp2 = 0;
@@ -368,6 +610,30 @@ describe("Point Movement Instructions", () => {
 				expect(ctx.pts.cur[i]!.x).toBe(originalPositions[i - 1]! + 50);
 			}
 		});
+
+		test("sets error for invalid reference point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp2 = 999; // Invalid
+
+			ctx.stack[ctx.stackTop++] = 0;
+
+			SHC(ctx, false);
+
+			expect(ctx.error).toContain("invalid reference point");
+		});
+
+		test("sets error for invalid contour", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp2 = 0;
+			ctx.pts.org[0] = { x: 100, y: 0 };
+			ctx.pts.cur[0] = { x: 150, y: 0 };
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid contour
+
+			SHC(ctx, false);
+
+			expect(ctx.error).toContain("invalid contour");
+		});
 	});
 
 	describe("SHZ - Shift Zone", () => {
@@ -388,6 +654,17 @@ describe("Point Movement Instructions", () => {
 				expect(ctx.pts.cur[i]!.x).toBe(originalPositions[i]! + 50);
 			}
 		});
+
+		test("sets error for invalid reference point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp2 = 999; // Invalid
+
+			ctx.stack[ctx.stackTop++] = 1;
+
+			SHZ(ctx, false);
+
+			expect(ctx.error).toContain("invalid reference point");
+		});
 	});
 
 	describe("SHPIX - Shift Point by Pixel Amount", () => {
@@ -402,6 +679,18 @@ describe("Point Movement Instructions", () => {
 			SHPIX(ctx);
 
 			expect(ctx.pts.cur[1]!.x).toBe(originalX + 64);
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid point
+			ctx.stack[ctx.stackTop++] = 64;
+			ctx.GS.loop = 1;
+
+			SHPIX(ctx);
+
+			expect(ctx.error).toContain("invalid point");
 		});
 	});
 
@@ -426,6 +715,50 @@ describe("Point Movement Instructions", () => {
 
 			// Should move to 50% of new distance: 240
 			expect(ctx.pts.cur[2]!.x).toBe(240);
+		});
+
+		test("sets error for invalid rp1", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp1 = 999; // Invalid
+			ctx.GS.rp2 = 4;
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 2;
+
+			IP(ctx);
+
+			expect(ctx.error).toContain("invalid rp1");
+		});
+
+		test("sets error for invalid rp2", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp1 = 0;
+			ctx.GS.rp2 = 999; // Invalid
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 2;
+
+			IP(ctx);
+
+			expect(ctx.error).toContain("invalid rp2");
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp1 = 0;
+			ctx.GS.rp2 = 4;
+
+			ctx.pts.org[0] = { x: 0, y: 0 };
+			ctx.pts.cur[0] = { x: 0, y: 0 };
+			ctx.pts.org[4] = { x: 400, y: 0 };
+			ctx.pts.cur[4] = { x: 480, y: 0 };
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			IP(ctx);
+
+			expect(ctx.error).toContain("invalid point");
 		});
 
 		test("handles zero range", () => {
@@ -464,6 +797,31 @@ describe("Point Movement Instructions", () => {
 
 			expect(ctx.pts.cur[1]!.x).toBe(100);
 		});
+
+		test("sets error for invalid rp0", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 999; // Invalid
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 1;
+
+			ALIGNRP(ctx);
+
+			expect(ctx.error).toContain("invalid rp0");
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 0;
+			ctx.pts.cur[0] = { x: 100, y: 0 };
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			ALIGNRP(ctx);
+
+			expect(ctx.error).toContain("invalid point");
+		});
 	});
 
 	describe("MSIRP - Move Stack Indirect Relative Point", () => {
@@ -480,6 +838,30 @@ describe("Point Movement Instructions", () => {
 
 			expect(ctx.GS.rp0).toBe(2); // setRp0 = true
 			expect(ctx.GS.rp2).toBe(2);
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 0;
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 128;
+
+			MSIRP(ctx, true);
+
+			expect(ctx.error).toContain("invalid point");
+		});
+
+		test("sets error for invalid rp0", () => {
+			const ctx = createTestContext();
+			ctx.GS.rp0 = 999; // Invalid
+
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 128;
+
+			MSIRP(ctx, true);
+
+			expect(ctx.error).toContain("invalid rp0");
 		});
 	});
 
@@ -508,6 +890,48 @@ describe("Point Movement Instructions", () => {
 			// Lines intersect at (50, 50)
 			expect(ctx.pts.cur[4]!.x).toBe(50);
 			expect(ctx.pts.cur[4]!.y).toBe(50);
+		});
+
+		test("sets error for invalid line A points", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 4;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 1;
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 3;
+
+			ISECT(ctx);
+
+			expect(ctx.error).toContain("invalid line A points");
+		});
+
+		test("sets error for invalid line B points", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 4;
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 1;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 3;
+
+			ISECT(ctx);
+
+			expect(ctx.error).toContain("invalid line B points");
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 1;
+			ctx.stack[ctx.stackTop++] = 2;
+			ctx.stack[ctx.stackTop++] = 3;
+
+			ISECT(ctx);
+
+			expect(ctx.error).toContain("invalid point");
 		});
 
 		test("handles parallel lines", () => {
@@ -550,6 +974,28 @@ describe("Point Movement Instructions", () => {
 			expect(ctx.pts.cur[0]!.x).toBe(150);
 			expect(ctx.pts.cur[1]!.x).toBe(150);
 		});
+
+		test("sets error for invalid p1", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 1;
+
+			ALIGNPTS(ctx);
+
+			expect(ctx.error).toContain("invalid point");
+		});
+
+		test("sets error for invalid p2", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			ALIGNPTS(ctx);
+
+			expect(ctx.error).toContain("invalid point");
+		});
 	});
 
 	describe("GC - Get Coordinate", () => {
@@ -576,6 +1022,17 @@ describe("Point Movement Instructions", () => {
 
 			expect(ctx.stack[0]).toBe(200);
 		});
+
+		test("sets error for invalid point and pushes 0", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			GC(ctx, false);
+
+			expect(ctx.error).toContain("invalid point");
+			expect(ctx.stack[0]).toBe(0);
+		});
 	});
 
 	describe("SCFS - Set Coordinate From Stack", () => {
@@ -589,6 +1046,17 @@ describe("Point Movement Instructions", () => {
 			SCFS(ctx);
 
 			expect(ctx.pts.cur[3]!.x).toBe(256);
+		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 256;
+
+			SCFS(ctx);
+
+			expect(ctx.error).toContain("invalid point");
 		});
 	});
 
@@ -619,6 +1087,30 @@ describe("Point Movement Instructions", () => {
 			MD(ctx, true);
 
 			expect(ctx.stack[0]).toBe(150);
+		});
+
+		test("sets error for invalid p1 and pushes 0", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+			ctx.stack[ctx.stackTop++] = 2;
+
+			MD(ctx, false);
+
+			expect(ctx.error).toContain("invalid point");
+			expect(ctx.stack[0]).toBe(0);
+		});
+
+		test("sets error for invalid p2 and pushes 0", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			MD(ctx, false);
+
+			expect(ctx.error).toContain("invalid point");
+			expect(ctx.stack[0]).toBe(0);
 		});
 	});
 
@@ -654,6 +1146,17 @@ describe("Point Movement Instructions", () => {
 
 			expect(ctx.pts.tags[2]! & 0x01).toBe(0); // Now off-curve
 		});
+
+		test("sets error for invalid point", () => {
+			const ctx = createTestContext();
+
+			ctx.GS.loop = 1;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			FLIPPT(ctx);
+
+			expect(ctx.error).toContain("invalid point");
+		});
 	});
 
 	describe("FLIPRGON / FLIPRGOFF", () => {
@@ -670,6 +1173,17 @@ describe("Point Movement Instructions", () => {
 			}
 		});
 
+		test("FLIPRGON sets error for invalid range", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			FLIPRGON(ctx);
+
+			expect(ctx.error).toContain("invalid range");
+		});
+
 		test("FLIPRGOFF clears range to off-curve", () => {
 			const ctx = createTestContext();
 			ctx.pts.tags[1] = 0x01;
@@ -682,6 +1196,17 @@ describe("Point Movement Instructions", () => {
 
 			expect(ctx.pts.tags[1]! & 0x01).toBe(0);
 			expect(ctx.pts.tags[2]! & 0x01).toBe(0);
+		});
+
+		test("FLIPRGOFF sets error for invalid range", () => {
+			const ctx = createTestContext();
+
+			ctx.stack[ctx.stackTop++] = 0;
+			ctx.stack[ctx.stackTop++] = 999; // Invalid
+
+			FLIPRGOFF(ctx);
+
+			expect(ctx.error).toContain("invalid range");
 		});
 	});
 

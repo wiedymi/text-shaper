@@ -4,14 +4,24 @@ import type { GposTable } from "../../../src/font/tables/gpos.ts";
 import {
 	type ContextPosLookup,
 	type ChainingContextPosLookup,
+	type ContextPosFormat1,
 	type ContextPosFormat2,
+	type ContextPosFormat3,
+	type ChainingContextPosFormat1,
 	type ChainingContextPosFormat2,
 	type ChainingContextPosFormat3,
+	parseContextPos,
+	parseChainingContextPos,
 } from "../../../src/font/tables/gpos-contextual.ts";
+import { Reader } from "../../../src/font/binary/reader.ts";
 
 const NOTO_NEWA_PATH =
 	"/System/Library/Fonts/Supplemental/NotoSansNewa-Regular.ttf";
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
+
+function createBuffer(...bytes: number[]): ArrayBuffer {
+	return new Uint8Array(bytes).buffer;
+}
 
 describe("GPOS Contextual Positioning", () => {
 	describe("Context Positioning (Type 7)", () => {
@@ -33,10 +43,184 @@ describe("GPOS Contextual Positioning", () => {
 		});
 
 		describe("Format 1 (Simple glyph contexts)", () => {
-			test("Format 1 is tested via code coverage", () => {
-				// Format 1 is rare in real fonts but the code paths are executed
-				// through the tests below with real fonts, achieving 100% line coverage
-				expect(true).toBe(true);
+			test("parses Format 1 subtable with single rule", () => {
+				// Format 1: Simple glyph contexts
+				// Subtable at offset 0:
+				//   format=1, coverageOffset=8, ruleSetCount=1, ruleSetOffsets[0]=14
+				// Coverage at offset 8:
+				//   format=1, glyphCount=1, glyph=100
+				// RuleSet at offset 14:
+				//   ruleCount=1, ruleOffsets[0]=4
+				// Rule at offset 14+4=18:
+				//   glyphCount=2, lookupCount=1, inputSequence=[101], lookupRecords=[(1,5)]
+				const reader = new Reader(
+					createBuffer(
+						// Subtable at offset 0
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x08, // coverageOffset = 8 (relative to subtable start)
+						0x00,
+						0x01, // ruleSetCount = 1
+						0x00,
+						0x0e, // ruleSetOffsets[0] = 14 (relative to subtable start)
+						// Coverage at offset 8
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x64, // glyph[0] = 100
+						// RuleSet at offset 14
+						0x00,
+						0x01, // ruleCount = 1
+						0x00,
+						0x04, // ruleOffsets[0] = 4 (relative to RuleSet start)
+						// Rule at offset 18
+						0x00,
+						0x02, // glyphCount = 2
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x65, // inputSequence[0] = 101
+						0x00,
+						0x01, // lookupRecords[0].sequenceIndex = 1
+						0x00,
+						0x05, // lookupRecords[0].lookupListIndex = 5
+					),
+				);
+
+				const subtables = parseContextPos(reader, [0]);
+				expect(subtables.length).toBe(1);
+
+				const subtable = subtables[0] as ContextPosFormat1;
+				expect(subtable.format).toBe(1);
+				expect(subtable.coverage.get(100)).toBe(0);
+				expect(subtable.ruleSets.length).toBe(1);
+
+				const ruleSet = subtable.ruleSets[0];
+				expect(ruleSet).not.toBeNull();
+				expect(ruleSet!.length).toBe(1);
+
+				const rule = ruleSet![0]!;
+				expect(rule.glyphCount).toBe(2);
+				expect(rule.inputSequence).toEqual([101]);
+				expect(rule.lookupRecords.length).toBe(1);
+				expect(rule.lookupRecords[0]!.sequenceIndex).toBe(1);
+				expect(rule.lookupRecords[0]!.lookupListIndex).toBe(5);
+			});
+
+			test("parses Format 1 with null rule set", () => {
+				// Subtable: format=1, coverageOffset=10, ruleSetCount=2
+				// ruleSetOffsets[0]=0 (null), ruleSetOffsets[1]=18
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x0a, // coverageOffset = 10
+						0x00,
+						0x02, // ruleSetCount = 2
+						0x00,
+						0x00, // ruleSetOffsets[0] = 0 (null)
+						0x00,
+						0x12, // ruleSetOffsets[1] = 18
+						// Coverage at offset 10
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x02, // glyphCount = 2
+						0x00,
+						0x64, // glyph[0] = 100
+						0x00,
+						0x65, // glyph[1] = 101
+						// RuleSet at offset 18
+						0x00,
+						0x01, // ruleCount = 1
+						0x00,
+						0x04, // ruleOffsets[0] = 4
+						// Rule at offset 22
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x00, // sequenceIndex = 0
+						0x00,
+						0x02, // lookupListIndex = 2
+					),
+				);
+
+				const subtables = parseContextPos(reader, [0]);
+				expect(subtables.length).toBe(1);
+
+				const subtable = subtables[0] as ContextPosFormat1;
+				expect(subtable.format).toBe(1);
+				expect(subtable.ruleSets.length).toBe(2);
+				expect(subtable.ruleSets[0]).toBeNull();
+				expect(subtable.ruleSets[1]).not.toBeNull();
+			});
+
+			test("parses Format 1 with multiple rules in ruleset", () => {
+				// RuleSet with 2 rules
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x08, // coverageOffset = 8
+						0x00,
+						0x01, // ruleSetCount = 1
+						0x00,
+						0x0e, // ruleSetOffsets[0] = 14
+						// Coverage at offset 8
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x64, // glyph[0] = 100
+						// RuleSet at offset 14
+						0x00,
+						0x02, // ruleCount = 2
+						0x00,
+						0x06, // ruleOffsets[0] = 6 (relative to RuleSet)
+						0x00,
+						0x10, // ruleOffsets[1] = 16 (relative to RuleSet)
+						// Rule 0 at offset 20
+						0x00,
+						0x02, // glyphCount = 2
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x65, // inputSequence[0] = 101
+						0x00,
+						0x01, // sequenceIndex = 1
+						0x00,
+						0x03, // lookupListIndex = 3
+						// Rule 1 at offset 30
+						0x00,
+						0x03, // glyphCount = 3
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x66, // inputSequence[0] = 102
+						0x00,
+						0x67, // inputSequence[1] = 103
+						0x00,
+						0x02, // sequenceIndex = 2
+						0x00,
+						0x04, // lookupListIndex = 4
+					),
+				);
+
+				const subtables = parseContextPos(reader, [0]);
+				const subtable = subtables[0] as ContextPosFormat1;
+				const ruleSet = subtable.ruleSets[0]!;
+
+				expect(ruleSet.length).toBe(2);
+				expect(ruleSet[0]!.inputSequence).toEqual([101]);
+				expect(ruleSet[1]!.inputSequence).toEqual([102, 103]);
 			});
 		});
 
@@ -117,10 +301,105 @@ describe("GPOS Contextual Positioning", () => {
 		});
 
 		describe("Format 3 (Coverage-based contexts)", () => {
-			test("Format 3 is tested via code coverage", () => {
-				// Format 3 for Type 7 is rare, but Type 8 Format 3 is tested extensively
-				// Code paths achieve 100% line coverage
-				expect(true).toBe(true);
+			test("parses Format 3 subtable with single coverage", () => {
+				// Format 3: Coverage-based contexts
+				// Subtable: format=3, glyphCount=1, lookupCount=1
+				// coverageOffsets=[0x0C], lookupRecords=[(0, 2)]
+				// Coverage at offset 0x0C: format=1, glyphCount=1, glyph=100
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x03, // format = 3
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x0c, // coverageOffsets[0] = 12
+						0x00,
+						0x00, // lookupRecords[0].sequenceIndex = 0
+						0x00,
+						0x02, // lookupRecords[0].lookupListIndex = 2
+						// Coverage at offset 12
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x64, // glyph[0] = 100
+					),
+				);
+
+				const subtables = parseContextPos(reader, [0]);
+				expect(subtables.length).toBe(1);
+
+				const subtable = subtables[0] as ContextPosFormat3;
+				expect(subtable.format).toBe(3);
+				expect(subtable.coverages.length).toBe(1);
+				expect(subtable.coverages[0]!.get(100)).toBe(0);
+				expect(subtable.lookupRecords.length).toBe(1);
+				expect(subtable.lookupRecords[0]!.sequenceIndex).toBe(0);
+				expect(subtable.lookupRecords[0]!.lookupListIndex).toBe(2);
+			});
+
+			test("parses Format 3 with multiple coverages", () => {
+				// glyphCount=3, lookupCount=2
+				// Layout: header(2+2+2+6=12) + lookupRecords(8) = 20, then coverages
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x03, // format = 3
+						0x00,
+						0x03, // glyphCount = 3
+						0x00,
+						0x02, // lookupCount = 2
+						0x00,
+						0x14, // coverageOffsets[0] = 20
+						0x00,
+						0x1a, // coverageOffsets[1] = 26
+						0x00,
+						0x20, // coverageOffsets[2] = 32
+						0x00,
+						0x00, // lookupRecords[0].sequenceIndex = 0
+						0x00,
+						0x01, // lookupRecords[0].lookupListIndex = 1
+						0x00,
+						0x02, // lookupRecords[1].sequenceIndex = 2
+						0x00,
+						0x03, // lookupRecords[1].lookupListIndex = 3
+						// Coverage 0 at offset 20
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x64, // glyph[0] = 100
+						// Coverage 1 at offset 26
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x65, // glyph[0] = 101
+						// Coverage 2 at offset 32
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x66, // glyph[0] = 102
+					),
+				);
+
+				const subtables = parseContextPos(reader, [0]);
+				const subtable = subtables[0] as ContextPosFormat3;
+
+				expect(subtable.format).toBe(3);
+				expect(subtable.coverages.length).toBe(3);
+				expect(subtable.coverages[0]!.get(100)).toBe(0);
+				expect(subtable.coverages[1]!.get(101)).toBe(0);
+				expect(subtable.coverages[2]!.get(102)).toBe(0);
+				expect(subtable.lookupRecords.length).toBe(2);
 			});
 		});
 	});
@@ -148,10 +427,192 @@ describe("GPOS Contextual Positioning", () => {
 		});
 
 		describe("Format 1 (Simple chaining context)", () => {
-			test("Format 1 is tested via code coverage", () => {
-				// Format 1 is rare in real fonts but code paths are executed
-				// Achieving 100% line coverage
-				expect(true).toBe(true);
+			test("parses Format 1 subtable with basic chain rule", () => {
+				// Format 1: Simple chaining context
+				// Coverage offset=10, ChainRuleSetCount=1, ChainRuleSet[0] offset=12
+				// Coverage: Format 1, glyphCount=1, glyph=100
+				// ChainRuleSet: ruleCount=1, rule offset=4
+				// ChainRule: backtrackCount=1, backtrack=[99], inputCount=2, input=[101], lookaheadCount=1, lookahead=[102], lookupCount=1
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x08, // coverageOffset = 8
+						0x00,
+						0x01, // chainRuleSetCount = 1
+						0x00,
+						0x0e, // chainRuleSetOffsets[0] = 14
+						// Coverage at offset 8
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x64, // glyph[0] = 100
+						// ChainRuleSet at offset 14
+						0x00,
+						0x01, // ruleCount = 1
+						0x00,
+						0x04, // ruleOffsets[0] = 4
+						// ChainRule at offset 14+4=18
+						0x00,
+						0x01, // backtrackCount = 1
+						0x00,
+						0x63, // backtrackSequence[0] = 99
+						0x00,
+						0x02, // inputCount = 2 (includes first glyph in coverage)
+						0x00,
+						0x65, // inputSequence[0] = 101 (excludes first)
+						0x00,
+						0x01, // lookaheadCount = 1
+						0x00,
+						0x66, // lookaheadSequence[0] = 102
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x01, // lookupRecords[0].sequenceIndex = 1
+						0x00,
+						0x05, // lookupRecords[0].lookupListIndex = 5
+					),
+				);
+
+				const subtables = parseChainingContextPos(reader, [0]);
+				expect(subtables.length).toBe(1);
+
+				const subtable = subtables[0] as ChainingContextPosFormat1;
+				expect(subtable.format).toBe(1);
+				expect(subtable.coverage.get(100)).toBe(0);
+				expect(subtable.chainRuleSets.length).toBe(1);
+
+				const ruleSet = subtable.chainRuleSets[0];
+				expect(ruleSet).not.toBeNull();
+				expect(ruleSet!.length).toBe(1);
+
+				const rule = ruleSet![0]!;
+				expect(rule.backtrackSequence).toEqual([99]);
+				expect(rule.inputSequence).toEqual([101]);
+				expect(rule.lookaheadSequence).toEqual([102]);
+				expect(rule.lookupRecords.length).toBe(1);
+				expect(rule.lookupRecords[0]!.sequenceIndex).toBe(1);
+				expect(rule.lookupRecords[0]!.lookupListIndex).toBe(5);
+			});
+
+			test("parses Format 1 with null chain rule set", () => {
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x18, // coverageOffset = 24
+						0x00,
+						0x02, // chainRuleSetCount = 2
+						0x00,
+						0x00, // chainRuleSetOffsets[0] = 0 (null)
+						0x00,
+						0x0a, // chainRuleSetOffsets[1] = 10
+						// ChainRuleSet at offset 10
+						0x00,
+						0x01, // ruleCount = 1
+						0x00,
+						0x04, // ruleOffsets[0] = 4
+						// ChainRule at offset 14
+						0x00,
+						0x00, // backtrackCount = 0
+						0x00,
+						0x01, // inputCount = 1
+						0x00,
+						0x00, // lookaheadCount = 0
+						0x00,
+						0x01, // lookupCount = 1
+						0x00,
+						0x00, // sequenceIndex = 0
+						0x00,
+						0x02, // lookupListIndex = 2
+						// Coverage at offset 24
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x02, // glyphCount = 2
+						0x00,
+						0x64, // glyph[0] = 100
+						0x00,
+						0x65, // glyph[1] = 101
+					),
+				);
+
+				const subtables = parseChainingContextPos(reader, [0]);
+				const subtable = subtables[0] as ChainingContextPosFormat1;
+
+				expect(subtable.format).toBe(1);
+				expect(subtable.chainRuleSets.length).toBe(2);
+				expect(subtable.chainRuleSets[0]).toBeNull();
+				expect(subtable.chainRuleSets[1]).not.toBeNull();
+			});
+
+			test("parses Format 1 with multiple backtrack and lookahead glyphs", () => {
+				const reader = new Reader(
+					createBuffer(
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x08, // coverageOffset = 8
+						0x00,
+						0x01, // chainRuleSetCount = 1
+						0x00,
+						0x0e, // chainRuleSetOffsets[0] = 14
+						// Coverage at offset 8
+						0x00,
+						0x01, // format = 1
+						0x00,
+						0x01, // glyphCount = 1
+						0x00,
+						0x64, // glyph[0] = 100
+						// ChainRuleSet at offset 14
+						0x00,
+						0x01, // ruleCount = 1
+						0x00,
+						0x04, // ruleOffsets[0] = 4
+						// ChainRule at offset 18
+						0x00,
+						0x02, // backtrackCount = 2
+						0x00,
+						0x61, // backtrackSequence[0] = 97
+						0x00,
+						0x62, // backtrackSequence[1] = 98
+						0x00,
+						0x03, // inputCount = 3
+						0x00,
+						0x65, // inputSequence[0] = 101
+						0x00,
+						0x66, // inputSequence[1] = 102
+						0x00,
+						0x02, // lookaheadCount = 2
+						0x00,
+						0x67, // lookaheadSequence[0] = 103
+						0x00,
+						0x68, // lookaheadSequence[1] = 104
+						0x00,
+						0x02, // lookupCount = 2
+						0x00,
+						0x01, // lookupRecords[0].sequenceIndex = 1
+						0x00,
+						0x03, // lookupRecords[0].lookupListIndex = 3
+						0x00,
+						0x02, // lookupRecords[1].sequenceIndex = 2
+						0x00,
+						0x04, // lookupRecords[1].lookupListIndex = 4
+					),
+				);
+
+				const subtables = parseChainingContextPos(reader, [0]);
+				const subtable = subtables[0] as ChainingContextPosFormat1;
+				const rule = subtable.chainRuleSets[0]![0]!;
+
+				expect(rule.backtrackSequence).toEqual([97, 98]);
+				expect(rule.inputSequence).toEqual([101, 102]);
+				expect(rule.lookaheadSequence).toEqual([103, 104]);
+				expect(rule.lookupRecords.length).toBe(2);
 			});
 		});
 

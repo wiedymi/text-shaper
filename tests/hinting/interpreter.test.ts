@@ -128,9 +128,8 @@ describe("TrueType Interpreter - Stack Operations", () => {
 			0x25, // CINDEX
 		]));
 		expect(ctx.stackTop).toBe(5);
-		// Due to post-increment behavior, this copies stack[stackTop-index] after stackTop is incremented
-		// stackTop becomes 5, then reads stack[5-2]=stack[3]=40
-		expect(ctx.stack[4]).toBe(40);
+		// CINDEX pops index (2), then copies stack[stackTop-index] = stack[4-2] = stack[2] = 30
+		expect(ctx.stack[4]).toBe(30);
 	});
 
 	test("MINDEX moves nth element to top", () => {
@@ -382,6 +381,20 @@ describe("TrueType Interpreter - Control Flow", () => {
 		expect(ctx.stack[0]).toBe(2);
 	});
 
+	test("IF/ELSE executes then branch and skips else when true", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (true)
+			0x58, // IF
+			0xb0, 99, // PUSHB[0] 99 (executed)
+			0x1b, // ELSE
+			0xb0, 88, // PUSHB[0] 88 (skipped)
+			0x59, // EIF
+		]));
+		expect(ctx.error).toBeNull();
+		expect(ctx.stackTop).toBe(1);
+		expect(ctx.stack[0]).toBe(99);
+	});
+
 	test("nested IF statements work correctly", () => {
 		const ctx = runBytecode(new Uint8Array([
 			0xb0, 1, // PUSHB[0] 1 (true)
@@ -524,6 +537,16 @@ describe("TrueType Interpreter - Graphics State", () => {
 		expect(ctx.GS.projVector.y).toBe(0x4000);
 		expect(ctx.GS.freeVector.x).toBe(1000); // Unchanged
 		expect(ctx.GS.freeVector.y).toBe(2000); // Unchanged
+	});
+
+	test("SPVTCA_X sets only projection vector to X", () => {
+		const ctx = createExecContext();
+		ctx.GS.freeVector = { x: 1000, y: 2000 };
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([0x03])); // SPVTCA[X]
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.GS.projVector.x).toBe(0x4000);
+		expect(ctx.GS.projVector.y).toBe(0);
+		expect(ctx.GS.freeVector.x).toBe(1000); // Unchanged
 	});
 
 	test("SFVTCA sets only freedom vector", () => {
@@ -877,6 +900,952 @@ describe("TrueType Interpreter - Error Handling", () => {
 	});
 });
 
+describe("TrueType Interpreter - Vector Operations", () => {
+	test("SFVTCA_Y sets only freedom vector to Y", () => {
+		const ctx = createExecContext();
+		ctx.GS.projVector = { x: 1000, y: 2000 };
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([0x04])); // SFVTCA_Y
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.GS.freeVector.y).toBe(0x4000);
+		expect(ctx.GS.projVector.x).toBe(1000);
+	});
+
+	test("SPVTL_0 sets projection vector to line", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] point1=0 point2=1
+			0x06, // SPVTL_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SPVTL_1 sets projection vector to perpendicular", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] point1=0 point2=1
+			0x07, // SPVTL_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SFVTL_0 sets freedom vector to line", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] point1=0 point2=1
+			0x08, // SFVTL_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SFVTL_1 sets freedom vector to perpendicular", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] point1=0 point2=1
+			0x09, // SFVTL_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SDPVTL_0 sets dual projection vector to line", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		ctx.pts.org = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] point1=0 point2=1
+			0x86, // SDPVTL_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SDPVTL_1 sets dual projection vector to perpendicular", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		ctx.pts.org = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 100 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] point1=0 point2=1
+			0x87, // SDPVTL_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SPVFS sets projection vector from stack", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb8, 0x20, 0x00, // PUSHW[0] x=0x2000 (in 2.14 format)
+			0xb8, 0x30, 0x00, // PUSHW[0] y=0x3000
+			0x0a, // SPVFS
+		]));
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.projVector.x).toBe(0x2000);
+		expect(ctx.GS.projVector.y).toBe(0x3000);
+	});
+
+	test("SFVFS sets freedom vector from stack", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb8, 0x10, 0x00, // PUSHW[0] x=0x1000
+			0xb8, 0x40, 0x00, // PUSHW[0] y=0x4000
+			0x0b, // SFVFS
+		]));
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.freeVector.x).toBe(0x1000);
+		expect(ctx.GS.freeVector.y).toBe(0x4000);
+	});
+});
+
+describe("TrueType Interpreter - Zone Operations", () => {
+	test("SZP0 sets zone pointer 0", () => {
+		const ctx = createExecContext();
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (twilight zone)
+			0x13, // SZP0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.GS.gep0).toBe(0);
+		expect(ctx.zp0).toBe(ctx.twilight);
+	});
+
+	test("SZP1 sets zone pointer 1", () => {
+		const ctx = createExecContext();
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (glyph zone)
+			0x14, // SZP1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.GS.gep1).toBe(1);
+		expect(ctx.zp1).toBe(ctx.pts);
+	});
+
+	test("SZP2 sets zone pointer 2", () => {
+		const ctx = createExecContext();
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (twilight zone)
+			0x15, // SZP2
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.GS.gep2).toBe(0);
+		expect(ctx.zp2).toBe(ctx.twilight);
+	});
+
+	test("SZPS sets all zone pointers", () => {
+		const ctx = createExecContext();
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (twilight zone)
+			0x16, // SZPS
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.GS.gep0).toBe(0);
+		expect(ctx.GS.gep1).toBe(0);
+		expect(ctx.GS.gep2).toBe(0);
+	});
+});
+
+describe("TrueType Interpreter - Point Movement", () => {
+	test("MDAP_0 marks point without rounding", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		// Set zone pointers to the glyph zone (pts)
+		ctx.zp0 = ctx.pts;
+		ctx.zp1 = ctx.pts;
+		ctx.zp2 = ctx.pts;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point number)
+			0x2e, // MDAP_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.rp0).toBe(2);
+		expect(ctx.GS.rp1).toBe(2);
+	});
+
+	test("MDAP_1 marks point with rounding", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.zp0 = ctx.pts;
+		ctx.zp1 = ctx.pts;
+		ctx.zp2 = ctx.pts;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 3, // PUSHB[0] 3 (point number)
+			0x2f, // MDAP_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.rp0).toBe(3);
+		expect(ctx.GS.rp1).toBe(3);
+	});
+
+	test("MIAP_0 moves point to CVT without rounding", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.zp0 = ctx.pts;
+		ctx.zp1 = ctx.pts;
+		ctx.zp2 = ctx.pts;
+		ctx.cvt = new Int32Array([100, 200, 300]);
+		ctx.cvtSize = 3;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 2, 1, // PUSHB[1] cvt=2 point=1
+			0x3e, // MIAP_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.rp0).toBe(1);
+		expect(ctx.GS.rp1).toBe(1);
+	});
+
+	test("MIAP_1 moves point to CVT with rounding", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.zp0 = ctx.pts;
+		ctx.zp1 = ctx.pts;
+		ctx.zp2 = ctx.pts;
+		ctx.cvt = new Int32Array([100, 200, 300]);
+		ctx.cvtSize = 3;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 1, 2, // PUSHB[1] cvt=1 point=2
+			0x3f, // MIAP_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.rp0).toBe(2);
+		expect(ctx.GS.rp1).toBe(2);
+	});
+
+	test("IUP_Y interpolates untouched points in Y", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.nContours = 1;
+		ctx.pts.contours = new Uint16Array([4]);
+		ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
+		ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
+		ctx.pts.tags = new Uint8Array(5);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([0x30])); // IUP_Y
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("IUP_X interpolates untouched points in X", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.nContours = 1;
+		ctx.pts.contours = new Uint16Array([4]);
+		ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
+		ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
+		ctx.pts.tags = new Uint8Array(5);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([0x31])); // IUP_X
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHP_0 shifts points using rp2", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.zp0 = ctx.pts;
+		ctx.zp1 = ctx.pts;
+		ctx.zp2 = ctx.pts;
+		ctx.GS.rp2 = 0;
+		ctx.GS.loop = 1;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point)
+			0x32, // SHP_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHP_1 shifts points using rp1", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.zp0 = ctx.pts;
+		ctx.zp1 = ctx.pts;
+		ctx.zp2 = ctx.pts;
+		ctx.GS.rp1 = 0;
+		ctx.GS.loop = 1;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 3, // PUSHB[0] 3 (point)
+			0x33, // SHP_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHC_0 shifts contour using rp2", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.nContours = 2;
+		ctx.pts.contours = new Uint16Array([2, 4]);
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.rp2 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (contour)
+			0x34, // SHC_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHC_1 shifts contour using rp1", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.nContours = 2;
+		ctx.pts.contours = new Uint16Array([2, 4]);
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.rp1 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (contour)
+			0x35, // SHC_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHZ_0 shifts zone using rp2", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(3);
+		ctx.GS.rp2 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (zone)
+			0x36, // SHZ_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHZ_1 shifts zone using rp1", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 3;
+		ctx.pts.cur = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(3);
+		ctx.GS.rp1 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (zone)
+			0x37, // SHZ_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("SHPIX shifts points by pixels", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.loop = 1;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 64, 2, // PUSHB[1] amount=64 point=2
+			0x38, // SHPIX
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("IP interpolates points", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.loop = 1;
+		ctx.GS.rp1 = 0;
+		ctx.GS.rp2 = 4;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point to interpolate)
+			0x39, // IP
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("MSIRP_0 moves point and sets rp without rp0 update", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.rp0 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 64, 2, // PUSHB[1] distance=64 point=2
+			0x3a, // MSIRP_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.rp1).toBe(0);
+		expect(ctx.GS.rp2).toBe(2);
+	});
+
+	test("MSIRP_1 moves point and sets rp with rp0 update", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.rp0 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 64, 3, // PUSHB[1] distance=64 point=3
+			0x3b, // MSIRP_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.GS.rp0).toBe(3);
+		expect(ctx.GS.rp1).toBe(0);
+		expect(ctx.GS.rp2).toBe(3);
+	});
+
+	test("ALIGNRP aligns points to reference", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.rp0 = 0;
+		ctx.GS.loop = 1;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point)
+			0x3c, // ALIGNRP
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("ALIGNPTS aligns two points", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 1, 2, // PUSHB[1] p1=1 p2=2
+			0x27, // ALIGNPTS
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("UTP untouches point", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.tags = new Uint8Array([3, 3, 3, 3, 3]); // All touched
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point)
+			0x29, // UTP
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.pts.tags[2]).toBe(0);
+	});
+
+	test("ISECT moves point to intersection", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 50, y: -50 },
+			{ x: 50, y: 50 },
+			{ x: 25, y: 25 },
+		];
+		ctx.pts.org = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 50, y: -50 },
+			{ x: 50, y: 50 },
+			{ x: 25, y: 25 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb4, 0, 1, 2, 3, 4, // PUSHB[4] a0=0 a1=1 b0=2 b1=3 p=4
+			0x0f, // ISECT
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+});
+
+describe("TrueType Interpreter - Point Measurement", () => {
+	test("GC_0 gets current coordinate", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 200 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (point)
+			0x46, // GC_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("GC_1 gets original coordinate", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.org = [
+			{ x: 0, y: 0 },
+			{ x: 150, y: 250 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 1, // PUSHB[0] 1 (point)
+			0x47, // GC_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("SCFS sets coordinate from stack", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
+		ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 128, 2, // PUSHB[1] value=128 point=2
+			0x48, // SCFS
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("MD_0 measures distance current", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] p1=0 p2=1
+			0x49, // MD_0
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("MD_1 measures distance original", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.org = [
+			{ x: 0, y: 0 },
+			{ x: 150, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+		];
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 1, // PUSHB[1] p1=0 p2=1
+			0x4a, // MD_1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.stackTop).toBe(1);
+	});
+});
+
+describe("TrueType Interpreter - MDRP and MIRP", () => {
+	test("MDRP moves direct relative point", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.GS.rp0 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point)
+			0xc0, // MDRP (base opcode)
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("MIRP moves indirect relative point", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.cvt = new Int32Array([100, 200, 300]);
+		ctx.cvtSize = 3;
+		ctx.GS.rp0 = 0;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 1, 2, // PUSHB[1] cvt=1 point=2
+			0xe0, // MIRP (base opcode)
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+});
+
+describe("TrueType Interpreter - Rounding Instructions", () => {
+	test("ROUND_0 rounds value with grid", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x68, // ROUND_0
+		]));
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("ROUND_1 rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x69, // ROUND_1
+		]));
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("ROUND_2 rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x6a, // ROUND_2
+		]));
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("ROUND_3 rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x6b, // ROUND_3
+		]));
+		expect(ctx.stackTop).toBe(1);
+	});
+
+	test("NROUND_0 no-rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x6c, // NROUND_0
+		]));
+		expect(ctx.stack[0]).toBe(100);
+	});
+
+	test("NROUND_1 no-rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x6d, // NROUND_1
+		]));
+		expect(ctx.stack[0]).toBe(100);
+	});
+
+	test("NROUND_2 no-rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x6e, // NROUND_2
+		]));
+		expect(ctx.stack[0]).toBe(100);
+	});
+
+	test("NROUND_3 no-rounds value", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x6f, // NROUND_3
+		]));
+		expect(ctx.stack[0]).toBe(100);
+	});
+});
+
+describe("TrueType Interpreter - Delta Instructions", () => {
+	test("DELTAP1 applies delta to points", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		ctx.ppem = 16;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (no pairs)
+			0x5d, // DELTAP1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("DELTAP2 applies delta to points range 2", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (no pairs)
+			0x71, // DELTAP2
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("DELTAP3 applies delta to points range 3", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
+		ctx.pts.tags = new Uint8Array(5);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (no pairs)
+			0x72, // DELTAP3
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("DELTAC1 applies delta to CVT", () => {
+		const ctx = createExecContext();
+		ctx.cvt = new Int32Array(10);
+		ctx.cvtSize = 10;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (no pairs)
+			0x73, // DELTAC1
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("DELTAC2 applies delta to CVT range 2", () => {
+		const ctx = createExecContext();
+		ctx.cvt = new Int32Array(10);
+		ctx.cvtSize = 10;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (no pairs)
+			0x74, // DELTAC2
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("DELTAC3 applies delta to CVT range 3", () => {
+		const ctx = createExecContext();
+		ctx.cvt = new Int32Array(10);
+		ctx.cvtSize = 10;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 0, // PUSHB[0] 0 (no pairs)
+			0x75, // DELTAC3
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+});
+
+describe("TrueType Interpreter - Flip Instructions", () => {
+	test("FLIPPT flips points on curve", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.tags = new Uint8Array([0, 1, 0, 1, 0]);
+		ctx.GS.loop = 1;
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2 (point)
+			0x80, // FLIPPT
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("FLIPRGON flips range on", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.tags = new Uint8Array([0, 0, 0, 0, 0]);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 1, 3, // PUSHB[1] low=1 high=3
+			0x81, // FLIPRGON
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+
+	test("FLIPRGOFF flips range off", () => {
+		const ctx = createExecContext();
+		ctx.pts.nPoints = 5;
+		ctx.pts.tags = new Uint8Array([1, 1, 1, 1, 1]);
+		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
+			0xb1, 0, 2, // PUSHB[1] low=0 high=2
+			0x82, // FLIPRGOFF
+		]));
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+	});
+});
+
+describe("TrueType Interpreter - Deprecated Instructions", () => {
+	test("SANGW is deprecated and ignored", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 100, // PUSHB[0] 100
+			0x7e, // SANGW
+		]));
+		expect(ctx.error).toBeNull();
+		expect(ctx.stackTop).toBe(0);
+	});
+
+	test("AA is deprecated and ignored", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 50, // PUSHB[0] 50
+			0x7f, // AA
+		]));
+		expect(ctx.error).toBeNull();
+		expect(ctx.stackTop).toBe(0);
+	});
+
+	test("DEBUG is a no-op", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 42, // PUSHB[0] 42
+			0x4f, // DEBUG
+		]));
+		expect(ctx.error).toBeNull();
+		expect(ctx.stackTop).toBe(1);
+		expect(ctx.stack[0]).toBe(42);
+	});
+});
+
+describe("TrueType Interpreter - Scan Control", () => {
+	test("SCANTYPE sets scan type", () => {
+		const ctx = runBytecode(new Uint8Array([
+			0xb0, 2, // PUSHB[0] 2
+			0x8d, // SCANTYPE
+		]));
+		expect(ctx.GS.scanType).toBe(2);
+	});
+});
+
+describe("TrueType Interpreter - IDEF", () => {
+	test("IDEF defines instruction and calls it", () => {
+		const ctx = createExecContext();
+		const code = new Uint8Array([
+			0xb0, 0x91, // PUSHB[0] 0x91 (opcode to redefine)
+			0x89, // IDEF
+			0xb0, 99, // PUSHB[0] 99 (custom behavior)
+			0x2d, // ENDF
+			0x91, // Call custom instruction
+		]);
+		setCodeRange(ctx, CodeRange.Glyph, code);
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toBeNull();
+		expect(ctx.stackTop).toBe(1);
+		expect(ctx.stack[0]).toBe(99);
+	});
+
+	test("IDEF call stack overflow error", () => {
+		const ctx = createExecContext();
+		ctx.maxCallStack = 1;
+		const code = new Uint8Array([
+			0xb0, 0x91, // PUSHB[0] 0x91
+			0x89, // IDEF
+			0x91, // Recursive call
+			0x2d, // ENDF
+			0x91, // Start recursion
+		]);
+		setCodeRange(ctx, CodeRange.Glyph, code);
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toContain("call stack overflow");
+	});
+
+	test("IDEF switches code ranges correctly", () => {
+		const ctx = createExecContext();
+		// Set up font program code range first
+		const fontCode = new Uint8Array([
+			0xb0, 0x92, // PUSHB[0] 0x92 (opcode to redefine)
+			0x89, // IDEF
+			0xb0, 77, // PUSHB[0] 77 (custom behavior)
+			0x2d, // ENDF
+		]);
+		setCodeRange(ctx, CodeRange.Font, fontCode);
+		runProgram(ctx, CodeRange.Font);
+
+		// Now call the IDEF from glyph program
+		const glyphCode = new Uint8Array([
+			0x92, // Call custom instruction
+		]);
+		setCodeRange(ctx, CodeRange.Glyph, glyphCode);
+		runProgram(ctx, CodeRange.Glyph);
+
+		expect(ctx.error).toBeNull();
+		expect(ctx.stackTop).toBe(1);
+		expect(ctx.stack[0]).toBe(77);
+	});
+
+	test("inactive IDEF is not called", () => {
+		const ctx = createExecContext();
+		// Try to call an undefined instruction
+		const code = new Uint8Array([
+			0x93, // Call undefined instruction
+		]);
+		setCodeRange(ctx, CodeRange.Glyph, code);
+		runProgram(ctx, CodeRange.Glyph);
+		expect(ctx.error).toContain("Unknown opcode");
+	});
+});
+
 describe("TrueType Interpreter - Real Font Tests", () => {
 	let font: Font;
 
@@ -897,7 +1866,6 @@ describe("TrueType Interpreter - Real Font Tests", () => {
 		expect(fpgm).not.toBeNull();
 		if (fpgm) {
 			expect(fpgm.instructions.length).toBeGreaterThan(0);
-			// First instruction should be a valid opcode
 			const firstOp = fpgm.instructions[0];
 			expect(firstOp).toBeDefined();
 		}
@@ -916,7 +1884,6 @@ describe("TrueType Interpreter - Real Font Tests", () => {
 		expect(cvt).not.toBeNull();
 		if (cvt) {
 			expect(cvt.values.length).toBeGreaterThan(0);
-			// CVT values should be reasonable (not all zeros)
 			const nonZero = cvt.values.some((v) => v !== 0);
 			expect(nonZero).toBe(true);
 		}
@@ -944,8 +1911,6 @@ describe("TrueType Interpreter - Real Font Tests", () => {
 
 		expect(glyph).not.toBeNull();
 		if (glyph && glyph.type !== "empty") {
-			// Most glyphs in hinted fonts have instructions
-			// Just verify we can access them
 			expect(glyph.instructions).toBeDefined();
 		}
 	});

@@ -103,6 +103,105 @@ describe("render/path", () => {
 			const result = contourToPath(contour);
 			expect(result[result.length - 1]).toEqual({ type: "Z" });
 		});
+
+		test("cubic bezier contour (CFF-style) with on-curve start", () => {
+			const contour: Contour = [
+				{ x: 0, y: 0, onCurve: true },
+				{ x: 25, y: 50, onCurve: false, cubic: true }, // Control point 1
+				{ x: 75, y: 50, onCurve: false, cubic: true }, // Control point 2
+				{ x: 100, y: 0, onCurve: true }, // End point
+			];
+			const result = contourToPath(contour);
+			expect(result[0]).toEqual({ type: "M", x: 0, y: 0 });
+			const cubicCmd = result.find((c) => c.type === "C");
+			expect(cubicCmd).toBeDefined();
+			if (cubicCmd && cubicCmd.type === "C") {
+				expect(cubicCmd.x1).toBe(25);
+				expect(cubicCmd.y1).toBe(50);
+				expect(cubicCmd.x2).toBe(75);
+				expect(cubicCmd.y2).toBe(50);
+				expect(cubicCmd.x).toBe(100);
+				expect(cubicCmd.y).toBe(0);
+			}
+		});
+
+		test("cubic bezier contour with line segment", () => {
+			const contour: Contour = [
+				{ x: 0, y: 0, onCurve: true },
+				{ x: 50, y: 0, onCurve: true }, // Line to this point
+				{ x: 62.5, y: 25, onCurve: false, cubic: true },
+				{ x: 87.5, y: 25, onCurve: false, cubic: true },
+				{ x: 100, y: 0, onCurve: true },
+			];
+			const result = contourToPath(contour);
+			expect(result[0]).toEqual({ type: "M", x: 0, y: 0 });
+			expect(result[1]).toEqual({ type: "L", x: 50, y: 0 });
+			const cubicCmd = result.find((c) => c.type === "C");
+			expect(cubicCmd).toBeDefined();
+		});
+
+		test("cubic bezier contour with malformed data (missing endpoint)", () => {
+			const contour: Contour = [
+				{ x: 0, y: 0, onCurve: true },
+				{ x: 25, y: 50, onCurve: false, cubic: true },
+				{ x: 75, y: 50, onCurve: false, cubic: true },
+				// Missing endpoint - malformed
+			];
+			const result = contourToPath(contour);
+			// Should handle gracefully
+			expect(result.length).toBeGreaterThan(0);
+			expect(result[result.length - 1]!.type).toBe("Z");
+		});
+
+		test("cubic bezier contour with quadratic fallback in CFF", () => {
+			// This tests the quadratic handling in cubic path conversion
+			const contour: Contour = [
+				{ x: 0, y: 0, onCurve: true },
+				{ x: 25, y: 50, onCurve: false, cubic: true }, // cp1
+				{ x: 75, y: 50, onCurve: false, cubic: true }, // cp2
+				{ x: 100, y: 0, onCurve: true }, // end
+				{ x: 50, y: 100, onCurve: false }, // Quadratic control (no cubic flag)
+				{ x: 0, y: 0, onCurve: true }, // Back to start
+			];
+			const result = contourToPath(contour);
+			// Should have both cubic and quadratic commands
+			const cubicCmds = result.filter((c) => c.type === "C");
+			const quadCmds = result.filter((c) => c.type === "Q");
+			expect(cubicCmds.length).toBeGreaterThan(0);
+			expect(quadCmds.length).toBeGreaterThan(0);
+		});
+
+		test("cubic bezier contour with consecutive off-curve quadratics", () => {
+			// Tests the implied on-curve point logic in cubic path
+			const contour: Contour = [
+				{ x: 0, y: 0, onCurve: true },
+				{ x: 25, y: 50, onCurve: false, cubic: true },
+				{ x: 75, y: 50, onCurve: false, cubic: true },
+				{ x: 100, y: 0, onCurve: true },
+				{ x: 100, y: 50, onCurve: false }, // Quad cp1
+				{ x: 75, y: 75, onCurve: false }, // Quad cp2 - should create implied point
+			];
+			const result = contourToPath(contour);
+			expect(result.length).toBeGreaterThan(0);
+			expect(result[result.length - 1]!.type).toBe("Z");
+		});
+
+		test("cubic bezier contour with empty first point", () => {
+			const contour: Contour = [];
+			const result = contourToPath(contour);
+			expect(result).toEqual([]);
+		});
+
+		test("cubic bezier contour starting with off-curve cubic point", () => {
+			// First point is cubic off-curve - tests the cubic detection
+			const contour: Contour = [
+				{ x: 0, y: 0, onCurve: true },
+				{ x: 25, y: 50, onCurve: false, cubic: true },
+			];
+			const result = contourToPath(contour);
+			// Should be treated as cubic path
+			expect(result.length).toBeGreaterThan(0);
+		});
 	});
 
 	describe("getGlyphPath", () => {
@@ -149,6 +248,47 @@ describe("render/path", () => {
 				const result = getGlyphPath(font, glyphId);
 				// Space typically has no outline commands
 				expect(result).toBeDefined();
+			}
+		});
+
+		test("caches null results for missing glyphs on fresh font", async () => {
+			// This tests the cache path for null glyphs when no cache exists (lines 284-289)
+			// Load a fresh font to ensure no cache exists yet
+			const freshFont = await Font.fromFile(ARIAL_PATH);
+
+			// Try to find a glyph ID that truly returns null from getGlyphContoursAndBounds
+			// This might be a glyph beyond the font's glyph count
+			const maxGlyphs = freshFont.numGlyphs;
+			const wayBeyondGlyphId = maxGlyphs + 10000;
+
+			// First call - should hit the null cache creation path
+			const result1 = getGlyphPath(freshFont, wayBeyondGlyphId);
+			// Second call should hit cache
+			const result2 = getGlyphPath(freshFont, wayBeyondGlyphId);
+
+			// Both should be the same (either null or an empty path)
+			expect(result1).toEqual(result2);
+		});
+
+		test("caches null results for missing glyphs", () => {
+			// This tests the cache path for null glyphs (lines 284-289)
+			const invalidGlyphId = 99999;
+			// First call
+			const result1 = getGlyphPath(font, invalidGlyphId);
+			// Second call should hit cache
+			const result2 = getGlyphPath(font, invalidGlyphId);
+			expect(result1).toEqual(result2);
+		});
+
+		test("caches results for valid glyphs", () => {
+			const glyphId = font.glyphId("A".codePointAt(0)!);
+			if (glyphId) {
+				// First call
+				const result1 = getGlyphPath(font, glyphId);
+				// Second call should hit cache
+				const result2 = getGlyphPath(font, glyphId);
+				// Should be the exact same object (cached)
+				expect(result1).toBe(result2);
 			}
 		});
 	});
@@ -756,15 +896,58 @@ describe("render/path", () => {
 
 			expect(mockCtx.fillStyle).toBe("red");
 		});
+
+		test("applies stroke with lineCap and lineJoin options", () => {
+			const glyphIdA = font.glyphId("A".codePointAt(0)!);
+			if (!glyphIdA) return;
+
+			const glyphs: ShapedGlyph[] = [
+				{
+					glyphId: glyphIdA,
+					xOffset: 0,
+					yOffset: 0,
+					xAdvance: 600,
+					yAdvance: 0,
+				},
+			];
+
+			let strokeCount = 0;
+			const mockCtx = {
+				fillStyle: "",
+				strokeStyle: "",
+				lineWidth: 1,
+				lineCap: "butt" as CanvasLineCap,
+				lineJoin: "miter" as CanvasLineJoin,
+				beginPath: () => {},
+				moveTo: () => {},
+				lineTo: () => {},
+				quadraticCurveTo: () => {},
+				bezierCurveTo: () => {},
+				closePath: () => {},
+				fill: () => {},
+				stroke: () => {
+					strokeCount++;
+				},
+			};
+
+			const { renderShapedText } = require("../../src/render/path.ts");
+			renderShapedText(mockCtx, font, glyphs, {
+				fontSize: 16,
+				stroke: "blue",
+				strokeWidth: 2,
+				lineCap: "round",
+				lineJoin: "bevel",
+			});
+
+			expect(mockCtx.strokeStyle).toBe("blue");
+			expect(mockCtx.lineCap).toBe("round");
+			expect(mockCtx.lineJoin).toBe("bevel");
+			expect(strokeCount).toBeGreaterThan(0);
+		});
 	});
 
 	describe("createPath2D", () => {
 		test("creates Path2D from glyph path", () => {
-			// Skip in Bun test environment where Path2D may not be available
-			if (typeof Path2D === "undefined") {
-				return;
-			}
-
 			const path: GlyphPath = {
 				commands: [
 					{ type: "M", x: 0, y: 0 },
@@ -774,27 +957,55 @@ describe("render/path", () => {
 				bounds: null,
 			};
 
-			const { createPath2D } = require("../../src/render/path.ts");
-			const path2d = createPath2D(path, { flipY: false });
+			// Mock Path2D since it might not be available in test environment
+			const originalPath2D = globalThis.Path2D;
+			if (typeof originalPath2D === "undefined") {
+				globalThis.Path2D = class Path2D {
+					moveTo() {}
+					lineTo() {}
+					quadraticCurveTo() {}
+					bezierCurveTo() {}
+					closePath() {}
+				} as any;
+			}
 
-			expect(path2d).toBeInstanceOf(Path2D);
+			try {
+				const { createPath2D } = require("../../src/render/path.ts");
+				const path2d = createPath2D(path, { flipY: false });
+				expect(path2d).toBeDefined();
+			} finally {
+				if (typeof originalPath2D === "undefined") {
+					delete (globalThis as any).Path2D;
+				}
+			}
 		});
 
 		test("Path2D respects options", () => {
-			// Skip in Bun test environment where Path2D may not be available
-			if (typeof Path2D === "undefined") {
-				return;
-			}
-
 			const path: GlyphPath = {
 				commands: [{ type: "M", x: 10, y: 20 }],
 				bounds: null,
 			};
 
-			const { createPath2D } = require("../../src/render/path.ts");
-			const path2d = createPath2D(path, { scale: 2, offsetX: 5 });
+			const originalPath2D = globalThis.Path2D;
+			if (typeof originalPath2D === "undefined") {
+				globalThis.Path2D = class Path2D {
+					moveTo() {}
+					lineTo() {}
+					quadraticCurveTo() {}
+					bezierCurveTo() {}
+					closePath() {}
+				} as any;
+			}
 
-			expect(path2d).toBeInstanceOf(Path2D);
+			try {
+				const { createPath2D } = require("../../src/render/path.ts");
+				const path2d = createPath2D(path, { scale: 2, offsetX: 5 });
+				expect(path2d).toBeDefined();
+			} finally {
+				if (typeof originalPath2D === "undefined") {
+					delete (globalThis as any).Path2D;
+				}
+			}
 		});
 	});
 
@@ -861,6 +1072,55 @@ describe("render/path", () => {
 			});
 
 			expect(fillCount).toBeGreaterThan(0);
+		});
+
+		test("applies stroke with lineCap and lineJoin options in variation", () => {
+			const glyphIdA = font.glyphId("A".codePointAt(0)!);
+			if (!glyphIdA) return;
+
+			const glyphs: ShapedGlyph[] = [
+				{
+					glyphId: glyphIdA,
+					xOffset: 0,
+					yOffset: 0,
+					xAdvance: 600,
+					yAdvance: 0,
+				},
+			];
+
+			let strokeCount = 0;
+			const mockCtx = {
+				fillStyle: "",
+				strokeStyle: "",
+				lineWidth: 1,
+				lineCap: "butt" as CanvasLineCap,
+				lineJoin: "miter" as CanvasLineJoin,
+				beginPath: () => {},
+				moveTo: () => {},
+				lineTo: () => {},
+				quadraticCurveTo: () => {},
+				bezierCurveTo: () => {},
+				closePath: () => {},
+				fill: () => {},
+				stroke: () => {
+					strokeCount++;
+				},
+			};
+
+			const { renderShapedTextWithVariation } =
+				require("../../src/render/path.ts");
+			renderShapedTextWithVariation(mockCtx, font, glyphs, [], {
+				fontSize: 16,
+				stroke: "green",
+				strokeWidth: 3,
+				lineCap: "square",
+				lineJoin: "round",
+			});
+
+			expect(mockCtx.strokeStyle).toBe("green");
+			expect(mockCtx.lineCap).toBe("square");
+			expect(mockCtx.lineJoin).toBe("round");
+			expect(strokeCount).toBeGreaterThan(0);
 		});
 	});
 
@@ -2033,6 +2293,63 @@ describe("render/path", () => {
 			});
 
 			expect(result).toContain('transform="matrix(');
+		});
+	});
+
+	describe("pathToSVGDirect", () => {
+		const { pathToSVGDirect } = require("../../src/render/path.ts");
+
+		test("handles cubic bezier curves", () => {
+			const path: GlyphPath = {
+				commands: [
+					{ type: "M", x: 0, y: 0 },
+					{ type: "C", x1: 25, y1: 50, x2: 75, y2: 50, x: 100, y: 0 },
+					{ type: "Z" },
+				],
+				bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 50 },
+			};
+			const result = pathToSVGDirect(path, 1, 0, 0);
+			expect(result).toContain("C ");
+			expect(result).toContain("25");
+			expect(result).toContain("-50"); // y is flipped
+			expect(result).toContain("75");
+		});
+
+		test("handles all command types with scale and offset", () => {
+			const path: GlyphPath = {
+				commands: [
+					{ type: "M", x: 10, y: 20 },
+					{ type: "L", x: 30, y: 40 },
+					{ type: "Q", x1: 50, y1: 60, x: 70, y: 80 },
+					{ type: "C", x1: 90, y1: 100, x2: 110, y2: 120, x: 130, y: 140 },
+					{ type: "Z" },
+				],
+				bounds: null,
+			};
+			const result = pathToSVGDirect(path, 2, 5, 10);
+			// Check that M command is scaled and offset
+			expect(result).toContain("M ");
+			expect(result).toMatch(/M \d+ -?\d+/);
+			// Check that C command exists (cubic curve case - lines 1263-1276)
+			expect(result).toContain("C ");
+		});
+
+		test("cubic curve with specific values", () => {
+			const path: GlyphPath = {
+				commands: [
+					{ type: "C", x1: 10, y1: 20, x2: 30, y2: 40, x: 50, y: 60 },
+				],
+				bounds: null,
+			};
+			const result = pathToSVGDirect(path, 2, 100, 200);
+			// Scale = 2, offsetX = 100, offsetY = 200
+			// x1 = 10 * 2 + 100 = 120
+			// y1 = 20 * -2 + 200 = 160
+			// x2 = 30 * 2 + 100 = 160
+			// y2 = 40 * -2 + 200 = 120
+			// x = 50 * 2 + 100 = 200
+			// y = 60 * -2 + 200 = 80
+			expect(result).toBe("C 120 160 160 120 200 80");
 		});
 	});
 

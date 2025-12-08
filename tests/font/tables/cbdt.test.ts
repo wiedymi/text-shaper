@@ -901,4 +901,647 @@ describe("cbdt/cblc tables", () => {
 			expect(typeof cbdt.minorVersion).toBe("number");
 		});
 	});
+
+	describe("parseGlyphData - image formats", () => {
+		function createGlyphDataWithFormat(format: number): Uint8Array {
+			let data: number[] = [];
+
+			switch (format) {
+				case 1: // SmallMetrics
+					data = [
+						20, // height
+						20, // width
+						0, // bearingX
+						20, // bearingY
+						20, // advance
+						// Followed by image data
+						...Array.from({ length: 20 }, (_, i) => i),
+					];
+					break;
+				case 2: // BigMetrics
+					data = [
+						20, // height
+						20, // width
+						0, // bearingX
+						20, // bearingY
+						20, // horiAdvance
+						0, // vertBearingX
+						20, // vertBearingY
+						20, // vertAdvance
+						// Followed by image data
+						...Array.from({ length: 20 }, (_, i) => i),
+					];
+					break;
+				case 17: // SmallMetricsPng
+					data = [
+						20, // height
+						20, // width
+						0, // bearingX
+						20, // bearingY
+						20, // advance
+						// PNG header signature
+						0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+						...Array.from({ length: 12 }, (_, i) => i),
+					];
+					break;
+				case 18: // BigMetricsPng
+					data = [
+						20, // height
+						20, // width
+						0, // bearingX
+						20, // bearingY
+						20, // horiAdvance
+						0, // vertBearingX
+						20, // vertBearingY
+						20, // vertAdvance
+						// PNG header signature
+						0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+						...Array.from({ length: 12 }, (_, i) => i),
+					];
+					break;
+				case 19: // CompressedPng (metrics in CBLC)
+					// PNG header signature
+					data = [
+						0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+						...Array.from({ length: 20 }, (_, i) => i),
+					];
+					break;
+			}
+
+			return new Uint8Array(data);
+		}
+
+		function createCombinedTableData(
+			format: number,
+			glyphId: number,
+		): { cblc: CblcTable; cbdt: CbdtTable } {
+			// Create CBLC
+			const cblcBuffer = new ArrayBuffer(1024);
+			const cblcView = new DataView(cblcBuffer);
+			let cblcOffset = 0;
+
+			// CBLC header
+			cblcView.setUint16(cblcOffset, 3, false); // majorVersion
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 0, false); // minorVersion
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 1, false); // numSizes
+			cblcOffset += 4;
+
+			const indexSubTableArrayOffset = 8 + 48; // After header + BitmapSize
+
+			// BitmapSize record
+			cblcView.setUint32(cblcOffset, indexSubTableArrayOffset, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 100, false); // indexTablesSize
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 1, false); // numberOfIndexSubTables
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 0, false); // colorRef
+			cblcOffset += 4;
+
+			// SbitLineMetrics (hori + vert) - 24 bytes
+			for (let i = 0; i < 24; i++) {
+				cblcView.setInt8(cblcOffset++, 0);
+			}
+
+			cblcView.setUint16(cblcOffset, glyphId, false); // startGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, glyphId, false); // endGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint8(cblcOffset++, 32); // ppemX
+			cblcView.setUint8(cblcOffset++, 32); // ppemY
+			cblcView.setUint8(cblcOffset++, 32); // bitDepth
+			cblcView.setInt8(cblcOffset++, 1); // flags
+
+			// IndexSubTableArray
+			cblcView.setUint16(cblcOffset, glyphId, false); // firstGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, glyphId, false); // lastGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 8, false); // additionalOffsetToIndexSubtable
+			cblcOffset += 4;
+
+			// IndexSubTable header
+			cblcView.setUint16(cblcOffset, 1, false); // indexFormat
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, format, false); // imageFormat
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 4, false); // imageDataOffset (4 bytes for CBDT header)
+			cblcOffset += 4;
+
+			// Format 1 offsets
+			cblcView.setUint32(cblcOffset, 0, false); // offset for glyph
+			cblcOffset += 4;
+			const glyphData = createGlyphDataWithFormat(format);
+			cblcView.setUint32(cblcOffset, glyphData.length, false); // sentinel offset
+			cblcOffset += 4;
+
+			const cblc = parseCblc(new Reader(cblcBuffer.slice(0, cblcOffset)));
+
+			// Create CBDT
+			const cbdtBuffer = new ArrayBuffer(1024);
+			const cbdtView = new DataView(cbdtBuffer);
+			let cbdtOffset = 0;
+
+			// CBDT header
+			cbdtView.setUint16(cbdtOffset, 3, false); // majorVersion
+			cbdtOffset += 2;
+			cbdtView.setUint16(cbdtOffset, 0, false); // minorVersion
+			cbdtOffset += 2;
+
+			// Copy glyph data
+			const glyphDataArray = createGlyphDataWithFormat(format);
+			for (let i = 0; i < glyphDataArray.length; i++) {
+				cbdtView.setUint8(cbdtOffset++, glyphDataArray[i]!);
+			}
+
+			const cbdt = parseCbdt(new Reader(cbdtBuffer.slice(0, cbdtOffset)));
+
+			return { cblc, cbdt };
+		}
+
+		test("parses format 1 (SmallMetrics)", () => {
+			const { cblc, cbdt } = createCombinedTableData(1, 100);
+			const glyph = getBitmapGlyph(cblc, cbdt, 100, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.imageFormat).toBe(1);
+			expect(glyph?.metrics.height).toBe(20);
+			expect(glyph?.metrics.width).toBe(20);
+			expect(glyph?.metrics.bearingY).toBe(20);
+			expect(glyph?.metrics.advance).toBe(20);
+			expect(glyph?.data.length).toBeGreaterThan(0);
+		});
+
+		test("parses format 2 (BigMetrics)", () => {
+			const { cblc, cbdt } = createCombinedTableData(2, 101);
+			const glyph = getBitmapGlyph(cblc, cbdt, 101, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.imageFormat).toBe(2);
+			expect(glyph?.metrics.height).toBe(20);
+			expect(glyph?.metrics.width).toBe(20);
+			expect(glyph?.metrics.bearingY).toBe(20);
+			expect(glyph?.metrics.advance).toBe(20);
+			expect(glyph?.data.length).toBeGreaterThan(0);
+		});
+
+		test("parses format 17 (SmallMetricsPng)", () => {
+			const { cblc, cbdt } = createCombinedTableData(17, 102);
+			const glyph = getBitmapGlyph(cblc, cbdt, 102, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.imageFormat).toBe(17);
+			expect(glyph?.metrics.height).toBe(20);
+			expect(glyph?.metrics.width).toBe(20);
+			expect(glyph?.data.length).toBeGreaterThan(0);
+			// Should start with PNG signature
+			expect(glyph?.data[0]).toBe(0x89);
+			expect(glyph?.data[1]).toBe(0x50);
+		});
+
+		test("parses format 18 (BigMetricsPng)", () => {
+			const { cblc, cbdt } = createCombinedTableData(18, 103);
+			const glyph = getBitmapGlyph(cblc, cbdt, 103, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.imageFormat).toBe(18);
+			expect(glyph?.metrics.height).toBe(20);
+			expect(glyph?.metrics.width).toBe(20);
+			expect(glyph?.data.length).toBeGreaterThan(0);
+			// Should start with PNG signature
+			expect(glyph?.data[0]).toBe(0x89);
+			expect(glyph?.data[1]).toBe(0x50);
+		});
+
+		test("parses format 19 (CompressedPng)", () => {
+			const { cblc, cbdt } = createCombinedTableData(19, 104);
+			const glyph = getBitmapGlyph(cblc, cbdt, 104, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.imageFormat).toBe(19);
+			// Metrics should be zero (from CBLC)
+			expect(glyph?.metrics.height).toBe(0);
+			expect(glyph?.metrics.width).toBe(0);
+			expect(glyph?.data.length).toBeGreaterThan(0);
+			// Should start with PNG signature
+			expect(glyph?.data[0]).toBe(0x89);
+			expect(glyph?.data[1]).toBe(0x50);
+		});
+
+		test("returns null for unsupported format", () => {
+			const { cblc, cbdt } = createCombinedTableData(99, 105);
+			const glyph = getBitmapGlyph(cblc, cbdt, 105, 32);
+
+			expect(glyph).toBeNull();
+		});
+
+		test("returns null for empty glyph data", () => {
+			// Create a minimal CBLC/CBDT with no actual glyph data
+			const cblcBuffer = new ArrayBuffer(256);
+			const cblcView = new DataView(cblcBuffer);
+			let offset = 0;
+
+			cblcView.setUint16(offset, 3, false);
+			offset += 2;
+			cblcView.setUint16(offset, 0, false);
+			offset += 2;
+			cblcView.setUint32(offset, 1, false);
+			offset += 4;
+
+			const indexOffset = 8 + 48;
+			cblcView.setUint32(offset, indexOffset, false);
+			offset += 4;
+			cblcView.setUint32(offset, 100, false);
+			offset += 4;
+			cblcView.setUint32(offset, 1, false);
+			offset += 4;
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+
+			for (let i = 0; i < 24; i++) {
+				cblcView.setInt8(offset++, 0);
+			}
+
+			cblcView.setUint16(offset, 200, false);
+			offset += 2;
+			cblcView.setUint16(offset, 200, false);
+			offset += 2;
+			cblcView.setUint8(offset++, 32);
+			cblcView.setUint8(offset++, 32);
+			cblcView.setUint8(offset++, 32);
+			cblcView.setInt8(offset++, 1);
+
+			cblcView.setUint16(offset, 200, false);
+			offset += 2;
+			cblcView.setUint16(offset, 200, false);
+			offset += 2;
+			cblcView.setUint32(offset, 8, false);
+			offset += 4;
+
+			cblcView.setUint16(offset, 1, false);
+			offset += 2;
+			cblcView.setUint16(offset, 17, false);
+			offset += 2;
+			cblcView.setUint32(offset, 4, false);
+			offset += 4;
+
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+
+			const cblc = parseCblc(new Reader(cblcBuffer));
+
+			const cbdtBuffer = new ArrayBuffer(4);
+			const cbdtView = new DataView(cbdtBuffer);
+			cbdtView.setUint16(0, 3, false);
+			cbdtView.setUint16(2, 0, false);
+
+			const cbdt = parseCbdt(new Reader(cbdtBuffer));
+
+			const glyph = getBitmapGlyph(cblc, cbdt, 200, 32);
+			expect(glyph).toBeNull();
+		});
+
+		test("returns null for truncated small metrics data", () => {
+			// Create CBDT with incomplete small metrics (< 5 bytes)
+			const cblcBuffer = new ArrayBuffer(256);
+			const cblcView = new DataView(cblcBuffer);
+			let offset = 0;
+
+			cblcView.setUint16(offset, 3, false);
+			offset += 2;
+			cblcView.setUint16(offset, 0, false);
+			offset += 2;
+			cblcView.setUint32(offset, 1, false);
+			offset += 4;
+
+			const indexOffset = 8 + 48;
+			cblcView.setUint32(offset, indexOffset, false);
+			offset += 4;
+			cblcView.setUint32(offset, 100, false);
+			offset += 4;
+			cblcView.setUint32(offset, 1, false);
+			offset += 4;
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+
+			for (let i = 0; i < 24; i++) {
+				cblcView.setInt8(offset++, 0);
+			}
+
+			cblcView.setUint16(offset, 210, false);
+			offset += 2;
+			cblcView.setUint16(offset, 210, false);
+			offset += 2;
+			cblcView.setUint8(offset++, 32);
+			cblcView.setUint8(offset++, 32);
+			cblcView.setUint8(offset++, 32);
+			cblcView.setInt8(offset++, 1);
+
+			cblcView.setUint16(offset, 210, false);
+			offset += 2;
+			cblcView.setUint16(offset, 210, false);
+			offset += 2;
+			cblcView.setUint32(offset, 8, false);
+			offset += 4;
+
+			cblcView.setUint16(offset, 1, false);
+			offset += 2;
+			cblcView.setUint16(offset, 1, false); // format 1
+			offset += 2;
+			cblcView.setUint32(offset, 4, false);
+			offset += 4;
+
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+			cblcView.setUint32(offset, 3, false); // Only 3 bytes available
+			offset += 4;
+
+			const cblc = parseCblc(new Reader(cblcBuffer));
+
+			// CBDT with only 3 bytes of data (< 5 needed for small metrics)
+			const cbdtBuffer = new ArrayBuffer(7);
+			const cbdtView = new DataView(cbdtBuffer);
+			cbdtView.setUint16(0, 3, false);
+			cbdtView.setUint16(2, 0, false);
+			cbdtView.setUint8(4, 1);
+			cbdtView.setUint8(5, 2);
+			cbdtView.setUint8(6, 3);
+
+			const cbdt = parseCbdt(new Reader(cbdtBuffer));
+
+			const glyph = getBitmapGlyph(cblc, cbdt, 210, 32);
+			expect(glyph).toBeNull();
+		});
+
+		test("returns null for truncated big metrics data", () => {
+			// Create CBDT with incomplete big metrics (< 8 bytes)
+			const cblcBuffer = new ArrayBuffer(256);
+			const cblcView = new DataView(cblcBuffer);
+			let offset = 0;
+
+			cblcView.setUint16(offset, 3, false);
+			offset += 2;
+			cblcView.setUint16(offset, 0, false);
+			offset += 2;
+			cblcView.setUint32(offset, 1, false);
+			offset += 4;
+
+			const indexOffset = 8 + 48;
+			cblcView.setUint32(offset, indexOffset, false);
+			offset += 4;
+			cblcView.setUint32(offset, 100, false);
+			offset += 4;
+			cblcView.setUint32(offset, 1, false);
+			offset += 4;
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+
+			for (let i = 0; i < 24; i++) {
+				cblcView.setInt8(offset++, 0);
+			}
+
+			cblcView.setUint16(offset, 220, false);
+			offset += 2;
+			cblcView.setUint16(offset, 220, false);
+			offset += 2;
+			cblcView.setUint8(offset++, 32);
+			cblcView.setUint8(offset++, 32);
+			cblcView.setUint8(offset++, 32);
+			cblcView.setInt8(offset++, 1);
+
+			cblcView.setUint16(offset, 220, false);
+			offset += 2;
+			cblcView.setUint16(offset, 220, false);
+			offset += 2;
+			cblcView.setUint32(offset, 8, false);
+			offset += 4;
+
+			cblcView.setUint16(offset, 1, false);
+			offset += 2;
+			cblcView.setUint16(offset, 2, false); // format 2 (big metrics)
+			offset += 2;
+			cblcView.setUint32(offset, 4, false);
+			offset += 4;
+
+			cblcView.setUint32(offset, 0, false);
+			offset += 4;
+			cblcView.setUint32(offset, 6, false); // Only 6 bytes available
+			offset += 4;
+
+			const cblc = parseCblc(new Reader(cblcBuffer));
+
+			// CBDT with only 6 bytes of data (< 8 needed for big metrics)
+			const cbdtBuffer = new ArrayBuffer(10);
+			const cbdtView = new DataView(cbdtBuffer);
+			cbdtView.setUint16(0, 3, false);
+			cbdtView.setUint16(2, 0, false);
+			for (let i = 0; i < 6; i++) {
+				cbdtView.setUint8(4 + i, i);
+			}
+
+			const cbdt = parseCbdt(new Reader(cbdtBuffer));
+
+			const glyph = getBitmapGlyph(cblc, cbdt, 220, 32);
+			expect(glyph).toBeNull();
+		});
+
+		test("handles negative bearing values correctly (small metrics)", () => {
+			// Create CBLC/CBDT with negative bearing values
+			const cblcBuffer = new ArrayBuffer(1024);
+			const cblcView = new DataView(cblcBuffer);
+			let cblcOffset = 0;
+
+			// CBLC header
+			cblcView.setUint16(cblcOffset, 3, false);
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 0, false);
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 1, false);
+			cblcOffset += 4;
+
+			const indexSubTableArrayOffset = 8 + 48;
+
+			// BitmapSize record
+			cblcView.setUint32(cblcOffset, indexSubTableArrayOffset, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 100, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 1, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 0, false);
+			cblcOffset += 4;
+
+			// SbitLineMetrics (hori + vert) - 24 bytes
+			for (let i = 0; i < 24; i++) {
+				cblcView.setInt8(cblcOffset++, 0);
+			}
+
+			cblcView.setUint16(cblcOffset, 250, false); // startGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 250, false); // endGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint8(cblcOffset++, 32); // ppemX
+			cblcView.setUint8(cblcOffset++, 32); // ppemY
+			cblcView.setUint8(cblcOffset++, 32); // bitDepth
+			cblcView.setInt8(cblcOffset++, 1); // flags
+
+			// IndexSubTableArray
+			cblcView.setUint16(cblcOffset, 250, false); // firstGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 250, false); // lastGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 8, false); // additionalOffsetToIndexSubtable
+			cblcOffset += 4;
+
+			// IndexSubTable header
+			cblcView.setUint16(cblcOffset, 1, false); // indexFormat
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 1, false); // imageFormat (small metrics)
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 4, false); // imageDataOffset
+			cblcOffset += 4;
+
+			// Format 1 offsets
+			cblcView.setUint32(cblcOffset, 0, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 30, false); // length
+			cblcOffset += 4;
+
+			const cblc = parseCblc(new Reader(cblcBuffer.slice(0, cblcOffset)));
+
+			// Create CBDT with negative bearing values
+			const cbdtBuffer = new ArrayBuffer(1024);
+			const cbdtView = new DataView(cbdtBuffer);
+			let cbdtOffset = 0;
+
+			// CBDT header
+			cbdtView.setUint16(cbdtOffset, 3, false);
+			cbdtOffset += 2;
+			cbdtView.setUint16(cbdtOffset, 0, false);
+			cbdtOffset += 2;
+
+			// Small metrics with negative bearings
+			cbdtView.setUint8(cbdtOffset++, 20); // height
+			cbdtView.setUint8(cbdtOffset++, 20); // width
+			cbdtView.setUint8(cbdtOffset++, 250); // bearingX (-6 as signed int8)
+			cbdtView.setUint8(cbdtOffset++, 245); // bearingY (-11 as signed int8)
+			cbdtView.setUint8(cbdtOffset++, 20); // advance
+
+			// Image data
+			for (let i = 0; i < 20; i++) {
+				cbdtView.setUint8(cbdtOffset++, i);
+			}
+
+			const cbdt = parseCbdt(new Reader(cbdtBuffer.slice(0, cbdtOffset)));
+
+			const glyph = getBitmapGlyph(cblc, cbdt, 250, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.metrics.bearingX).toBe(-6);
+			expect(glyph?.metrics.bearingY).toBe(-11);
+		});
+
+		test("handles negative bearing values correctly (big metrics)", () => {
+			// Create CBLC/CBDT with negative bearing values using big metrics
+			const cblcBuffer = new ArrayBuffer(1024);
+			const cblcView = new DataView(cblcBuffer);
+			let cblcOffset = 0;
+
+			// CBLC header
+			cblcView.setUint16(cblcOffset, 3, false);
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 0, false);
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 1, false);
+			cblcOffset += 4;
+
+			const indexSubTableArrayOffset = 8 + 48;
+
+			// BitmapSize record
+			cblcView.setUint32(cblcOffset, indexSubTableArrayOffset, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 100, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 1, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 0, false);
+			cblcOffset += 4;
+
+			// SbitLineMetrics (hori + vert) - 24 bytes
+			for (let i = 0; i < 24; i++) {
+				cblcView.setInt8(cblcOffset++, 0);
+			}
+
+			cblcView.setUint16(cblcOffset, 260, false); // startGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 260, false); // endGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint8(cblcOffset++, 32); // ppemX
+			cblcView.setUint8(cblcOffset++, 32); // ppemY
+			cblcView.setUint8(cblcOffset++, 32); // bitDepth
+			cblcView.setInt8(cblcOffset++, 1); // flags
+
+			// IndexSubTableArray
+			cblcView.setUint16(cblcOffset, 260, false); // firstGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 260, false); // lastGlyphIndex
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 8, false); // additionalOffsetToIndexSubtable
+			cblcOffset += 4;
+
+			// IndexSubTable header
+			cblcView.setUint16(cblcOffset, 1, false); // indexFormat
+			cblcOffset += 2;
+			cblcView.setUint16(cblcOffset, 2, false); // imageFormat (big metrics)
+			cblcOffset += 2;
+			cblcView.setUint32(cblcOffset, 4, false); // imageDataOffset
+			cblcOffset += 4;
+
+			// Format 1 offsets
+			cblcView.setUint32(cblcOffset, 0, false);
+			cblcOffset += 4;
+			cblcView.setUint32(cblcOffset, 35, false); // length (8 bytes metrics + data)
+			cblcOffset += 4;
+
+			const cblc = parseCblc(new Reader(cblcBuffer.slice(0, cblcOffset)));
+
+			// Create CBDT with negative bearing values using big metrics
+			const cbdtBuffer = new ArrayBuffer(1024);
+			const cbdtView = new DataView(cbdtBuffer);
+			let cbdtOffset = 0;
+
+			// CBDT header
+			cbdtView.setUint16(cbdtOffset, 3, false);
+			cbdtOffset += 2;
+			cbdtView.setUint16(cbdtOffset, 0, false);
+			cbdtOffset += 2;
+
+			// Big metrics with negative bearings
+			cbdtView.setUint8(cbdtOffset++, 20); // height
+			cbdtView.setUint8(cbdtOffset++, 20); // width
+			cbdtView.setUint8(cbdtOffset++, 248); // horiBearingX (-8 as signed int8)
+			cbdtView.setUint8(cbdtOffset++, 240); // horiBearingY (-16 as signed int8)
+			cbdtView.setUint8(cbdtOffset++, 20); // horiAdvance
+			cbdtView.setUint8(cbdtOffset++, 252); // vertBearingX (-4 as signed int8)
+			cbdtView.setUint8(cbdtOffset++, 235); // vertBearingY (-21 as signed int8)
+			cbdtView.setUint8(cbdtOffset++, 20); // vertAdvance
+
+			// Image data
+			for (let i = 0; i < 20; i++) {
+				cbdtView.setUint8(cbdtOffset++, i);
+			}
+
+			const cbdt = parseCbdt(new Reader(cbdtBuffer.slice(0, cbdtOffset)));
+
+			const glyph = getBitmapGlyph(cblc, cbdt, 260, 32);
+
+			expect(glyph).not.toBeNull();
+			expect(glyph?.metrics.bearingX).toBe(-8);
+			expect(glyph?.metrics.bearingY).toBe(-16);
+		});
+	});
 });

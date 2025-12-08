@@ -731,7 +731,7 @@ function extractEdges(
 /**
  * Compute signed distance from point to edge
  */
-function _signedDistanceToEdge(
+export function signedDistanceToEdge(
 	px: number,
 	py: number,
 	edge: MsdfEdge,
@@ -874,7 +874,7 @@ function findMinDistance(px: number, py: number, edges: MsdfEdge[]): number {
 /**
  * Determine if a point is inside using ray casting (even-odd rule)
  */
-function _isPointInside(
+export function isPointInside(
 	px: number,
 	py: number,
 	contours: MsdfEdge[][],
@@ -911,7 +911,7 @@ function _isPointInside(
 /**
  * Flatten an edge to points for inside testing
  */
-function flattenEdge(edge: MsdfEdge): Point[] {
+export function flattenEdge(edge: MsdfEdge): Point[] {
 	switch (edge.type) {
 		case "line":
 			return [edge.p0, edge.p1];

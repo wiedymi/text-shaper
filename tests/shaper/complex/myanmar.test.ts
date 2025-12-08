@@ -124,11 +124,15 @@ describe("myanmar shaper", () => {
 			expect(getMyanmarCategory(0xaa60)).toBe(MyanmarCategory.Consonant);
 			expect(getMyanmarCategory(0xaa76)).toBe(MyanmarCategory.Consonant);
 			expect(getMyanmarCategory(0xaa7a)).toBe(MyanmarCategory.Consonant);
+			expect(getMyanmarCategory(0xaa7e)).toBe(MyanmarCategory.Consonant);
+			expect(getMyanmarCategory(0xaa7f)).toBe(MyanmarCategory.Consonant);
 		});
 
 		test("detects Extended-A signs", () => {
 			expect(getMyanmarCategory(0xaa77)).toBe(MyanmarCategory.Sign);
 			expect(getMyanmarCategory(0xaa7b)).toBe(MyanmarCategory.Sign);
+			expect(getMyanmarCategory(0xaa7c)).toBe(MyanmarCategory.Sign);
+			expect(getMyanmarCategory(0xaa7d)).toBe(MyanmarCategory.Sign);
 		});
 	});
 
@@ -136,6 +140,9 @@ describe("myanmar shaper", () => {
 		test("detects Extended-B consonants", () => {
 			expect(getMyanmarCategory(0xa9e0)).toBe(MyanmarCategory.Consonant);
 			expect(getMyanmarCategory(0xa9ef)).toBe(MyanmarCategory.Consonant);
+			expect(getMyanmarCategory(0xa9fa)).toBe(MyanmarCategory.Consonant);
+			expect(getMyanmarCategory(0xa9fb)).toBe(MyanmarCategory.Consonant);
+			expect(getMyanmarCategory(0xa9fe)).toBe(MyanmarCategory.Consonant);
 		});
 
 		test("detects Extended-B vowels", () => {
@@ -286,6 +293,155 @@ describe("myanmar shaper", () => {
 			setupMyanmarMasks(infos);
 			expect(infos[1]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
 		});
+
+		test("handles null entries in array", () => {
+			const infos: (GlyphInfo | undefined)[] = [
+				undefined,
+				makeInfo(0x1000),
+				undefined,
+				makeInfo(0x102d),
+			];
+			setupMyanmarMasks(infos as GlyphInfo[]);
+			expect(infos[1]!.mask).toBe(0);
+			expect(infos[3]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+		});
+
+		test("handles null entries during syllable processing", () => {
+			const infos: (GlyphInfo | undefined)[] = [
+				makeInfo(0x1000), // က
+				undefined,
+				makeInfo(0x102d), // ိ
+			];
+			setupMyanmarMasks(infos as GlyphInfo[]);
+			expect(infos[0]!.mask).toBe(0);
+			expect(infos[2]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+		});
+
+		test("continues after asat + consonant pair", () => {
+			const infos = [
+				makeInfo(0x1000), // က
+				makeInfo(0x1039), // ္
+				makeInfo(0x1001), // ခ (stacked)
+				makeInfo(0x102d), // ိ (vowel after stack)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[2]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[3]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+		});
+
+		test("breaks syllable at consonant without asat", () => {
+			const infos = [
+				makeInfo(0x1000), // က
+				makeInfo(0x102d), // ိ
+				makeInfo(0x1001), // ခ (new syllable)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+			expect(infos[2]!.mask).toBe(0);
+		});
+
+		test("handles consonant after asat in syllable boundary check", () => {
+			const infos = [
+				makeInfo(0x1000), // က
+				makeInfo(0x1039), // ္
+				makeInfo(0x1001), // ခ (stacked)
+				makeInfo(0x1002), // ဂ (new syllable starts)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[2]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[3]!.mask).toBe(0);
+		});
+
+		test("handles asat not followed by consonant", () => {
+			const infos = [
+				makeInfo(0x1000), // က
+				makeInfo(0x1039), // ္
+				makeInfo(0x102d), // ိ (vowel, not consonant)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[2]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+		});
+
+		test("handles syllable boundary with no previous info when j > 0", () => {
+			const infos: (GlyphInfo | undefined)[] = [
+				makeInfo(0x1000), // က
+				undefined,
+				makeInfo(0x1001), // ခ (potential new syllable)
+			];
+			setupMyanmarMasks(infos as GlyphInfo[]);
+			expect(infos[0]!.mask).toBe(0);
+			expect(infos[2]!.mask).toBe(0);
+		});
+
+		test("allows consonant continuation when previous is asat", () => {
+			const infos = [
+				makeInfo(0x1000), // က
+				makeInfo(0x1039), // ္
+				makeInfo(0x1001), // ခ
+				makeInfo(0x102d), // ိ (should still be in same syllable)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[2]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[3]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+		});
+
+		test("breaks syllable on consonant when previous is not asat and hasAsat is false", () => {
+			const infos = [
+				makeInfo(0x1000), // က consonant
+				makeInfo(0x102b), // ါ post-base vowel (not medial, not asat)
+				makeInfo(0x1001), // ခ consonant (should start new syllable)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[0]!.mask).toBe(0);
+			expect(infos[1]!.mask & MyanmarFeatureMask.psts).toBe(MyanmarFeatureMask.psts);
+			expect(infos[2]!.mask).toBe(0);
+		});
+
+		test("breaks syllable when processing non-consonant followed by consonant", () => {
+			const infos = [
+				makeInfo(0x1023), // ဣ (independent vowel)
+				makeInfo(0x1000), // က (consonant - should start new syllable)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[0]!.mask).toBe(0);
+			expect(infos[1]!.mask).toBe(0);
+		});
+
+		test("explicitly triggers syllable break at line 254", () => {
+			const infos = [
+				makeInfo(0x1000), // က base consonant
+				makeInfo(0x1036), // ံ anusvara (sign above)
+				makeInfo(0x1001), // ခ new consonant -> should break
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.abvs).toBe(MyanmarFeatureMask.abvs);
+			expect(infos[2]!.mask).toBe(0);
+		});
+
+		test("does not break syllable when previous is asat", () => {
+			const infos = [
+				makeInfo(0x1000), // က base consonant
+				makeInfo(0x1039), // ္ asat
+				makeInfo(0x1001), // ခ consonant after asat
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[1]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+			expect(infos[2]!.mask & MyanmarFeatureMask.blwf).toBe(MyanmarFeatureMask.blwf);
+		});
+
+		test("handles asat as starting character followed by consonant", () => {
+			const infos = [
+				makeInfo(0x1039), // ္ asat (unusual but valid Myanmar)
+				makeInfo(0x1000), // က consonant (should not break because prev is asat)
+			];
+			setupMyanmarMasks(infos);
+			expect(infos[0]!.mask).toBe(0);
+			expect(infos[1]!.mask).toBe(0);
+		});
 	});
 
 	describe("reorderMyanmar", () => {
@@ -355,6 +511,28 @@ describe("myanmar shaper", () => {
 			reorderMyanmar(infos);
 			expect(infos[0]!.codepoint).toBe(0x1000); // Consonant stays first
 			expect(infos[1]!.codepoint).toBe(0x103b); // Medial stays after
+		});
+
+		test("handles null entries in array", () => {
+			const infos: (GlyphInfo | undefined)[] = [
+				undefined,
+				makeInfo(0x1000),
+				makeInfo(0x1031),
+			];
+			reorderMyanmar(infos as GlyphInfo[]);
+			expect(infos[1]!.codepoint).toBe(0x1031);
+			expect(infos[2]!.codepoint).toBe(0x1000);
+		});
+
+		test("handles null entries during syllable collection", () => {
+			const infos: (GlyphInfo | undefined)[] = [
+				makeInfo(0x1000),
+				undefined,
+				makeInfo(0x1031),
+			];
+			reorderMyanmar(infos as GlyphInfo[]);
+			expect(infos[0]!.codepoint).toBe(0x1031);
+			expect(infos[1]!.codepoint).toBe(0x1000);
 		});
 	});
 

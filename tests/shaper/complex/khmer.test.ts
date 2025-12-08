@@ -152,6 +152,136 @@ describe("khmer shaper", () => {
 			expect(infos[0]!.mask).toBe(0);
 		});
 
+		test("handles null info at start of array", () => {
+			const infos: any[] = [
+				null,
+				makeInfo(0x1780),
+				makeInfo(0x17c1),
+			];
+			expect(() => setupKhmerMasks(infos)).not.toThrow();
+			expect(infos[2].mask & KhmerFeatureMask.pref).toBe(KhmerFeatureMask.pref);
+		});
+
+		test("handles null info in middle of array", () => {
+			const infos: any[] = [
+				makeInfo(0x1780),
+				null,
+				makeInfo(0x17c1),
+			];
+			expect(() => setupKhmerMasks(infos)).not.toThrow();
+			expect(infos[2].mask & KhmerFeatureMask.pref).toBe(KhmerFeatureMask.pref);
+		});
+
+		test("handles undefined nextInfo in syllable processing", () => {
+			const infos: any[] = [
+				makeInfo(0x1780),
+				null,
+				makeInfo(0x17b6),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[2].mask & KhmerFeatureMask.pstf).toBe(KhmerFeatureMask.pstf);
+		});
+
+		test("breaks syllable when consonant not preceded by coeng", () => {
+			const infos = [
+				makeInfo(0x1780),
+				makeInfo(0x17b6),
+				makeInfo(0x1781),
+				makeInfo(0x17b7),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[1]!.mask & KhmerFeatureMask.pstf).toBe(KhmerFeatureMask.pstf);
+			expect(infos[3]!.mask & KhmerFeatureMask.abvf).toBe(KhmerFeatureMask.abvf);
+		});
+
+		test("breaks syllable when consonant follows vowel instead of coeng", () => {
+			const infos = [
+				makeInfo(0x1780),
+				makeInfo(0x17b7),
+				makeInfo(0x1781),
+				makeInfo(0x17b6),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[1]!.mask & KhmerFeatureMask.abvf).toBe(KhmerFeatureMask.abvf);
+			expect(infos[3]!.mask & KhmerFeatureMask.pstf).toBe(KhmerFeatureMask.pstf);
+		});
+
+		test("breaks syllable when consonant not after coeng in compound", () => {
+			const infos = [
+				makeInfo(0x1780),
+				makeInfo(0x17b6),
+				makeInfo(0x17c9),
+				makeInfo(0x1781),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[1]!.mask & KhmerFeatureMask.pstf).toBe(KhmerFeatureMask.pstf);
+			expect(infos[2]!.mask & KhmerFeatureMask.abvs).toBe(KhmerFeatureMask.abvs);
+		});
+
+		test("starts new syllable when second consonant not preceded by coeng", () => {
+			const cons1 = makeInfo(0x1780);
+			const cons2 = makeInfo(0x1781);
+			const infos = [cons1, cons2];
+			setupKhmerMasks(infos);
+			expect(infos[0]!.mask).toBe(0);
+			expect(infos[1]!.mask).toBe(0);
+		});
+
+		test("handles consonant with null prevInfo", () => {
+			const infos: any[] = [
+				makeInfo(0x1780),
+				null,
+				makeInfo(0x1781),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[0].mask).toBe(0);
+			expect(infos[2].mask).toBe(0);
+		});
+
+		test("does not break when prevInfo is coeng", () => {
+			const infos = [
+				makeInfo(0x1780),
+				makeInfo(0x17d2),
+				makeInfo(0x1781),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[1].mask & KhmerFeatureMask.blwf).toBe(KhmerFeatureMask.blwf);
+			expect(infos[2].mask & KhmerFeatureMask.blwf).toBe(KhmerFeatureMask.blwf);
+		});
+
+		test("breaks syllable when encountering bare consonant", () => {
+			const infos = [
+				makeInfo(0x1780),
+				makeInfo(0x17b6),
+				makeInfo(0x17c9),
+				makeInfo(0x1781),
+				makeInfo(0x17b7),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[1].mask).toBeGreaterThan(0);
+			expect(infos[2].mask).toBeGreaterThan(0);
+			expect(infos[4].mask).toBeGreaterThan(0);
+		});
+
+		test("handles coeng without following consonant", () => {
+			const infos = [
+				makeInfo(0x1780),
+				makeInfo(0x17d2),
+			];
+			setupKhmerMasks(infos);
+			expect(infos[0]!.mask).toBe(0);
+		});
+
+		test("handles coeng at end of array", () => {
+			const infos: any[] = [
+				makeInfo(0x1780),
+				makeInfo(0x17d2),
+				null,
+			];
+			setupKhmerMasks(infos);
+			expect(infos[0].mask).toBe(0);
+		});
+
 		test("sets blwf mask for coeng + consonant", () => {
 			const infos = [
 				makeInfo(0x1780), // ក
@@ -264,6 +394,24 @@ describe("khmer shaper", () => {
 			const infos = [makeInfo(0x0041)];
 			reorderKhmer(infos);
 			expect(infos[0]!.codepoint).toBe(0x0041);
+		});
+
+		test("handles null info at start of array", () => {
+			const infos: any[] = [
+				null,
+				makeInfo(0x1780),
+				makeInfo(0x17c1),
+			];
+			expect(() => reorderKhmer(infos)).not.toThrow();
+		});
+
+		test("handles null info in middle of array", () => {
+			const infos: any[] = [
+				makeInfo(0x1780),
+				null,
+				makeInfo(0x17c1),
+			];
+			expect(() => reorderKhmer(infos)).not.toThrow();
 		});
 
 		test("moves pre-base vowel before base", () => {

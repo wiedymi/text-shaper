@@ -132,6 +132,10 @@ test("obliquePath - handles quadratic and cubic curves", () => {
 	expect(cubicCmd.y2).toBe(80);
 	expect(cubicCmd.x).toBeCloseTo(100 + 100 * slant);
 	expect(cubicCmd.y).toBe(100);
+
+	// Check that Z command is preserved
+	const zCmd = oblique.commands[4];
+	expect(zCmd?.type).toBe("Z");
 });
 
 test("obliquePath - zero slant returns identical path", () => {
@@ -264,6 +268,10 @@ test("condensePath - handles curves", () => {
 	expect(cubicCmd.y1).toBe(20); // y unchanged
 	expect(cubicCmd.x2).toBe(120 * factor);
 	expect(cubicCmd.y2).toBe(80); // y unchanged
+
+	// Check that Z command is preserved
+	const zCmd = condensed.commands[4];
+	expect(zCmd?.type).toBe("Z");
 });
 
 test("transformPath - applies identity matrix correctly", () => {
@@ -370,6 +378,10 @@ test("transformPath - handles curves", () => {
 	};
 	expect(cubicCmd.x1).toBe(120 * 0.5 + 10);
 	expect(cubicCmd.y1).toBe(20 * 0.5 + 20);
+
+	// Check that Z command is preserved
+	const zCmd = transformed.commands[4];
+	expect(zCmd?.type).toBe("Z");
 });
 
 test("composition of transforms - oblique then condense", () => {
@@ -424,4 +436,289 @@ test("emboldenPath - handles negative strength (thinning)", () => {
 		expect(thinned.bounds.xMin).toBeGreaterThan(path.bounds.xMin);
 		expect(thinned.bounds.xMax).toBeLessThan(path.bounds.xMax);
 	}
+});
+
+test("emboldenPath - handles quadratic curves", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "Q", x1: 50, y1: -20, x: 100, y: 0 },
+			{ type: "L", x: 100, y: 100 },
+			{ type: "L", x: 0, y: 100 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: -20, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should have commands and bounds
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
+});
+
+test("emboldenPath - handles cubic curves", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "C", x1: 20, y1: -10, x2: 80, y2: -10, x: 100, y: 0 },
+			{ type: "L", x: 100, y: 100 },
+			{ type: "L", x: 0, y: 100 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: -10, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should have commands and bounds
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
+});
+
+test("emboldenPath - handles multiple contours", () => {
+	const path: GlyphPath = {
+		commands: [
+			// First contour (outer)
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 100, y: 0 },
+			{ type: "L", x: 100, y: 100 },
+			{ type: "L", x: 0, y: 100 },
+			{ type: "Z" },
+			// Second contour (inner hole)
+			{ type: "M", x: 25, y: 25 },
+			{ type: "L", x: 75, y: 25 },
+			{ type: "L", x: 75, y: 75 },
+			{ type: "L", x: 25, y: 75 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should have commands and bounds
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
+});
+
+test("emboldenPath - handles path without closing Z", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 100, y: 0 },
+			{ type: "L", x: 50, y: 100 },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should still produce output even without Z command
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+});
+
+test("emboldenPath - handles degenerate edges (zero-length)", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 100, y: 0 },
+			{ type: "L", x: 100, y: 0 }, // Duplicate point (zero-length edge)
+			{ type: "L", x: 100, y: 100 },
+			{ type: "L", x: 0, y: 100 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle degenerate edges gracefully
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
+});
+
+test("emboldenPath - handles very small contours", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 1, y: 0 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 1, yMax: 0 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Small contours (< 3 points) should be skipped but still return valid structure
+	expect(emboldened.commands).toBeDefined();
+	expect(emboldened.bounds).toBeDefined();
+});
+
+test("emboldenPath - handles multiple contours without Z between them", () => {
+	const path: GlyphPath = {
+		commands: [
+			// First contour (no Z at end)
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 50, y: 0 },
+			{ type: "L", x: 50, y: 50 },
+			{ type: "L", x: 0, y: 50 },
+			// Second contour starts immediately with M
+			{ type: "M", x: 60, y: 60 },
+			{ type: "L", x: 100, y: 60 },
+			{ type: "L", x: 100, y: 100 },
+			{ type: "L", x: 60, y: 100 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle multiple contours even when they don't all have Z
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
+});
+
+test("emboldenPath - handles malformed path with Q without previous point", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "Z" },
+			// Q command without a current point (after Z cleared contour)
+			{ type: "Q", x1: 50, y1: 50, x: 100, y: 100 },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle malformed paths gracefully
+	expect(emboldened.commands).toBeDefined();
+});
+
+test("emboldenPath - handles malformed path with C without previous point", () => {
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "Z" },
+			// C command without a current point (after Z cleared contour)
+			{ type: "C", x1: 30, y1: 30, x2: 70, y2: 70, x: 100, y: 100 },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle malformed paths gracefully
+	expect(emboldened.commands).toBeDefined();
+});
+
+test("obliquePath - handles empty path", () => {
+	const path: GlyphPath = {
+		commands: [],
+		bounds: null,
+	};
+
+	const oblique = obliquePath(path, 0.2);
+
+	// Should handle empty paths gracefully
+	expect(oblique.commands).toEqual([]);
+	expect(oblique.bounds).toBeNull();
+});
+
+test("transformPath - handles empty path", () => {
+	const path: GlyphPath = {
+		commands: [],
+		bounds: null,
+	};
+
+	const transformed = transformPath(path, [1, 0, 0, 1, 0, 0]);
+
+	// Should handle empty paths gracefully
+	expect(transformed.commands).toEqual([]);
+	expect(transformed.bounds).toBeNull();
+});
+
+test("condensePath - handles empty path", () => {
+	const path: GlyphPath = {
+		commands: [],
+		bounds: null,
+	};
+
+	const condensed = condensePath(path, 0.5);
+
+	// Should handle empty paths gracefully
+	expect(condensed.commands).toEqual([]);
+	expect(condensed.bounds).toBeNull();
+});
+
+test("obliquePath - handles path with only Z commands", () => {
+	const path: GlyphPath = {
+		commands: [{ type: "Z" }, { type: "Z" }],
+		bounds: null,
+	};
+
+	const oblique = obliquePath(path, 0.2);
+
+	// Should handle paths with only Z commands
+	expect(oblique.commands.length).toBe(2);
+	expect(oblique.commands[0]?.type).toBe("Z");
+	expect(oblique.commands[1]?.type).toBe("Z");
+});
+
+test("emboldenPath - handles empty path", () => {
+	const path: GlyphPath = {
+		commands: [],
+		bounds: null,
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle empty paths gracefully
+	expect(emboldened.commands).toEqual([]);
+	expect(emboldened.bounds).toBeNull();
+});
+
+test("emboldenPath - handles sharp angles (near 180 degrees)", () => {
+	// Create a path with a very sharp angle (almost 180 degrees)
+	// This will trigger the dot <= -0.999 branch in offsetPolygon
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 100, y: 0 },
+			{ type: "L", x: 100, y: 1 }, // Very slight turn
+			{ type: "L", x: 0, y: 1 }, // Back in almost opposite direction
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 1 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle very sharp angles gracefully
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
+});
+
+test("emboldenPath - handles very small normal length", () => {
+	// Create a path where the average normal might be very small
+	// This happens when adjacent edges are parallel or nearly so
+	const path: GlyphPath = {
+		commands: [
+			{ type: "M", x: 0, y: 0 },
+			{ type: "L", x: 50, y: 0 },
+			{ type: "L", x: 100, y: 0 }, // Collinear points (parallel edges)
+			{ type: "L", x: 100, y: 100 },
+			{ type: "L", x: 0, y: 100 },
+			{ type: "Z" },
+		],
+		bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+	};
+
+	const emboldened = emboldenPath(path, 5);
+
+	// Should handle collinear points gracefully
+	expect(emboldened.commands.length).toBeGreaterThan(0);
+	expect(emboldened.bounds).not.toBeNull();
 });

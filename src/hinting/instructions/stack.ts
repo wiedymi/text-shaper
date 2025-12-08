@@ -41,7 +41,8 @@ export function CINDEX(ctx: ExecContext): void {
 		ctx.error = `CINDEX: invalid index ${index}`;
 		return;
 	}
-	ctx.stack[ctx.stackTop++] = ctx.stack[ctx.stackTop - index];
+	const val = ctx.stack[ctx.stackTop - index];
+	ctx.stack[ctx.stackTop++] = val;
 }
 
 /** MINDEX - Move indexed element to top */

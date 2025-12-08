@@ -197,6 +197,28 @@ describe("shaper/complex/thai-lao", () => {
 			expect(getThaiLaoCategory(0x0020)).toBe(ThaiLaoCategory.Other); // space
 			expect(getThaiLaoCategory(0x1000)).toBe(ThaiLaoCategory.Other); // Myanmar
 		});
+
+		test("Thai range undefined codepoints return Other", () => {
+			// Test codepoints within Thai range but not explicitly categorized
+			expect(getThaiLaoCategory(0x0e00)).toBe(ThaiLaoCategory.Other); // Start of Thai range
+			expect(getThaiLaoCategory(0x0e3b)).toBe(ThaiLaoCategory.Other); // Between vowel ranges
+			expect(getThaiLaoCategory(0x0e46)).toBe(ThaiLaoCategory.Other); // Between vowel and tone
+			expect(getThaiLaoCategory(0x0e4f)).toBe(ThaiLaoCategory.Other); // After special marks
+			expect(getThaiLaoCategory(0x0e5c)).toBe(ThaiLaoCategory.Other); // After symbols
+			expect(getThaiLaoCategory(0x0e7f)).toBe(ThaiLaoCategory.Other); // End of Thai range
+		});
+
+		test("Lao range undefined codepoints return Other", () => {
+			// Test codepoints within Lao range but not explicitly categorized
+			expect(getThaiLaoCategory(0x0e80)).toBe(ThaiLaoCategory.Other); // Start of Lao range
+			expect(getThaiLaoCategory(0x0eaf)).toBe(ThaiLaoCategory.Other); // After consonants
+			expect(getThaiLaoCategory(0x0eba)).toBe(ThaiLaoCategory.Other); // Between vowel ranges
+			expect(getThaiLaoCategory(0x0ebd)).toBe(ThaiLaoCategory.Other); // After below vowels
+			expect(getThaiLaoCategory(0x0ec5)).toBe(ThaiLaoCategory.Other); // After leading vowels
+			expect(getThaiLaoCategory(0x0ece)).toBe(ThaiLaoCategory.Other); // After tone marks
+			expect(getThaiLaoCategory(0x0ecf)).toBe(ThaiLaoCategory.Other); // Before digits
+			expect(getThaiLaoCategory(0x0eda)).toBe(ThaiLaoCategory.Other); // After digits
+		});
 	});
 
 	describe("setupThaiLaoMasks", () => {
@@ -366,6 +388,33 @@ describe("shaper/complex/thai-lao", () => {
 			// Consonant moves before vowel
 			expect(infos[0].codepoint).toBe(0x0e81);
 			expect(infos[1].codepoint).toBe(0x0ec0);
+		});
+
+		test("handles null entries in array", () => {
+			const infos: (GlyphInfo | null)[] = [
+				null,
+				makeInfo(0x0e40), // Leading vowel
+				makeInfo(0x0e01), // Consonant
+				null,
+			];
+			// @ts-expect-error - testing null handling
+			reorderThaiLao(infos);
+			expect(infos[0]).toBe(null);
+			expect(infos[3]).toBe(null);
+		});
+
+		test("handles null entry in lookahead during reordering", () => {
+			const infos: (GlyphInfo | null)[] = [
+				makeInfo(0x0e40), // Leading vowel
+				null, // Null entry
+				makeInfo(0x0e01), // Consonant
+			];
+			// @ts-expect-error - testing null handling
+			reorderThaiLao(infos);
+			// Should skip the null and find the consonant
+			expect(infos[0].codepoint).toBe(0x0e01);
+			expect(infos[1]).toBe(null);
+			expect(infos[2].codepoint).toBe(0x0e40);
 		});
 	});
 

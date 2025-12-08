@@ -93,9 +93,10 @@ function createFormat2Subtable(
 	rightFirst: number,
 	rightClasses: number[],
 	kerningValues: number[][],
+	kerxHeaderSize: number = 8,
 ): ArrayBuffer {
-	const headerSize = 12;
-	const format2Header = 16;
+	const subtableHeaderSize = 12;
+	const format2HeaderSize = 16;
 	const leftClassSize = 4 + leftClasses.length;
 	const rightClassSize = 4 + rightClasses.length;
 	const numRows = Math.max(...leftClasses) + 1;
@@ -105,38 +106,50 @@ function createFormat2Subtable(
 	const leftClassPadded = Math.ceil(leftClassSize / 4) * 4;
 	const rightClassPadded = Math.ceil(rightClassSize / 4) * 4;
 
-	const length = headerSize + format2Header + leftClassPadded + rightClassPadded + kerningSize;
+	const subtableLength = subtableHeaderSize + format2HeaderSize + leftClassPadded + rightClassPadded + kerningSize;
 
-	const buffer = new ArrayBuffer(length);
+	const buffer = new ArrayBuffer(subtableLength);
 	const view = new DataView(buffer);
 
-	view.setUint32(0, length, false);
+	// Subtable header
+	view.setUint32(0, subtableLength, false);
 	view.setUint32(4, KerxSubtableType.SimpleArray, false);
 	view.setUint16(8, 0, false);
 	view.setUint16(10, 0, false);
 
+	// Format 2 header
 	const rowWidth = numCols * 2;
 	view.setUint16(12, rowWidth, false);
 	view.setUint16(14, 0, false);
-	view.setUint32(16, headerSize + format2Header, false);
-	view.setUint32(20, headerSize + format2Header + leftClassPadded, false);
-	view.setUint32(24, headerSize + format2Header + leftClassPadded + rightClassPadded, false);
 
-	let offset = headerSize + format2Header;
+	// Offsets are relative to the kerx table start, not subtable start
+	// So we need to add kerxHeaderSize to convert from subtable-relative to kerx-relative
+	const leftClassTableOffset = kerxHeaderSize + subtableHeaderSize + format2HeaderSize;
+	const rightClassTableOffset = leftClassTableOffset + leftClassPadded;
+	const kerningArrayOffset = rightClassTableOffset + rightClassPadded;
+
+	view.setUint32(16, leftClassTableOffset, false);
+	view.setUint32(20, rightClassTableOffset, false);
+	view.setUint32(24, kerningArrayOffset, false);
+
+	// Left class table
+	let offset = subtableHeaderSize + format2HeaderSize;
 	view.setUint16(offset, leftFirst, false);
 	view.setUint16(offset + 2, leftClasses.length, false);
 	for (let i = 0; i < leftClasses.length; i++) {
 		view.setUint8(offset + 4 + i, leftClasses[i]!);
 	}
 
-	offset = headerSize + format2Header + leftClassPadded;
+	// Right class table
+	offset = subtableHeaderSize + format2HeaderSize + leftClassPadded;
 	view.setUint16(offset, rightFirst, false);
 	view.setUint16(offset + 2, rightClasses.length, false);
 	for (let i = 0; i < rightClasses.length; i++) {
 		view.setUint8(offset + 4 + i, rightClasses[i]!);
 	}
 
-	offset = headerSize + format2Header + leftClassPadded + rightClassPadded;
+	// Kerning array
+	offset = subtableHeaderSize + format2HeaderSize + leftClassPadded + rightClassPadded;
 	for (let row = 0; row < numRows; row++) {
 		for (let col = 0; col < numCols; col++) {
 			const value = kerningValues[row]?.[col] ?? 0;
@@ -235,6 +248,29 @@ describe("kerx table", () => {
 			// Unknown formats are skipped (return null from parseKerxSubtable)
 			expect(kerx.nTables).toBe(1);
 			expect(kerx.subtables).toHaveLength(0);
+		});
+
+		test("parses kerx with format 2 subtable", () => {
+			const leftClasses = [0, 1, 0, 1];
+			const rightClasses = [0, 1, 0];
+			const kerningValues = [
+				[0, -10],
+				[-20, -30],
+			];
+			const data = createKerxData([
+				createFormat2Subtable(10, leftClasses, 20, rightClasses, kerningValues),
+			]);
+			const reader = new Reader(new DataView(data));
+			const kerx = parseKerx(reader);
+
+			expect(kerx.subtables).toHaveLength(1);
+			const subtable = kerx.subtables[0] as KerxSimpleArraySubtable;
+			expect(subtable.format).toBe(KerxSubtableType.SimpleArray);
+			expect(subtable.leftClassTable.firstGlyph).toBe(10);
+			expect(subtable.leftClassTable.nGlyphs).toBe(4);
+			expect(subtable.rightClassTable.firstGlyph).toBe(20);
+			expect(subtable.rightClassTable.nGlyphs).toBe(3);
+			expect(subtable.rowWidth).toBe(4);
 		});
 
 		test("parses kerx with format 6 subtable", () => {
@@ -376,6 +412,87 @@ describe("kerx table", () => {
 			const kerx = parseKerx(reader);
 
 			expect(getKerxValue(kerx, 10, 20)).toBe(0);
+		});
+
+		test("finds kerning value in format 2 subtable", () => {
+			const leftClasses = [0, 1, 0, 1];
+			const rightClasses = [0, 1, 0];
+			const kerningValues = [
+				[0, -10],
+				[-20, -30],
+			];
+			const data = createKerxData([
+				createFormat2Subtable(10, leftClasses, 20, rightClasses, kerningValues),
+			]);
+			const reader = new Reader(new DataView(data));
+			const kerx = parseKerx(reader);
+
+			// Glyph 10 (left class 0) + Glyph 20 (right class 0) = 0
+			expect(getKerxValue(kerx, 10, 20)).toBe(0);
+			// Glyph 10 (left class 0) + Glyph 21 (right class 1) = -10
+			expect(getKerxValue(kerx, 10, 21)).toBe(-10);
+			// Glyph 11 (left class 1) + Glyph 20 (right class 0) = -20
+			expect(getKerxValue(kerx, 11, 20)).toBe(-20);
+			// Glyph 11 (left class 1) + Glyph 21 (right class 1) = -30
+			expect(getKerxValue(kerx, 11, 21)).toBe(-30);
+		});
+
+		test("returns 0 for out-of-range glyphs in format 2", () => {
+			const leftClasses = [0, 1];
+			const rightClasses = [0, 1];
+			const kerningValues = [
+				[0, -10],
+				[-20, -30],
+			];
+			const data = createKerxData([
+				createFormat2Subtable(10, leftClasses, 20, rightClasses, kerningValues),
+			]);
+			const reader = new Reader(new DataView(data));
+			const kerx = parseKerx(reader);
+
+			// Left glyph before range
+			expect(getKerxValue(kerx, 9, 20)).toBe(0);
+			// Left glyph after range
+			expect(getKerxValue(kerx, 12, 20)).toBe(0);
+			// Right glyph before range
+			expect(getKerxValue(kerx, 10, 19)).toBe(0);
+			// Right glyph after range
+			expect(getKerxValue(kerx, 10, 22)).toBe(0);
+		});
+
+		test("handles format 2 with zero kerning values", () => {
+			const leftClasses = [0, 1];
+			const rightClasses = [0, 1];
+			const kerningValues = [
+				[0, 0],
+				[0, 0],
+			];
+			const data = createKerxData([
+				createFormat2Subtable(10, leftClasses, 20, rightClasses, kerningValues),
+			]);
+			const reader = new Reader(new DataView(data));
+			const kerx = parseKerx(reader);
+
+			expect(getKerxValue(kerx, 10, 20)).toBe(0);
+			expect(getKerxValue(kerx, 11, 21)).toBe(0);
+		});
+
+		test("handles format 2 with out-of-bounds class index", () => {
+			const leftClasses = [0, 1];
+			const rightClasses = [0, 1];
+			const kerningValues = [
+				[0, -10],
+				[-20, -30],
+			];
+			const data = createKerxData([
+				createFormat2Subtable(10, leftClasses, 20, rightClasses, kerningValues),
+			]);
+			const reader = new Reader(new DataView(data));
+			const kerx = parseKerx(reader);
+
+			// These should work as normal
+			expect(getKerxValue(kerx, 10, 20)).toBe(0);
+			expect(getKerxValue(kerx, 11, 21)).toBe(-30);
 		});
 	});
 
