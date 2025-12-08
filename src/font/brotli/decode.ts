@@ -226,11 +226,6 @@ class BitReader {
 		return val;
 	}
 
-	peekBits(): number {
-		this.fillBitWindow();
-		return (this.val >>> this.bitPos) & HUFFMAN_TABLE_MASK;
-	}
-
 	get currentBitPos(): number {
 		return this.bitPos;
 	}
@@ -1132,3 +1127,16 @@ export function decompress(data: Uint8Array): Uint8Array {
 
 	return new Uint8Array(output);
 }
+
+// Export internal functions for testing
+export const __testing = {
+	getNextKey,
+	replicateValue,
+	nextTableBitSize,
+	buildHuffmanTable,
+	readBlockLength,
+	readHuffmanCodeLengths,
+	BitReader,
+	HuffmanCode: {} as { bits: number; value: number },
+	CODE_LENGTH_CODES,
+};
