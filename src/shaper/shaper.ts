@@ -2880,4 +2880,5 @@ export const __testing = {
 	buildNextNonSkipArray,
 	applyNestedLookups,
 	applyNestedPosLookups,
+	applyMorx,
 };
