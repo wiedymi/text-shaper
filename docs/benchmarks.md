@@ -42,18 +42,18 @@
 
 ## Text to SVG
 
-Full text-to-SVG pipeline including shaping and path generation. On par to 1.3x faster than HarfBuzz, 4-6x faster than opentype.js.
+Full text-to-SVG pipeline including shaping and path generation. 1.2-1.5x faster than HarfBuzz, 4-6x faster than opentype.js.
 
 <BenchmarkChart title="Hello World" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 43830 },
-  { name: 'text-shaper', opsPerSec: 43250 },
-  { name: 'opentype.js', opsPerSec: 11410 }
+  { name: 'text-shaper', opsPerSec: 54130 },
+  { name: 'harfbuzzjs', opsPerSec: 44980 },
+  { name: 'opentype.js', opsPerSec: 12110 }
 ]" />
 
 <BenchmarkChart title="Paragraph (87 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 8810 },
-  { name: 'harfbuzzjs', opsPerSec: 6570 },
-  { name: 'opentype.js', opsPerSec: 1530 }
+  { name: 'text-shaper', opsPerSec: 11360 },
+  { name: 'harfbuzzjs', opsPerSec: 7830 },
+  { name: 'opentype.js', opsPerSec: 1780 }
 ]" />
 
 ## Text Shaping
