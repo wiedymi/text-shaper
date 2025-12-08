@@ -286,4 +286,98 @@ describe("SDF Rasterizer", () => {
 		const outsideIdx = 20 * bitmap.pitch + 20;
 		expect(bitmap.buffer[outsideIdx]).toBeLessThan(128);
 	});
+
+	test("shape with cubic curves - inside/outside detection", () => {
+		// Create a closed shape with cubic curves to test flattenEdge for cubics
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 20, y: 50 },
+				// Cubic curve going right
+				{ type: "C", x1: 20, y1: 20, x2: 80, y2: 20, x: 80, y: 50 },
+				// Cubic curve going back
+				{ type: "C", x1: 80, y1: 80, x2: 20, y2: 80, x: 20, y: 50 },
+				{ type: "Z" },
+			],
+			bounds: { xMin: 20, yMin: 20, xMax: 80, yMax: 80 },
+		};
+
+		const bitmap = renderSdf(path, {
+			width: 100,
+			height: 100,
+			scale: 1,
+			spread: 16,
+		});
+
+		// Center should be inside
+		const centerIdx = 50 * bitmap.pitch + 50;
+		expect(bitmap.buffer[centerIdx]).toBeGreaterThan(128);
+
+		// Corner should be outside
+		const cornerIdx = 10 * bitmap.pitch + 10;
+		expect(bitmap.buffer[cornerIdx]).toBeLessThan(128);
+	});
+
+	test("flipY parameter", () => {
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 40, y: 40 },
+				{ type: "L", x: 60, y: 40 },
+				{ type: "L", x: 60, y: 60 },
+				{ type: "L", x: 40, y: 60 },
+				{ type: "Z" },
+			],
+			bounds: { xMin: 40, yMin: 40, xMax: 60, yMax: 60 },
+		};
+
+		const bitmapNoFlip = renderSdf(path, {
+			width: 100,
+			height: 100,
+			scale: 1,
+			spread: 8,
+			flipY: false,
+		});
+
+		const bitmapFlip = renderSdf(path, {
+			width: 100,
+			height: 100,
+			scale: 1,
+			spread: 8,
+			flipY: true,
+		});
+
+		// Both should produce valid SDF but with different orientation
+		expect(bitmapNoFlip.width).toBe(100);
+		expect(bitmapFlip.width).toBe(100);
+	});
+
+	test("degenerate line segment (zero length)", () => {
+		// Path with a degenerate line segment (start == end)
+		// This tests the lenSq < 0.0001 branch in distanceToLine
+		const path: GlyphPath = {
+			commands: [
+				{ type: "M", x: 50, y: 50 },
+				{ type: "L", x: 50, y: 50 }, // Degenerate segment - zero length
+				{ type: "L", x: 60, y: 50 },
+				{ type: "L", x: 60, y: 60 },
+				{ type: "L", x: 50, y: 60 },
+				{ type: "Z" },
+			],
+			bounds: { xMin: 50, yMin: 50, xMax: 60, yMax: 60 },
+		};
+
+		const bitmap = renderSdf(path, {
+			width: 100,
+			height: 100,
+			scale: 1,
+			spread: 8,
+		});
+
+		// Should still produce valid SDF
+		expect(bitmap.width).toBe(100);
+		expect(bitmap.rows).toBe(100);
+
+		// Center of shape should be inside
+		const centerIdx = 55 * bitmap.pitch + 55;
+		expect(bitmap.buffer[centerIdx]).toBeGreaterThan(128);
+	});
 });

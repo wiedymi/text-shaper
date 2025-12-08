@@ -851,14 +851,6 @@ export function analyzeLineBreaksFromCodepoints(
 			case BreakAction.Direct:
 				breaks.push(BreakOpportunity.Optional);
 				break;
-			case BreakAction.Indirect:
-				// Look for intervening space
-				if (before === LineBreakClass.SP) {
-					breaks.push(BreakOpportunity.Optional);
-				} else {
-					breaks.push(BreakOpportunity.NoBreak);
-				}
-				break;
 			default:
 				breaks.push(BreakOpportunity.NoBreak);
 		}

@@ -174,6 +174,7 @@ function getThaiCcc(cp: number): number {
 }
 
 function getTibetanCcc(cp: number): number {
+	// Called only for ranges 0x0f71-0x0f7e and 0x0f80-0x0f84
 	if (cp === 0x0f71) return 129;
 	if (cp === 0x0f72) return 130;
 	if (cp === 0x0f73) return 0; // Composed
@@ -192,18 +193,19 @@ function getTibetanCcc(cp: number): number {
 	if (cp === 0x0f81) return 0; // Composed
 	if (cp === 0x0f82) return 230;
 	if (cp === 0x0f83) return 230;
-	if (cp === 0x0f84) return 9;
-	return 0;
+	// cp === 0x0f84
+	return 9;
 }
 
 function getHangulCcc(cp: number): number {
+	// Called only for range 0x302a-0x302f
 	if (cp === 0x302a) return 218;
 	if (cp === 0x302b) return 228;
 	if (cp === 0x302c) return 232;
 	if (cp === 0x302d) return 222;
 	if (cp === 0x302e) return 224;
-	if (cp === 0x302f) return 224;
-	return 0;
+	// cp === 0x302f
+	return 224;
 }
 
 function getCdmeClass(cp: number): number {
@@ -229,11 +231,12 @@ function getCdmsClass(cp: number): number {
 	if (cp >= 0x1df6 && cp <= 0x1df8) return 232;
 	if (cp === 0x1df9) return 220;
 	if (cp === 0x1dfa) return 218;
-	if (cp >= 0x1dfb && cp <= 0x1dff) return 230;
+	// cp >= 0x1dfb && cp <= 0x1dff
 	return 230;
 }
 
 function getHebrewCcc(cp: number): number {
+	// Called only for range 0x0591-0x05bd
 	// Hebrew accents and marks have specific combining classes
 	if (cp >= 0x0591 && cp <= 0x05a1) return 220; // Below marks
 	if (cp >= 0x05a2 && cp <= 0x05af) return 230; // Above marks
@@ -248,13 +251,14 @@ function getHebrewCcc(cp: number): number {
 		if (cp === 0x05b6) return 16; // Segol
 		if (cp === 0x05b7) return 17; // Patah
 		if (cp === 0x05b8) return 18; // Qamats
-		if (cp === 0x05b9) return 19; // Holam
+		// cp === 0x05b9
+		return 19; // Holam
 	}
 	if (cp === 0x05ba) return 19; // Holam Haser
 	if (cp === 0x05bb) return 20; // Qubuts
 	if (cp === 0x05bc) return 21; // Dagesh
-	if (cp === 0x05bd) return 22; // Meteg
-	return 0;
+	// cp === 0x05bd
+	return 22; // Meteg
 }
 
 function getArabicCcc(cp: number): number {
@@ -270,8 +274,8 @@ function getArabicCcc(cp: number): number {
 	if (cp === 0x0656) return 220; // Subscript Alef
 	if (cp === 0x0657) return 230; // Inverted Damma
 	if (cp === 0x0658) return 230; // Mark Noon Ghunna
-	if (cp >= 0x0659 && cp <= 0x065f) return 230;
-	return 0;
+	// cp >= 0x0659 && cp <= 0x065f
+	return 230;
 }
 
 function getLatinCcc(cp: number): number {

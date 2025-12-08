@@ -6,11 +6,13 @@ import {
 	getLineBreakClass,
 	analyzeLineBreaks,
 	analyzeLineBreaksFromCodepoints,
+	analyzeLineBreaksForGlyphs,
 	findNextBreak,
 	canBreakAt,
 	mustBreakAt,
 	getAllBreakOpportunities,
 } from "../../src/unicode/line-break.ts";
+import type { GlyphInfo } from "../../src/types.ts";
 
 describe("unicode line breaking", () => {
 	describe("LineBreakClass enum", () => {
@@ -734,6 +736,132 @@ describe("unicode line breaking", () => {
 			const result = analyzeLineBreaksFromCodepoints([0x30a2, 0x30fc]); // アー
 			// ID + CJ (-> NS) - no break before NS
 			expect(result.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+	});
+
+	describe("coverage - uncovered paths", () => {
+		test("XX class for unknown codepoints (line 517)", () => {
+			// Use a private use area codepoint that isn't explicitly handled
+			// U+E000 is in Private Use Area - should return XX
+			const cls = getLineBreakClass(0xe000);
+			// XX gets resolved to AL, but we're testing getLineBreakClass returns XX
+			expect(cls).toBe(LineBreakClass.XX);
+		});
+
+		test("LB9 combining mark after non-space (line 576)", () => {
+			// Combining mark after a letter should not break (LB9)
+			// A + combining acute accent
+			const result = analyzeLineBreaksFromCodepoints([0x0041, 0x0301]);
+			// Before CM should be prohibited (line 576)
+			expect(result.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+
+		test("LB12a GL after SP/BA/HY can break (lines 599-604)", () => {
+			// NBSP (GL) after space - can break before GL
+			const result1 = analyzeLineBreaksFromCodepoints([0x0020, 0x00a0]); // SP + NBSP
+			// After SP, before GL - should allow break
+			expect(result1.breaks[1]).toBe(BreakOpportunity.Optional);
+
+			// NBSP after break-after character (BA like em-space)
+			const result2 = analyzeLineBreaksFromCodepoints([0x2003, 0x00a0]); // Em-space (BA) + NBSP
+			// After BA, before GL - should allow break
+			expect(result2.breaks[1]).toBe(BreakOpportunity.Optional);
+
+			// NBSP after hyphen (HY)
+			const result3 = analyzeLineBreaksFromCodepoints([0x002d, 0x00a0]); // HY + NBSP
+			// After HY, before GL - should allow break
+			expect(result3.breaks[1]).toBe(BreakOpportunity.Optional);
+		});
+
+		test("Korean Jamo JV + JV/JT stays together (lines 726-727)", () => {
+			// JV + JV
+			const result1 = analyzeLineBreaksFromCodepoints([0x1161, 0x1162]); // Two V jamo
+			expect(result1.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// JV + JT
+			const result2 = analyzeLineBreaksFromCodepoints([0x1161, 0x11a8]); // V + T jamo
+			expect(result2.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+
+		test("Korean H2 + JV/JT stays together (lines 726-727)", () => {
+			// H2 (LV syllable) + JV
+			const result1 = analyzeLineBreaksFromCodepoints([0xac00, 0x1161]); // 가 + V jamo
+			expect(result1.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// H2 + JT
+			const result2 = analyzeLineBreaksFromCodepoints([0xac00, 0x11a8]); // 가 + T jamo
+			expect(result2.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+
+		test("Korean JT/H3 + JT stays together (line 730)", () => {
+			// JT + JT
+			const result1 = analyzeLineBreaksFromCodepoints([0x11a8, 0x11a9]); // Two T jamo
+			expect(result1.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// H3 (LVT syllable) + JT
+			const result2 = analyzeLineBreaksFromCodepoints([0xac01, 0x11a8]); // 각 + T jamo
+			expect(result2.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+
+		test("Korean syllable + PO (lines 740-741)", () => {
+			// JL + PO (percent)
+			const result1 = analyzeLineBreaksFromCodepoints([0x1100, 0x0025]); // L jamo + %
+			expect(result1.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// JV + PO
+			const result2 = analyzeLineBreaksFromCodepoints([0x1161, 0x0025]); // V jamo + %
+			expect(result2.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// JT + PO
+			const result3 = analyzeLineBreaksFromCodepoints([0x11a8, 0x0025]); // T jamo + %
+			expect(result3.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// H2 + PO
+			const result4 = analyzeLineBreaksFromCodepoints([0xac00, 0x0025]); // 가 + %
+			expect(result4.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// H3 + PO
+			const result5 = analyzeLineBreaksFromCodepoints([0xac01, 0x0025]); // 각 + %
+			expect(result5.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+
+		test("PR + Korean syllable (lines 749-750)", () => {
+			// PR (currency) + JL
+			const result1 = analyzeLineBreaksFromCodepoints([0x0024, 0x1100]); // $ + L jamo
+			expect(result1.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// PR + JV
+			const result2 = analyzeLineBreaksFromCodepoints([0x0024, 0x1161]); // $ + V jamo
+			expect(result2.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// PR + JT
+			const result3 = analyzeLineBreaksFromCodepoints([0x0024, 0x11a8]); // $ + T jamo
+			expect(result3.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// PR + H2
+			const result4 = analyzeLineBreaksFromCodepoints([0x0024, 0xac00]); // $ + 가
+			expect(result4.breaks[1]).toBe(BreakOpportunity.NoBreak);
+
+			// PR + H3
+			const result5 = analyzeLineBreaksFromCodepoints([0x0024, 0xac01]); // $ + 각
+			expect(result5.breaks[1]).toBe(BreakOpportunity.NoBreak);
+		});
+
+		test("analyzeLineBreaksForGlyphs (lines 868-871)", () => {
+			// Create mock GlyphInfo array
+			const glyphs: GlyphInfo[] = [
+				{ glyphId: 1, cluster: 0, mask: 0, codepoint: 0x0041 }, // A
+				{ glyphId: 2, cluster: 1, mask: 0, codepoint: 0x0020 }, // space
+				{ glyphId: 3, cluster: 2, mask: 0, codepoint: 0x0042 }, // B
+			];
+
+			const result = analyzeLineBreaksForGlyphs(glyphs);
+
+			// Should produce same result as analyzeLineBreaksFromCodepoints
+			const expected = analyzeLineBreaksFromCodepoints([0x0041, 0x0020, 0x0042]);
+
+			expect(result.breaks).toEqual(expected.breaks);
+			expect(result.classes).toEqual(expected.classes);
 		});
 	});
 });

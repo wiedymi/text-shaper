@@ -150,6 +150,54 @@ describe("raster/gradient", () => {
 			expect(anyPoint).toEqual([128, 128, 128, 255]);
 		});
 
+		test("empty stops returns transparent", () => {
+			const gradient: LinearGradient = {
+				type: "linear",
+				x0: 0,
+				y0: 0,
+				x1: 100,
+				y1: 0,
+				stops: [],
+			};
+
+			const color = interpolateGradient(gradient, 50, 50);
+			expect(color).toEqual([0, 0, 0, 0]);
+		});
+
+		test("zero length gradient returns first stop", () => {
+			const gradient: LinearGradient = {
+				type: "linear",
+				x0: 50,
+				y0: 50,
+				x1: 50,
+				y1: 50, // Same point - zero length
+				stops: [
+					{ offset: 0, color: [255, 0, 0, 255] },
+					{ offset: 1, color: [0, 0, 255, 255] },
+				],
+			};
+
+			const color = interpolateGradient(gradient, 50, 50);
+			expect(color).toEqual([255, 0, 0, 255]);
+		});
+
+		test("zero radius radial gradient returns first stop color", () => {
+			const gradient: RadialGradient = {
+				type: "radial",
+				cx: 50,
+				cy: 50,
+				radius: 0, // Zero radius
+				stops: [
+					{ offset: 0, color: [255, 0, 0, 255] },
+					{ offset: 1, color: [0, 0, 255, 255] },
+				],
+			};
+
+			// With radius=0, t should be 0, returning first stop
+			const color = interpolateGradient(gradient, 100, 50);
+			expect(color).toEqual([255, 0, 0, 255]);
+		});
+
 		test("stops at same position", () => {
 			const gradient: LinearGradient = {
 				type: "linear",
@@ -172,6 +220,29 @@ describe("raster/gradient", () => {
 			expect(beforeTransition[1]).toBeGreaterThan(0);
 			expect(afterTransition[2]).toBeGreaterThan(0);
 			expect(afterTransition).not.toEqual([0, 255, 0, 255]);
+		});
+
+		test("duplicate stops at same offset - earlier range matches first", () => {
+			// When duplicate stops exist at offset X, and there's a stop at offset Y < X,
+			// t=X falls into range [Y, X] first, not [X, X]
+			// At t=X, localT = 1.0, so it returns the first duplicate stop's color
+			const gradient: LinearGradient = {
+				type: "linear",
+				x0: 0,
+				y0: 0,
+				x1: 100,
+				y1: 0,
+				stops: [
+					{ offset: 0, color: [0, 255, 0, 255] }, // t=0 will hit this
+					{ offset: 0.5, color: [255, 0, 0, 255] }, // first at 0.5 (red)
+					{ offset: 0.5, color: [0, 0, 255, 255] }, // second at 0.5 (blue)
+					{ offset: 1, color: [255, 255, 255, 255] },
+				],
+			};
+
+			// When t=0.5, it falls into [0, 0.5] range, localT = 1.0, returns red (first 0.5 stop)
+			const color = interpolateGradient(gradient, 50, 0);
+			expect(color).toEqual([255, 0, 0, 255]); // Pure red, not blue
 		});
 
 		test("gradient clamping beyond bounds", () => {

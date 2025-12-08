@@ -258,25 +258,6 @@ export function decomposePath(
 }
 
 /**
- * Convert font units to subpixel coordinates
- */
-function _toSubpixel(value: number, scale: number, offset: number): number {
-	return Math.round((value * scale + offset) * ONE_PIXEL);
-}
-
-/**
- * Convert font units to subpixel coordinates with Y flip
- * Font coordinates are Y-up, bitmap is Y-down
- */
-function _toSubpixelFlipY(
-	value: number,
-	scale: number,
-	offset: number,
-): number {
-	return Math.round((-value * scale + offset) * ONE_PIXEL);
-}
-
-/**
  * Calculate bounding box of path in pixel coordinates
  * @param path Glyph path to measure
  * @param scale Scale factor (font units to pixels)

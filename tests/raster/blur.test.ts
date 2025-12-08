@@ -8,6 +8,16 @@ import {
 } from "../../src/raster/blur.ts";
 
 describe("createGaussianKernel", () => {
+	test("returns single element kernel for radius <= 0", () => {
+		const kernel = createGaussianKernel(0);
+		expect(kernel.length).toBe(1);
+		expect(kernel[0]).toBe(1.0);
+
+		const kernelNeg = createGaussianKernel(-1);
+		expect(kernelNeg.length).toBe(1);
+		expect(kernelNeg[0]).toBe(1.0);
+	});
+
 	test("creates kernel with correct size", () => {
 		const kernel = createGaussianKernel(2.0);
 		const expectedSize = Math.ceil(2.0 * 2) * 2 + 1; // ceil(4) * 2 + 1 = 9
@@ -281,6 +291,39 @@ describe("blur quality comparison", () => {
 		// Gaussian typically has more spread to diagonal
 		expect(gaussianDiag).toBeGreaterThan(0);
 		expect(boxDiag).toBeGreaterThanOrEqual(0);
+	});
+});
+
+describe("blur with RGBA pixel mode", () => {
+	test("gaussian blur works with RGBA", () => {
+		const bitmap = createBitmap(10, 10, PixelMode.RGBA);
+		const idx = (5 * 10 + 5) * 4;
+		bitmap.buffer[idx] = 255; // R
+		bitmap.buffer[idx + 1] = 200; // G
+		bitmap.buffer[idx + 2] = 100; // B
+		bitmap.buffer[idx + 3] = 255; // A
+
+		gaussianBlur(bitmap, 2.0);
+
+		// Values should be blurred
+		expect(bitmap.buffer[idx]).toBeLessThan(255);
+		expect(bitmap.buffer[idx + 1]).toBeLessThan(200);
+		expect(bitmap.buffer[idx + 2]).toBeLessThan(100);
+	});
+
+	test("box blur works with RGBA", () => {
+		const bitmap = createBitmap(10, 10, PixelMode.RGBA);
+		const idx = (5 * 10 + 5) * 4;
+		bitmap.buffer[idx] = 255; // R
+		bitmap.buffer[idx + 1] = 200; // G
+		bitmap.buffer[idx + 2] = 100; // B
+		bitmap.buffer[idx + 3] = 255; // A
+
+		boxBlur(bitmap, 2.0);
+
+		// Values should be blurred
+		expect(bitmap.buffer[idx]).toBeLessThan(255);
+		expect(bitmap.buffer[idx + 1]).toBeLessThan(200);
 	});
 });
 
