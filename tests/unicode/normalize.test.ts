@@ -611,6 +611,24 @@ describe("unicode normalization", () => {
 			expect(result[1].mask).toBe(0xff);
 		});
 
+		test("NormalizationMode.Auto with non-decomposable character (lines 1026-1028)", () => {
+			// 'A' has no decomposition, so it should pass through as-is
+			const infos = [makeInfo(0x0041)]; // A
+			const result = normalize(infos, NormalizationMode.Auto);
+			expect(result.length).toBe(1);
+			expect(result[0].codepoint).toBe(0x0041);
+		});
+
+		test("NormalizationMode.Auto with mixed decomposable and non-decomposable", () => {
+			// A + À -> A + A + grave (A passes through, À decomposes)
+			const infos = [makeInfo(0x0041), makeInfo(0x00c0)];
+			const result = normalize(infos, NormalizationMode.Auto);
+			expect(result.length).toBe(3);
+			expect(result[0].codepoint).toBe(0x0041); // A passed through
+			expect(result[1].codepoint).toBe(0x0041); // A from À
+			expect(result[2].codepoint).toBe(0x0300); // grave from À
+		});
+
 		test("NormalizationMode.Decompose with multiple precomposed in sequence", () => {
 			const infos = [
 				makeInfo(0x00c0), // À

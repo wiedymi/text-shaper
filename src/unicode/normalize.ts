@@ -857,12 +857,7 @@ function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
 	let i = 0;
 
 	while (i < infos.length) {
-		const current = infos[i];
-		if (!current) {
-			i++;
-			continue;
-		}
-
+		const current = infos[i]!;
 		const currentCcc = getCombiningClass(current.codepoint);
 
 		// If this is a base character (ccc = 0), try to compose with following marks
@@ -873,9 +868,7 @@ function composeMarks(infos: GlyphInfo[]): GlyphInfo[] {
 
 			// Look for combining marks that can be composed
 			while (j < infos.length) {
-				const mark = infos[j];
-				if (!mark) break;
-
+				const mark = infos[j]!;
 				const markCcc = getCombiningClass(mark.codepoint);
 
 				// Stop at next base character
