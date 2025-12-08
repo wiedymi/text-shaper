@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { GlyphPath } from "../../src/render/path.ts";
+import { OutlineFlags, type GlyphPath } from "../../src/render/path.ts";
 import {
 	identity2D,
 	identity3x3,
@@ -321,22 +321,22 @@ describe("render/outline-transform", () => {
 			const path: GlyphPath = {
 				commands: [{ type: "M", x: 0, y: 0 }],
 				bounds: null,
-				flags: 3,
+				flags: 3 as OutlineFlags,
 			};
 			const result = rotateOutline90(path);
-			expect(result.flags).toBe(3);
+			expect(result.flags).toBe(3 as OutlineFlags);
 		});
 
 		test("handles unknown command type via default case", () => {
 			// Create object with unknown type at runtime to bypass TypeScript checks
-			const unknownCmd = { type: "UNKNOWN" };
+			const unknownCmd = { type: "UNKNOWN" as const };
 			const path = {
 				commands: [unknownCmd],
 				bounds: null,
 			} as any as GlyphPath;
 			const result = rotateOutline90(path);
 			// Default case should pass through unknown command unchanged
-			expect(result.commands[0]).toBe(unknownCmd);
+			expect(result.commands[0] as any).toBe(unknownCmd);
 		});
 	});
 
@@ -429,22 +429,22 @@ describe("render/outline-transform", () => {
 			const path: GlyphPath = {
 				commands: [{ type: "M", x: 0, y: 0 }],
 				bounds: null,
-				flags: 5,
+				flags: 5 as OutlineFlags,
 			};
 			const result = scaleOutlinePow2(path, 0, 0);
-			expect(result.flags).toBe(5);
+			expect(result.flags).toBe(5 as OutlineFlags);
 		});
 
 		test("handles unknown command type via default case", () => {
 			// Create object with unknown type at runtime to bypass TypeScript checks
-			const unknownCmd = { type: "UNKNOWN" };
+			const unknownCmd = { type: "UNKNOWN" as const };
 			const path = {
 				commands: [unknownCmd],
 				bounds: null,
 			} as any as GlyphPath;
 			const result = scaleOutlinePow2(path, 1, 1);
 			// Default case should pass through unknown command unchanged
-			expect(result.commands[0]).toBe(unknownCmd);
+			expect(result.commands[0] as any).toBe(unknownCmd);
 		});
 	});
 
@@ -537,22 +537,22 @@ describe("render/outline-transform", () => {
 			const path: GlyphPath = {
 				commands: [{ type: "M", x: 0, y: 0 }],
 				bounds: null,
-				flags: 7,
+				flags: 7 as OutlineFlags,
 			};
 			const result = transformOutline2D(path, identity2D());
-			expect(result.flags).toBe(7);
+			expect(result.flags).toBe(7 as OutlineFlags);
 		});
 
 		test("handles unknown command type via default case", () => {
 			// Create object with unknown type at runtime to bypass TypeScript checks
-			const unknownCmd = { type: "UNKNOWN" };
+			const unknownCmd = { type: "UNKNOWN" as const };
 			const path = {
 				commands: [unknownCmd],
 				bounds: null,
 			} as any as GlyphPath;
 			const result = transformOutline2D(path, identity2D());
 			// Default case should pass through unknown command unchanged
-			expect(result.commands[0]).toBe(unknownCmd);
+			expect(result.commands[0] as any).toBe(unknownCmd);
 		});
 	});
 
@@ -670,22 +670,22 @@ describe("render/outline-transform", () => {
 			const path: GlyphPath = {
 				commands: [{ type: "M", x: 0, y: 0 }],
 				bounds: null,
-				flags: 2,
+				flags: 2 as OutlineFlags,
 			};
 			const result = transformOutline3D(path, identity3x3());
-			expect(result.flags).toBe(2);
+			expect(result.flags).toBe(2 as OutlineFlags);
 		});
 
 		test("handles unknown command type via default case", () => {
 			// Create object with unknown type at runtime to bypass TypeScript checks
-			const unknownCmd = { type: "UNKNOWN" };
+			const unknownCmd = { type: "UNKNOWN" as const };
 			const path = {
 				commands: [unknownCmd],
 				bounds: null,
 			} as any as GlyphPath;
 			const result = transformOutline3D(path, identity3x3());
 			// Default case should pass through unknown command unchanged
-			expect(result.commands[0]).toBe(unknownCmd);
+			expect(result.commands[0] as any).toBe(unknownCmd);
 		});
 	});
 
@@ -1061,8 +1061,11 @@ describe("render/outline-transform", () => {
 			};
 			const result = rotateOutline(path, Math.PI / 2);
 			// 90° rotation: (100, 0) -> (0, 100)
-			expect(result.commands[0]!.x).toBeCloseTo(0, 5);
-			expect(result.commands[0]!.y).toBeCloseTo(100, 5);
+			const cmd = result.commands[0]!;
+			if (cmd.type !== "Z") {
+				expect(cmd.x).toBeCloseTo(0, 5);
+				expect(cmd.y).toBeCloseTo(100, 5);
+			}
 		});
 
 		test("italicizeOutline", () => {
@@ -1073,8 +1076,11 @@ describe("render/outline-transform", () => {
 			const result = italicizeOutline(path, 15); // 15 degree italic
 			// Shear X = tan(15°) ≈ 0.268
 			// x' = x + shearX * y = 0 + 0.268 * 100 ≈ 26.8
-			expect(result.commands[0]!.x).toBeCloseTo(26.8, 0);
-			expect(result.commands[0]!.y).toBe(100);
+			const cmd = result.commands[0]!;
+			if (cmd.type !== "Z") {
+				expect(cmd.x).toBeCloseTo(26.8, 0);
+				expect(cmd.y).toBe(100);
+			}
 		});
 
 		test("perspectiveMatrix creates perspective transform", () => {
@@ -1186,10 +1192,10 @@ describe("render/outline-transform", () => {
 			const path: GlyphPath = {
 				commands: [],
 				bounds: null,
-				flags: 5,
+				flags: 5 as OutlineFlags,
 			};
 			const clone = clonePath(path);
-			expect(clone.flags).toBe(5);
+			expect(clone.flags).toBe(5 as OutlineFlags);
 		});
 
 		test("modifications to clone don't affect original", () => {
@@ -1198,9 +1204,15 @@ describe("render/outline-transform", () => {
 				bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 50 },
 			};
 			const clone = clonePath(path);
-			clone.commands[0]!.x = 999;
+			const cloneCmd = clone.commands[0]!;
+			if (cloneCmd.type !== "Z") {
+				cloneCmd.x = 999;
+			}
 			clone.bounds!.xMin = -100;
-			expect(path.commands[0]!.x).toBe(10);
+			const pathCmd = path.commands[0]!;
+			if (pathCmd.type !== "Z") {
+				expect(pathCmd.x).toBe(10);
+			}
 			expect(path.bounds!.xMin).toBe(0);
 		});
 	});

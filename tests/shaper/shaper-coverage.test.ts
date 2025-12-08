@@ -9,10 +9,11 @@ import { __testing } from "../../src/shaper/shaper.ts";
 import { getOrCreateShapePlan, type ShapePlan } from "../../src/shaper/shape-plan.ts";
 import { Coverage } from "../../src/layout/structures/coverage.ts";
 import { SetDigest } from "../../src/layout/structures/set-digest.ts";
+import { ClassDef } from "../../src/layout/structures/class-def.ts";
 import { GsubLookupType } from "../../src/font/tables/gsub.ts";
 import { GposLookupType } from "../../src/font/tables/gpos.ts";
 import { LookupFlag } from "../../src/layout/structures/layout-common.ts";
-import type { GlyphClass } from "../../src/font/tables/gdef.ts";
+import { GlyphClass } from "../../src/types.ts";
 
 const {
 	applyGsubLookup,
@@ -63,7 +64,7 @@ function createBuffer(glyphIds: number[]): GlyphBuffer {
 
 // Helper to create Coverage
 function createCoverage(glyphs: number[]): Coverage {
-	return Coverage.format1(glyphs);
+	return Coverage.format1(new Uint16Array(glyphs));
 }
 
 // Helper to create SetDigest from glyphs
@@ -71,6 +72,20 @@ function createDigest(glyphs: number[]): SetDigest {
 	const digest = new SetDigest();
 	for (const g of glyphs) digest.add(g);
 	return digest;
+}
+
+// Helper to create ClassDef
+function createClassDef(glyphToClass: Map<number, number> = new Map()): ClassDef {
+	if (glyphToClass.size === 0) {
+		return ClassDef.empty();
+	}
+	const maxGlyph = Math.max(...Array.from(glyphToClass.keys()));
+	const minGlyph = Math.min(...Array.from(glyphToClass.keys()));
+	const classValues = new Uint16Array(maxGlyph - minGlyph + 1);
+	for (const [glyph, cls] of glyphToClass) {
+		classValues[glyph - minGlyph] = cls;
+	}
+	return ClassDef.format1(minGlyph, classValues);
 }
 
 describe("Shaper coverage tests", () => {
@@ -85,7 +100,7 @@ describe("Shaper coverage tests", () => {
 		mongolianFont = await Font.fromFile("tests/fixtures/NotoSansMongolian-Regular.ttf");
 		monacoFont = await Font.fromFile("/System/Library/Fonts/Monaco.ttf");
 		appleGothicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/AppleGothic.ttf");
-		plan = getOrCreateShapePlan(arabicFont, "arab", "dflt", []);
+		plan = getOrCreateShapePlan(arabicFont, "arab", "dflt", "ltr");
 	});
 
 	describe("applyGsubLookup switch cases", () => {
@@ -214,6 +229,7 @@ describe("Shaper coverage tests", () => {
 				format: 1 as const,
 				coverage: createCoverage([10]),
 				ruleSets: [[{
+					glyphCount: 2,
 					inputSequence: [20],
 					lookupRecords,
 				}]],
@@ -234,6 +250,7 @@ describe("Shaper coverage tests", () => {
 				format: 1 as const,
 				coverage: createCoverage([10]),
 				ruleSets: [[{
+					glyphCount: 2,
 					inputSequence: [99], // 20 doesn't match 99
 					lookupRecords: [{ sequenceIndex: 0, lookupListIndex: 0 }],
 				}]],
@@ -728,9 +745,9 @@ describe("Shaper coverage tests", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([99]), // 10 not covered
-				backtrackClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
-				inputClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
-				lookaheadClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
+				backtrackClassDef: createClassDef(),
+				inputClassDef: createClassDef(),
+				lookaheadClassDef: createClassDef(),
 				chainClassRuleSets: [],
 			};
 			const result = matchChainingFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -742,9 +759,9 @@ describe("Shaper coverage tests", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([10]),
-				backtrackClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
-				inputClassDef: { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 },
-				lookaheadClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
+				backtrackClassDef: createClassDef(),
+				inputClassDef: createClassDef(),
+				lookaheadClassDef: createClassDef(),
 				chainClassRuleSets: [], // empty - class 0 won't find a rule set
 			};
 			const result = matchChainingFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -838,6 +855,7 @@ describe("Shaper coverage tests", () => {
 				format: 1 as const,
 				coverage: createCoverage([10]),
 				ruleSets: [[{
+					glyphCount: 2,
 					inputSequence: [20],
 					lookupRecords,
 				}]],
@@ -853,7 +871,7 @@ describe("Shaper coverage tests", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([99]),
-				classDef: { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 },
+				classDef: createClassDef(),
 				classRuleSets: [],
 			};
 			const result = matchContextPosFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -865,7 +883,7 @@ describe("Shaper coverage tests", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([10]),
-				classDef: { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 },
+				classDef: createClassDef(),
 				classRuleSets: [], // empty
 			};
 			const result = matchContextPosFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -920,9 +938,9 @@ describe("Shaper coverage tests", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([99]),
-				backtrackClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
-				inputClassDef: { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 },
-				lookaheadClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
+				backtrackClassDef: createClassDef(),
+				inputClassDef: createClassDef(),
+				lookaheadClassDef: createClassDef(),
 				chainClassRuleSets: [],
 			};
 			const result = matchChainingContextPosFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -934,9 +952,9 @@ describe("Shaper coverage tests", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([10]),
-				backtrackClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
-				inputClassDef: { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 },
-				lookaheadClassDef: { format: 1 as const, glyphClasses: new Map<number, number>() },
+				backtrackClassDef: createClassDef(),
+				inputClassDef: createClassDef(),
+				lookaheadClassDef: createClassDef(),
 				chainClassRuleSets: [],
 			};
 			const result = matchChainingContextPosFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -1001,14 +1019,14 @@ describe("Shaper coverage tests", () => {
 	describe("matchClassSequence for class-based matching", () => {
 		test("returns true for empty sequence", () => {
 			const buffer = createBuffer([10, 20, 30]);
-			const classDef = { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 };
+			const classDef = createClassDef();
 			const result = matchClassSequence(mongolianFont, buffer, 0, [], classDef, 0);
 			expect(result).toBe(true);
 		});
 
 		test("returns false when position exceeds buffer length", () => {
 			const buffer = createBuffer([10]);
-			const classDef = { format: 1 as const, glyphClasses: new Map<number, number>(), get: () => 0 };
+			const classDef = createClassDef();
 			const result = matchClassSequence(mongolianFont, buffer, 0, [0, 0], classDef, 0);
 			expect(result).toBe(false);
 		});

@@ -5,6 +5,7 @@ import { __testing } from "../../src/shaper/shaper.ts";
 import { getOrCreateShapePlan } from "../../src/shaper/shape-plan.ts";
 import { Coverage } from "../../src/layout/structures/coverage.ts";
 import { SetDigest } from "../../src/layout/structures/set-digest.ts";
+import { ClassDef } from "../../src/layout/structures/class-def.ts";
 import { GsubLookupType } from "../../src/font/tables/gsub.ts";
 import { GposLookupType } from "../../src/font/tables/gpos.ts";
 
@@ -310,6 +311,7 @@ describe("shaper internal functions", () => {
 						ruleSets: [
 							[
 								{
+									glyphCount: 2,
 									inputSequence: [20],
 									lookupRecords: [],
 								},
@@ -335,10 +337,11 @@ describe("shaper internal functions", () => {
 					{
 						format: 2 as const,
 						coverage: createCoverage([10]),
-						classDef: { get: () => 0 },
+						classDef: ClassDef.empty(),
 						classRuleSets: [
 							[
 								{
+									glyphCount: 2,
 									inputClasses: [0],
 									lookupRecords: [],
 								},
@@ -417,9 +420,9 @@ describe("shaper internal functions", () => {
 					{
 						format: 2 as const,
 						coverage: createCoverage([20]),
-						backtrackClassDef: { get: () => 0 },
-						inputClassDef: { get: () => 0 },
-						lookaheadClassDef: { get: () => 0 },
+						backtrackClassDef: ClassDef.empty(),
+						inputClassDef: ClassDef.empty(),
+						lookaheadClassDef: ClassDef.empty(),
 						chainClassRuleSets: [
 							[
 								{
@@ -473,6 +476,7 @@ describe("shaper internal functions", () => {
 					{
 						format: 1 as const,
 						coverage: createCoverage([10, 20]),
+						valueFormat: 0x000f,
 						value: { xPlacement: 10, yPlacement: 5, xAdvance: 20, yAdvance: 0 },
 					},
 				],
@@ -494,6 +498,7 @@ describe("shaper internal functions", () => {
 					{
 						format: 2 as const,
 						coverage: createCoverage([10, 20]),
+						valueFormat: 0x000f,
 						values: [
 							{ xPlacement: 5, yPlacement: 0, xAdvance: 10, yAdvance: 0 },
 							{ xPlacement: 15, yPlacement: 0, xAdvance: 30, yAdvance: 0 },
@@ -517,6 +522,7 @@ describe("shaper internal functions", () => {
 					{
 						format: 1 as const,
 						coverage: createCoverage([10, 20, 30]),
+						valueFormat: 0x000f,
 						value: { xPlacement: 10, yPlacement: 0, xAdvance: 0, yAdvance: 0 },
 					},
 				],
@@ -539,6 +545,8 @@ describe("shaper internal functions", () => {
 					{
 						format: 1 as const,
 						coverage: createCoverage([10]),
+						valueFormat1: 0x0004,
+						valueFormat2: 0x0004,
 						pairSets: [
 							{
 								pairValueRecords: [
@@ -569,6 +577,8 @@ describe("shaper internal functions", () => {
 					{
 						format: 1 as const,
 						coverage: createCoverage([10]),
+						valueFormat1: 0x0004,
+						valueFormat2: 0x0004,
 						pairSets: [
 							{
 								pairValueRecords: [
@@ -601,8 +611,14 @@ describe("shaper internal functions", () => {
 						format: 1 as const,
 						coverage: createCoverage([10, 20]),
 						entryExitRecords: [
-							{ entryAnchor: { x: 0, y: 0 }, exitAnchor: { x: 100, y: 50 } },
-							{ entryAnchor: { x: 100, y: 50 }, exitAnchor: { x: 200, y: 100 } },
+							{
+								entryAnchor: { xCoordinate: 0, yCoordinate: 0 },
+								exitAnchor: { xCoordinate: 100, yCoordinate: 50 },
+							},
+							{
+								entryAnchor: { xCoordinate: 100, yCoordinate: 50 },
+								exitAnchor: { xCoordinate: 200, yCoordinate: 100 },
+							},
 						],
 					},
 				],
@@ -623,9 +639,18 @@ describe("shaper internal functions", () => {
 						format: 1 as const,
 						coverage: createCoverage([10, 20, 30]),
 						entryExitRecords: [
-							{ entryAnchor: { x: 0, y: 0 }, exitAnchor: { x: 50, y: 25 } },
-							{ entryAnchor: { x: 50, y: 25 }, exitAnchor: null },
-							{ entryAnchor: null, exitAnchor: { x: 100, y: 50 } },
+							{
+								entryAnchor: { xCoordinate: 0, yCoordinate: 0 },
+								exitAnchor: { xCoordinate: 50, yCoordinate: 25 },
+							},
+							{
+								entryAnchor: { xCoordinate: 50, yCoordinate: 25 },
+								exitAnchor: null,
+							},
+							{
+								entryAnchor: null,
+								exitAnchor: { xCoordinate: 100, yCoordinate: 50 },
+							},
 						],
 					},
 				],
@@ -652,6 +677,7 @@ describe("shaper internal functions", () => {
 						ruleSets: [
 							[
 								{
+									glyphCount: 2,
 									inputSequence: [20],
 									lookupRecords: [],
 								},
@@ -666,7 +692,7 @@ describe("shaper internal functions", () => {
 				buffer,
 				lookup,
 				plan,
-				{},
+				new Map(),
 				new Int16Array(buffer.length),
 				false,
 			);
@@ -685,10 +711,11 @@ describe("shaper internal functions", () => {
 					{
 						format: 2 as const,
 						coverage: createCoverage([10]),
-						classDef: { get: () => 0 },
+						classDef: ClassDef.empty(),
 						classRuleSets: [
 							[
 								{
+									glyphCount: 2,
 									inputClasses: [0],
 									lookupRecords: [],
 								},
@@ -703,7 +730,7 @@ describe("shaper internal functions", () => {
 				buffer,
 				lookup,
 				plan,
-				{},
+				new Map(),
 				new Int16Array(buffer.length),
 				false,
 			);
@@ -732,7 +759,7 @@ describe("shaper internal functions", () => {
 				buffer,
 				lookup,
 				plan,
-				{},
+				new Map(),
 				new Int16Array(buffer.length),
 				false,
 			);
@@ -772,7 +799,7 @@ describe("shaper internal functions", () => {
 				buffer,
 				lookup,
 				plan,
-				{},
+				new Map(),
 				new Int16Array(buffer.length),
 				false,
 			);
@@ -791,9 +818,9 @@ describe("shaper internal functions", () => {
 					{
 						format: 2 as const,
 						coverage: createCoverage([20]),
-						backtrackClassDef: { get: () => 0 },
-						inputClassDef: { get: () => 0 },
-						lookaheadClassDef: { get: () => 0 },
+						backtrackClassDef: ClassDef.empty(),
+						inputClassDef: ClassDef.empty(),
+						lookaheadClassDef: ClassDef.empty(),
 						chainClassRuleSets: [
 							[
 								{
@@ -813,7 +840,7 @@ describe("shaper internal functions", () => {
 				buffer,
 				lookup,
 				plan,
-				{},
+				new Map(),
 				new Int16Array(buffer.length),
 				false,
 			);
@@ -844,7 +871,7 @@ describe("shaper internal functions", () => {
 				buffer,
 				lookup,
 				plan,
-				{},
+				new Map(),
 				new Int16Array(buffer.length),
 				false,
 			);
@@ -901,7 +928,10 @@ describe("shaper internal functions", () => {
 	describe("matchClassSequence", () => {
 		test("matches forward class sequence", () => {
 			const buffer = createBuffer([10, 20, 30, 40]);
-			const classDef = { get: (g: number) => (g >= 20 ? 1 : 0) };
+			const classDef = ClassDef.format1(
+				0,
+				new Uint16Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+			);
 			const result = matchClassSequence(
 				mongolianFont,
 				buffer,
@@ -915,7 +945,10 @@ describe("shaper internal functions", () => {
 
 		test("fails when class sequence does not match", () => {
 			const buffer = createBuffer([10, 20, 30, 40]);
-			const classDef = { get: (g: number) => (g >= 30 ? 1 : 0) };
+			const classDef = ClassDef.format1(
+				0,
+				new Uint16Array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+			);
 			const result = matchClassSequence(
 				mongolianFont,
 				buffer,
@@ -931,7 +964,10 @@ describe("shaper internal functions", () => {
 	describe("matchClassSequenceBackward", () => {
 		test("matches backward class sequence", () => {
 			const buffer = createBuffer([10, 20, 30, 40]);
-			const classDef = { get: (g: number) => (g <= 30 ? 1 : 0) };
+			const classDef = ClassDef.format1(
+				0,
+				new Uint16Array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+			);
 			const result = matchClassSequenceBackward(
 				mongolianFont,
 				buffer,
@@ -1034,7 +1070,7 @@ describe("shaper internal functions", () => {
 			const subtable = {
 				format: 1 as const,
 				coverage: createCoverage([50]), // glyph 10 not covered
-				ruleSets: [[{ inputSequence: [20], lookupRecords: [] }]],
+				ruleSets: [[{ glyphCount: 2, inputSequence: [20], lookupRecords: [] }]],
 			};
 			const result = matchContextFormat1(mongolianFont, buffer, 0, subtable, 0);
 			expect(result).toBe(null);
@@ -1045,7 +1081,7 @@ describe("shaper internal functions", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([10]),
-				classDef: { get: () => 5 }, // class 5
+				classDef: ClassDef.format1(0, new Uint16Array([5, 5, 5])), // class 5
 				classRuleSets: [null, null, null], // no rule set for class 5
 			};
 			const result = matchContextFormat2(mongolianFont, buffer, 0, subtable, 0);
@@ -1080,7 +1116,7 @@ describe("shaper internal functions", () => {
 			// Create a buffer with base, ligature, and marks
 			const buffer = createBuffer([10, 20, 30, 40]);
 			const lookup = {
-				type: GposLookupType.MarkLigature as const,
+				type: GposLookupType.MarkToLigature as const,
 				flag: 0,
 				digest: createDigest([10, 20, 30, 40]),
 				subtables: [
@@ -1148,9 +1184,9 @@ describe("shaper internal functions", () => {
 			const subtable = {
 				format: 2 as const,
 				coverage: createCoverage([20]),
-				backtrackClassDef: { get: () => 0 },
-				inputClassDef: { get: () => 0 },
-				lookaheadClassDef: { get: () => 0 },
+				backtrackClassDef: ClassDef.empty(),
+				inputClassDef: ClassDef.empty(),
+				lookaheadClassDef: ClassDef.empty(),
 				chainClassRuleSets: [
 					[
 						{

@@ -30,7 +30,7 @@ describe("CFF complete coverage", () => {
 		];
 
 		if (customParts?.afterHeader) {
-			return new Uint8Array([...customParts.afterHeader]);
+			return new Uint8Array(customParts.afterHeader.flatMap(arr => Array.from(arr)));
 		}
 
 		return new Uint8Array(parts);
@@ -173,7 +173,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4, // header
 			...createIndexWithOffSize([[84, 101, 115, 116]], 2), // Name INDEX
-			...createIndexWithOffSize([dictData], 2), // Top DICT INDEX
+			...createIndexWithOffSize([Array.from(dictData)], 2), // Top DICT INDEX
 			0,
 			0, // String INDEX
 			0,
@@ -202,7 +202,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4, // header
 			...createIndexWithOffSize([[84]], 2), // Name INDEX
-			...createIndexWithOffSize([dict], 2), // Top DICT INDEX
+			...createIndexWithOffSize([Array.from(dict)], 2), // Top DICT INDEX
 			0,
 			0, // String INDEX
 			0,
@@ -233,7 +233,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -264,7 +264,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -293,7 +293,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -322,7 +322,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -351,7 +351,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -379,7 +379,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -408,7 +408,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -436,7 +436,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -467,7 +467,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -497,7 +497,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -527,7 +527,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -558,7 +558,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -591,7 +591,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -621,7 +621,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -650,7 +650,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -679,7 +679,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -710,7 +710,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -741,7 +741,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -771,7 +771,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -978,7 +978,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -1003,7 +1003,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([dict], 2),
+			...createIndexWithOffSize([Array.from(dict)], 2),
 			0,
 			0,
 			0,
@@ -1041,7 +1041,7 @@ describe("CFF complete coverage", () => {
 			2,
 		);
 
-		const fdArrayIndex = createIndexWithOffSize([fdArrayDict], 2);
+		const fdArrayIndex = createIndexWithOffSize([Array.from(fdArrayDict)], 2);
 
 		const fdSelect = new Uint8Array([
 			0, // format 0
@@ -1054,7 +1054,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4, // header
 			...createIndexWithOffSize([[84]], 2), // Name INDEX
-			...createIndexWithOffSize([topDict], 2), // Top DICT INDEX
+			...createIndexWithOffSize([Array.from(topDict)], 2), // Top DICT INDEX
 			0,
 			0, // String INDEX
 			0,
@@ -1116,7 +1116,7 @@ describe("CFF complete coverage", () => {
 
 		const charStringsIndex = createIndexWithOffSize([[14]], 2);
 
-		const fdArrayIndex = createIndexWithOffSize([fdDict], 2);
+		const fdArrayIndex = createIndexWithOffSize([Array.from(fdDict)], 2);
 
 		const localSubrsIndex = createIndexWithOffSize([[14]], 2);
 
@@ -1126,7 +1126,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1146,7 +1146,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...privateDict);
+		parts.push(...Array.from(privateDict));
 
 		while (parts.length < localSubrsOffset) {
 			parts.push(0);
@@ -1211,7 +1211,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1226,7 +1226,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < fdSelectOffset) {
 			parts.push(0);
 		}
-		parts.push(...fdSelect);
+		parts.push(...Array.from(fdSelect));
 
 		const data = new Uint8Array(parts);
 
@@ -1270,7 +1270,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1285,7 +1285,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < fdSelectOffset) {
 			parts.push(0);
 		}
-		parts.push(...fdSelect);
+		parts.push(...Array.from(fdSelect));
 
 		const data = new Uint8Array(parts);
 
@@ -1326,7 +1326,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1336,7 +1336,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1374,7 +1374,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1384,7 +1384,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1422,7 +1422,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1432,7 +1432,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1470,7 +1470,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1480,7 +1480,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1518,7 +1518,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1528,7 +1528,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1569,7 +1569,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1579,7 +1579,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1617,7 +1617,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1627,7 +1627,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...dict);
+		parts.push(...Array.from(dict));
 
 		const data = new Uint8Array(parts);
 
@@ -1667,7 +1667,7 @@ describe("CFF complete coverage", () => {
 		const topDict = new Uint8Array(topDictBytes);
 
 		const charStringsIndex = createIndexWithOffSize([[14]], 2);
-		const fdArrayIndex = createIndexWithOffSize([fdDict], 2);
+		const fdArrayIndex = createIndexWithOffSize([Array.from(fdDict)], 2);
 		const localSubrsIndex = createIndexWithOffSize([[14]], 2);
 
 		const parts = [
@@ -1676,7 +1676,7 @@ describe("CFF complete coverage", () => {
 			4,
 			4,
 			...createIndexWithOffSize([[84]], 2),
-			...createIndexWithOffSize([topDict], 2),
+			...createIndexWithOffSize([Array.from(topDict)], 2),
 			0,
 			0,
 			0,
@@ -1696,7 +1696,7 @@ describe("CFF complete coverage", () => {
 		while (parts.length < privateDictOffset) {
 			parts.push(0);
 		}
-		parts.push(...privateDict);
+		parts.push(...Array.from(privateDict));
 
 		while (parts.length < localSubrsOffset) {
 			parts.push(0);

@@ -227,7 +227,7 @@ describe("gvar synthetic binary tests", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 1);
 
 		expect(gvar.glyphVariationData.length).toBe(1);
@@ -260,7 +260,7 @@ describe("gvar synthetic binary tests", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 1);
 
 		const header = gvar.glyphVariationData[0]?.tupleVariationHeaders[0];
@@ -289,7 +289,7 @@ describe("gvar synthetic binary tests", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 1);
 
 		const header = gvar.glyphVariationData[0]?.tupleVariationHeaders[0];
@@ -317,7 +317,7 @@ describe("gvar synthetic binary tests", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 1);
 
 		const header = gvar.glyphVariationData[0]?.tupleVariationHeaders[0];
@@ -368,7 +368,7 @@ describe("gvar synthetic binary tests", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 2);
 
 		expect(gvar.glyphVariationData[0]?.tupleVariationHeaders).toEqual([]);
@@ -400,7 +400,7 @@ describe("getGlyphDelta with synthetic data", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 1);
 
 		const delta = getGlyphDelta(gvar, 0, 10, [1.0]);
@@ -431,7 +431,7 @@ describe("getGlyphDelta with synthetic data", () => {
 			],
 		});
 
-		const reader = new Reader(buffer.buffer);
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
 		const gvar = parseGvar(reader, 1);
 
 		const delta = getGlyphDelta(gvar, 0, 999, [1.0]);

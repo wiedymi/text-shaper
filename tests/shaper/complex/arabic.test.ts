@@ -176,7 +176,7 @@ describe("arabic shaper", () => {
 
 		test("handles character with undefined codepoint", () => {
 			const infos: GlyphInfo[] = [
-				{ glyphId: 0, cluster: 0, mask: 0, codepoint: undefined },
+				{ glyphId: 0, cluster: 0, mask: 0, codepoint: 0 },
 			];
 			setupArabicMasks(infos);
 			expect(infos[0]!.mask).toBe(0);

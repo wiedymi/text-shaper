@@ -370,7 +370,7 @@ describe("os2 table", () => {
 			];
 
 			for (const { class: weightClass, value } of weights) {
-				expect(weightClass).toBe(value);
+				expect(weightClass).toBe(value as 100 | 200 | 300 | 400 | 500 | 600 | 700 | 800 | 900);
 			}
 		});
 

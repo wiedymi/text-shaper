@@ -46,9 +46,6 @@ export class GlyphBuffer {
 		return buffer;
 	}
 
-	/** Hint for initial capacity (used for lazy allocation) */
-	private _capacity = 0;
-
 	/** Number of glyphs */
 	get length(): number {
 		return this.infos.length;

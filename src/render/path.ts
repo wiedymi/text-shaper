@@ -325,12 +325,10 @@ export function pathToSVG(
 		if (i > 0) result += " ";
 		switch (cmd.type) {
 			case "M":
-				result +=
-					"M " + Math.round(cmd.x * s) + " " + Math.round(cmd.y * ys);
+				result += `M ${Math.round(cmd.x * s)} ${Math.round(cmd.y * ys)}`;
 				break;
 			case "L":
-				result +=
-					"L " + Math.round(cmd.x * s) + " " + Math.round(cmd.y * ys);
+				result += `L ${Math.round(cmd.x * s)} ${Math.round(cmd.y * ys)}`;
 				break;
 			case "Q":
 				result +=
@@ -1237,17 +1235,11 @@ export function pathToSVGDirect(
 		switch (cmd.type) {
 			case "M":
 				result +=
-					"M " +
-					Math.round(cmd.x * s + ox) +
-					" " +
-					Math.round(cmd.y * ns + oy);
+					"M " + Math.round(cmd.x * s + ox) + " " + Math.round(cmd.y * ns + oy);
 				break;
 			case "L":
 				result +=
-					"L " +
-					Math.round(cmd.x * s + ox) +
-					" " +
-					Math.round(cmd.y * ns + oy);
+					"L " + Math.round(cmd.x * s + ox) + " " + Math.round(cmd.y * ns + oy);
 				break;
 			case "Q":
 				result +=

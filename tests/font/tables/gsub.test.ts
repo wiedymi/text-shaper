@@ -3768,7 +3768,7 @@ describe("GSUB Extension lookup unit tests", () => {
 		data.set(extSubtable, header.length);
 
 		const reader = new Reader(data.buffer);
-		const lookup = __testing.parseGsubLookup(reader);
+		const lookup = __testing.parseGsubLookup(reader, reader, 0);
 
 		expect(lookup).not.toBeNull();
 		expect(lookup!.type).toBe(GsubLookupType.Alternate);
@@ -3813,7 +3813,7 @@ describe("GSUB Extension lookup unit tests", () => {
 		data.set(extSubtable, header.length);
 
 		const reader = new Reader(data.buffer);
-		const lookup = __testing.parseGsubLookup(reader);
+		const lookup = __testing.parseGsubLookup(reader, reader, 0);
 
 		expect(lookup).not.toBeNull();
 		expect(lookup!.type).toBe(GsubLookupType.Context);

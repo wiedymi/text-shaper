@@ -324,6 +324,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 10],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("simple");
@@ -346,6 +347,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 24],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("composite");
@@ -362,6 +364,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 16],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("composite");
@@ -378,6 +381,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 16],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("composite");
@@ -396,6 +400,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 32],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("composite");
@@ -415,6 +420,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 32],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("composite");
@@ -434,6 +440,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets: [0, 32],
+				isShort: true,
 			};
 			const glyph = parseGlyph(glyf, mockLoca, 0);
 			expect(glyph.type).toBe("composite");
@@ -621,6 +628,7 @@ describe("glyf table", () => {
 			const mockLoca = {
 				format: 0 as const,
 				offsets,
+				isShort: true,
 			};
 			const mockGvar = createMockGvar([]);
 

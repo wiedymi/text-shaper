@@ -29,6 +29,7 @@ function createMockCffTable(charStrings: Uint8Array[]): CffTable {
 		fdArrays: [[]],
 		fdSelects: [
 			{
+				format: 0,
 				select: () => 0,
 			},
 		],
@@ -55,6 +56,7 @@ function createMockCff2Table(charStrings: Uint8Array[]): Cff2Table {
 			},
 		],
 		fdSelect: {
+			format: 0,
 			select: () => 0,
 		},
 		vstore: null,
@@ -1234,15 +1236,16 @@ describe("CFF CharString Interpreter", () => {
 			const cff = createMockCffTable([charstring]);
 			// Make it a CID font
 			if (cff.topDicts[0]) {
-				cff.topDicts[0].ros = { registry: 0, ordering: 0, supplement: 0 };
+				cff.topDicts[0].ros = { registry: "Adobe", ordering: "Identity", supplement: 0 };
 			}
 			cff.fdArrays[0] = [
 				{
-					private: {},
+					private: [0, 0],
 					localSubrs: [],
 				},
 			];
 			cff.fdSelects[0] = {
+				format: 0,
 				select: (gid: number) => 0,
 			};
 			const result = executeCffCharString(cff, 0);
@@ -1267,7 +1270,7 @@ describe("CFF CharString Interpreter", () => {
 			const cff = createMockCffTable([charstring]);
 			// Make it a CID font
 			if (cff.topDicts[0]) {
-				cff.topDicts[0].ros = { registry: 0, ordering: 0, supplement: 0 };
+				cff.topDicts[0].ros = { registry: "Adobe", ordering: "Identity", supplement: 0 };
 			}
 			const fdLocalSubrs = [subr];
 			for (let i = 0; i < 107; i++) {
@@ -1275,11 +1278,12 @@ describe("CFF CharString Interpreter", () => {
 			}
 			cff.fdArrays[0] = [
 				{
-					private: {},
+					private: [0, 0],
 					localSubrs: fdLocalSubrs,
 				},
 			];
 			cff.fdSelects[0] = {
+				format: 0,
 				select: () => 0,
 			};
 			const result = executeCffCharString(cff, 0);

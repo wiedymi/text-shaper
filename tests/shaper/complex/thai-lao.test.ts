@@ -412,9 +412,9 @@ describe("shaper/complex/thai-lao", () => {
 			// @ts-expect-error - testing null handling
 			reorderThaiLao(infos);
 			// Should skip the null and find the consonant
-			expect(infos[0].codepoint).toBe(0x0e01);
+			expect(infos[0]?.codepoint).toBe(0x0e01);
 			expect(infos[1]).toBe(null);
-			expect(infos[2].codepoint).toBe(0x0e40);
+			expect(infos[2]?.codepoint).toBe(0x0e40);
 		});
 	});
 

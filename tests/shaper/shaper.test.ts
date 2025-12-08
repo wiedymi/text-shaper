@@ -4,7 +4,7 @@ import { UnicodeBuffer } from "../../src/buffer/unicode-buffer.ts";
 import { shape, type ShapeOptions } from "../../src/shaper/shaper.ts";
 import type { ShapeFeature } from "../../src/shaper/shape-plan.ts";
 import { feature } from "../../src/shaper/features.ts";
-import { Direction } from "../../src/types.ts";
+import { Direction, tag } from "../../src/types.ts";
 
 // Helper to convert feature strings to ShapeFeature objects
 function parseFeature(featureStr: string): ShapeFeature {
@@ -2908,7 +2908,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Test early return when no GDEF at line 173
 			const buffer = new UnicodeBuffer().addStr("Hello");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -2927,7 +2927,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Lines 189-190: ignoreLig && glyphClass === Ligature
 			const buffer = new UnicodeBuffer().addStr("fi fl ffi");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -2939,7 +2939,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			const buffer = new UnicodeBuffer().addStr("\u0644\u0627");
 			const result = shape(arialUnicode, buffer, {
 				script: "arab",
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			// Ligature substitution changes buffer length
 			expect(result.length).toBeGreaterThanOrEqual(1);
@@ -3048,7 +3048,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Lines 844-845: direct application
 			const buffer = new UnicodeBuffer().addStr("fi fl ffi");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3057,7 +3057,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Lines 849-850: with skip
 			const buffer = new UnicodeBuffer().addStr("office");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3292,7 +3292,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Lines 1787-1793: pair pos with nextNonSkip array
 			const buffer = new UnicodeBuffer().addStr("AVAV");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(4);
 
@@ -3304,7 +3304,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("finds next non-skipped glyph for pairing", () => {
 			const buffer = new UnicodeBuffer().addStr("A\u064EV");
 			const result = shape(arialUnicode, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3620,12 +3620,12 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "init", value: 1 },
-					{ tag: "medi", value: 1 },
-					{ tag: "fina", value: 1 },
-					{ tag: "liga", value: 1 },
-					{ tag: "rlig", value: 1 },
-					{ tag: "calt", value: 1 },
+					{ tag: tag("init"), enabled: true },
+					{ tag: tag("medi"), enabled: true },
+					{ tag: tag("fina"), enabled: true },
+					{ tag: tag("liga"), enabled: true },
+					{ tag: tag("rlig"), enabled: true },
+					{ tag: tag("calt"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -3667,7 +3667,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles text with ligatures disabled", () => {
 			const buffer = new UnicodeBuffer().addStr("fi fl ffi");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 0 }],
+				features: [{ tag: tag("liga"), enabled: false }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3677,7 +3677,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			const result = shape(arialUnicode, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "calt", value: 1 }],
+				features: [{ tag: tag("calt"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3708,7 +3708,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Force digest rebuild by causing length change
 			const buffer = new UnicodeBuffer().addStr("fficefflffi");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3719,20 +3719,20 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "ccmp", value: 1 },
-					{ tag: "isol", value: 1 },
-					{ tag: "fina", value: 1 },
-					{ tag: "fin2", value: 1 },
-					{ tag: "fin3", value: 1 },
-					{ tag: "medi", value: 1 },
-					{ tag: "med2", value: 1 },
-					{ tag: "init", value: 1 },
-					{ tag: "rlig", value: 1 },
-					{ tag: "calt", value: 1 },
-					{ tag: "liga", value: 1 },
-					{ tag: "dlig", value: 1 },
-					{ tag: "cswh", value: 1 },
-					{ tag: "mset", value: 1 },
+					{ tag: tag("ccmp"), enabled: true },
+					{ tag: tag("isol"), enabled: true },
+					{ tag: tag("fina"), enabled: true },
+					{ tag: tag("fin2"), enabled: true },
+					{ tag: tag("fin3"), enabled: true },
+					{ tag: tag("medi"), enabled: true },
+					{ tag: tag("med2"), enabled: true },
+					{ tag: tag("init"), enabled: true },
+					{ tag: tag("rlig"), enabled: true },
+					{ tag: tag("calt"), enabled: true },
+					{ tag: tag("liga"), enabled: true },
+					{ tag: tag("dlig"), enabled: true },
+					{ tag: tag("cswh"), enabled: true },
+					{ tag: tag("mset"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -3744,8 +3744,8 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "mark", value: 1 },
-					{ tag: "mkmk", value: 1 },
+					{ tag: tag("mark"), enabled: true },
+					{ tag: tag("mkmk"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -3754,7 +3754,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles kerning with different letter pairs", () => {
 			const buffer = new UnicodeBuffer().addStr("AVAVAVTOTOTOWAWAWA");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(18);
 
@@ -3766,9 +3766,9 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			const buffer = new UnicodeBuffer().addStr("fficefflffi");
 			const result = shape(arial, buffer, {
 				features: [
-					{ tag: "ccmp", value: 1 },
-					{ tag: "liga", value: 1 },
-					{ tag: "kern", value: 1 },
+					{ tag: tag("ccmp"), enabled: true },
+					{ tag: tag("liga"), enabled: true },
+					{ tag: tag("kern"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -3800,7 +3800,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Test with a font that has alternates
 			const buffer = new UnicodeBuffer().addStr("Test");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "salt", value: 1 }], // stylistic alternates
+				features: [{ tag: tag("salt"), enabled: true }], // stylistic alternates
 			});
 			expect(result.length).toBe(4);
 		});
@@ -3816,7 +3816,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles contextual alternates", async () => {
 			const buffer = new UnicodeBuffer().addStr("cafeteria");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "calt", value: 1 }],
+				features: [{ tag: tag("calt"), enabled: true }],
 			});
 			expect(result.length).toBe(9);
 		});
@@ -3863,7 +3863,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Context positioning adjusts based on surrounding glyphs
 			const buffer = new UnicodeBuffer().addStr("AVAVAV");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(6);
 			// Kerning should adjust advances
@@ -3893,8 +3893,8 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			const result = shape(japaneseFont, buffer, {
 				script: "kana",
 				features: [
-					{ tag: "vert", value: 1 }, // vertical alternates
-					{ tag: "vkrn", value: 1 }, // vertical kerning
+					{ tag: tag("vert"), enabled: true }, // vertical alternates
+					{ tag: tag("vkrn"), enabled: true }, // vertical kerning
 				],
 			});
 			expect(result.length).toBe(3);
@@ -3904,7 +3904,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			const japaneseFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
 			const buffer = new UnicodeBuffer().addStr("\u3001\u3002"); // Japanese punctuation
 			const result = shape(japaneseFont, buffer, {
-				features: [{ tag: "vrt2", value: 1 }],
+				features: [{ tag: tag("vrt2"), enabled: true }],
 			});
 			expect(result.length).toBe(2);
 		});
@@ -3922,7 +3922,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles ignoreLigatures flag", async () => {
 			const buffer = new UnicodeBuffer().addStr("fficeffi");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3990,7 +3990,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles component count in ligatures", async () => {
 			const buffer = new UnicodeBuffer().addStr("fficefflffiffi");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -3999,7 +3999,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			// Test that digest optimization works correctly
 			const buffer = new UnicodeBuffer().addStr("office official affluent");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "liga", value: 1 }],
+				features: [{ tag: tag("liga"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		});
@@ -4009,7 +4009,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles pair positioning format 1 (glyph pairs)", async () => {
 			const buffer = new UnicodeBuffer().addStr("AVAVAV");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(6);
 		});
@@ -4017,7 +4017,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles pair positioning format 2 (class pairs)", async () => {
 			const buffer = new UnicodeBuffer().addStr("TOTOWA");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(6);
 		});
@@ -4035,7 +4035,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles context substitution format 1 (simple)", async () => {
 			const buffer = new UnicodeBuffer().addStr("context");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "calt", value: 1 }],
+				features: [{ tag: tag("calt"), enabled: true }],
 			});
 			expect(result.length).toBe(7);
 		});
@@ -4043,7 +4043,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles context substitution format 2 (class-based)", async () => {
 			const buffer = new UnicodeBuffer().addStr("test");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "calt", value: 1 }],
+				features: [{ tag: tag("calt"), enabled: true }],
 			});
 			expect(result.length).toBe(4);
 		});
@@ -4051,7 +4051,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles context substitution format 3 (coverage-based)", async () => {
 			const buffer = new UnicodeBuffer().addStr("example");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "calt", value: 1 }],
+				features: [{ tag: tag("calt"), enabled: true }],
 			});
 			expect(result.length).toBe(7);
 		});
@@ -4066,7 +4066,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles context positioning format 1", async () => {
 			const buffer = new UnicodeBuffer().addStr("position");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(8);
 		});
@@ -4074,7 +4074,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles context positioning format 2", async () => {
 			const buffer = new UnicodeBuffer().addStr("adjust");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(6);
 		});
@@ -4082,7 +4082,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles context positioning format 3", async () => {
 			const buffer = new UnicodeBuffer().addStr("spacing");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(7);
 		});
@@ -4090,7 +4090,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles chaining context positioning", async () => {
 			const buffer = new UnicodeBuffer().addStr("AVAVAV");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBe(6);
 		});
@@ -4100,7 +4100,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles single subst format 1 (delta)", async () => {
 			const buffer = new UnicodeBuffer().addStr("test");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "smcp", value: 1 }], // small caps
+				features: [{ tag: tag("smcp"), enabled: true }], // small caps
 			});
 			expect(result.length).toBe(4);
 		});
@@ -4108,7 +4108,7 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 		test("handles single subst format 2 (array)", async () => {
 			const buffer = new UnicodeBuffer().addStr("TEST");
 			const result = shape(arial, buffer, {
-				features: [{ tag: "c2sc", value: 1 }], // caps to small caps
+				features: [{ tag: tag("c2sc"), enabled: true }], // caps to small caps
 			});
 			expect(result.length).toBe(4);
 		});
@@ -4135,9 +4135,9 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			const buffer = new UnicodeBuffer().addStr("1234567890");
 			const result = shape(arial, buffer, {
 				features: [
-					{ tag: "liga", value: 1 },
-					{ tag: "calt", value: 1 },
-					{ tag: "kern", value: 1 },
+					{ tag: tag("liga"), enabled: true },
+					{ tag: tag("calt"), enabled: true },
+					{ tag: tag("kern"), enabled: true },
 				],
 			});
 			expect(result.length).toBe(10);
@@ -4156,13 +4156,13 @@ describe("uncovered code paths", () => {
 		try {
 			const japaneseFont = await Font.fromFile("/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc");
 			const buffer = new UnicodeBuffer().addStr("縦書き");
-			buffer.direction = Direction.TTB;
+			buffer.setDirection(Direction.TTB);
 			const result = shape(japaneseFont, buffer, {
 				direction: "ltr",
 				features: [
-					{ tag: "vpal", value: 1 },
-					{ tag: "vert", value: 1 },
-					{ tag: "vrt2", value: 1 },
+					{ tag: tag("vpal"), enabled: true },
+					{ tag: tag("vert"), enabled: true },
+					{ tag: tag("vrt2"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4176,8 +4176,8 @@ describe("uncovered code paths", () => {
 			const buffer = new UnicodeBuffer().addStr("@#$%");
 			const result = shape(testFont, buffer, {
 				features: [
-					{ tag: "aalt", value: 1 },
-					{ tag: "salt", value: 1 },
+					{ tag: tag("aalt"), enabled: true },
+					{ tag: tag("salt"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4194,8 +4194,8 @@ describe("uncovered code paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "rclt", value: 1 },
-					{ tag: "calt", value: 1 },
+					{ tag: tag("rclt"), enabled: true },
+					{ tag: tag("calt"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4264,7 +4264,7 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("ffi");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
+				{ tag: tag("liga"), enabled: true },
 			],
 		});
 		expect(result.length).toBeGreaterThanOrEqual(1);
@@ -4274,8 +4274,8 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("ABCDEFG");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "smcp", value: 1 },
-				{ tag: "c2sc", value: 1 },
+				{ tag: tag("smcp"), enabled: true },
+				{ tag: tag("c2sc"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(7);
@@ -4285,7 +4285,7 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("abcdefg");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "smcp", value: 1 },
+				{ tag: tag("smcp"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(7);
@@ -4299,9 +4299,9 @@ describe("uncovered code paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "init", value: 1 },
-					{ tag: "medi", value: 1 },
-					{ tag: "fina", value: 1 },
+					{ tag: tag("init"), enabled: true },
+					{ tag: tag("medi"), enabled: true },
+					{ tag: tag("fina"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4318,8 +4318,8 @@ describe("uncovered code paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "mark", value: 1 },
-					{ tag: "mkmk", value: 1 },
+					{ tag: tag("mark"), enabled: true },
+					{ tag: tag("mkmk"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4356,14 +4356,14 @@ describe("uncovered code paths", () => {
 			script: "arab",
 			direction: "rtl",
 			features: [
-				{ tag: "init", value: 1 },
-				{ tag: "medi", value: 1 },
-				{ tag: "fina", value: 1 },
-				{ tag: "liga", value: 1 },
-				{ tag: "mark", value: 1 },
-				{ tag: "mkmk", value: 1 },
-				{ tag: "curs", value: 1 },
-				{ tag: "kern", value: 1 },
+				{ tag: tag("init"), enabled: true },
+				{ tag: tag("medi"), enabled: true },
+				{ tag: tag("fina"), enabled: true },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("mark"), enabled: true },
+				{ tag: tag("mkmk"), enabled: true },
+				{ tag: tag("curs"), enabled: true },
+				{ tag: tag("kern"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(0);
@@ -4373,9 +4373,9 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("A");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
-				{ tag: "kern", value: 1 },
-				{ tag: "smcp", value: 1 },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("kern"), enabled: true },
+				{ tag: tag("smcp"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(1);
@@ -4390,7 +4390,7 @@ describe("uncovered code paths", () => {
 			const result1 = shape(arabicFont, single, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "rclt", value: 1 }],
+				features: [{ tag: tag("rclt"), enabled: true }],
 			});
 			expect(result1.length).toBe(1);
 
@@ -4399,7 +4399,7 @@ describe("uncovered code paths", () => {
 			const result2 = shape(arabicFont, two, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "rclt", value: 1 }],
+				features: [{ tag: tag("rclt"), enabled: true }],
 			});
 			expect(result2.length).toBeGreaterThan(0);
 
@@ -4408,7 +4408,7 @@ describe("uncovered code paths", () => {
 			const result3 = shape(arabicFont, three, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "rclt", value: 1 }],
+				features: [{ tag: tag("rclt"), enabled: true }],
 			});
 			expect(result3.length).toBeGreaterThan(0);
 		} catch {
@@ -4425,7 +4425,7 @@ describe("uncovered code paths", () => {
 			const result1 = shape(arabicFont, noMarks, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "curs", value: 1 }],
+				features: [{ tag: tag("curs"), enabled: true }],
 			});
 			expect(result1.length).toBeGreaterThan(0);
 
@@ -4434,7 +4434,7 @@ describe("uncovered code paths", () => {
 			const result2 = shape(arabicFont, withMarks, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "curs", value: 1 }],
+				features: [{ tag: tag("curs"), enabled: true }],
 			});
 			expect(result2.length).toBeGreaterThan(0);
 		} catch {
@@ -4452,8 +4452,8 @@ describe("uncovered code paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "calt", value: 1 },
-					{ tag: "rclt", value: 1 },
+					{ tag: tag("calt"), enabled: true },
+					{ tag: tag("rclt"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4466,10 +4466,10 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("The quick brown fox jumps");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
-				{ tag: "kern", value: 1 },
-				{ tag: "smcp", value: 1 },
-				{ tag: "c2sc", value: 1 },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("kern"), enabled: true },
+				{ tag: tag("smcp"), enabled: true },
+				{ tag: tag("c2sc"), enabled: true },
 			],
 		});
 		expect(result.length).toBeGreaterThan(0);
@@ -4479,8 +4479,8 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("fi fl ffi ffl");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
-				{ tag: "dlig", value: 1 },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("dlig"), enabled: true },
 			],
 		});
 		expect(result.length).toBeGreaterThan(0);
@@ -4490,7 +4490,7 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("VAVA");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "kern", value: 1 },
+				{ tag: tag("kern"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(4);
@@ -4504,7 +4504,7 @@ describe("uncovered code paths", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "mark", value: 1 }],
+				features: [{ tag: tag("mark"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4516,8 +4516,8 @@ describe("uncovered code paths", () => {
 		const buffer = new UnicodeBuffer().addStr("Hello World");
 		const result = shape(testFont, buffer, {
 			features: [
-				{ tag: "kern", value: 1 },
-				{ tag: "curs", value: 1 },
+				{ tag: tag("kern"), enabled: true },
+				{ tag: tag("curs"), enabled: true },
 			],
 		});
 		expect(result.length).toBeGreaterThan(0);
@@ -4530,7 +4530,7 @@ describe("uncovered code paths", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "mark", value: 1 }],
+				features: [{ tag: tag("mark"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4547,23 +4547,23 @@ describe("uncovered code paths", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "ccmp", value: 1 },
-					{ tag: "isol", value: 1 },
-					{ tag: "fina", value: 1 },
-					{ tag: "fin2", value: 1 },
-					{ tag: "fin3", value: 1 },
-					{ tag: "medi", value: 1 },
-					{ tag: "med2", value: 1 },
-					{ tag: "init", value: 1 },
-					{ tag: "rlig", value: 1 },
-					{ tag: "rclt", value: 1 },
-					{ tag: "calt", value: 1 },
-					{ tag: "liga", value: 1 },
-					{ tag: "dlig", value: 1 },
-					{ tag: "curs", value: 1 },
-					{ tag: "kern", value: 1 },
-					{ tag: "mark", value: 1 },
-					{ tag: "mkmk", value: 1 },
+					{ tag: tag("ccmp"), enabled: true },
+					{ tag: tag("isol"), enabled: true },
+					{ tag: tag("fina"), enabled: true },
+					{ tag: tag("fin2"), enabled: true },
+					{ tag: tag("fin3"), enabled: true },
+					{ tag: tag("medi"), enabled: true },
+					{ tag: tag("med2"), enabled: true },
+					{ tag: tag("init"), enabled: true },
+					{ tag: tag("rlig"), enabled: true },
+					{ tag: tag("rclt"), enabled: true },
+					{ tag: tag("calt"), enabled: true },
+					{ tag: tag("liga"), enabled: true },
+					{ tag: tag("dlig"), enabled: true },
+					{ tag: tag("curs"), enabled: true },
+					{ tag: tag("kern"), enabled: true },
+					{ tag: tag("mark"), enabled: true },
+					{ tag: tag("mkmk"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4577,7 +4577,7 @@ describe("uncovered code paths", () => {
 			const simpleFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Courier New.ttf");
 			const buffer = new UnicodeBuffer().addStr("Hello World");
 			const result = shape(simpleFont, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4596,7 +4596,7 @@ describe("maximum coverage for shaper.ts", () => {
 	test("trigger Multiple substitution code path", async () => {
 		const buffer = new UnicodeBuffer().addStr("ffi ffl");
 		const result = shape(arialFont, buffer, {
-			features: [{ tag: "liga", value: 1 }],
+			features: [{ tag: tag("liga"), enabled: true }],
 		});
 		expect(result.length).toBeGreaterThan(0);
 	});
@@ -4605,8 +4605,8 @@ describe("maximum coverage for shaper.ts", () => {
 		const buffer = new UnicodeBuffer().addStr("abcdefg");
 		const result = shape(arialFont, buffer, {
 			features: [
-				{ tag: "aalt", value: 1 },
-				{ tag: "salt", value: 1 },
+				{ tag: tag("aalt"), enabled: true },
+				{ tag: tag("salt"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(7);
@@ -4615,7 +4615,7 @@ describe("maximum coverage for shaper.ts", () => {
 	test("trigger variable font advance width path", async () => {
 		try {
 			const varFont = await Font.fromFile("/System/Library/Fonts/SFNSText.ttf");
-			const face = new (await import("../../src/font/face.ts")).Face(varFont, new Map([["wght", 600]]));
+			const face = new (await import("../../src/font/face.ts")).Face(varFont, Object.fromEntries(new Map([["wght", 600]])));
 			const buffer = new UnicodeBuffer().addStr("Hello");
 			const result = shape(face, buffer);
 			expect(result.length).toBe(5);
@@ -4632,8 +4632,8 @@ describe("maximum coverage for shaper.ts", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "rclt", value: 1 },
-					{ tag: "calt", value: 1 },
+					{ tag: tag("rclt"), enabled: true },
+					{ tag: tag("calt"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4650,10 +4650,10 @@ describe("maximum coverage for shaper.ts", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "calt", value: 1 },
-					{ tag: "init", value: 1 },
-					{ tag: "medi", value: 1 },
-					{ tag: "fina", value: 1 },
+					{ tag: tag("calt"), enabled: true },
+					{ tag: tag("init"), enabled: true },
+					{ tag: tag("medi"), enabled: true },
+					{ tag: tag("fina"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4669,7 +4669,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "calt", value: 1 }],
+				features: [{ tag: tag("calt"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4684,7 +4684,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "init", value: 1 }],
+				features: [{ tag: tag("init"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4699,7 +4699,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4714,7 +4714,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "curs", value: 1 }],
+				features: [{ tag: tag("curs"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4729,7 +4729,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "mark", value: 1 }],
+				features: [{ tag: tag("mark"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4742,7 +4742,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const simpleFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Courier New.ttf");
 			const buffer = new UnicodeBuffer().addStr("Hello World");
 			const result = shape(simpleFont, buffer, {
-				features: [{ tag: "kern", value: 1 }],
+				features: [{ tag: tag("kern"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4758,8 +4758,8 @@ describe("maximum coverage for shaper.ts", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "mark", value: 1 },
-					{ tag: "mkmk", value: 1 },
+					{ tag: tag("mark"), enabled: true },
+					{ tag: tag("mkmk"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4776,11 +4776,11 @@ describe("maximum coverage for shaper.ts", () => {
 				script: "arab",
 				direction: "rtl",
 				features: [
-					{ tag: "init", value: 1 },
-					{ tag: "medi", value: 1 },
-					{ tag: "fina", value: 1 },
-					{ tag: "liga", value: 1 },
-					{ tag: "mark", value: 1 },
+					{ tag: tag("init"), enabled: true },
+					{ tag: tag("medi"), enabled: true },
+					{ tag: tag("fina"), enabled: true },
+					{ tag: tag("liga"), enabled: true },
+					{ tag: tag("mark"), enabled: true },
 				],
 			});
 			expect(result.length).toBeGreaterThan(0);
@@ -4792,7 +4792,7 @@ describe("maximum coverage for shaper.ts", () => {
 	test("trigger SingleSubst format 1 fast path", async () => {
 		const buffer = new UnicodeBuffer().addStr("ABCDEFGHIJ");
 		const result = shape(arialFont, buffer, {
-			features: [{ tag: "smcp", value: 1 }],
+			features: [{ tag: tag("smcp"), enabled: true }],
 		});
 		expect(result.length).toBe(10);
 	});
@@ -4800,7 +4800,7 @@ describe("maximum coverage for shaper.ts", () => {
 	test("trigger SingleSubst format 2 fast path", async () => {
 		const buffer = new UnicodeBuffer().addStr("abcdefghij");
 		const result = shape(arialFont, buffer, {
-			features: [{ tag: "smcp", value: 1 }],
+			features: [{ tag: tag("smcp"), enabled: true }],
 		});
 		expect(result.length).toBe(10);
 	});
@@ -4808,7 +4808,7 @@ describe("maximum coverage for shaper.ts", () => {
 	test("trigger ligature substitution with skip markers", async () => {
 		const buffer = new UnicodeBuffer().addStr("fi fl");
 		const result = shape(arialFont, buffer, {
-			features: [{ tag: "liga", value: 1 }],
+			features: [{ tag: tag("liga"), enabled: true }],
 		});
 		expect(result.length).toBeGreaterThan(0);
 	});
@@ -4816,7 +4816,7 @@ describe("maximum coverage for shaper.ts", () => {
 	test("trigger PairPos kerning", async () => {
 		const buffer = new UnicodeBuffer().addStr("VAVAVAVA");
 		const result = shape(arialFont, buffer, {
-			features: [{ tag: "kern", value: 1 }],
+			features: [{ tag: tag("kern"), enabled: true }],
 		});
 		expect(result.length).toBe(8);
 	});
@@ -4828,7 +4828,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "curs", value: 1 }],
+				features: [{ tag: tag("curs"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4843,7 +4843,7 @@ describe("maximum coverage for shaper.ts", () => {
 			const result = shape(arabicFont, buffer, {
 				script: "arab",
 				direction: "rtl",
-				features: [{ tag: "curs", value: 1 }],
+				features: [{ tag: tag("curs"), enabled: true }],
 			});
 			expect(result.length).toBeGreaterThan(0);
 		} catch {
@@ -4855,10 +4855,10 @@ describe("maximum coverage for shaper.ts", () => {
 		const buffer = new UnicodeBuffer();
 		const result = shape(arialFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
-				{ tag: "kern", value: 1 },
-				{ tag: "mark", value: 1 },
-				{ tag: "curs", value: 1 },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("kern"), enabled: true },
+				{ tag: tag("mark"), enabled: true },
+				{ tag: tag("curs"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(0);
@@ -4868,9 +4868,9 @@ describe("maximum coverage for shaper.ts", () => {
 		const buffer = new UnicodeBuffer().addStr("A");
 		const result = shape(arialFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
-				{ tag: "kern", value: 1 },
-				{ tag: "mark", value: 1 },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("kern"), enabled: true },
+				{ tag: tag("mark"), enabled: true },
 			],
 		});
 		expect(result.length).toBe(1);
@@ -4880,8 +4880,8 @@ describe("maximum coverage for shaper.ts", () => {
 		const buffer = new UnicodeBuffer().addStr("Hello World");
 		const result = shape(arialFont, buffer, {
 			features: [
-				{ tag: "kern", value: 1 },
-				{ tag: "curs", value: 1 },
+				{ tag: tag("kern"), enabled: true },
+				{ tag: tag("curs"), enabled: true },
 			],
 		});
 		expect(result.length).toBeGreaterThan(0);
@@ -4891,8 +4891,8 @@ describe("maximum coverage for shaper.ts", () => {
 		const buffer = new UnicodeBuffer().addStr("The quick brown fox jumps over the lazy dog");
 		const result = shape(arialFont, buffer, {
 			features: [
-				{ tag: "liga", value: 1 },
-				{ tag: "kern", value: 1 },
+				{ tag: tag("liga"), enabled: true },
+				{ tag: tag("kern"), enabled: true },
 			],
 		});
 		expect(result.length).toBeGreaterThan(0);

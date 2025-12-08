@@ -21,7 +21,7 @@ async function gzipCompress(data: Uint8Array): Promise<Uint8Array> {
 	const writer = stream.writable.getWriter();
 	const reader = stream.readable.getReader();
 
-	await writer.write(data);
+	await writer.write(data as Uint8Array<ArrayBuffer>);
 	await writer.close();
 
 	const chunks: Uint8Array[] = [];
@@ -59,7 +59,7 @@ async function createSvgTableData(
 		documentRecords.map(async (rec) => {
 			let docBytes = textEncoder.encode(rec.svgDoc);
 			if (rec.compress) {
-				docBytes = await gzipCompress(docBytes);
+				docBytes = (await gzipCompress(docBytes)) as Uint8Array<ArrayBuffer>;
 			}
 			return {
 				...rec,

@@ -19,8 +19,9 @@ describe("GPOS additional coverage tests", () => {
 		// Find a valid glyph pair from format 1 subtable
 		for (const subtable of pairLookup.subtables) {
 			if (subtable.format === 1) {
-				for (let i = 0; i < subtable.coverage.glyphs.length; i++) {
-					const glyph = subtable.coverage.glyphs[i];
+				const glyphs = subtable.coverage.glyphs();
+				for (let i = 0; i < glyphs.length; i++) {
+					const glyph = glyphs[i];
 					if (glyph === undefined) continue;
 					const index = subtable.coverage.get(glyph);
 					if (index === null) continue;
@@ -61,7 +62,7 @@ describe("GPOS additional coverage tests", () => {
 		// Find valid glyphs from format 2 subtable
 		for (const subtable of pairLookup.subtables) {
 			if (subtable.format === 2) {
-				const firstGlyph = subtable.coverage.glyphs[0];
+				const firstGlyph = subtable.coverage.glyphs()[0];
 				if (firstGlyph === undefined) continue;
 
 				const class1 = subtable.classDef1.get(firstGlyph);
@@ -73,11 +74,9 @@ describe("GPOS additional coverage tests", () => {
 
 					// Find a glyph in class2
 					let secondGlyph = 0;
-					for (const [glyph, cls] of subtable.classDef2.entries()) {
-						if (cls === class2) {
-							secondGlyph = glyph;
-							break;
-						}
+					const glyphsInClass2 = subtable.classDef2.glyphsInClass(class2);
+					if (glyphsInClass2.length > 0) {
+						secondGlyph = glyphsInClass2[0]!;
 					}
 
 					if (secondGlyph > 0) {
@@ -343,7 +342,7 @@ describe("GPOS Extension lookup unit tests", () => {
 
 	test("Extension lookup with empty subtables returns null", () => {
 		const { header } = buildExtensionLookup([]);
-		const reader = new Reader(header.buffer);
+		const reader = new Reader(header.buffer as ArrayBuffer);
 		const lookup = __testing.parseGposLookup(reader);
 		expect(lookup).toBeNull();
 	});

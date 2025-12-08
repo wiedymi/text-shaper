@@ -756,7 +756,6 @@ describe("unicode normalization", () => {
 		test("reorderMarks handles sparse array (lines 321-322)", () => {
 			// Create an array with holes (undefined entries)
 			const infos: GlyphInfo[] = [makeInfo(0x0041)];
-			// @ts-expect-error - deliberately testing undefined handling
 			infos[2] = makeInfo(0x0300);
 			// infos[1] is now undefined
 
