@@ -9,8 +9,8 @@
 
 import { PIXEL_BITS, truncPixel } from "./fixed-point.ts";
 
-/** Default pool size (matches FreeType's FT_MAX_GRAY_POOL) */
-const DEFAULT_POOL_SIZE = 2048;
+/** Default pool size - larger than FreeType's 2048 to handle big glyphs */
+const DEFAULT_POOL_SIZE = 16384;
 
 /** Sentinel X value for null cell */
 const CELL_MAX_X = 0x7fffffff;
@@ -244,7 +244,7 @@ export class CellBuffer {
 			cellIndex = cell.next;
 		}
 
-		// Need to allocate new cell
+		// Check pool overflow - throw to trigger band bisection
 		if (this.freeIndex >= this.nullCellIndex) {
 			throw new PoolOverflowError();
 		}

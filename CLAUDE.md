@@ -6,31 +6,37 @@ alwaysApply: false
 
 # text-shaper
 
-Pure TypeScript text shaping engine (rustybuzz/HarfBuzz port).
+Pure TypeScript text shaping engine (rustybuzz/HarfBuzz port). Outperforms harfbuzzjs (WASM) and opentype.js across all benchmarks.
 
 ## Project Structure
 
 ```
 src/
   types.ts              # Core types (Tag, GlyphId, etc.)
+  index.ts              # Public API exports
   font/
-    binary/
-      reader.ts         # Binary parsing utilities
-    tables/
-      head.ts, maxp.ts, hhea.ts, hmtx.ts, cmap.ts, etc.
+    binary/             # Binary parsing utilities
+    brotli/             # WOFF2 decompression
+    tables/             # All OpenType table parsers
     font.ts             # Main Font class
   buffer/
     unicode-buffer.ts   # Input text buffer
     glyph-buffer.ts     # Output shaped glyphs
   layout/
-    structures/         # Coverage, ClassDef, etc.
-    lookups/
-      gsub/             # GSUB lookup types 1-8
-      gpos/             # GPOS lookup types 1-9
-    engine.ts           # Layout engine
+    structures/         # Coverage, ClassDef, SequenceContext, etc.
+    engine.ts           # GSUB/GPOS layout engine
   shaper/
-    complex/            # Arabic, Indic, USE shapers
-  unicode/              # Script detection, BiDi
+    complex/            # Arabic, Indic, USE, Myanmar, Khmer shapers
+  unicode/
+    bidi/               # UAX #9 BiDi algorithm
+    script.ts           # Script detection
+    grapheme.ts         # Grapheme cluster segmentation
+  aat/                  # Apple AAT tables (morx, kerx, trak)
+  raster/               # FreeType-style rasterization
+  hinting/
+    instructions/       # TrueType bytecode interpreter
+  render/               # SVG, Canvas, path rendering
+  fluent/               # PathBuilder, BitmapBuilder APIs
 reference/
   opentype.js/          # Reference (submodule)
   rustybuzz/            # Reference (submodule)
@@ -39,7 +45,6 @@ reference/
 ## Conventions
 
 - **File names**: kebab-case (e.g., `glyph-buffer.ts`, `mark-base.ts`)
-- **No tests for now** - focus on implementation
 - **Tabs for indentation** (biome config)
 - **Double quotes** for strings
 
@@ -49,6 +54,33 @@ reference/
 2. Zero-copy binary reading (DataView slices)
 3. All font data is big-endian
 4. Shape plan caching for repeated shaping
+5. Reusable buffers with `shapeInto()` for high-performance loops
+
+## Key APIs
+
+```typescript
+// Basic shaping
+import { Font, shape, UnicodeBuffer } from "text-shaper";
+const font = Font.load(arrayBuffer);
+const buffer = new UnicodeBuffer();
+buffer.addStr("Hello");
+const glyphs = shape(font, buffer);
+
+// High-performance (reuse buffers)
+import { shapeInto, GlyphBuffer } from "text-shaper";
+const gBuffer = GlyphBuffer.withCapacity(128);
+shapeInto(font, buffer, gBuffer);
+
+// Rendering
+import { glyphBufferToShapedGlyphs, shapedTextToSVG, renderShapedText } from "text-shaper";
+const shaped = glyphBufferToShapedGlyphs(glyphs);
+const svg = shapedTextToSVG(font, shaped, { fontSize: 48 });
+
+// Fluent API
+import { glyph, char } from "text-shaper";
+const bitmap = glyph(font, glyphId)?.scale(2).rasterizeAuto().toRGBA();
+const path = char(font, "A")?.embolden(50).toSVG();
+```
 
 Default to using Bun instead of Node.js.
 
@@ -155,3 +187,4 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.md`.
+- Before writing any new code to fix anything or improve, first verify if its valid and works, in order to do so, use bun -e and tmp scripts, do not forget to clean up after you done

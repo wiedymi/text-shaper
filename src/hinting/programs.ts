@@ -60,6 +60,16 @@ export function createHintingEngine(
 		ctx.cvtSize = cvtValues.length;
 	}
 
+	// Initialize twilight zone with all points available
+	// Required for fpgm/prep execution that references twilight points
+	ctx.twilight.nPoints = maxTwilightPoints;
+
+	// Set zone pointers to twilight zone for fpgm/prep execution
+	// These will be redirected to glyph zone during hintGlyph
+	ctx.zp0 = ctx.twilight;
+	ctx.zp1 = ctx.twilight;
+	ctx.zp2 = ctx.twilight;
+
 	return {
 		ctx,
 		unitsPerEM,

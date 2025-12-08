@@ -44,8 +44,9 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 	const zone = ctx.zp0;
 
 	for (let i = 0; i < count; i++) {
-		const argByte = ctx.stack[--ctx.stackTop];
+		// Per Apple TrueType spec: pop point first, then arg
 		const pointIndex = ctx.stack[--ctx.stackTop];
+		const argByte = ctx.stack[--ctx.stackTop];
 
 		if (pointIndex < 0 || pointIndex >= zone.nPoints) {
 			ctx.error = `DELTAP: invalid point ${pointIndex}`;
@@ -111,8 +112,9 @@ function deltaCVT(ctx: ExecContext, rangeOffset: number): void {
 	}
 
 	for (let i = 0; i < count; i++) {
-		const argByte = ctx.stack[--ctx.stackTop];
+		// Per Apple TrueType spec: pop CVT index first, then arg
 		const cvtIndex = ctx.stack[--ctx.stackTop];
+		const argByte = ctx.stack[--ctx.stackTop];
 
 		if (cvtIndex < 0 || cvtIndex >= ctx.cvtSize) {
 			ctx.error = `DELTAC: invalid CVT index ${cvtIndex}`;

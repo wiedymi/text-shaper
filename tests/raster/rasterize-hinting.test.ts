@@ -222,11 +222,20 @@ describe("raster/rasterize hinting", () => {
 		const glyphId = font.glyphId("A".codePointAt(0)!);
 		if (!glyphId) return;
 
+		// Both 48.1 and 48.4 round to ppem 48 with Math.round()
 		const result1 = rasterizeGlyph(font, glyphId, 48.1, { hinting: true });
-		const result2 = rasterizeGlyph(font, glyphId, 48.9, { hinting: true });
+		const result2 = rasterizeGlyph(font, glyphId, 48.4, { hinting: true });
 
 		if (result1 && result2) {
 			expect(result1.bitmap.width).toBe(result2.bitmap.width);
+		}
+
+		// Both 48.6 and 48.9 round to ppem 49 with Math.round()
+		const result3 = rasterizeGlyph(font, glyphId, 48.6, { hinting: true });
+		const result4 = rasterizeGlyph(font, glyphId, 48.9, { hinting: true });
+
+		if (result3 && result4) {
+			expect(result3.bitmap.width).toBe(result4.bitmap.width);
 		}
 	});
 });
