@@ -788,6 +788,28 @@ describe("cff2 mock data tests", () => {
 			const dict = parseDictHelper(reader);
 			expect(dict.get(17)).toBeDefined();
 		});
+
+		test("handles real with multiple nibbles in high position", () => {
+			const w = new BinaryWriter();
+			w.uint8(30);
+			w.raw(0x9a, 0x5f);
+			w.uint8(17);
+
+			const reader = w.toReader();
+			const dict = parseDictHelper(reader);
+			expect(dict.get(17)).toBeDefined();
+		});
+
+		test("handles real ending in first nibble", () => {
+			const w = new BinaryWriter();
+			w.uint8(30);
+			w.raw(0x1f);
+			w.uint8(17);
+
+			const reader = w.toReader();
+			const dict = parseDictHelper(reader);
+			expect(dict.get(17)).toBeDefined();
+		});
 	});
 
 	describe("parseCff2TopDict operators", () => {
@@ -1090,6 +1112,30 @@ describe("cff2 mock data tests", () => {
 			expect(cff2.globalSubrs).toEqual([]);
 			expect(cff2.charStrings).toEqual([]);
 		});
+
+		test("can build and parse valid CFF2 with charStrings", () => {
+			const w = new BinaryWriter();
+
+			w.uint8(2);
+			w.uint8(0);
+			w.uint8(5);
+
+			const topDictBytes = [28, 0, 13, 17];
+			w.uint16(topDictBytes.length);
+			for (const b of topDictBytes) w.uint8(b);
+
+			w.uint32(0);
+
+			w.uint32(1);
+			w.uint8(1);
+			w.uint8(1);
+			w.uint8(4);
+			w.raw(100, 101, 102);
+
+			const cff2 = parseCff2(w.toReader());
+			expect(cff2.charStrings.length).toBe(1);
+		});
+
 	});
 
 	describe("calculateVariationDelta edge cases", () => {
@@ -1228,34 +1274,34 @@ describe("cff2 mock data tests", () => {
 	});
 
 	describe("ItemVariationStore parsing", () => {
-		test("parses complete ItemVariationStore", () => {
+		test("parses VariationRegionList structure", () => {
 			const w = new BinaryWriter();
-			w.uint16(100);
-			w.uint16(1);
-			const regionListOffset = 12;
-			w.uint32(regionListOffset);
-			w.uint16(1);
-			const itemDataOffset = regionListOffset + 10;
-			w.uint32(itemDataOffset);
-
 			w.uint16(1);
 			w.uint16(1);
 			w.f2dot14(0);
 			w.f2dot14(1);
 			w.f2dot14(1);
 
+			const reader = w.toReader();
+			const regionList = parseVariationRegionListHelper(reader);
+			expect(regionList.axisCount).toBe(1);
+			expect(regionList.regionCount).toBe(1);
+			expect(regionList.regions.length).toBe(1);
+		});
+
+		test("parses ItemVariationData structure", () => {
+			const w = new BinaryWriter();
 			w.uint16(1);
 			w.uint16(1);
 			w.uint16(0);
 			w.int16(100);
 
 			const reader = w.toReader();
-			const vstore = parseItemVariationStoreHelper(reader);
-			expect(vstore.format).toBe(1);
-			expect(vstore.variationRegionList).toBeDefined();
-			expect(vstore.variationRegionList.axisCount).toBe(1);
-			expect(vstore.variationRegionList.regionCount).toBe(1);
-			expect(vstore.itemVariationData.length).toBe(1);
+			const itemData = parseItemVariationDataHelper(reader);
+			expect(itemData.itemCount).toBe(1);
+			expect(itemData.regionIndexCount).toBe(1);
+			expect(itemData.deltaSets.length).toBe(1);
+			expect(itemData.deltaSets[0]?.[0]).toBe(100);
 		});
 
 		test("parses VariationRegionList with multiple regions", () => {
@@ -1286,6 +1332,215 @@ describe("cff2 mock data tests", () => {
 			const itemData = parseItemVariationDataHelper(reader);
 			expect(itemData.deltaSets).toBeDefined();
 			expect(itemData.deltaSets[0]?.[0]).toBe(100000);
+		});
+
+		test("parses ItemVariationData with short words", () => {
+			const w = new BinaryWriter();
+			w.uint16(2);
+			w.uint16(2);
+			w.uint16(0);
+			w.uint16(1);
+			w.int16(100);
+			w.int16(200);
+			w.int16(150);
+			w.int16(250);
+
+			const reader = w.toReader();
+			const itemData = parseItemVariationDataHelper(reader);
+			expect(itemData.itemCount).toBe(2);
+			expect(itemData.regionIndexCount).toBe(2);
+			expect(itemData.deltaSets.length).toBe(2);
+		});
+
+		test("parses VariationRegionList with multiple axes", () => {
+			const w = new BinaryWriter();
+			w.uint16(2);
+			w.uint16(1);
+			w.f2dot14(0);
+			w.f2dot14(1);
+			w.f2dot14(1);
+			w.f2dot14(0);
+			w.f2dot14(0.5);
+			w.f2dot14(1);
+
+			const reader = w.toReader();
+			const regionList = parseVariationRegionListHelper(reader);
+			expect(regionList.axisCount).toBe(2);
+			expect(regionList.regions[0]?.axes.length).toBe(2);
+		});
+	});
+
+	describe("parseIndex edge cases", () => {
+		test("handles empty index with count 0", () => {
+			const w = new BinaryWriter();
+			w.uint32(0);
+
+			const reader = w.toReader();
+			const result = parseIndexHelper(reader);
+			expect(result).toEqual([]);
+		});
+
+		test("handles index with multiple items of different sizes", () => {
+			const w = new BinaryWriter();
+			writeIndex(w, 1, [[1, 2], [3], [4, 5, 6]]);
+
+			const reader = w.toReader();
+			const result = parseIndexHelper(reader);
+			expect(result.length).toBe(3);
+			expect(result[0]?.length).toBe(2);
+			expect(result[1]?.length).toBe(1);
+			expect(result[2]?.length).toBe(3);
+		});
+	});
+
+	describe("parseFDSelect edge cases", () => {
+		test("format 3 binary search finds correct range at boundaries", () => {
+			const w = new BinaryWriter();
+			w.uint8(3);
+			w.uint16(3);
+			w.uint16(0);
+			w.uint8(0);
+			w.uint16(10);
+			w.uint8(1);
+			w.uint16(20);
+			w.uint8(2);
+			w.uint16(30);
+
+			const reader = w.toReader();
+			const fdSelect = parseFDSelectHelper(reader, 30);
+			expect(fdSelect.select(0)).toBe(0);
+			expect(fdSelect.select(9)).toBe(0);
+			expect(fdSelect.select(10)).toBe(1);
+			expect(fdSelect.select(19)).toBe(1);
+			expect(fdSelect.select(20)).toBe(2);
+			expect(fdSelect.select(29)).toBe(2);
+		});
+
+		test("format 3 binary search with single range", () => {
+			const w = new BinaryWriter();
+			w.uint8(3);
+			w.uint16(1);
+			w.uint16(0);
+			w.uint8(0);
+			w.uint16(100);
+
+			const reader = w.toReader();
+			const fdSelect = parseFDSelectHelper(reader, 100);
+			expect(fdSelect.select(0)).toBe(0);
+			expect(fdSelect.select(50)).toBe(0);
+			expect(fdSelect.select(99)).toBe(0);
+		});
+
+		test("format 4 binary search finds correct range at boundaries", () => {
+			const w = new BinaryWriter();
+			w.uint8(4);
+			w.uint32(3);
+			w.uint32(0);
+			w.uint16(0);
+			w.uint32(10);
+			w.uint16(1);
+			w.uint32(20);
+			w.uint16(2);
+			w.uint32(30);
+
+			const reader = w.toReader();
+			const fdSelect = parseFDSelectHelper(reader, 30);
+			expect(fdSelect.select(0)).toBe(0);
+			expect(fdSelect.select(9)).toBe(0);
+			expect(fdSelect.select(10)).toBe(1);
+			expect(fdSelect.select(19)).toBe(1);
+			expect(fdSelect.select(20)).toBe(2);
+			expect(fdSelect.select(29)).toBe(2);
+		});
+
+		test("format 4 binary search with single range", () => {
+			const w = new BinaryWriter();
+			w.uint8(4);
+			w.uint32(1);
+			w.uint32(0);
+			w.uint16(0);
+			w.uint32(100);
+
+			const reader = w.toReader();
+			const fdSelect = parseFDSelectHelper(reader, 100);
+			expect(fdSelect.select(0)).toBe(0);
+			expect(fdSelect.select(50)).toBe(0);
+			expect(fdSelect.select(99)).toBe(0);
+		});
+	});
+
+	describe("calculateVariationDelta advanced cases", () => {
+		test("handles missing normalizedCoords for axis", () => {
+			const mockVstore = {
+				format: 1,
+				variationRegionList: {
+					axisCount: 2,
+					regionCount: 1,
+					regions: [
+						{
+							axes: [
+								{ startCoord: 0, peakCoord: 1, endCoord: 1 },
+								{ startCoord: 0, peakCoord: 1, endCoord: 1 },
+							],
+						},
+					],
+				},
+				itemVariationData: [
+					{
+						itemCount: 1,
+						regionIndexCount: 1,
+						regionIndexes: [0],
+						deltaSets: [[100]],
+					},
+				],
+			};
+			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.5]);
+			expect(delta).toBe(0);
+		});
+
+		test("handles missing region index", () => {
+			const mockVstore = {
+				format: 1,
+				variationRegionList: {
+					axisCount: 1,
+					regionCount: 1,
+					regions: [{ axes: [{ startCoord: 0, peakCoord: 1, endCoord: 1 }] }],
+				},
+				itemVariationData: [
+					{
+						itemCount: 1,
+						regionIndexCount: 1,
+						regionIndexes: [999],
+						deltaSets: [[100]],
+					},
+				],
+			};
+			const delta = calculateVariationDelta(mockVstore, 0, 0, [1.0]);
+			expect(delta).toBe(0);
+		});
+
+		test("handles multiple regions with different scalars", () => {
+			const mockVstore = {
+				format: 1,
+				variationRegionList: {
+					axisCount: 1,
+					regionCount: 2,
+					regions: [
+						{ axes: [{ startCoord: 0, peakCoord: 0.5, endCoord: 1 }] },
+						{ axes: [{ startCoord: 0.5, peakCoord: 1, endCoord: 1 }] },
+					],
+				},
+				itemVariationData: [
+					{
+						itemCount: 1,
+						regionIndexCount: 2,
+						regionIndexes: [0, 1],
+						deltaSets: [[50, 50]],
+					},
+				],
+			};
+			const delta = calculateVariationDelta(mockVstore, 0, 0, [0.75]);
+			expect(delta).toBe(50);
 		});
 	});
 });
@@ -1679,6 +1934,204 @@ function createMinimalCff2Table(): Cff2Table {
 	return parseCff2(w.toReader());
 }
 
+function createCff2WithValidCharStrings(): Cff2Table {
+	const w = new BinaryWriter();
+
+	w.uint8(2);
+	w.uint8(0);
+	w.uint8(5);
+
+	const topDictSize = 4;
+	const charStringsOffset = 5 + topDictSize + 5;
+
+	const topDict = new BinaryWriter();
+	topDict.uint8(28);
+	topDict.int16(charStringsOffset);
+	topDict.uint8(17);
+
+	const td = Array.from(new Uint8Array(topDict.toBuffer()));
+	w.uint16(td.length);
+	w.raw(...td);
+
+	writeIndex(w, 1, []);
+
+	writeIndex(w, 1, [[100, 101, 102]]);
+
+	return parseCff2(w.toReader());
+}
+
+function createCff2WithValidFDArray(): Cff2Table {
+	const w = new BinaryWriter();
+
+	w.uint8(2);
+	w.uint8(0);
+	w.uint8(5);
+
+	const topDictSize = 10;
+	const charStringsOffset = 5 + topDictSize + 5;
+	const fdArrayOffset = charStringsOffset + 11;
+
+	const topDict = new BinaryWriter();
+	topDict.uint8(28);
+	topDict.int16(charStringsOffset);
+	topDict.uint8(17);
+	topDict.uint8(28);
+	topDict.int16(fdArrayOffset);
+	topDict.uint8(12);
+	topDict.uint8(36);
+
+	const td = Array.from(new Uint8Array(topDict.toBuffer()));
+	w.uint16(td.length);
+	w.raw(...td);
+
+	writeIndex(w, 1, []);
+
+	writeIndex(w, 1, [[100, 101, 102]]);
+
+	writeIndex(w, 1, [[139, 17]]);
+
+	return parseCff2(w.toReader());
+}
+
+function createCff2WithFDSelectFormat0(): Cff2Table {
+	const w = new BinaryWriter();
+
+	w.uint8(2);
+	w.uint8(0);
+	w.uint8(5);
+
+	const topDictSize = 15;
+	const charStringsOffset = 5 + topDictSize + 5;
+	const fdArrayOffset = charStringsOffset + 11;
+	const fdSelectOffset = fdArrayOffset + 11;
+
+	const topDict = new BinaryWriter();
+	topDict.uint8(28);
+	topDict.int16(charStringsOffset);
+	topDict.uint8(17);
+	topDict.uint8(28);
+	topDict.int16(fdArrayOffset);
+	topDict.uint8(12);
+	topDict.uint8(36);
+	topDict.uint8(28);
+	topDict.int16(fdSelectOffset);
+	topDict.uint8(12);
+	topDict.uint8(37);
+
+	const td = Array.from(new Uint8Array(topDict.toBuffer()));
+	w.uint16(td.length);
+	w.raw(...td);
+
+	writeIndex(w, 1, []);
+
+	writeIndex(w, 1, [[100, 101, 102]]);
+
+	writeIndex(w, 1, [[139, 17]]);
+
+	w.uint8(0);
+	w.uint8(0);
+
+	return parseCff2(w.toReader());
+}
+
+function createCff2WithValidVStore(): Cff2Table {
+	const w = new BinaryWriter();
+
+	w.uint8(2);
+	w.uint8(0);
+	w.uint8(5);
+
+	const topDictSize = 7;
+	const charStringsOffset = 5 + topDictSize + 5;
+	const vstoreOffset = charStringsOffset + 11;
+
+	const topDict = new BinaryWriter();
+	topDict.uint8(28);
+	topDict.int16(charStringsOffset);
+	topDict.uint8(17);
+	topDict.uint8(28);
+	topDict.int16(vstoreOffset);
+	topDict.uint8(24);
+
+	const td = Array.from(new Uint8Array(topDict.toBuffer()));
+	w.uint16(td.length);
+	w.raw(...td);
+
+	writeIndex(w, 1, []);
+
+	writeIndex(w, 1, [[100, 101, 102]]);
+
+	w.uint16(100);
+	w.uint16(1);
+	w.uint32(12);
+	w.uint16(1);
+	w.uint32(18);
+
+	w.uint16(1);
+	w.uint16(1);
+	w.f2dot14(0);
+	w.f2dot14(1);
+	w.f2dot14(1);
+
+	w.uint16(1);
+	w.uint16(1);
+	w.uint16(0);
+	w.int16(100);
+
+	return parseCff2(w.toReader());
+}
+
+function createCff2WithPrivateDictAndLocalSubrs(): Cff2Table {
+	const w = new BinaryWriter();
+
+	w.uint8(2);
+	w.uint8(0);
+	w.uint8(5);
+
+	const topDictSize = 10;
+	const charStringsOffset = 5 + topDictSize + 5;
+	const fdArrayOffset = charStringsOffset + 11;
+
+	const topDict = new BinaryWriter();
+	topDict.uint8(28);
+	topDict.int16(charStringsOffset);
+	topDict.uint8(17);
+	topDict.uint8(28);
+	topDict.int16(fdArrayOffset);
+	topDict.uint8(12);
+	topDict.uint8(36);
+
+	const td = Array.from(new Uint8Array(topDict.toBuffer()));
+	w.uint16(td.length);
+	w.raw(...td);
+
+	writeIndex(w, 1, []);
+
+	writeIndex(w, 1, [[100, 101, 102]]);
+
+	const privateDictSize = 6;
+	const privateDictOffset = fdArrayOffset + 17;
+	const localSubrsOffset = privateDictOffset + privateDictSize + 11;
+
+	const fdDict = new BinaryWriter();
+	fdDict.uint8(28);
+	fdDict.int16(privateDictSize);
+	fdDict.uint8(28);
+	fdDict.int16(privateDictOffset);
+	fdDict.uint8(18);
+
+	writeIndex(w, 1, [Array.from(new Uint8Array(fdDict.toBuffer()))]);
+
+	const subsrRelativeOffset = localSubrsOffset - privateDictOffset;
+	w.uint8(28);
+	w.int16(subsrRelativeOffset);
+	w.uint8(19);
+
+	writeIndex(w, 1, [[50, 51, 52]]);
+
+	return parseCff2(w.toReader());
+}
+
 function createCff2WithCharStrings(): Cff2Table {
 	const w = new BinaryWriter();
 
@@ -1686,13 +2139,16 @@ function createCff2WithCharStrings(): Cff2Table {
 	w.uint8(0);
 	w.uint8(5);
 
+	const globalSubrsSize = 5;
+	const topDictSize = 4;
+	const charStringsOffset = 5 + topDictSize + globalSubrsSize;
+
 	const topDictData = new BinaryWriter();
-	const charStringsOffset = 5 + 2 + 0 + 4;
 	topDictData.uint8(28);
 	topDictData.int16(charStringsOffset);
 	topDictData.uint8(17);
-	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
 
+	const topDictBytes = Array.from(new Uint8Array(topDictData.toBuffer()));
 	w.uint16(topDictBytes.length);
 	w.raw(...topDictBytes);
 
@@ -1710,14 +2166,18 @@ function createCff2WithFDArray(): Cff2Table {
 	w.uint8(0);
 	w.uint8(5);
 
+	const topDictSize = 10;
+	const headerSize = 5 + 2;
+	const globalSubrsSize = 5;
+	const charStringsSize = 11;
+
+	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
+	const fdArrayOffset = charStringsOffset + charStringsSize;
+
 	const topDictData = new BinaryWriter();
-	const headerAndTopDict = 5 + 2;
-	const charStringsOffset = headerAndTopDict + 11 + 4;
 	topDictData.uint8(28);
 	topDictData.int16(charStringsOffset);
 	topDictData.uint8(17);
-
-	const fdArrayOffset = charStringsOffset + 11;
 	topDictData.uint8(28);
 	topDictData.int16(fdArrayOffset);
 	topDictData.uint8(12);
@@ -1743,20 +2203,24 @@ function createCff2WithFDSelect(): Cff2Table {
 	w.uint8(0);
 	w.uint8(5);
 
+	const topDictSize = 15;
+	const headerSize = 5 + 2;
+	const globalSubrsSize = 5;
+	const charStringsSize = 11;
+	const fdArraySize = 11;
+
+	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
+	const fdArrayOffset = charStringsOffset + charStringsSize;
+	const fdSelectOffset = fdArrayOffset + fdArraySize;
+
 	const topDictData = new BinaryWriter();
-	const headerAndTopDict = 5 + 2;
-	const charStringsOffset = headerAndTopDict + 15 + 4;
 	topDictData.uint8(28);
 	topDictData.int16(charStringsOffset);
 	topDictData.uint8(17);
-
-	const fdArrayOffset = charStringsOffset + 11;
 	topDictData.uint8(28);
 	topDictData.int16(fdArrayOffset);
 	topDictData.uint8(12);
 	topDictData.uint8(36);
-
-	const fdSelectOffset = fdArrayOffset + 11;
 	topDictData.uint8(28);
 	topDictData.int16(fdSelectOffset);
 	topDictData.uint8(12);
@@ -1785,14 +2249,18 @@ function createCff2WithVStore(): Cff2Table {
 	w.uint8(0);
 	w.uint8(5);
 
+	const topDictSize = 7;
+	const headerSize = 5 + 2;
+	const globalSubrsSize = 5;
+	const charStringsSize = 11;
+
+	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
+	const vstoreOffset = charStringsOffset + charStringsSize;
+
 	const topDictData = new BinaryWriter();
-	const headerAndTopDict = 5 + 2;
-	const charStringsOffset = headerAndTopDict + 7 + 4;
 	topDictData.uint8(28);
 	topDictData.int16(charStringsOffset);
 	topDictData.uint8(17);
-
-	const vstoreOffset = charStringsOffset + 11;
 	topDictData.uint8(28);
 	topDictData.int16(vstoreOffset);
 	topDictData.uint8(24);
@@ -1833,14 +2301,18 @@ function createCff2WithPrivateDictAndSubrs(): Cff2Table {
 	w.uint8(0);
 	w.uint8(5);
 
+	const topDictSize = 10;
+	const headerSize = 5 + 2;
+	const globalSubrsSize = 5;
+	const charStringsSize = 11;
+
+	const charStringsOffset = headerSize + topDictSize + globalSubrsSize;
+	const fdArrayOffset = charStringsOffset + charStringsSize;
+
 	const topDictData = new BinaryWriter();
-	const headerAndTopDict = 5 + 2;
-	const charStringsOffset = headerAndTopDict + 7 + 4;
 	topDictData.uint8(28);
 	topDictData.int16(charStringsOffset);
 	topDictData.uint8(17);
-
-	const fdArrayOffset = charStringsOffset + 11;
 	topDictData.uint8(28);
 	topDictData.int16(fdArrayOffset);
 	topDictData.uint8(12);
@@ -1855,9 +2327,9 @@ function createCff2WithPrivateDictAndSubrs(): Cff2Table {
 	writeIndex(w, 1, [[100, 101, 102]]);
 
 	const fdDictData = new BinaryWriter();
-	const fdArrayStart = w["bytes"].length + 11;
 	const privateDictSize = 6;
-	const privateDictOffset = fdArrayStart + 11;
+	const fdArraySize = 17;
+	const privateDictOffset = fdArrayOffset + fdArraySize;
 	fdDictData.uint8(28);
 	fdDictData.int16(privateDictSize);
 	fdDictData.uint8(28);

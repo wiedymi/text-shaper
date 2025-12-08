@@ -153,13 +153,13 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setUint32(offset, 1);
 	offset += 4;
 
-	// BaseGlyphPaintRecord: glyph 50, paint offset 6
+	// BaseGlyphPaintRecord: glyph 50, paint offset 8
 	view.setUint16(offset, 50);
 	offset += 2;
-	view.setUint32(offset, 6);
+	view.setUint32(offset, 8);
 	offset += 4;
 
-	// Paint at offset 34 + 4 + 6 = 44 (PaintSolid)
+	// Paint at offset 36 + 8 = 44 (PaintSolid)
 	offset = 44;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
@@ -176,18 +176,19 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setUint32(offset, 10);
 	offset += 4;
 
-	// Paint offsets
+	// Paint offsets (from LayerList start at 200)
+	// Offset array is 4 + 10*4 = 44 bytes, so paints start at 200 + 44 = 244
 	const paintOffsets = [
-		24, // ColrLayers
-		28, // Solid
-		34, // VarSolid
-		44, // LinearGradient
-		68, // RadialGradient
-		92, // SweepGradient
-		112, // Glyph
-		120, // ColrGlyph
-		124, // Transform
-		154, // Composite
+		44, // ColrLayers at 244 (6 bytes)
+		50, // Solid at 250 (5 bytes)
+		55, // VarSolid at 255 (9 bytes)
+		64, // LinearGradient at 264 (16 bytes + ColorLine 15 bytes = 31)
+		95, // RadialGradient at 295 (16 bytes + ColorLine 9 bytes = 25)
+		120, // SweepGradient at 320 (12 bytes + ColorLine 9 bytes = 21)
+		141, // Glyph at 341 (6 bytes + nested Solid 5 bytes = 11)
+		152, // ColrGlyph at 352 (3 bytes)
+		155, // Transform at 355 (7 bytes + nested Solid 5 bytes + Affine2x3 24 bytes = 36)
+		191, // Composite at 391 (8 bytes + Solid 5 bytes + Solid 5 bytes = 18)
 	];
 
 	for (const po of paintOffsets) {
@@ -195,8 +196,8 @@ function createColrV1Binary(): ArrayBuffer {
 		offset += 4;
 	}
 
-	// Paint 0: ColrLayers (at 200 + 24 = 224)
-	offset = 224;
+	// Paint 0: ColrLayers (at 200 + 44 = 244)
+	offset = 244;
 	view.setUint8(offset, PaintFormat.ColrLayers);
 	offset += 1;
 	view.setUint8(offset, 2);
@@ -204,8 +205,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setUint32(offset, 1);
 	offset += 4;
 
-	// Paint 1: Solid (at 200 + 28 = 228)
-	offset = 228;
+	// Paint 1: Solid (at 200 + 50 = 250)
+	offset = 250;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 3);
@@ -213,8 +214,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Paint 2: VarSolid (at 200 + 34 = 234)
-	offset = 234;
+	// Paint 2: VarSolid (at 200 + 55 = 255)
+	offset = 255;
 	view.setUint8(offset, PaintFormat.VarSolid);
 	offset += 1;
 	view.setUint16(offset, 4);
@@ -224,13 +225,13 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setUint32(offset, 123);
 	offset += 4;
 
-	// Paint 3: LinearGradient (at 200 + 44 = 244)
-	offset = 244;
+	// Paint 3: LinearGradient (at 200 + 64 = 264)
+	offset = 264;
 	view.setUint8(offset, PaintFormat.LinearGradient);
 	offset += 1;
-	// colorLineOffset (3 bytes)
+	// colorLineOffset: ColorLine at 280, so offset = 280 - 264 + 2 = 18
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 19);
+	view.setUint16(offset + 1, 18);
 	offset += 3;
 	// x0, y0, x1, y1, x2, y2 (6 FWORDs)
 	view.setInt16(offset, 0);
@@ -246,8 +247,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 100);
 	offset += 2;
 
-	// ColorLine at 244 + 19 = 263
-	offset = 263;
+	// ColorLine at 280
+	offset = 280;
 	view.setUint8(offset, Extend.Pad);
 	offset += 1;
 	view.setUint16(offset, 2);
@@ -267,13 +268,13 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Paint 4: RadialGradient (at 200 + 68 = 268)
-	offset = 268;
+	// Paint 4: RadialGradient (at 200 + 95 = 295)
+	offset = 295;
 	view.setUint8(offset, PaintFormat.RadialGradient);
 	offset += 1;
-	// colorLineOffset
+	// colorLineOffset: ColorLine at 311, so offset = 311 - 295 + 2 = 18
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 19);
+	view.setUint16(offset + 1, 18);
 	offset += 3;
 	// x0, y0, radius0, x1, y1, radius1
 	view.setInt16(offset, 50);
@@ -289,8 +290,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setUint16(offset, 100);
 	offset += 2;
 
-	// ColorLine at 268 + 19 = 287
-	offset = 287;
+	// ColorLine at 311
+	offset = 311;
 	view.setUint8(offset, Extend.Repeat);
 	offset += 1;
 	view.setUint16(offset, 1);
@@ -302,13 +303,13 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Paint 5: SweepGradient (at 200 + 92 = 292)
-	offset = 292;
+	// Paint 5: SweepGradient (at 200 + 120 = 320)
+	offset = 320;
 	view.setUint8(offset, PaintFormat.SweepGradient);
 	offset += 1;
-	// colorLineOffset
+	// colorLineOffset: ColorLine at 332, formula uses -12, so offset = 12
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 11);
+	view.setUint16(offset + 1, 12);
 	offset += 3;
 	// centerX, centerY, startAngle, endAngle
 	view.setInt16(offset, 50);
@@ -320,8 +321,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// ColorLine at 292 + 11 = 303
-	offset = 303;
+	// ColorLine at 332
+	offset = 332;
 	view.setUint8(offset, Extend.Reflect);
 	offset += 1;
 	view.setUint16(offset, 1);
@@ -333,19 +334,19 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Paint 6: Glyph (at 200 + 112 = 312)
-	offset = 312;
+	// Paint 6: Glyph (at 200 + 141 = 341)
+	offset = 341;
 	view.setUint8(offset, PaintFormat.Glyph);
 	offset += 1;
-	// paintOffset
+	// paintOffset: nested paint at 347, after format at 342, so offset = 347 - 342 = 5
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 5);
 	offset += 3;
 	view.setUint16(offset, 99);
 	offset += 2;
 
-	// Paint for Glyph at 312 + 5 = 317 (Solid)
-	offset = 317;
+	// Nested Paint at 347 (Solid)
+	offset = 347;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 1);
@@ -353,28 +354,28 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Paint 7: ColrGlyph (at 200 + 120 = 320)
-	offset = 320;
+	// Paint 7: ColrGlyph (at 200 + 152 = 352)
+	offset = 352;
 	view.setUint8(offset, PaintFormat.ColrGlyph);
 	offset += 1;
 	view.setUint16(offset, 88);
 	offset += 2;
 
-	// Paint 8: Transform (at 200 + 124 = 324)
-	offset = 324;
+	// Paint 8: Transform (at 200 + 155 = 355)
+	offset = 355;
 	view.setUint8(offset, PaintFormat.Transform);
 	offset += 1;
-	// paintOffset
+	// paintOffset: nested paint at 362, from 356, so offset = 6
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 6);
 	offset += 3;
-	// transformOffset
+	// transformOffset: transform at 367, from 359, so offset = 8
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 11);
+	view.setUint16(offset + 1, 8);
 	offset += 3;
 
-	// Paint at 324 + 6 = 330 (Solid)
-	offset = 330;
+	// Nested Paint at 362 (Solid)
+	offset = 362;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 0);
@@ -382,8 +383,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Affine2x3 at 324 + 11 = 335
-	offset = 335;
+	// Affine2x3 at 367
+	offset = 367;
 	view.setInt32(offset, 65536);
 	offset += 4; // xx = 1.0
 	view.setInt32(offset, 0);
@@ -397,24 +398,24 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt32(offset, 20 << 16);
 	offset += 4; // dy = 20
 
-	// Paint 9: Composite (at 200 + 154 = 354)
-	offset = 354;
+	// Paint 9: Composite (at 200 + 191 = 391)
+	offset = 391;
 	view.setUint8(offset, PaintFormat.Composite);
 	offset += 1;
-	// sourcePaintOffset
+	// sourcePaintOffset: source paint at 399, from 392, so offset = 7
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 7);
 	offset += 3;
 	// compositeMode
 	view.setUint8(offset, CompositeMode.SrcOver);
 	offset += 1;
-	// backdropPaintOffset
+	// backdropPaintOffset: backdrop at 404, from 396, so offset = 8
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 12);
+	view.setUint16(offset + 1, 8);
 	offset += 3;
 
-	// Source paint at 354 + 7 = 361 (Solid)
-	offset = 361;
+	// Source paint at 399 (Solid)
+	offset = 399;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 1);
@@ -422,8 +423,8 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2;
 
-	// Backdrop paint at 354 + 12 = 366 (Solid)
-	offset = 366;
+	// Backdrop paint at 404 (Solid)
+	offset = 404;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 2);
@@ -531,7 +532,7 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 66;
 	view.setUint8(offset, PaintFormat.Translate);
 	offset += 1;
-	// paintOffset
+	// paintOffset: nested at 74, from 67, so offset = 7
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 7);
 	offset += 3;
@@ -541,8 +542,8 @@ function createColrV1Extended(): ArrayBuffer {
 	view.setInt16(offset, 20);
 	offset += 2;
 
-	// Inner paint at 66 + 7 = 73 (Solid)
-	offset = 73;
+	// Nested paint at 74 (Solid)
+	offset = 74;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 0);
@@ -554,6 +555,7 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 78;
 	view.setUint8(offset, PaintFormat.Scale);
 	offset += 1;
+	// paintOffset: after format at 79, ends at 86, nested at 86, so offset = 7
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 7);
 	offset += 3;
@@ -562,7 +564,8 @@ function createColrV1Extended(): ArrayBuffer {
 	view.setInt16(offset, 16384);
 	offset += 2; // scaleY = 1.0
 
-	offset = 85;
+	// Nested at 86
+	offset = 86;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 1);
@@ -574,6 +577,7 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 90;
 	view.setUint8(offset, PaintFormat.ScaleAroundCenter);
 	offset += 1;
+	// paintOffset: from 91, ends at 102, nested at 102, so offset = 11
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 11);
 	offset += 3;
@@ -586,7 +590,8 @@ function createColrV1Extended(): ArrayBuffer {
 	view.setInt16(offset, 50);
 	offset += 2; // centerY
 
-	offset = 101;
+	// Nested at 102
+	offset = 102;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 2);
@@ -598,13 +603,15 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 106;
 	view.setUint8(offset, PaintFormat.Rotate);
 	offset += 1;
+	// paintOffset: from 107, ends at 112, nested at 112, so offset = 5
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 5);
 	offset += 3;
 	view.setInt16(offset, 4096);
 	offset += 2; // angle
 
-	offset = 111;
+	// Nested at 112
+	offset = 112;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 3);
@@ -616,6 +623,7 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 118;
 	view.setUint8(offset, PaintFormat.RotateAroundCenter);
 	offset += 1;
+	// paintOffset: from 119, ends at 128, nested at 128, so offset = 9
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 9);
 	offset += 3;
@@ -626,7 +634,8 @@ function createColrV1Extended(): ArrayBuffer {
 	view.setInt16(offset, 100);
 	offset += 2; // centerY
 
-	offset = 127;
+	// Nested at 128
+	offset = 128;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 4);
@@ -638,6 +647,7 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 134;
 	view.setUint8(offset, PaintFormat.Skew);
 	offset += 1;
+	// paintOffset: from 135, ends at 142, nested at 142, so offset = 7
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 7);
 	offset += 3;
@@ -646,7 +656,8 @@ function createColrV1Extended(): ArrayBuffer {
 	view.setInt16(offset, 1024);
 	offset += 2; // ySkewAngle
 
-	offset = 141;
+	// Nested at 142
+	offset = 142;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 5);
@@ -658,6 +669,7 @@ function createColrV1Extended(): ArrayBuffer {
 	offset = 146;
 	view.setUint8(offset, PaintFormat.SkewAroundCenter);
 	offset += 1;
+	// paintOffset: from 147, ends at 158, nested at 158, so offset = 11
 	view.setUint8(offset, 0);
 	view.setUint16(offset + 1, 11);
 	offset += 3;
@@ -670,7 +682,8 @@ function createColrV1Extended(): ArrayBuffer {
 	view.setInt16(offset, 75);
 	offset += 2; // centerY
 
-	offset = 157;
+	// Nested at 158
+	offset = 158;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
 	view.setUint16(offset, 6);

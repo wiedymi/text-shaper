@@ -199,19 +199,25 @@ function rearrangeGlyphs(
 			}
 			break;
 		case 10: // ABxD => DxAB
-			if (b) {
-				const tempD = d;
-				infos[last] = b;
-				infos[first + 1] = a;
-				infos[first] = tempD;
+			if (b && c) {
+				const tempA = a;
+				const tempB = b;
+				const tempC = c;
+				infos[first] = d;
+				infos[first + 1] = tempC;
+				infos[last - 1] = tempA;
+				infos[last] = tempB;
 			}
 			break;
 		case 11: // ABxD => DxBA
-			if (b) {
-				const tempD = d;
-				infos[last] = a;
-				infos[first + 1] = b;
-				infos[first] = tempD;
+			if (b && c) {
+				const tempA = a;
+				const tempB = b;
+				const tempC = c;
+				infos[first] = d;
+				infos[first + 1] = tempC;
+				infos[last - 1] = tempB;
+				infos[last] = tempA;
 			}
 			break;
 		case 12: // ABxCD => CDxAB
@@ -377,13 +383,12 @@ export function processLigature(
 					componentIndices.push(stackIdx);
 					const info = infos[stackIdx];
 					if (info) {
-						const glyphId = info.glyphId;
-						const componentIdx = glyphId + componentOffset;
+						const componentIdx = componentOffset;
 
 						if (componentIdx >= 0 && componentIdx < components.length) {
 							const component = components[componentIdx];
 							if (component !== undefined) {
-								ligatureGlyph = component + ligatureGlyph;
+								ligatureGlyph = ligatureGlyph + component;
 							}
 						}
 					}

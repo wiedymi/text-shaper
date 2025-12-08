@@ -2,17 +2,18 @@
 
 <BenchmarkSummary :items="[
   { category: 'Path Extraction', vsHarfbuzz: '16x faster', vsOpentype: '10x faster' },
-  { category: 'Latin Shaping', vsHarfbuzz: '1.2x faster', vsOpentype: '17x faster', highlight: true },
-  { category: 'Cyrillic Shaping', vsHarfbuzz: '1.2x faster', vsOpentype: '29x faster' },
+  { category: 'SVG Generation', vsHarfbuzz: '1.1x faster', vsOpentype: '5x faster' },
+  { category: 'Latin Shaping', vsHarfbuzz: '1.5x faster', vsOpentype: '22x faster', highlight: true },
+  { category: 'Cyrillic Shaping', vsHarfbuzz: '1.2-1.4x faster', vsOpentype: '17-56x faster' },
   { category: 'CJK Shaping', vsHarfbuzz: '1.3-1.5x faster', vsOpentype: '11-13x faster', highlight: true },
-  { category: 'Arabic Shaping', vsHarfbuzz: 'on par', vsOpentype: '86x faster' },
-  { category: 'Hebrew Shaping', vsHarfbuzz: '2x slower', vsOpentype: '9x faster' },
-  { category: 'Hindi Shaping', vsHarfbuzz: '3.2x faster', vsOpentype: '9x faster', highlight: true },
-  { category: 'Thai Shaping', vsHarfbuzz: '1.8x faster', vsOpentype: '12x faster', highlight: true },
-  { category: 'Myanmar Shaping', vsHarfbuzz: '10.8x faster', vsOpentype: '17x faster', highlight: true },
-  { category: 'Khmer Shaping', vsHarfbuzz: '2.2x faster', vsOpentype: '8x faster', highlight: true },
+  { category: 'Arabic Shaping', vsHarfbuzz: '1.2x faster', vsOpentype: '86x faster', highlight: true },
+  { category: 'Hebrew Shaping', vsHarfbuzz: '1.6x faster', vsOpentype: '33x faster', highlight: true },
+  { category: 'Hindi Shaping', vsHarfbuzz: '3.6x faster', vsOpentype: '11x faster', highlight: true },
+  { category: 'Thai Shaping', vsHarfbuzz: '2x faster', vsOpentype: '12x faster', highlight: true },
+  { category: 'Myanmar Shaping', vsHarfbuzz: '10.5x faster', vsOpentype: '17x faster', highlight: true },
+  { category: 'Khmer Shaping', vsHarfbuzz: '2.1x faster', vsOpentype: '8x faster', highlight: true },
   { category: 'UI Simulation', vsHarfbuzz: '4.8x faster', highlight: true },
-  { category: 'Rasterization', vsFreetype: '1.5-11x faster', highlight: true },
+  { category: 'Rasterization', vsFreetype: '1.6-11x faster', highlight: true },
   { category: 'Cache Benefits', improvement: '12x speedup on repeated shaping' }
 ]" />
 
@@ -34,25 +35,25 @@
 ]" />
 
 <BenchmarkChart title="SVG path generation (10 glyphs)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 55550 },
-  { name: 'text-shaper', opsPerSec: 48790 },
-  { name: 'opentype.js', opsPerSec: 17390 }
+  { name: 'text-shaper', opsPerSec: 77510 },
+  { name: 'harfbuzzjs', opsPerSec: 71300 },
+  { name: 'opentype.js', opsPerSec: 14220 }
 ]" />
 
 ## Text to SVG
 
-Full text-to-SVG pipeline including shaping and path generation. 1.5-1.9x faster than HarfBuzz, 4-6x faster than opentype.js.
+Full text-to-SVG pipeline including shaping and path generation. On par to 1.3x faster than HarfBuzz, 4-6x faster than opentype.js.
 
 <BenchmarkChart title="Hello World" :results="[
-  { name: 'text-shaper', opsPerSec: 61530 },
-  { name: 'harfbuzzjs', opsPerSec: 32980 },
-  { name: 'opentype.js', opsPerSec: 13120 }
+  { name: 'harfbuzzjs', opsPerSec: 43830 },
+  { name: 'text-shaper', opsPerSec: 43250 },
+  { name: 'opentype.js', opsPerSec: 11410 }
 ]" />
 
 <BenchmarkChart title="Paragraph (87 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 11880 },
-  { name: 'harfbuzzjs', opsPerSec: 7780 },
-  { name: 'opentype.js', opsPerSec: 1830 }
+  { name: 'text-shaper', opsPerSec: 8810 },
+  { name: 'harfbuzzjs', opsPerSec: 6570 },
+  { name: 'opentype.js', opsPerSec: 1530 }
 ]" />
 
 ## Text Shaping
@@ -76,12 +77,24 @@ Full text-to-SVG pipeline including shaping and path generation. 1.5-1.9x faster
 
 ### Cyrillic Scripts
 
-1.2x faster than HarfBuzz for Cyrillic text, 29x faster than opentype.js.
+1.2-1.4x faster than HarfBuzz across Russian, Ukrainian, and Belarusian. 17-56x faster than opentype.js.
 
 <BenchmarkChart title="Russian paragraph (1001 chars)" :results="[
   { name: 'text-shaper', opsPerSec: 21990 },
   { name: 'harfbuzzjs', opsPerSec: 18350 },
   { name: 'opentype.js', opsPerSec: 761 }
+]" />
+
+<BenchmarkChart title="Ukrainian paragraph (788 chars)" :results="[
+  { name: 'text-shaper', opsPerSec: 27890 },
+  { name: 'harfbuzzjs', opsPerSec: 22710 },
+  { name: 'opentype.js', opsPerSec: 1160 }
+]" />
+
+<BenchmarkChart title="Belarusian paragraph (712 chars)" :results="[
+  { name: 'text-shaper', opsPerSec: 36230 },
+  { name: 'harfbuzzjs', opsPerSec: 26030 },
+  { name: 'opentype.js', opsPerSec: 647 }
 ]" />
 
 ### CJK Scripts
@@ -108,27 +121,27 @@ Full text-to-SVG pipeline including shaping and path generation. 1.5-1.9x faster
 
 ### Latin Scripts
 
-1.2x faster than HarfBuzz, 17x faster than opentype.js for Latin text.
+1.5x faster than HarfBuzz, 22x faster than opentype.js for Latin text.
 
 <BenchmarkChart title="English paragraph (1056 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 6120 },
-  { name: 'harfbuzzjs', opsPerSec: 5090 },
+  { name: 'text-shaper', opsPerSec: 7890 },
+  { name: 'harfbuzzjs', opsPerSec: 5300 },
   { name: 'opentype.js', opsPerSec: 363 }
 ]" />
 
 ### RTL Scripts
 
-On par with HarfBuzz for Arabic, 86x faster than opentype.js.
+1.2-1.6x faster than HarfBuzz for Arabic and Hebrew. 33-100x faster than opentype.js.
 
 <BenchmarkChart title="Arabic paragraph (1121 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 3620 },
-  { name: 'harfbuzzjs', opsPerSec: 3450 },
+  { name: 'text-shaper', opsPerSec: 4295 },
+  { name: 'harfbuzzjs', opsPerSec: 3635 },
   { name: 'opentype.js', opsPerSec: 42 }
 ]" />
 
 <BenchmarkChart title="Hebrew paragraph (1220 chars)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 7050 },
-  { name: 'text-shaper', opsPerSec: 3590 },
+  { name: 'text-shaper', opsPerSec: 12920 },
+  { name: 'harfbuzzjs', opsPerSec: 7840 },
   { name: 'opentype.js', opsPerSec: 387 }
 ]" />
 
@@ -137,26 +150,26 @@ On par with HarfBuzz for Arabic, 86x faster than opentype.js.
 TextShaper outperforms HarfBuzz on Indic and Southeast Asian scripts, 8-17x faster than opentype.js.
 
 <BenchmarkChart title="Hindi paragraph (1275 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 4090 },
-  { name: 'harfbuzzjs', opsPerSec: 1260 },
+  { name: 'text-shaper', opsPerSec: 4980 },
+  { name: 'harfbuzzjs', opsPerSec: 1390 },
   { name: 'opentype.js', opsPerSec: 456 }
 ]" />
 
 <BenchmarkChart title="Myanmar paragraph (1916 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 3970 },
-  { name: 'harfbuzzjs', opsPerSec: 369 },
+  { name: 'text-shaper', opsPerSec: 4000 },
+  { name: 'harfbuzzjs', opsPerSec: 380 },
   { name: 'opentype.js', opsPerSec: 230 }
 ]" />
 
 <BenchmarkChart title="Khmer paragraph (1128 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 4690 },
-  { name: 'harfbuzzjs', opsPerSec: 2110 },
+  { name: 'text-shaper', opsPerSec: 4650 },
+  { name: 'harfbuzzjs', opsPerSec: 2190 },
   { name: 'opentype.js', opsPerSec: 575 }
 ]" />
 
 <BenchmarkChart title="Thai paragraph (1301 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 5270 },
-  { name: 'harfbuzzjs', opsPerSec: 2910 },
+  { name: 'text-shaper', opsPerSec: 5580 },
+  { name: 'harfbuzzjs', opsPerSec: 2760 },
   { name: 'opentype.js', opsPerSec: 452 }
 ]" />
 

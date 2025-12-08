@@ -1729,14 +1729,14 @@ describe("TrueType Interpreter - Scan Control", () => {
 
 describe("TrueType Interpreter - IDEF", () => {
 	test("IDEF defines instruction and calls it", () => {
-		// Use maxIDefs=256 to allow redefining opcode 0x10 (16)
-		const ctx = createExecContext(256, 64, 64, 256);
+		// Use opcode 0x28 which is not defined in TrueType (gap in opcode table)
+		const ctx = createExecContext(256, 64, 64, 64);
 		const code = new Uint8Array([
-			0xb0, 0x10, // PUSHB[0] 0x10 (opcode to redefine, within maxIDefs=256)
+			0xb0, 0x28, // PUSHB[0] 0x28 (undefined opcode to redefine)
 			0x89, // IDEF
 			0xb0, 99, // PUSHB[0] 99 (custom behavior)
 			0x2d, // ENDF
-			0x10, // Call custom instruction (SRP0, now redefined)
+			0x28, // Call custom instruction
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, code);
 		runProgram(ctx, CodeRange.Glyph);
@@ -1746,13 +1746,13 @@ describe("TrueType Interpreter - IDEF", () => {
 	});
 
 	test("IDEF call stack overflow error", () => {
-		const ctx = createExecContext(256, 64, 64, 256, 1);
+		const ctx = createExecContext(256, 64, 64, 64, 1);
 		const code = new Uint8Array([
-			0xb0, 0x10, // PUSHB[0] 0x10
+			0xb0, 0x28, // PUSHB[0] 0x28 (undefined opcode)
 			0x89, // IDEF
-			0x10, // Recursive call
+			0x28, // Recursive call
 			0x2d, // ENDF
-			0x10, // Start recursion
+			0x28, // Start recursion
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, code);
 		runProgram(ctx, CodeRange.Glyph);
@@ -1760,10 +1760,10 @@ describe("TrueType Interpreter - IDEF", () => {
 	});
 
 	test("IDEF switches code ranges correctly", () => {
-		const ctx = createExecContext(256, 64, 64, 256);
+		const ctx = createExecContext(256, 64, 64, 64);
 		// Set up font program code range first
 		const fontCode = new Uint8Array([
-			0xb0, 0x11, // PUSHB[0] 0x11 (opcode to redefine, within maxIDefs=256)
+			0xb0, 0x28, // PUSHB[0] 0x28 (undefined opcode to redefine)
 			0x89, // IDEF
 			0xb0, 77, // PUSHB[0] 77 (custom behavior)
 			0x2d, // ENDF
@@ -1773,7 +1773,7 @@ describe("TrueType Interpreter - IDEF", () => {
 
 		// Now call the IDEF from glyph program
 		const glyphCode = new Uint8Array([
-			0x11, // Call custom instruction (SRP1, now redefined)
+			0x28, // Call custom instruction
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, glyphCode);
 		runProgram(ctx, CodeRange.Glyph);
@@ -1785,9 +1785,9 @@ describe("TrueType Interpreter - IDEF", () => {
 
 	test("inactive IDEF is not called", () => {
 		const ctx = createExecContext();
-		// Try to call an undefined instruction - opcode 0x93 is not defined in TrueType
+		// Try to call an undefined instruction - opcode 0x28 is not defined in TrueType
 		const code = new Uint8Array([
-			0x93, // Call undefined instruction
+			0x28, // Call undefined instruction
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, code);
 		runProgram(ctx, CodeRange.Glyph);

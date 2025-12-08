@@ -24,15 +24,15 @@ const benchmarks: Benchmark[] = [
 	{
 		title: "English shaping (1056 chars)",
 		results: [
-			{ name: "text-shaper", value: 6120, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 5090, unit: "ops/s" },
+			{ name: "text-shaper", value: 7890, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 5300, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Myanmar shaping (1916 chars)",
 		results: [
-			{ name: "text-shaper", value: 3970, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 369, unit: "ops/s" },
+			{ name: "text-shaper", value: 4000, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 380, unit: "ops/s" },
 		],
 	},
 	{

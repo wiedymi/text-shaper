@@ -2696,7 +2696,7 @@ describe("GSUB - Synthetic tests for coverage", () => {
 	});
 });
 
-// Additional test for chaining context with inputCoverages (lines 292, 294)
+// Additional test for chaining context with inputCoverages (lines 282-284, 644-646)
 describe("GSUB - Chaining context edge cases", () => {
 	test("chaining context lookup digest uses inputCoverages", async () => {
 		// Load a font that might have chaining context lookups
@@ -2725,6 +2725,82 @@ describe("GSUB - Chaining context edge cases", () => {
 			}
 		}
 		expect(true).toBe(true);
+	});
+
+	test("chaining context Format 3 without coverage triggers inputCoverages path", () => {
+		// Create a ChainingContext Format 3 subtable (no direct coverage, only inputCoverages)
+		const gsubBuffer = new ArrayBuffer(400);
+		const gsubView = new DataView(gsubBuffer);
+
+		// GSUB header
+		gsubView.setUint16(0, 1); // major
+		gsubView.setUint16(2, 0); // minor
+		gsubView.setUint16(4, 300); // scriptList
+		gsubView.setUint16(6, 302); // featureList
+		gsubView.setUint16(8, 10); // lookupList
+
+		// Lookup list
+		gsubView.setUint16(10, 1); // lookupCount
+		gsubView.setUint16(12, 4); // lookupOffset
+
+		// ChainingContext lookup (Type 6)
+		let offset = 14;
+		gsubView.setUint16(offset, 6); // type = ChainingContext
+		offset += 2;
+		gsubView.setUint16(offset, 0); // flag
+		offset += 2;
+		gsubView.setUint16(offset, 1); // subtableCount
+		offset += 2;
+		gsubView.setUint16(offset, 8); // subtableOffset
+		offset += 2;
+
+		// ChainingContext Format 3 subtable
+		const subtableStart = 22;
+		offset = subtableStart;
+		gsubView.setUint16(offset, 3); // format = 3
+		offset += 2;
+		gsubView.setUint16(offset, 0); // backtrackCount = 0
+		offset += 2;
+		gsubView.setUint16(offset, 1); // inputCount = 1
+		offset += 2;
+		gsubView.setUint16(offset, 14); // inputCoverageOffset[0]
+		offset += 2;
+		gsubView.setUint16(offset, 0); // lookaheadCount = 0
+		offset += 2;
+		gsubView.setUint16(offset, 0); // lookupCount = 0
+		offset += 2;
+
+		// Input coverage at offset 14 from subtable start
+		offset = subtableStart + 14;
+		gsubView.setUint16(offset, 1); // format = 1
+		offset += 2;
+		gsubView.setUint16(offset, 2); // glyphCount = 2
+		offset += 2;
+		gsubView.setUint16(offset, 100); // glyph[0]
+		offset += 2;
+		gsubView.setUint16(offset, 101); // glyph[1]
+		offset += 2;
+
+		// Dummy script/feature
+		gsubView.setUint16(300, 0);
+		gsubView.setUint16(302, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as ChainingContextSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.ChainingContext);
+
+		// This should trigger lines 282-284 (inputCoverages digest path)
+		expect(lookup.digest).toBeDefined();
+		expect(lookup.subtables.length).toBe(1);
+
+		const subtable = lookup.subtables[0];
+		if ("inputCoverages" in subtable) {
+			expect(subtable.inputCoverages).toBeDefined();
+			expect(subtable.inputCoverages!.length).toBe(1);
+			expect(subtable.inputCoverages![0]!.get(100)).toBe(0);
+			expect(subtable.inputCoverages![0]!.get(101)).toBe(1);
+		}
 	});
 });
 
@@ -2768,5 +2844,868 @@ describe("GSUB - Reverse chaining detailed", () => {
 			}
 		}
 		expect(true).toBe(true);
+	});
+
+	test("reverse chaining single subst with backtrack coverages - synthetic data", () => {
+		// Create synthetic binary data for ReverseChainingSingle (Type 8) Format 1
+		const buffer = new ArrayBuffer(100);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		// Lookup table header
+		view.setUint16(offset, 8); // lookupType = ReverseChainingSingle
+		offset += 2;
+		view.setUint16(offset, 0); // lookupFlag = 0
+		offset += 2;
+		view.setUint16(offset, 1); // subtableCount = 1
+		offset += 2;
+		view.setUint16(offset, 8); // subtableOffset = 8 (after this offset array)
+		offset += 2;
+
+		// ReverseChainingSingle Format 1 Subtable at offset 8
+		const subtableStart = 8;
+		offset = subtableStart;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 28); // coverageOffset = 28 (relative to subtable start)
+		offset += 2;
+
+		// Backtrack coverage count and offsets
+		view.setUint16(offset, 2); // backtrackCount = 2
+		offset += 2;
+		view.setUint16(offset, 40); // backtrack coverage offset 1
+		offset += 2;
+		view.setUint16(offset, 48); // backtrack coverage offset 2
+		offset += 2;
+
+		// Lookahead coverage count and offsets
+		view.setUint16(offset, 1); // lookaheadCount = 1
+		offset += 2;
+		view.setUint16(offset, 56); // lookahead coverage offset
+		offset += 2;
+
+		// Substitute glyph count and IDs
+		view.setUint16(offset, 2); // glyphCount = 2
+		offset += 2;
+		view.setUint16(offset, 100); // substituteGlyphId[0]
+		offset += 2;
+		view.setUint16(offset, 101); // substituteGlyphId[1]
+		offset += 2;
+
+		// Main coverage at offset 28 (Format 1: glyph list)
+		offset = subtableStart + 28;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 2); // glyphCount = 2
+		offset += 2;
+		view.setUint16(offset, 50); // glyph[0]
+		offset += 2;
+		view.setUint16(offset, 51); // glyph[1]
+		offset += 2;
+
+		// Backtrack coverage 1 at offset 40
+		offset = subtableStart + 40;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount = 1
+		offset += 2;
+		view.setUint16(offset, 20); // glyph[0]
+		offset += 2;
+
+		// Backtrack coverage 2 at offset 48
+		offset = subtableStart + 48;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount = 1
+		offset += 2;
+		view.setUint16(offset, 21); // glyph[0]
+		offset += 2;
+
+		// Lookahead coverage at offset 56
+		offset = subtableStart + 56;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount = 1
+		offset += 2;
+		view.setUint16(offset, 60); // glyph[0]
+		offset += 2;
+
+		// Parse the lookup
+		const reader = new Reader(buffer);
+		const lookupType = reader.uint16();
+		expect(lookupType).toBe(8);
+
+		// Reset and parse as GSUB table with just lookup list
+		const gsubBuffer = new ArrayBuffer(200);
+		const gsubView = new DataView(gsubBuffer);
+		let gsubOffset = 0;
+
+		// GSUB header
+		gsubView.setUint16(gsubOffset, 1); // major version
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 0); // minor version
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 100); // scriptListOffset (dummy)
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 102); // featureListOffset (dummy)
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 10); // lookupListOffset
+		gsubOffset += 2;
+
+		// Lookup list at offset 10
+		const lookupListStart = 10;
+		gsubOffset = lookupListStart;
+		gsubView.setUint16(gsubOffset, 1); // lookupCount
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 4); // lookup offset (relative to lookup list start)
+		gsubOffset += 2;
+
+		// Copy the lookup data
+		const lookupData = new Uint8Array(buffer);
+		const gsubArray = new Uint8Array(gsubBuffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[lookupListStart + 4 + i] = lookupData[i];
+		}
+
+		// Dummy script list at offset 100
+		gsubView.setUint16(100, 0); // scriptCount
+
+		// Dummy feature list at offset 102
+		gsubView.setUint16(102, 0); // featureCount
+
+		// Parse the full GSUB table
+		const gsubReader = new Reader(gsubBuffer);
+		const gsub = parseGsub(gsubReader);
+
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as ReverseChainingSingleSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.ReverseChainingSingle);
+		expect(lookup.subtables.length).toBe(1);
+
+		const subtable = lookup.subtables[0]!;
+		// This exercises lines 496-497 (backtrack coverage loop)
+		expect(subtable.backtrackCoverages.length).toBe(2);
+		expect(subtable.backtrackCoverages[0]!.get(20)).toBe(0);
+		expect(subtable.backtrackCoverages[1]!.get(21)).toBe(0);
+
+		expect(subtable.lookaheadCoverages.length).toBe(1);
+		expect(subtable.lookaheadCoverages[0]!.get(60)).toBe(0);
+
+		expect(subtable.substituteGlyphIds.length).toBe(2);
+		expect(subtable.substituteGlyphIds[0]).toBe(100);
+		expect(subtable.substituteGlyphIds[1]).toBe(101);
+	});
+});
+
+// Test for Extension lookups (lines 518-670)
+describe("GSUB - Extension lookups", () => {
+	test("extension lookup wrapping single substitution", () => {
+		// Create synthetic Extension lookup (Type 7) wrapping Single subst (Type 1)
+		const buffer = new ArrayBuffer(200);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		// Lookup table header
+		view.setUint16(offset, 7); // lookupType = Extension
+		offset += 2;
+		view.setUint16(offset, 0); // lookupFlag = 0
+		offset += 2;
+		view.setUint16(offset, 1); // subtableCount = 1
+		offset += 2;
+		view.setUint16(offset, 8); // subtableOffset = 8
+		offset += 2;
+
+		// Extension subtable at offset 8
+		const extStart = 8;
+		offset = extStart;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 1); // extensionLookupType = 1 (Single)
+		offset += 2;
+		view.setUint32(offset, 8); // extensionOffset = 8 (from extension subtable start)
+		offset += 4;
+
+		// Single substitution Format 1 at offset 8 from extension start
+		const singleStart = extStart + 8;
+		offset = singleStart;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 6); // coverageOffset = 6
+		offset += 2;
+		view.setInt16(offset, 10); // deltaGlyphId = 10
+		offset += 2;
+
+		// Coverage at offset 6 from single subst start
+		offset = singleStart + 6;
+		view.setUint16(offset, 1); // format = 1
+		offset += 2;
+		view.setUint16(offset, 2); // glyphCount = 2
+		offset += 2;
+		view.setUint16(offset, 50); // glyph[0]
+		offset += 2;
+		view.setUint16(offset, 51); // glyph[1]
+		offset += 2;
+
+		// Create full GSUB table
+		const gsubBuffer = new ArrayBuffer(300);
+		const gsubView = new DataView(gsubBuffer);
+		let gsubOffset = 0;
+
+		// GSUB header
+		gsubView.setUint16(gsubOffset, 1); // major version
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 0); // minor version
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 200); // scriptListOffset
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 202); // featureListOffset
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 10); // lookupListOffset
+		gsubOffset += 2;
+
+		// Lookup list
+		const lookupListStart = 10;
+		gsubOffset = lookupListStart;
+		gsubView.setUint16(gsubOffset, 1); // lookupCount
+		gsubOffset += 2;
+		gsubView.setUint16(gsubOffset, 4); // lookup offset
+		gsubOffset += 2;
+
+		// Copy lookup data
+		const lookupData = new Uint8Array(buffer);
+		const gsubArray = new Uint8Array(gsubBuffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[lookupListStart + 4 + i] = lookupData[i];
+		}
+
+		// Dummy script/feature lists
+		gsubView.setUint16(200, 0);
+		gsubView.setUint16(202, 0);
+
+		const gsubReader = new Reader(gsubBuffer);
+		const gsub = parseGsub(gsubReader);
+
+		// This exercises the Extension lookup parsing (lines 294, 518-672)
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as SingleSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.Single);
+		expect(lookup.subtables.length).toBe(1);
+		expect(lookup.subtables[0]!.format).toBe(1);
+		expect(lookup.subtables[0]!.deltaGlyphId).toBe(10);
+	});
+
+	test("extension lookup wrapping multiple substitution", () => {
+		// Extension wrapping Multiple subst (Type 2)
+		const buffer = new ArrayBuffer(300);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		// Lookup header
+		view.setUint16(offset, 7); // Extension
+		offset += 2;
+		view.setUint16(offset, 0); // flag
+		offset += 2;
+		view.setUint16(offset, 1); // subtableCount
+		offset += 2;
+		view.setUint16(offset, 8); // subtableOffset
+		offset += 2;
+
+		// Extension subtable
+		offset = 8;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 2); // extensionLookupType = Multiple
+		offset += 2;
+		view.setUint32(offset, 8); // extensionOffset
+		offset += 4;
+
+		// Multiple subst Format 1
+		const multiStart = 16;
+		offset = multiStart;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 10); // coverageOffset
+		offset += 2;
+		view.setUint16(offset, 1); // sequenceCount
+		offset += 2;
+		view.setUint16(offset, 14); // sequenceOffset[0]
+		offset += 2;
+
+		// Coverage
+		offset = multiStart + 10;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount
+		offset += 2;
+		view.setUint16(offset, 100); // glyph[0]
+		offset += 2;
+
+		// Sequence
+		offset = multiStart + 14;
+		view.setUint16(offset, 2); // glyphCount
+		offset += 2;
+		view.setUint16(offset, 200); // glyph[0]
+		offset += 2;
+		view.setUint16(offset, 201); // glyph[1]
+		offset += 2;
+
+		// Build GSUB
+		const gsubBuffer = new ArrayBuffer(400);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1); // major
+		gsubView.setUint16(2, 0); // minor
+		gsubView.setUint16(4, 300); // scriptList
+		gsubView.setUint16(6, 302); // featureList
+		gsubView.setUint16(8, 10); // lookupList
+
+		const lookupListStart = 10;
+		gsubView.setUint16(lookupListStart, 1); // count
+		gsubView.setUint16(lookupListStart + 2, 4); // offset
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[lookupListStart + 4 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(300, 0);
+		gsubView.setUint16(302, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as MultipleSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.Multiple);
+	});
+
+	test("extension lookup wrapping ligature substitution", () => {
+		// Extension wrapping Ligature subst (Type 4)
+		const buffer = new ArrayBuffer(400);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		view.setUint16(offset, 7); // Extension
+		offset += 2;
+		view.setUint16(offset, 0); // flag
+		offset += 2;
+		view.setUint16(offset, 1); // subtableCount
+		offset += 2;
+		view.setUint16(offset, 8); // offset
+		offset += 2;
+
+		// Extension subtable
+		offset = 8;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 4); // extensionLookupType = Ligature
+		offset += 2;
+		view.setUint32(offset, 8); // extensionOffset
+		offset += 4;
+
+		// Ligature subst Format 1
+		const ligStart = 16;
+		offset = ligStart;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 10); // coverageOffset
+		offset += 2;
+		view.setUint16(offset, 1); // ligSetCount
+		offset += 2;
+		view.setUint16(offset, 16); // ligSetOffset[0]
+		offset += 2;
+
+		// Coverage
+		offset = ligStart + 10;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount
+		offset += 2;
+		view.setUint16(offset, 50); // glyph
+		offset += 2;
+
+		// Ligature set
+		offset = ligStart + 16;
+		view.setUint16(offset, 1); // ligCount
+		offset += 2;
+		view.setUint16(offset, 4); // ligOffset
+		offset += 2;
+
+		// Ligature
+		offset = ligStart + 16 + 4;
+		view.setUint16(offset, 100); // ligatureGlyph
+		offset += 2;
+		view.setUint16(offset, 2); // componentCount
+		offset += 2;
+		view.setUint16(offset, 51); // component[0]
+		offset += 2;
+
+		// Build GSUB
+		const gsubBuffer = new ArrayBuffer(500);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 400);
+		gsubView.setUint16(6, 402);
+		gsubView.setUint16(8, 10);
+
+		const lookupListStart = 10;
+		gsubView.setUint16(lookupListStart, 1);
+		gsubView.setUint16(lookupListStart + 2, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[lookupListStart + 4 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(400, 0);
+		gsubView.setUint16(402, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as LigatureSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.Ligature);
+	});
+
+	test("extension lookup wrapping context substitution", () => {
+		// Extension wrapping Context subst (Type 5) Format 3
+		const buffer = new ArrayBuffer(400);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		view.setUint16(offset, 7); // Extension
+		offset += 2;
+		view.setUint16(offset, 0);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 8);
+		offset += 2;
+
+		// Extension
+		offset = 8;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 5); // Context
+		offset += 2;
+		view.setUint32(offset, 8);
+		offset += 4;
+
+		// Context Format 3
+		const ctxStart = 16;
+		offset = ctxStart;
+		view.setUint16(offset, 3); // format
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount
+		offset += 2;
+		view.setUint16(offset, 0); // lookupCount
+		offset += 2;
+		view.setUint16(offset, 8); // coverageOffset[0]
+		offset += 2;
+
+		// Coverage
+		offset = ctxStart + 8;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 100);
+		offset += 2;
+
+		// Build GSUB
+		const gsubBuffer = new ArrayBuffer(500);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 400);
+		gsubView.setUint16(6, 402);
+		gsubView.setUint16(8, 10);
+
+		gsubView.setUint16(10, 1);
+		gsubView.setUint16(12, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[14 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(400, 0);
+		gsubView.setUint16(402, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as ContextSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.Context);
+	});
+
+	test("extension lookup wrapping chaining context substitution", () => {
+		// Extension wrapping ChainingContext (Type 6) Format 3
+		const buffer = new ArrayBuffer(500);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		view.setUint16(offset, 7); // Extension
+		offset += 2;
+		view.setUint16(offset, 0);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 8);
+		offset += 2;
+
+		// Extension
+		offset = 8;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 6); // ChainingContext
+		offset += 2;
+		view.setUint32(offset, 8);
+		offset += 4;
+
+		// ChainingContext Format 3
+		const chainStart = 16;
+		offset = chainStart;
+		view.setUint16(offset, 3); // format
+		offset += 2;
+		view.setUint16(offset, 0); // backtrackCount
+		offset += 2;
+		view.setUint16(offset, 1); // inputCount
+		offset += 2;
+		view.setUint16(offset, 12); // inputCoverageOffset[0]
+		offset += 2;
+		view.setUint16(offset, 0); // lookaheadCount
+		offset += 2;
+		view.setUint16(offset, 0); // lookupCount
+		offset += 2;
+
+		// Input coverage
+		offset = chainStart + 12;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 100);
+		offset += 2;
+
+		// Build GSUB
+		const gsubBuffer = new ArrayBuffer(600);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 500);
+		gsubView.setUint16(6, 502);
+		gsubView.setUint16(8, 10);
+
+		gsubView.setUint16(10, 1);
+		gsubView.setUint16(12, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[14 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(500, 0);
+		gsubView.setUint16(502, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as ChainingContextSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.ChainingContext);
+	});
+
+	test("extension lookup wrapping reverse chaining single", () => {
+		// Extension wrapping ReverseChainingSingle (Type 8)
+		const buffer = new ArrayBuffer(500);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		view.setUint16(offset, 7); // Extension
+		offset += 2;
+		view.setUint16(offset, 0);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 8);
+		offset += 2;
+
+		// Extension
+		offset = 8;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 8); // ReverseChainingSingle
+		offset += 2;
+		view.setUint32(offset, 8);
+		offset += 4;
+
+		// ReverseChainingSingle Format 1
+		const revStart = 16;
+		offset = revStart;
+		view.setUint16(offset, 1); // format
+		offset += 2;
+		view.setUint16(offset, 20); // coverageOffset
+		offset += 2;
+		view.setUint16(offset, 0); // backtrackCount
+		offset += 2;
+		view.setUint16(offset, 0); // lookaheadCount
+		offset += 2;
+		view.setUint16(offset, 1); // glyphCount
+		offset += 2;
+		view.setUint16(offset, 200); // substituteGlyphId[0]
+		offset += 2;
+
+		// Coverage
+		offset = revStart + 20;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 100);
+		offset += 2;
+
+		// Build GSUB
+		const gsubBuffer = new ArrayBuffer(600);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 500);
+		gsubView.setUint16(6, 502);
+		gsubView.setUint16(8, 10);
+
+		gsubView.setUint16(10, 1);
+		gsubView.setUint16(12, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[14 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(500, 0);
+		gsubView.setUint16(502, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(1);
+		const lookup = gsub.lookups[0] as ReverseChainingSingleSubstLookup;
+		expect(lookup.type).toBe(GsubLookupType.ReverseChainingSingle);
+	});
+
+	test("extension lookup with unsupported type returns null", () => {
+		// Extension wrapping unsupported type (e.g., 99)
+		const buffer = new ArrayBuffer(200);
+		const view = new DataView(buffer);
+		let offset = 0;
+
+		view.setUint16(offset, 7); // Extension
+		offset += 2;
+		view.setUint16(offset, 0);
+		offset += 2;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 8);
+		offset += 2;
+
+		// Extension
+		offset = 8;
+		view.setUint16(offset, 1);
+		offset += 2;
+		view.setUint16(offset, 99); // Unsupported type
+		offset += 2;
+		view.setUint32(offset, 8);
+		offset += 4;
+
+		// Build GSUB
+		const gsubBuffer = new ArrayBuffer(400);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 300);
+		gsubView.setUint16(6, 302);
+		gsubView.setUint16(8, 10);
+
+		gsubView.setUint16(10, 1);
+		gsubView.setUint16(12, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[14 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(300, 0);
+		gsubView.setUint16(302, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		// Should skip the invalid lookup
+		expect(gsub.lookups.length).toBe(0);
+	});
+
+	test("extension lookup with empty subtables", () => {
+		// Extension with 0 subtables
+		const buffer = new ArrayBuffer(100);
+		const view = new DataView(buffer);
+		view.setUint16(0, 7); // Extension
+		view.setUint16(2, 0); // flag
+		view.setUint16(4, 0); // subtableCount = 0
+
+		const gsubBuffer = new ArrayBuffer(300);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 200);
+		gsubView.setUint16(6, 202);
+		gsubView.setUint16(8, 10);
+
+		gsubView.setUint16(10, 1);
+		gsubView.setUint16(12, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[14 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(200, 0);
+		gsubView.setUint16(202, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		expect(gsub.lookups.length).toBe(0);
+	});
+
+	test("extension lookup with invalid format", () => {
+		// Extension with format != 1
+		const buffer = new ArrayBuffer(200);
+		const view = new DataView(buffer);
+		view.setUint16(0, 7); // Extension
+		view.setUint16(2, 0);
+		view.setUint16(4, 1); // subtableCount
+		view.setUint16(6, 8); // offset
+
+		// Extension subtable with invalid format
+		view.setUint16(8, 2); // format = 2 (invalid)
+		view.setUint16(10, 1); // type
+		view.setUint32(12, 8); // offset
+
+		const gsubBuffer = new ArrayBuffer(400);
+		const gsubView = new DataView(gsubBuffer);
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 300);
+		gsubView.setUint16(6, 302);
+		gsubView.setUint16(8, 10);
+
+		gsubView.setUint16(10, 1);
+		gsubView.setUint16(12, 4);
+
+		const gsubArray = new Uint8Array(gsubBuffer);
+		const lookupData = new Uint8Array(buffer);
+		for (let i = 0; i < lookupData.length; i++) {
+			gsubArray[14 + i] = lookupData[i];
+		}
+
+		gsubView.setUint16(300, 0);
+		gsubView.setUint16(302, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		// Should skip invalid extension
+		expect(gsub.lookups.length).toBe(0);
+	});
+});
+
+// Test for unknown lookup type (lines 310-311)
+describe("GSUB - Unknown lookup types", () => {
+	test("unknown lookup type returns null and is skipped", () => {
+		// Create GSUB with lookup type 99 (invalid)
+		const gsubBuffer = new ArrayBuffer(300);
+		const gsubView = new DataView(gsubBuffer);
+
+		// GSUB header
+		gsubView.setUint16(0, 1); // major
+		gsubView.setUint16(2, 0); // minor
+		gsubView.setUint16(4, 200); // scriptList
+		gsubView.setUint16(6, 202); // featureList
+		gsubView.setUint16(8, 10); // lookupList
+
+		// Lookup list
+		gsubView.setUint16(10, 1); // lookupCount
+		gsubView.setUint16(12, 4); // lookupOffset
+
+		// Lookup with invalid type
+		gsubView.setUint16(14, 99); // Invalid lookup type
+		gsubView.setUint16(16, 0); // flag
+		gsubView.setUint16(18, 0); // subtableCount
+
+		// Dummy script/feature
+		gsubView.setUint16(200, 0);
+		gsubView.setUint16(202, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		// Invalid lookup should be skipped
+		expect(gsub.lookups.length).toBe(0);
+	});
+
+	test("mixed valid and invalid lookup types", () => {
+		// GSUB with 2 lookups: one valid (type 1), one invalid (type 99)
+		const gsubBuffer = new ArrayBuffer(500);
+		const gsubView = new DataView(gsubBuffer);
+
+		// GSUB header
+		gsubView.setUint16(0, 1);
+		gsubView.setUint16(2, 0);
+		gsubView.setUint16(4, 400);
+		gsubView.setUint16(6, 402);
+		gsubView.setUint16(8, 10);
+
+		// Lookup list with 2 lookups
+		gsubView.setUint16(10, 2); // lookupCount
+		gsubView.setUint16(12, 6); // lookup 0 offset
+		gsubView.setUint16(14, 50); // lookup 1 offset
+
+		// Lookup 0: valid Single subst
+		let offset = 16;
+		gsubView.setUint16(offset, 1); // type = Single
+		offset += 2;
+		gsubView.setUint16(offset, 0); // flag
+		offset += 2;
+		gsubView.setUint16(offset, 1); // subtableCount
+		offset += 2;
+		gsubView.setUint16(offset, 8); // subtableOffset
+		offset += 2;
+
+		// Single subst Format 1
+		offset = 24;
+		gsubView.setUint16(offset, 1); // format
+		offset += 2;
+		gsubView.setUint16(offset, 6); // coverageOffset
+		offset += 2;
+		gsubView.setInt16(offset, 5); // deltaGlyphId
+		offset += 2;
+
+		// Coverage
+		offset = 30;
+		gsubView.setUint16(offset, 1); // format
+		offset += 2;
+		gsubView.setUint16(offset, 1); // glyphCount
+		offset += 2;
+		gsubView.setUint16(offset, 50); // glyph
+		offset += 2;
+
+		// Lookup 1: invalid type 99
+		offset = 16 + 50;
+		gsubView.setUint16(offset, 99); // Invalid type
+		offset += 2;
+		gsubView.setUint16(offset, 0); // flag
+		offset += 2;
+		gsubView.setUint16(offset, 0); // subtableCount
+		offset += 2;
+
+		// Dummy script/feature
+		gsubView.setUint16(400, 0);
+		gsubView.setUint16(402, 0);
+
+		const gsub = parseGsub(new Reader(gsubBuffer));
+		// Only the valid lookup should be present
+		expect(gsub.lookups.length).toBe(1);
+		expect(gsub.lookups[0]!.type).toBe(GsubLookupType.Single);
 	});
 });

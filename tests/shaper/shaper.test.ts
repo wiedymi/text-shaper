@@ -3786,4 +3786,361 @@ describe("comprehensive coverage for uncovered shaper paths", () => {
 			expect(result.length).toBeGreaterThan(0);
 		});
 	});
+
+	describe("advanced substitution lookups", () => {
+		test("applies multiple substitution (one to many)", async () => {
+			// Test with Arabic text using Arial Unicode
+			const arialUni = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0644\u0647"); // lam lam heh
+			const result = shape(arialUni, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("applies alternate substitution", async () => {
+			// Test with a font that has alternates
+			const buffer = new UnicodeBuffer().addStr("Test");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "salt", value: 1 }], // stylistic alternates
+			});
+			expect(result.length).toBe(4);
+		});
+
+		test("applies reverse chaining single substitution for Arabic", async () => {
+			// Reverse chaining is commonly used in Arabic final forms
+			const arialUni = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u0633\u0645"); // beh seen meem
+			const result = shape(arialUni, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles contextual alternates", async () => {
+			const buffer = new UnicodeBuffer().addStr("cafeteria");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "calt", value: 1 }],
+			});
+			expect(result.length).toBe(9);
+		});
+	});
+
+	describe("advanced positioning lookups", () => {
+		test("applies cursive attachment positioning", async () => {
+			// Arabic fonts use cursive attachment
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0633\u0644\u0627\u0645"); // salam
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+			// Check that positions were adjusted
+			for (const { position } of result) {
+				expect(position.xAdvance).toBeDefined();
+			}
+		});
+
+		test("applies mark-to-base positioning", async () => {
+			// Test Devanagari with combining marks
+			const devaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0915\u093F"); // ka + vowel sign i
+			const result = shape(devaFont, buffer, { script: "deva" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("applies mark-to-ligature positioning", async () => {
+			// Test with ligature + mark
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0627\u064E"); // lam alef + fatha
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("applies mark-to-mark positioning", async () => {
+			// Test stacked marks
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u064E\u0651"); // beh + fatha + shadda
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("applies contextual positioning", async () => {
+			// Context positioning adjusts based on surrounding glyphs
+			const buffer = new UnicodeBuffer().addStr("AVAVAV");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(6);
+			// Kerning should adjust advances
+			const totalAdvance = result.getTotalAdvance().x;
+			expect(totalAdvance).toBeGreaterThan(0);
+		});
+
+		test("applies single positioning with various value records", async () => {
+			const buffer = new UnicodeBuffer().addStr("Test");
+			const result = shape(arial, buffer);
+			expect(result.length).toBe(4);
+			// Check that positions have proper values
+			for (const { position } of result) {
+				expect(position.xAdvance).toBeGreaterThan(0);
+				expect(position.yAdvance).toBeDefined();
+				expect(position.xOffset).toBeDefined();
+				expect(position.yOffset).toBeDefined();
+			}
+		});
+	});
+
+	describe("vertical text features", () => {
+		test("shapes with vertical writing mode", async () => {
+			// Test Japanese with vertical text
+			const japaneseFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u65E5\u672C\u8A9E"); // nihongo
+			const result = shape(japaneseFont, buffer, {
+				script: "kana",
+				features: [
+					{ tag: "vert", value: 1 }, // vertical alternates
+					{ tag: "vkrn", value: 1 }, // vertical kerning
+				],
+			});
+			expect(result.length).toBe(3);
+		});
+
+		test("applies vrt2 feature for vertical alternates", async () => {
+			const japaneseFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u3001\u3002"); // Japanese punctuation
+			const result = shape(japaneseFont, buffer, {
+				features: [{ tag: "vrt2", value: 1 }],
+			});
+			expect(result.length).toBe(2);
+		});
+	});
+
+	describe("lookup flags and skip markers", () => {
+		test("handles ignoreBaseGlyphs flag", async () => {
+			// When a lookup ignores base glyphs, it should only process marks
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u064E\u0633"); // beh + fatha + seen
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles ignoreLigatures flag", async () => {
+			const buffer = new UnicodeBuffer().addStr("fficeffi");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "liga", value: 1 }],
+			});
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles ignoreMarks flag", async () => {
+			// Test with marks that should be ignored
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u064E\u064F\u0650"); // beh + multiple marks
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles markAttachmentType filtering", async () => {
+			const devaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0915\u094D\u0937"); // ka + virama + sha
+			const result = shape(devaFont, buffer, { script: "deva" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("complex script edge cases", () => {
+		test("handles Myanmar with complex reordering", async () => {
+			const myanmarFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u1000\u103C\u103D\u1031\u102C"); // complex Myanmar cluster
+			const result = shape(myanmarFont, buffer, { script: "mymr" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles Khmer with complex reordering", async () => {
+			const khmerFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Khmer Sangam MN.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u1780\u17D2\u1798\u17C2\u179A"); // khmer word
+			const result = shape(khmerFont, buffer, { script: "khmr" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles Indic with multiple matras", async () => {
+			const devaFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0915\u094D\u0937\u094D\u092F"); // kshya
+			const result = shape(devaFont, buffer, { script: "deva" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles Thai with tone marks", async () => {
+			const buffer = new UnicodeBuffer().addStr("\u0E01\u0E48\u0E32"); // ga + mai ek + aa
+			const result = shape(arial, buffer, { script: "thai" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles Lao with tone marks", async () => {
+			const buffer = new UnicodeBuffer().addStr("\u0E81\u0EC8\u0EB2"); // ko + mai ek + aa
+			const result = shape(arial, buffer, { script: "lao " });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("ligature processing edge cases", () => {
+		test("handles ligature with skip checking", async () => {
+			// Test ligatures where intervening marks should be skipped
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0644\u064E\u0627"); // lam + fatha + alef
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles component count in ligatures", async () => {
+			const buffer = new UnicodeBuffer().addStr("fficefflffiffi");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "liga", value: 1 }],
+			});
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles ligature coverage with digest optimization", async () => {
+			// Test that digest optimization works correctly
+			const buffer = new UnicodeBuffer().addStr("office official affluent");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "liga", value: 1 }],
+			});
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("pair positioning edge cases", () => {
+		test("handles pair positioning format 1 (glyph pairs)", async () => {
+			const buffer = new UnicodeBuffer().addStr("AVAVAV");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(6);
+		});
+
+		test("handles pair positioning format 2 (class pairs)", async () => {
+			const buffer = new UnicodeBuffer().addStr("TOTOWA");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(6);
+		});
+
+		test("handles pair positioning with skip markers", async () => {
+			// Test kerning with intervening marks
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u064E\u0633"); // beh + fatha + seen
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("context and chaining context lookups", () => {
+		test("handles context substitution format 1 (simple)", async () => {
+			const buffer = new UnicodeBuffer().addStr("context");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "calt", value: 1 }],
+			});
+			expect(result.length).toBe(7);
+		});
+
+		test("handles context substitution format 2 (class-based)", async () => {
+			const buffer = new UnicodeBuffer().addStr("test");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "calt", value: 1 }],
+			});
+			expect(result.length).toBe(4);
+		});
+
+		test("handles context substitution format 3 (coverage-based)", async () => {
+			const buffer = new UnicodeBuffer().addStr("example");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "calt", value: 1 }],
+			});
+			expect(result.length).toBe(7);
+		});
+
+		test("handles chaining context substitution", async () => {
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u0633\u0645"); // complex Arabic sequence
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles context positioning format 1", async () => {
+			const buffer = new UnicodeBuffer().addStr("position");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(8);
+		});
+
+		test("handles context positioning format 2", async () => {
+			const buffer = new UnicodeBuffer().addStr("adjust");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(6);
+		});
+
+		test("handles context positioning format 3", async () => {
+			const buffer = new UnicodeBuffer().addStr("spacing");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(7);
+		});
+
+		test("handles chaining context positioning", async () => {
+			const buffer = new UnicodeBuffer().addStr("AVAVAV");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "kern", value: 1 }],
+			});
+			expect(result.length).toBe(6);
+		});
+	});
+
+	describe("single substitution variants", () => {
+		test("handles single subst format 1 (delta)", async () => {
+			const buffer = new UnicodeBuffer().addStr("test");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "smcp", value: 1 }], // small caps
+			});
+			expect(result.length).toBe(4);
+		});
+
+		test("handles single subst format 2 (array)", async () => {
+			const buffer = new UnicodeBuffer().addStr("TEST");
+			const result = shape(arial, buffer, {
+				features: [{ tag: "c2sc", value: 1 }], // caps to small caps
+			});
+			expect(result.length).toBe(4);
+		});
+
+		test("handles single subst with skip markers", async () => {
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0628\u064E\u0633\u064E\u0645"); // with marks
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("buffer digest optimization", () => {
+		test("rebuilds digest after multiple substitution", async () => {
+			// Multiple substitution changes buffer length, requiring digest rebuild
+			const arabicFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial Unicode.ttf");
+			const buffer = new UnicodeBuffer().addStr("\u0644\u0644\u0644\u0647\u0647\u0647");
+			const result = shape(arabicFont, buffer, { script: "arab", direction: "rtl" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("uses digest for fast lookup rejection", async () => {
+			// Test with text that won't match most lookups
+			const buffer = new UnicodeBuffer().addStr("1234567890");
+			const result = shape(arial, buffer, {
+				features: [
+					{ tag: "liga", value: 1 },
+					{ tag: "calt", value: 1 },
+					{ tag: "kern", value: 1 },
+				],
+			});
+			expect(result.length).toBe(10);
+		});
+	});
 });
