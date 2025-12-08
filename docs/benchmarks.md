@@ -277,43 +277,43 @@ Compared against FreeType2 (WebAssembly). TextShaper is 1.6-11x faster at all si
 ## OpenType Features
 
 <BenchmarkChart title="No features - mixed text" :results="[
-  { name: 'text-shaper', opsPerSec: 107310 },
-  { name: 'harfbuzzjs', opsPerSec: 87310 }
+  { name: 'text-shaper', opsPerSec: 55500 },
+  { name: 'harfbuzzjs', opsPerSec: 58270 }
 ]" />
 
 <BenchmarkChart title="Standard ligatures (liga)" :results="[
-  { name: 'text-shaper', opsPerSec: 305620 },
-  { name: 'harfbuzzjs', opsPerSec: 269270 }
+  { name: 'text-shaper', opsPerSec: 177480 },
+  { name: 'harfbuzzjs', opsPerSec: 108200 }
 ]" />
 
 <BenchmarkChart title="Kerning pairs" :results="[
-  { name: 'text-shaper', opsPerSec: 258760 },
-  { name: 'harfbuzzjs', opsPerSec: 217960 }
+  { name: 'text-shaper', opsPerSec: 107990 },
+  { name: 'harfbuzzjs', opsPerSec: 178530 }
 ]" />
 
 <BenchmarkChart title="Small caps (smcp)" :results="[
-  { name: 'text-shaper', opsPerSec: 253970 },
-  { name: 'harfbuzzjs', opsPerSec: 196030 }
+  { name: 'text-shaper', opsPerSec: 213780 },
+  { name: 'harfbuzzjs', opsPerSec: 183600 }
 ]" />
 
 <BenchmarkChart title="Oldstyle figures (onum)" :results="[
-  { name: 'text-shaper', opsPerSec: 309360 },
-  { name: 'harfbuzzjs', opsPerSec: 239380 }
+  { name: 'text-shaper', opsPerSec: 273860 },
+  { name: 'harfbuzzjs', opsPerSec: 276440 }
 ]" />
 
 <BenchmarkChart title="Tabular figures (tnum)" :results="[
-  { name: 'text-shaper', opsPerSec: 315830 },
-  { name: 'harfbuzzjs', opsPerSec: 308330 }
+  { name: 'text-shaper', opsPerSec: 355030 },
+  { name: 'harfbuzzjs', opsPerSec: 192590 }
 ]" />
 
 <BenchmarkChart title="Fractions (frac)" :results="[
-  { name: 'text-shaper', opsPerSec: 249400 },
-  { name: 'harfbuzzjs', opsPerSec: 207510 }
+  { name: 'text-shaper', opsPerSec: 322180 },
+  { name: 'harfbuzzjs', opsPerSec: 175170 }
 ]" />
 
-<BenchmarkChart title="All common features" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 100080 },
-  { name: 'text-shaper', opsPerSec: 30350 }
+<BenchmarkChart title="All common features (liga + kern + calt)" :results="[
+  { name: 'harfbuzzjs', opsPerSec: 101110 },
+  { name: 'text-shaper', opsPerSec: 89050 }
 ]" />
 
 ## Grapheme Clusters
