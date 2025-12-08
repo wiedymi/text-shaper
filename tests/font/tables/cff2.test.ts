@@ -11,7 +11,7 @@ import {
 import { executeCff2CharString } from "../../../src/font/tables/cff-charstring.ts";
 import { Reader } from "../../../src/font/binary/reader.ts";
 
-const STIX_VAR_PATH = "/System/Library/Fonts/Supplemental/STIXVar.otf";
+const ADOBE_VF_PATH = "tests/fixtures/AdobeVFPrototype.otf";
 
 class BinaryWriter {
 	private bytes: number[] = [];
@@ -123,7 +123,7 @@ describe("cff2 table", () => {
 	let hasCff2: boolean;
 
 	beforeAll(async () => {
-		font = await Font.fromFile(STIX_VAR_PATH);
+		font = await Font.fromFile(ADOBE_VF_PATH);
 		const reader = font.getTableReader(Tags.CFF2);
 		hasCff2 = reader !== null;
 	});

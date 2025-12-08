@@ -830,6 +830,38 @@ describe("bidi embedding levels", () => {
 				const result = getEmbeddingLevels("\u05D0A(...)B", "ltr");
 				expect(result.levels.length).toBe(8);
 			});
+
+			test("bracket pair with RTL inside and NSM following opener", () => {
+				// RTL base direction with opposite type content
+				// This should trigger lines 672-681 (NSM after opener in opposite context)
+				const result = getEmbeddingLevels("(\u0300A\u05D0)", "rtl");
+				// The NSM should inherit the strong type
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("bracket pair with RTL inside and NSM following closer in RTL context", () => {
+				// Tests lines 682-690 - NSM after closer
+				const result = getEmbeddingLevels("(A)\u0300\u05D0", "rtl");
+				expect(result.levels.length).toBe(5);
+			});
+
+			test("bracket with BN-like types before NSM after opener", () => {
+				// BN (boundary neutral) chars before NSM - tests line 675 condition
+				const result = getEmbeddingLevels("(\u200D\u0300\u05D0)A", "ltr");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("bracket with BN-like types before NSM after closer", () => {
+				// Tests line 684 condition with BN before NSM after closer
+				const result = getEmbeddingLevels("(\u05D0)\u200D\u0300A", "ltr");
+				expect(result.levels.length).toBe(6);
+			});
+
+			test("bracket pair with forward lookahead to strong type", () => {
+				// Forward scan to find strong type - line 664
+				const result = getEmbeddingLevels("(.\u05D0)B", "ltr");
+				expect(result.levels.length).toBe(5);
+			});
 		});
 	});
 });

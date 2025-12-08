@@ -25,7 +25,7 @@ import type {
 	TupleVariationHeader,
 	PointDelta,
 } from "../../../src/font/tables/gvar.ts";
-import { getGlyphLocation } from "../../../src/font/tables/loca.ts";
+import { getGlyphLocation, hasGlyphOutline } from "../../../src/font/tables/loca.ts";
 import { Reader } from "../../../src/font/binary/reader.ts";
 
 /** Helper to create a mock TupleVariationHeader */
@@ -1229,6 +1229,145 @@ describe("glyf table", () => {
 						}
 					}
 				}
+			}
+		});
+	});
+
+	describe("loca table - short format", () => {
+		let lepchaFont: Font;
+
+		beforeAll(async () => {
+			// NotoSansLepcha uses short loca format (indexToLocFormat = 0)
+			lepchaFont = await Font.fromFile("tests/fixtures/NotoSansLepcha-Regular.ttf");
+		});
+
+		test("parses font with short loca format", () => {
+			expect(lepchaFont.loca).toBeDefined();
+			if (lepchaFont.loca) {
+				expect(lepchaFont.loca.isShort).toBe(true);
+				expect(lepchaFont.loca.offsets.length).toBeGreaterThan(0);
+			}
+		});
+
+		test("short format offsets are multiplied by 2", () => {
+			if (lepchaFont.loca && lepchaFont.loca.isShort) {
+				// All offsets in short format should be even (since raw uint16 values are multiplied by 2)
+				for (const offset of lepchaFont.loca.offsets) {
+					expect(offset % 2).toBe(0);
+				}
+			}
+		});
+
+		test("can parse glyphs using short loca format", () => {
+			if (lepchaFont.isTrueType && lepchaFont.glyf && lepchaFont.loca) {
+				// Parse glyph 0 (notdef)
+				const notdef = parseGlyph(lepchaFont.glyf, lepchaFont.loca, 0);
+				expect(notdef).toBeDefined();
+				expect(["simple", "composite", "empty"]).toContain(notdef.type);
+
+				// Parse a few more glyphs
+				for (let i = 1; i < Math.min(10, lepchaFont.numGlyphs); i++) {
+					const glyph = parseGlyph(lepchaFont.glyf, lepchaFont.loca, i);
+					expect(glyph).toBeDefined();
+				}
+			}
+		});
+
+		test("getGlyphContours works with short loca format", () => {
+			if (lepchaFont.isTrueType && lepchaFont.glyf && lepchaFont.loca) {
+				for (let i = 0; i < Math.min(10, lepchaFont.numGlyphs); i++) {
+					const contours = getGlyphContours(lepchaFont.glyf, lepchaFont.loca, i);
+					expect(Array.isArray(contours)).toBe(true);
+				}
+			}
+		});
+
+		test("getGlyphLocation works with short loca format", () => {
+			if (lepchaFont.loca) {
+				// Glyph 0 should have a location
+				const loc0 = getGlyphLocation(lepchaFont.loca, 0);
+				expect(loc0).not.toBeNull();
+				if (loc0) {
+					expect(loc0.offset).toBeGreaterThanOrEqual(0);
+					expect(loc0.length).toBeGreaterThan(0);
+				}
+			}
+		});
+	});
+
+	describe("loca table - edge cases", () => {
+		test("getGlyphLocation returns null for out of range glyph ID", () => {
+			if (font.loca) {
+				const loc = getGlyphLocation(font.loca, 99999);
+				expect(loc).toBeNull();
+			}
+		});
+
+		test("getGlyphLocation returns null for negative glyph ID", () => {
+			if (font.loca) {
+				const loc = getGlyphLocation(font.loca, -1);
+				expect(loc).toBeNull();
+			}
+		});
+
+		test("getGlyphLocation handles glyph at boundary", () => {
+			if (font.loca) {
+				const lastGlyphId = font.loca.offsets.length - 2; // -1 for array index, -1 because loca has numGlyphs+1 entries
+				const loc = getGlyphLocation(font.loca, lastGlyphId);
+				// May or may not have outline data, but shouldn't throw
+				expect(loc === null || (typeof loc.offset === "number" && typeof loc.length === "number")).toBe(true);
+			}
+		});
+
+		test("getGlyphLocation returns null for undefined offsets", () => {
+			// Create a mock loca table with sparse offsets array
+			const mockLoca = {
+				offsets: [0, 100], // Only 2 entries, so glyph 1 (needs index 1 and 2) will have undefined nextOffset
+				isShort: false,
+			};
+			// Glyph 1 tries to access offsets[1] and offsets[2], but offsets[2] is undefined
+			const loc = getGlyphLocation(mockLoca, 1);
+			expect(loc).toBeNull();
+		});
+
+		test("getGlyphLocation returns null when offset is undefined", () => {
+			// Create a loca table with explicit undefined via sparse array
+			const sparseArray: number[] = [];
+			sparseArray[0] = 0;
+			// sparseArray[1] is undefined
+			sparseArray[2] = 200;
+			const mockLoca = {
+				offsets: sparseArray,
+				isShort: false,
+			};
+			// Glyph 1 tries to access offsets[1] (undefined) and offsets[2] (200)
+			const loc = getGlyphLocation(mockLoca, 1);
+			expect(loc).toBeNull();
+		});
+
+		test("hasGlyphOutline returns true for glyph with outline", () => {
+			if (font.loca) {
+				// Glyph 0 (notdef) typically has an outline
+				const hasOutline = hasGlyphOutline(font.loca, 0);
+				expect(typeof hasOutline).toBe("boolean");
+				// Most fonts have notdef with outline
+				expect(hasOutline).toBe(true);
+			}
+		});
+
+		test("hasGlyphOutline returns false for space glyph", () => {
+			if (font.loca) {
+				// Space typically has no outline
+				const spaceId = font.glyphId(0x20);
+				const hasOutline = hasGlyphOutline(font.loca, spaceId);
+				expect(hasOutline).toBe(false);
+			}
+		});
+
+		test("hasGlyphOutline returns false for invalid glyph", () => {
+			if (font.loca) {
+				const hasOutline = hasGlyphOutline(font.loca, 99999);
+				expect(hasOutline).toBe(false);
 			}
 		});
 	});

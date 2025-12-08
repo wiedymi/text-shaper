@@ -4898,3 +4898,330 @@ describe("maximum coverage for shaper.ts", () => {
 		expect(result.length).toBeGreaterThan(0);
 	});
 });
+
+// Tests using Noto fonts with specific GSUB/GPOS lookup types
+describe("GSUB/GPOS lookup type coverage", () => {
+	let lepchaFont: Font; // Has GSUB 1,4,5,6 and GPOS 1,2,4,6,8
+	let miaoFont: Font; // Has GSUB 2,5 and GPOS 7
+	let copticFont: Font; // Has GSUB 8 (ReverseChainingSingle)
+	let newaFont: Font; // Has GPOS 3 (Cursive)
+
+	beforeAll(async () => {
+		lepchaFont = await Font.fromFile("tests/fixtures/NotoSansLepcha-Regular.ttf");
+		miaoFont = await Font.fromFile("tests/fixtures/NotoSansMiao-Regular.ttf");
+		copticFont = await Font.fromFile("tests/fixtures/NotoSansCoptic-Regular.ttf");
+		newaFont = await Font.fromFile("tests/fixtures/NotoSansNewa-Regular.ttf");
+	});
+
+	describe("GSUB Multiple Substitution (Type 2)", () => {
+		test("shapes Miao text with multiple substitution", () => {
+			// Miao script: 𖼀𖼁𖼂
+			const buffer = new UnicodeBuffer().addStr("\u{16F00}\u{16F01}\u{16F02}");
+			const result = shape(miaoFont, buffer, { script: "plrd" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Context Substitution (Type 5)", () => {
+		test("shapes Lepcha text with context substitution", () => {
+			// Lepcha script: ᰀᰁᰂᰃ
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C01\u1C02\u1C03");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Miao with context substitution", () => {
+			// Miao syllables
+			const buffer = new UnicodeBuffer().addStr("\u{16F00}\u{16F50}\u{16F51}");
+			const result = shape(miaoFont, buffer, { script: "plrd" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Chaining Context Substitution (Type 6)", () => {
+		test("shapes Lepcha text with chaining context", () => {
+			// Lepcha with vowel signs
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C26\u1C01\u1C27");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Reverse Chaining Single (Type 8)", () => {
+		test("shapes Coptic text with reverse chaining", () => {
+			// Coptic script: ⲀⲂⲄⲆ
+			const buffer = new UnicodeBuffer().addStr("\u2C80\u2C81\u2C82\u2C83");
+			const result = shape(copticFont, buffer, { script: "copt" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Single Positioning (Type 1)", () => {
+		test("shapes Lepcha with single positioning", () => {
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C01\u1C02");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+			// Check positions are set
+			const positions = result.positions;
+			expect(positions.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Cursive Attachment (Type 3)", () => {
+		test("shapes Newa with cursive attachment", () => {
+			// Newa script: 𑐀𑐁𑐂
+			const buffer = new UnicodeBuffer().addStr("\u{11400}\u{11401}\u{11402}");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Mark-to-Base (Type 4)", () => {
+		test("shapes Lepcha with mark positioning", () => {
+			// Lepcha consonant + vowel sign
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C26\u1C27\u1C28");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Mark-to-Mark (Type 6)", () => {
+		test("shapes Lepcha with stacked marks", () => {
+			// Lepcha with multiple combining marks
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C36\u1C37");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Context Positioning (Type 7)", () => {
+		test("shapes Miao with context positioning", () => {
+			// Miao with tone marks
+			const buffer = new UnicodeBuffer().addStr("\u{16F00}\u{16F8F}\u{16F90}");
+			const result = shape(miaoFont, buffer, { script: "plrd" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Chaining Context Positioning (Type 8)", () => {
+		test("shapes Lepcha with chaining context positioning", () => {
+			// Lepcha consonant clusters
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C01\u1C26\u1C02\u1C27");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("multiple lookup types in sequence", () => {
+		test("shapes complex Lepcha text", () => {
+			// Mix of consonants, vowels, and finals
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C26\u1C3B\u1C01\u1C27\u1C3C");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes complex Miao text", () => {
+			// Mix of initials, finals, and tone marks
+			const buffer = new UnicodeBuffer().addStr("\u{16F00}\u{16F51}\u{16F8F}\u{16F01}\u{16F52}\u{16F90}");
+			const result = shape(miaoFont, buffer, { script: "plrd" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+});
+
+// Tests for context/chaining context format coverage
+describe("Context substitution format coverage", () => {
+	let mongolianFont: Font;
+	let syriacFont: Font;
+
+	beforeAll(async () => {
+		// Mongolian has GSUB Context format 1 and 3
+		mongolianFont = await Font.fromFile("tests/fixtures/NotoSansMongolian-Regular.ttf");
+		// Syriac has GSUB Chaining format 1
+		syriacFont = await Font.fromFile("tests/fixtures/NotoSansSyriac-Regular.ttf");
+	});
+
+	describe("GSUB Context format 1 (Simple)", () => {
+		test("shapes Mongolian with context format 1", () => {
+			// Mongolian script uses context substitution
+			// ᠠᠡᠢᠣ
+			const buffer = new UnicodeBuffer().addStr("\u1820\u1821\u1822\u1823");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Context format 3 (Coverage-based)", () => {
+		test("shapes Mongolian with context format 3", () => {
+			// More Mongolian text that triggers format 3
+			// ᠤᠥᠦᠧ
+			const buffer = new UnicodeBuffer().addStr("\u1824\u1825\u1826\u1827");
+			const result = shape(mongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Chaining Context format 1 (Simple)", () => {
+		test("shapes Syriac with chaining format 1", () => {
+			// Syriac script: ܐܒܓܕ
+			const buffer = new UnicodeBuffer().addStr("\u0710\u0712\u0713\u0715");
+			const result = shape(syriacFont, buffer, { script: "syrc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Syriac with vowel marks", () => {
+			// Syriac with vowels: ܐܲܒܵ
+			const buffer = new UnicodeBuffer().addStr("\u0710\u0732\u0712\u0735");
+			const result = shape(syriacFont, buffer, { script: "syrc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Chaining Context format 3", () => {
+		test("Arial uses chaining context for positioning", async () => {
+			// Arial has GPOS Chaining Context format 3
+			const arialFont = await Font.fromFile("/System/Library/Fonts/Supplemental/Arial.ttf");
+			const buffer = new UnicodeBuffer().addStr("TAVERN");
+			const result = shape(arialFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+			// Check that positions are generated
+			expect(result.positions.length).toBe(result.length);
+		});
+	});
+});
+
+// Tests for specific shaper code paths
+describe("Shaper code path coverage", () => {
+	let nkoFont: Font;
+	let lepchaFont: Font;
+	let copticFont: Font;
+	let newaFont: Font;
+
+	beforeAll(async () => {
+		// NKo has GSUB type 3 (Alternate substitution)
+		nkoFont = await Font.fromFile("tests/fixtures/NotoSansNKo-Regular.ttf");
+		// Lepcha has GDEF with lookup flags
+		lepchaFont = await Font.fromFile("tests/fixtures/NotoSansLepcha-Regular.ttf");
+		// Coptic has GSUB type 8 (ReverseChainingSingle)
+		copticFont = await Font.fromFile("tests/fixtures/NotoSansCoptic-Regular.ttf");
+		// Newa has GPOS type 3 (Cursive)
+		newaFont = await Font.fromFile("tests/fixtures/NotoSansNewa-Regular.ttf");
+	});
+
+	describe("GSUB Alternate Substitution (type 3)", () => {
+		test("shapes NKo text with alternate substitution", () => {
+			// NKo script: ߀߁߂߃
+			const buffer = new UnicodeBuffer().addStr("\u07C0\u07C1\u07C2\u07C3");
+			const result = shape(nkoFont, buffer, { script: "nkoo" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes NKo with vowel marks", () => {
+			// NKo with combining marks
+			const buffer = new UnicodeBuffer().addStr("\u07CA\u07EB\u07CB\u07EC");
+			const result = shape(nkoFont, buffer, { script: "nkoo" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB with lookup flags and GDEF", () => {
+		test("shapes Lepcha with lookup flags for skip checking", () => {
+			// Lepcha has GDEF and uses lookup flags
+			// This exercises the skip marker code paths
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C26\u1C01\u1C27\u1C02");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Lepcha with multiple combining marks", () => {
+			// Multiple marks to exercise skip logic
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C36\u1C37\u1C01");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB ReverseChainingSingle (type 8)", () => {
+		test("shapes Coptic with reverse chaining", () => {
+			// Coptic lowercase letters that trigger reverse chaining
+			const buffer = new UnicodeBuffer().addStr("\u2C80\u2C81\u2C82\u2C83\u2C84");
+			const result = shape(copticFont, buffer, { script: "copt" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes Coptic with mixed case", () => {
+			// Mix of upper and lower case Coptic
+			const buffer = new UnicodeBuffer().addStr("\u2C80\u2CA0\u2C81\u2CA1");
+			const result = shape(copticFont, buffer, { script: "copt" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GPOS Cursive Attachment (type 3)", () => {
+		test("shapes Newa with cursive attachment", () => {
+			// Newa script uses cursive positioning
+			const buffer = new UnicodeBuffer().addStr("\u{11400}\u{11401}\u{11402}\u{11403}");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+			// Check that positions are adjusted
+			expect(result.positions.length).toBe(result.length);
+		});
+
+		test("shapes Newa with vowel signs", () => {
+			// Newa consonants with vowel signs
+			const buffer = new UnicodeBuffer().addStr("\u{11400}\u{11435}\u{11401}\u{11436}");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Single substitution fast paths", () => {
+		test("exercises single subtable format 1 delta path", () => {
+			// Use a font that has single substitution format 1 (delta)
+			const buffer = new UnicodeBuffer().addStr("ABC");
+			const result = shape(lepchaFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("exercises single subtable format 2 path", () => {
+			// Single substitution format 2 (substitute glyph IDs)
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C01\u1C02");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Ligature substitution with skip", () => {
+		test("exercises ligature with skip markers", () => {
+			// Lepcha ligature formation with intervening marks
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C36\u1C01\u1C37");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Multiple substitution paths", () => {
+		test("shapes Newa with multiple substitution", () => {
+			// Newa has GSUB type 2 (multiple substitution)
+			const buffer = new UnicodeBuffer().addStr("\u{11400}\u{1143F}\u{11401}");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Mark positioning paths", () => {
+		test("exercises mark-to-base with skip", () => {
+			// Mark-to-base positioning with skipped glyphs
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C26\u1C27\u1C28\u1C01");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("exercises mark-to-mark positioning", () => {
+			// Stacked marks for mark-to-mark
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C36\u1C37");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+});

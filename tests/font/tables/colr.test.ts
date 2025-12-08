@@ -153,13 +153,14 @@ function createColrV1Binary(): ArrayBuffer {
 	view.setUint32(offset, 1);
 	offset += 4;
 
-	// BaseGlyphPaintRecord: glyph 50, paint offset 8
+	// BaseGlyphPaintRecord: glyph 50, paintOffset relative to baseGlyphListStart (34)
+	// Paint at 44, so paintOffset = 44 - 34 = 10
 	view.setUint16(offset, 50);
 	offset += 2;
-	view.setUint32(offset, 8);
+	view.setUint32(offset, 10);
 	offset += 4;
 
-	// Paint at offset 36 + 8 = 44 (PaintSolid)
+	// Paint at offset 44 (PaintSolid)
 	offset = 44;
 	view.setUint8(offset, PaintFormat.Solid);
 	offset += 1;
@@ -229,9 +230,9 @@ function createColrV1Binary(): ArrayBuffer {
 	offset = 264;
 	view.setUint8(offset, PaintFormat.LinearGradient);
 	offset += 1;
-	// colorLineOffset: ColorLine at 280, so offset = 280 - 264 + 2 = 18
+	// colorLineOffset: ColorLine at 280, relative to format byte (264), so offset = 280 - 264 = 16
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 18);
+	view.setUint16(offset + 1, 16);
 	offset += 3;
 	// x0, y0, x1, y1, x2, y2 (6 FWORDs)
 	view.setInt16(offset, 0);
@@ -272,9 +273,9 @@ function createColrV1Binary(): ArrayBuffer {
 	offset = 295;
 	view.setUint8(offset, PaintFormat.RadialGradient);
 	offset += 1;
-	// colorLineOffset: ColorLine at 311, so offset = 311 - 295 + 2 = 18
+	// colorLineOffset: ColorLine at 311, relative to format byte (295), so offset = 311 - 295 = 16
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 18);
+	view.setUint16(offset + 1, 16);
 	offset += 3;
 	// x0, y0, radius0, x1, y1, radius1
 	view.setInt16(offset, 50);
@@ -338,9 +339,9 @@ function createColrV1Binary(): ArrayBuffer {
 	offset = 341;
 	view.setUint8(offset, PaintFormat.Glyph);
 	offset += 1;
-	// paintOffset: nested paint at 347, after format at 342, so offset = 347 - 342 = 5
+	// paintOffset: nested paint at 347, relative to format byte (341), so offset = 347 - 341 = 6
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 5);
+	view.setUint16(offset + 1, 6);
 	offset += 3;
 	view.setUint16(offset, 99);
 	offset += 2;
@@ -365,13 +366,13 @@ function createColrV1Binary(): ArrayBuffer {
 	offset = 355;
 	view.setUint8(offset, PaintFormat.Transform);
 	offset += 1;
-	// paintOffset: nested paint at 362, from 356, so offset = 6
+	// paintOffset: nested paint at 362, relative to format byte (355), so offset = 7
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 6);
+	view.setUint16(offset + 1, 7);
 	offset += 3;
-	// transformOffset: transform at 367, from 359, so offset = 8
+	// transformOffset: transform at 367, relative to format byte (355), so offset = 12
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 8);
+	view.setUint16(offset + 1, 12);
 	offset += 3;
 
 	// Nested Paint at 362 (Solid)
@@ -402,16 +403,16 @@ function createColrV1Binary(): ArrayBuffer {
 	offset = 391;
 	view.setUint8(offset, PaintFormat.Composite);
 	offset += 1;
-	// sourcePaintOffset: source paint at 399, from 392, so offset = 7
+	// sourcePaintOffset: source paint at 399, relative to format byte (391), so offset = 8
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 7);
+	view.setUint16(offset + 1, 8);
 	offset += 3;
 	// compositeMode
 	view.setUint8(offset, CompositeMode.SrcOver);
 	offset += 1;
-	// backdropPaintOffset: backdrop at 404, from 396, so offset = 8
+	// backdropPaintOffset: backdrop at 404, relative to format byte (391), so offset = 13
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 8);
+	view.setUint16(offset + 1, 13);
 	offset += 3;
 
 	// Source paint at 399 (Solid)
@@ -448,12 +449,12 @@ function createColrV1Binary(): ArrayBuffer {
 	offset += 2; // startGlyphId
 	view.setUint16(offset, 55);
 	offset += 2; // endGlyphId
-	// clipBoxOffset
+	// clipBoxOffset: relative to clipListStart (500), ClipBox at 512, so offset = 12
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 7);
+	view.setUint16(offset + 1, 12);
 	offset += 3;
 
-	// ClipBox at 500 + 5 + 7 = 512
+	// ClipBox at 512
 	offset = 512;
 	view.setUint8(offset, 1);
 	offset += 1; // format
@@ -529,12 +530,12 @@ function createColrV1Extended(): ArrayBuffer {
 	}
 
 	// Paint 0: Translate (at 34 + 32 = 66)
+	// paintOffset is relative to format byte (66), nested at 74, so offset = 8
 	offset = 66;
 	view.setUint8(offset, PaintFormat.Translate);
 	offset += 1;
-	// paintOffset: nested at 74, from 67, so offset = 7
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 7);
+	view.setUint16(offset + 1, 8);
 	offset += 3;
 	// dx, dy
 	view.setInt16(offset, 10);
@@ -552,12 +553,12 @@ function createColrV1Extended(): ArrayBuffer {
 	offset += 2;
 
 	// Paint 1: Scale (at 34 + 44 = 78)
+	// paintOffset relative to format byte (78), nested at 86, so offset = 8
 	offset = 78;
 	view.setUint8(offset, PaintFormat.Scale);
 	offset += 1;
-	// paintOffset: after format at 79, ends at 86, nested at 86, so offset = 7
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 7);
+	view.setUint16(offset + 1, 8);
 	offset += 3;
 	view.setInt16(offset, 8192);
 	offset += 2; // scaleX = 0.5
@@ -574,12 +575,12 @@ function createColrV1Extended(): ArrayBuffer {
 	offset += 2;
 
 	// Paint 2: ScaleAroundCenter (at 34 + 56 = 90)
+	// paintOffset relative to format byte (90), nested at 102, so offset = 12
 	offset = 90;
 	view.setUint8(offset, PaintFormat.ScaleAroundCenter);
 	offset += 1;
-	// paintOffset: from 91, ends at 102, nested at 102, so offset = 11
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 11);
+	view.setUint16(offset + 1, 12);
 	offset += 3;
 	view.setInt16(offset, 16384);
 	offset += 2; // scaleX
@@ -600,12 +601,12 @@ function createColrV1Extended(): ArrayBuffer {
 	offset += 2;
 
 	// Paint 3: Rotate (at 34 + 72 = 106)
+	// paintOffset relative to format byte (106), nested at 112, so offset = 6
 	offset = 106;
 	view.setUint8(offset, PaintFormat.Rotate);
 	offset += 1;
-	// paintOffset: from 107, ends at 112, nested at 112, so offset = 5
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 5);
+	view.setUint16(offset + 1, 6);
 	offset += 3;
 	view.setInt16(offset, 4096);
 	offset += 2; // angle
@@ -620,12 +621,12 @@ function createColrV1Extended(): ArrayBuffer {
 	offset += 2;
 
 	// Paint 4: RotateAroundCenter (at 34 + 84 = 118)
+	// paintOffset relative to format byte (118), nested at 128, so offset = 10
 	offset = 118;
 	view.setUint8(offset, PaintFormat.RotateAroundCenter);
 	offset += 1;
-	// paintOffset: from 119, ends at 128, nested at 128, so offset = 9
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 9);
+	view.setUint16(offset + 1, 10);
 	offset += 3;
 	view.setInt16(offset, 8192);
 	offset += 2; // angle
@@ -644,12 +645,12 @@ function createColrV1Extended(): ArrayBuffer {
 	offset += 2;
 
 	// Paint 5: Skew (at 34 + 100 = 134)
+	// paintOffset relative to format byte (134), nested at 142, so offset = 8
 	offset = 134;
 	view.setUint8(offset, PaintFormat.Skew);
 	offset += 1;
-	// paintOffset: from 135, ends at 142, nested at 142, so offset = 7
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 7);
+	view.setUint16(offset + 1, 8);
 	offset += 3;
 	view.setInt16(offset, 2048);
 	offset += 2; // xSkewAngle
@@ -666,12 +667,12 @@ function createColrV1Extended(): ArrayBuffer {
 	offset += 2;
 
 	// Paint 6: SkewAroundCenter (at 34 + 112 = 146)
+	// paintOffset relative to format byte (146), nested at 158, so offset = 12
 	offset = 146;
 	view.setUint8(offset, PaintFormat.SkewAroundCenter);
 	offset += 1;
-	// paintOffset: from 147, ends at 158, nested at 158, so offset = 11
 	view.setUint8(offset, 0);
-	view.setUint16(offset + 1, 11);
+	view.setUint16(offset + 1, 12);
 	offset += 3;
 	view.setInt16(offset, 1024);
 	offset += 2; // xSkewAngle
@@ -1983,15 +1984,15 @@ describe("colr table", () => {
 			const scaleUniformStart = offset;
 			view.setUint8(offset, PaintFormat.ScaleUniform);
 			offset += 1;
-			// paintOffset is relative to start of paintOffset field (offset = scaleUniformStart + 1)
-			// Nested paint will be at scaleUniformStart + 6, so paintOffset = 6 - 1 = 5
+			// paintOffset is relative to format byte (scaleUniformStart)
+			// Nested paint will be at scaleUniformStart + 6, so paintOffset = 6
 			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 5);
+			view.setUint16(offset + 1, 6);
 			offset += 3;
 			view.setInt16(offset, 8192);
 			offset += 2;
 
-			// Nested paint at scaleUniformStart + 1 + 5 = scaleUniformStart + 6
+			// Nested paint at scaleUniformStart + 6
 			offset = scaleUniformStart + 6;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
@@ -2047,11 +2048,11 @@ describe("colr table", () => {
 			const scaleUniformAroundCenterStart = offset;
 			view.setUint8(offset, PaintFormat.ScaleUniformAroundCenter);
 			offset += 1;
-			// paintOffset relative to start of paintOffset field (scaleUniformAroundCenterStart + 1)
+			// paintOffset relative to format byte (scaleUniformAroundCenterStart)
 			// Structure is 10 bytes total, nested paint at scaleUniformAroundCenterStart + 10
-			// paintOffset = 10 - 1 = 9
+			// paintOffset = 10
 			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 9);
+			view.setUint16(offset + 1, 10);
 			offset += 3;
 			view.setInt16(offset, 16384);
 			offset += 2;
@@ -2335,14 +2336,12 @@ describe("colr table", () => {
 			offset += 4;
 
 			offset = layerListOffset + 12;
+			const varSkewStart = offset;
 			view.setUint8(offset, PaintFormat.VarSkew);
 			offset += 1;
-			// paintOffset is Offset24 (3 bytes big-endian) = 8
+			// paintOffset is relative to format byte (varSkewStart)
 			// VarSkew reads: format(1) + paintOffset(3) + xSkewAngle(2) + ySkewAngle(2) = 8 bytes
-			// Formula: reader.offset - 7 + paintOffset
-			// After reading: offset is at layerListOffset + 12 + 8
-			// Seek: (layerListOffset + 12 + 8) - 7 + 8 = layerListOffset + 12 + 9
-			// So nested paint should be at layerListOffset + 12 + 9
+			// Nested paint at varSkewStart + 8, so paintOffset = 8
 			view.setUint8(offset, 0);
 			view.setUint8(offset + 1, 0);
 			view.setUint8(offset + 2, 8);
@@ -2352,7 +2351,7 @@ describe("colr table", () => {
 			view.setInt16(offset, 1536); // ySkewAngle
 			offset += 2;
 
-			offset = layerListOffset + 12 + 9;
+			offset = varSkewStart + 8;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
 			view.setUint16(offset, 0);
@@ -2404,14 +2403,12 @@ describe("colr table", () => {
 			offset += 4;
 
 			offset = layerListOffset + 12;
+			const varSkewAroundCenterStart = offset;
 			view.setUint8(offset, PaintFormat.VarSkewAroundCenter);
 			offset += 1;
+			// paintOffset relative to format byte (varSkewAroundCenterStart)
 			// VarSkewAroundCenter: format(1) + paintOffset(3) + xSkewAngle(2) + ySkewAngle(2) + centerX(2) + centerY(2) = 12 bytes
-			// Formula: reader.offset - 11 + paintOffset
-			// After reading: offset is at layerListOffset + 12 + 12
-			// Seek: (layerListOffset + 12 + 12) - 11 + paintOffset
-			// We want to seek to layerListOffset + 12 + 13
-			// paintOffset = 13 - 12 + 11 = 12
+			// Nested paint at varSkewAroundCenterStart + 12, so paintOffset = 12
 			view.setUint8(offset, 0);
 			view.setUint8(offset + 1, 0);
 			view.setUint8(offset + 2, 12);
@@ -2425,7 +2422,7 @@ describe("colr table", () => {
 			view.setInt16(offset, 55); // centerY
 			offset += 2;
 
-			offset = layerListOffset + 12 + 13;
+			offset = varSkewAroundCenterStart + 12;
 			view.setUint8(offset, PaintFormat.Solid);
 			offset += 1;
 			view.setUint16(offset, 0);
@@ -2474,32 +2471,38 @@ describe("colr table", () => {
 			view.setUint32(offset, 0);
 			offset += 4;
 
+			// ClipList structure: format(1) + numClips(4) + ClipRecord(7 each)
+			// ClipRecord: startGlyphId(2) + endGlyphId(2) + clipBoxOffset(3)
+			// clipBoxOffset is relative to clipListStart (clipListOffset)
 			offset = clipListOffset;
-			view.setUint8(offset, 1);
+			view.setUint8(offset, 1); // format
 			offset += 1;
-			view.setUint32(offset, 1);
+			view.setUint32(offset, 1); // numClips
 			offset += 4;
 
-			view.setUint16(offset, 100);
+			// ClipRecord at clipListOffset + 5
+			view.setUint16(offset, 100); // startGlyphId
 			offset += 2;
-			view.setUint16(offset, 110);
+			view.setUint16(offset, 110); // endGlyphId
 			offset += 2;
+			// clipBoxOffset = 12 (relative to clipListOffset), ClipBox at clipListOffset + 12
 			view.setUint8(offset, 0);
-			view.setUint16(offset + 1, 7);
+			view.setUint16(offset + 1, 12);
 			offset += 3;
 
-			offset = clipListOffset + 5 + 7;
-			view.setUint8(offset, 2);
+			// ClipBox at clipListOffset + 12
+			offset = clipListOffset + 12;
+			view.setUint8(offset, 2); // format 2
 			offset += 1;
-			view.setInt16(offset, -100);
+			view.setInt16(offset, -100); // xMin
 			offset += 2;
-			view.setInt16(offset, -200);
+			view.setInt16(offset, -200); // yMin
 			offset += 2;
-			view.setInt16(offset, 800);
+			view.setInt16(offset, 800); // xMax
 			offset += 2;
-			view.setInt16(offset, 900);
+			view.setInt16(offset, 900); // yMax
 			offset += 2;
-			view.setUint32(offset, 42);
+			view.setUint32(offset, 42); // varIndexBase
 			offset += 4;
 
 			const reader = new Reader(buffer.slice(0, 100));
@@ -2941,6 +2944,56 @@ describe("colr table", () => {
 				baseGlyphPaintRecords: [],
 			};
 			expect(isColrV1(table)).toBe(true);
+		});
+	});
+
+	describe("real COLRv1 font parsing", () => {
+		test("parses test_glyphs-glyf_colr_1.ttf", async () => {
+			const font = await Font.fromFile(
+				"tests/fixtures/test_glyphs-glyf_colr_1.ttf",
+			);
+			const colr = font.colr;
+			expect(colr).not.toBeNull();
+			expect(colr?.version).toBe(1);
+			expect(colr?.baseGlyphPaintRecords?.length).toBeGreaterThan(0);
+
+			// Check we can get paint for glyphs
+			if (colr?.baseGlyphPaintRecords && colr.baseGlyphPaintRecords.length > 0) {
+				const record = colr.baseGlyphPaintRecords[0]!;
+				const paint = getColorPaint(colr, record.glyphId);
+				expect(paint).not.toBeNull();
+			}
+
+			// Check layer list parsing
+			if (colr?.layerList && colr.layerList.length > 0) {
+				const paint = getLayerPaint(colr, 0);
+				expect(paint).not.toBeNull();
+			}
+
+			// Verify isColrV1
+			if (colr) {
+				expect(isColrV1(colr)).toBe(true);
+			}
+		});
+
+		test("parses noto-cff2_colr_1.otf", async () => {
+			const font = await Font.fromFile("tests/fixtures/noto-cff2_colr_1.otf");
+			const colr = font.colr;
+			expect(colr).not.toBeNull();
+			expect(colr?.version).toBe(1);
+			expect(colr?.baseGlyphPaintRecords?.length).toBeGreaterThan(0);
+
+			// Check we can get paint for glyphs
+			if (colr?.baseGlyphPaintRecords && colr.baseGlyphPaintRecords.length > 0) {
+				const record = colr.baseGlyphPaintRecords[0]!;
+				const paint = getColorPaint(colr, record.glyphId);
+				expect(paint).not.toBeNull();
+			}
+
+			// Verify isColrV1
+			if (colr) {
+				expect(isColrV1(colr)).toBe(true);
+			}
 		});
 	});
 });

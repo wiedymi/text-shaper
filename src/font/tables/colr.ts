@@ -370,7 +370,8 @@ export function parseColr(reader: Reader): ColrTable {
 
 		// Parse base glyph paint records
 		if (baseGlyphListOffset !== 0) {
-			reader.seek(startOffset + baseGlyphListOffset);
+			const baseGlyphListStart = startOffset + baseGlyphListOffset;
+			reader.seek(baseGlyphListStart);
 			const numRecords = reader.uint32();
 			result.baseGlyphPaintRecords = [];
 
@@ -378,11 +379,9 @@ export function parseColr(reader: Reader): ColrTable {
 				const glyphId = reader.uint16();
 				const paintOffset = reader.uint32();
 
-				// Parse paint at offset
+				// Parse paint at offset (paintOffset is relative to start of BaseGlyphList)
 				const savedPos = reader.offset;
-				reader.seek(
-					startOffset + baseGlyphListOffset + 4 + i * 6 + 2 + paintOffset - 4,
-				);
+				reader.seek(baseGlyphListStart + paintOffset);
 				const paint = parsePaint(reader, startOffset);
 				reader.seek(savedPos);
 
@@ -432,8 +431,10 @@ export function parseColr(reader: Reader): ColrTable {
 
 /**
  * Parse a Paint structure
+ * All Offset24 values are relative to the start of the paint record (format byte)
  */
 function parsePaint(reader: Reader, tableOffset: number): Paint {
+	const paintStart = reader.offset; // Position of format byte
 	const format = reader.uint8();
 
 	switch (format) {
@@ -470,7 +471,7 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const y2 = reader.fword();
 
 			const savedPos = reader.offset;
-			reader.seek(reader.offset - 18 + colorLineOffset);
+			reader.seek(paintStart + colorLineOffset);
 			const colorLine = parseColorLine(reader);
 			reader.seek(savedPos);
 
@@ -488,7 +489,7 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const radius1 = reader.ufword();
 
 			const savedPos = reader.offset;
-			reader.seek(reader.offset - 18 + colorLineOffset);
+			reader.seek(paintStart + colorLineOffset);
 			const colorLine = parseColorLine(reader);
 			reader.seek(savedPos);
 
@@ -504,7 +505,7 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const endAngle = reader.f2dot14();
 
 			const savedPos = reader.offset;
-			reader.seek(reader.offset - 12 + colorLineOffset);
+			reader.seek(paintStart + colorLineOffset);
 			const colorLine = parseColorLine(reader);
 			reader.seek(savedPos);
 
@@ -516,7 +517,7 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const glyphId = reader.uint16();
 
 			const savedPos = reader.offset;
-			reader.seek(reader.offset - 5 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
 			reader.seek(savedPos);
 
@@ -534,10 +535,7 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const paintOffset = reader.uint24();
 			const transformOffset = reader.uint24();
 
-			const paintPos = reader.offset - 6 + paintOffset;
-			const transformPos = reader.offset - 3 + transformOffset;
-
-			reader.seek(transformPos);
+			reader.seek(paintStart + transformOffset);
 			const transform: Affine2x3 = {
 				xx: reader.fixed(),
 				yx: reader.fixed(),
@@ -547,7 +545,7 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 				dy: reader.fixed(),
 			};
 
-			reader.seek(paintPos);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
 
 			return { format, paint, transform };
@@ -559,10 +557,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const dx = reader.fword();
 			const dy = reader.fword();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 7 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, dx, dy };
 		}
@@ -573,10 +569,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const scaleX = reader.f2dot14();
 			const scaleY = reader.f2dot14();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 7 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, scaleX, scaleY };
 		}
@@ -589,10 +583,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const centerX = reader.fword();
 			const centerY = reader.fword();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 11 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, scaleX, scaleY, centerX, centerY };
 		}
@@ -602,10 +594,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const paintOffset = reader.uint24();
 			const scale = reader.f2dot14();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 5 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, scaleX: scale, scaleY: scale };
 		}
@@ -617,10 +607,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const centerX = reader.fword();
 			const centerY = reader.fword();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 9 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, scaleX: scale, scaleY: scale, centerX, centerY };
 		}
@@ -630,10 +618,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const paintOffset = reader.uint24();
 			const angle = reader.f2dot14();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 5 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, angle };
 		}
@@ -645,10 +631,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const centerX = reader.fword();
 			const centerY = reader.fword();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 9 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, angle, centerX, centerY };
 		}
@@ -659,10 +643,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const xSkewAngle = reader.f2dot14();
 			const ySkewAngle = reader.f2dot14();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 7 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, xSkewAngle, ySkewAngle };
 		}
@@ -675,10 +657,8 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const centerX = reader.fword();
 			const centerY = reader.fword();
 
-			const savedPos = reader.offset;
-			reader.seek(reader.offset - 11 + paintOffset);
+			reader.seek(paintStart + paintOffset);
 			const paint = parsePaint(reader, tableOffset);
-			reader.seek(savedPos);
 
 			return { format, paint, xSkewAngle, ySkewAngle, centerX, centerY };
 		}
@@ -688,13 +668,10 @@ function parsePaint(reader: Reader, tableOffset: number): Paint {
 			const compositeMode = reader.uint8() as CompositeMode;
 			const backdropPaintOffset = reader.uint24();
 
-			const sourcePos = reader.offset - 7 + sourcePaintOffset;
-			const backdropPos = reader.offset - 3 + backdropPaintOffset;
-
-			reader.seek(sourcePos);
+			reader.seek(paintStart + sourcePaintOffset);
 			const sourcePaint = parsePaint(reader, tableOffset);
 
-			reader.seek(backdropPos);
+			reader.seek(paintStart + backdropPaintOffset);
 			const backdropPaint = parsePaint(reader, tableOffset);
 
 			return { format, sourcePaint, compositeMode, backdropPaint };
@@ -726,8 +703,10 @@ function parseColorLine(reader: Reader): ColorLine {
 
 /**
  * Parse ClipList structure
+ * Offset to ClipBox is relative to start of ClipRecord (startGlyphId field)
  */
 function parseClipList(reader: Reader, _tableOffset: number): ClipRecord[] {
+	const clipListStart = reader.offset;
 	const _format = reader.uint8();
 	const numClips = reader.uint32();
 	const records: ClipRecord[] = [];
@@ -738,7 +717,8 @@ function parseClipList(reader: Reader, _tableOffset: number): ClipRecord[] {
 		const clipBoxOffset = reader.uint24();
 
 		const savedPos = reader.offset;
-		reader.seek(reader.offset - 7 + clipBoxOffset);
+		// clipBoxOffset is relative to the start of ClipList, not the record
+		reader.seek(clipListStart + clipBoxOffset);
 
 		const boxFormat = reader.uint8();
 		const clipBox: ClipBox = {
