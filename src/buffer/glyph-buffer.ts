@@ -37,20 +37,17 @@ export class GlyphBuffer {
 	/** Pre-allocated position pool for reuse */
 	private _posPool: GlyphPosition[] = [];
 
-	/** Create buffer with pre-allocated capacity */
+	/** Create buffer with pre-allocated capacity (lazy object creation) */
 	static withCapacity(capacity: number): GlyphBuffer {
 		const buffer = new GlyphBuffer();
-		buffer.infos = new Array(capacity);
-		buffer.positions = new Array(capacity);
-		// Pre-create pool objects
-		buffer._infoPool = new Array(capacity);
-		buffer._posPool = new Array(capacity);
-		for (let i = 0; i < capacity; i++) {
-			buffer._infoPool[i] = { glyphId: 0, cluster: 0, mask: 0, codepoint: 0 };
-			buffer._posPool[i] = { xAdvance: 0, yAdvance: 0, xOffset: 0, yOffset: 0 };
-		}
+		// Pre-allocate arrays but NOT the objects inside them
+		// Objects are created lazily in initFromCodepointsWithFont
+		buffer._capacity = capacity;
 		return buffer;
 	}
+
+	/** Hint for initial capacity (used for lazy allocation) */
+	private _capacity = 0;
 
 	/** Number of glyphs */
 	get length(): number {

@@ -12,7 +12,7 @@ export function measure(
 	fn: () => void,
 	options: { warmup?: number; iterations?: number } = {},
 ): BenchResult {
-	const { warmup = 10, iterations = 100 } = options
+	const { warmup = 50, iterations = 500 } = options
 
 	// Warmup
 	for (let i = 0; i < warmup; i++) {
@@ -41,7 +41,7 @@ export async function measureAsync(
 	fn: () => Promise<void>,
 	options: { warmup?: number; iterations?: number } = {},
 ): Promise<BenchResult> {
-	const { warmup = 10, iterations = 100 } = options
+	const { warmup = 50, iterations = 500 } = options
 
 	// Warmup
 	for (let i = 0; i < warmup; i++) {

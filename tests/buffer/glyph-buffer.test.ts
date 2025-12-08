@@ -26,10 +26,10 @@ describe("GlyphBuffer", () => {
 			expect(buffer.language).toBeNull();
 		});
 
-		test("withCapacity pre-allocates arrays", () => {
+		test("withCapacity creates empty buffer with capacity hint", () => {
 			const buffer = GlyphBuffer.withCapacity(10);
-			expect(buffer.infos.length).toBe(10);
-			expect(buffer.positions.length).toBe(10);
+			// Lazy allocation - arrays start empty, objects created on demand
+			expect(buffer.length).toBe(0);
 		});
 	});
 

@@ -1,6 +1,7 @@
 import { describe, test, beforeAll, expect } from "bun:test"
 import { measure, printComparison, loadFontBuffer, loadTextFile, type BenchResult } from "./utils"
 import { Font, shape, shapeInto, UnicodeBuffer, GlyphBuffer } from "../src"
+import opentype from "opentype.js"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 const TEXTS_DIR = "reference/rustybuzz/benches/texts"
@@ -131,6 +132,7 @@ describe("Text Shaping Benchmark", () => {
 	let hb: any
 	const fonts = new Map<string, Font>()
 	const hbFonts = new Map<string, any>()
+	const otFonts = new Map<string, opentype.Font>()
 	const texts = new Map<string, string>()
 
 	beforeAll(async () => {
@@ -147,6 +149,10 @@ describe("Text Shaping Benchmark", () => {
 			const face = hb.createFace(blob, 0)
 			const font = hb.createFont(face)
 			hbFonts.set(script.font, { font, face, blob })
+
+			// Load opentype.js font
+			const otFont = opentype.parse(buffer)
+			otFonts.set(script.font, otFont)
 		}
 
 		// Load additional fonts (system fonts)
@@ -161,6 +167,10 @@ describe("Text Shaping Benchmark", () => {
 					const face = hb.createFace(blob, 0)
 					const font = hb.createFont(face)
 					hbFonts.set(fontKey, { font, face, blob })
+
+					// Load opentype.js font
+					const otFont = opentype.parse(buffer)
+					otFonts.set(fontKey, otFont)
 				} catch {
 					// Skip missing fonts
 				}
@@ -211,6 +221,7 @@ describe("Text Shaping Benchmark", () => {
 
 					const font = fonts.get(script.font)!
 					const hbFont = hbFonts.get(script.font)!
+					const otFont = otFonts.get(script.font)!
 
 					const results: BenchResult[] = []
 
@@ -237,12 +248,19 @@ describe("Text Shaping Benchmark", () => {
 						}),
 					)
 
+					// opentype.js
+					results.push(
+						measure("opentype.js", () => {
+							otFont.stringToGlyphs(text)
+						}),
+					)
+
 					printComparison(
 						`Text Shaping - ${script.name} ${testName} (${text.length} chars)`,
 						results,
 						"text-shaper",
 					)
-					expect(results.length).toBe(2)
+					expect(results.length).toBe(3)
 				})
 			}
 		})
@@ -264,7 +282,8 @@ describe("Text Shaping Benchmark", () => {
 					const fontKey = script.fontDir ? `${script.fontDir}/${script.font}` : script.font
 					const font = fonts.get(fontKey)
 					const hbFont = hbFonts.get(fontKey)
-					if (!font || !hbFont) {
+					const otFont = otFonts.get(fontKey)
+					if (!font || !hbFont || !otFont) {
 						console.log(`Skipping ${script.name}/${testName}: font not found`)
 						return
 					}
@@ -294,12 +313,19 @@ describe("Text Shaping Benchmark", () => {
 						}),
 					)
 
+					// opentype.js
+					results.push(
+						measure("opentype.js", () => {
+							otFont.stringToGlyphs(text)
+						}),
+					)
+
 					printComparison(
 						`Text Shaping - ${script.name} ${testName} (${text.length} chars)`,
 						results,
 						"text-shaper",
 					)
-					expect(results.length).toBe(2)
+					expect(results.length).toBe(3)
 				})
 			}
 		})
@@ -312,6 +338,7 @@ describe("Text Shaping Benchmark", () => {
 
 			const font = fonts.get("NotoSans-Regular.ttf")!
 			const hbFont = hbFonts.get("NotoSans-Regular.ttf")!
+			const otFont = otFonts.get("NotoSans-Regular.ttf")!
 
 			const results: BenchResult[] = []
 
@@ -336,12 +363,18 @@ describe("Text Shaping Benchmark", () => {
 				}),
 			)
 
+			results.push(
+				measure("opentype.js", () => {
+					otFont.stringToGlyphs(text)
+				}),
+			)
+
 			printComparison(
 				`Text Shaping - Zalgo short (${text.length} chars)`,
 				results,
 				"text-shaper",
 			)
-			expect(results.length).toBe(2)
+			expect(results.length).toBe(3)
 		})
 
 		test("long_zalgo", () => {
@@ -350,6 +383,7 @@ describe("Text Shaping Benchmark", () => {
 
 			const font = fonts.get("NotoSans-Regular.ttf")!
 			const hbFont = hbFonts.get("NotoSans-Regular.ttf")!
+			const otFont = otFonts.get("NotoSans-Regular.ttf")!
 
 			const results: BenchResult[] = []
 
@@ -374,18 +408,25 @@ describe("Text Shaping Benchmark", () => {
 				}),
 			)
 
+			results.push(
+				measure("opentype.js", () => {
+					otFont.stringToGlyphs(text)
+				}),
+			)
+
 			printComparison(
 				`Text Shaping - Zalgo long (${text.length} chars)`,
 				results,
 				"text-shaper",
 			)
-			expect(results.length).toBe(2)
+			expect(results.length).toBe(3)
 		})
 	})
 
 	describe("Variable Font", () => {
 		let variableFont: Font
 		let hbVariableFont: any
+		let otVariableFont: opentype.Font
 
 		beforeAll(async () => {
 			const buffer = await loadFontBuffer(`${FONTS_DIR}/NotoSans-VariableFont.ttf`)
@@ -395,6 +436,8 @@ describe("Text Shaping Benchmark", () => {
 			const face = hb.createFace(blob, 0)
 			const font = hb.createFont(face)
 			hbVariableFont = { font, face, blob }
+
+			otVariableFont = opentype.parse(buffer)
 		})
 
 		test("default variations", () => {
@@ -424,12 +467,18 @@ describe("Text Shaping Benchmark", () => {
 				}),
 			)
 
+			results.push(
+				measure("opentype.js", () => {
+					otVariableFont.stringToGlyphs(text)
+				}),
+			)
+
 			printComparison(
 				"Text Shaping - Variable Font (default)",
 				results,
 				"text-shaper",
 			)
-			expect(results.length).toBe(2)
+			expect(results.length).toBe(3)
 		})
 	})
 })
