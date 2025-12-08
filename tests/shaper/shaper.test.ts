@@ -5224,4 +5224,180 @@ describe("Shaper code path coverage", () => {
 			expect(result.length).toBeGreaterThan(0);
 		});
 	});
+
+	describe("GPOS context positioning", () => {
+		let miaoFont: Font;
+		let arialUnicode: Font;
+
+		beforeAll(async () => {
+			miaoFont = await Font.fromFile("tests/fixtures/NotoSansMiao-Regular.ttf");
+			try {
+				arialUnicode = await Font.fromFile(
+					"/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+				);
+			} catch {
+				// Arial Unicode may not be available
+			}
+		});
+
+		test("exercises GPOS context format 2 with Miao", () => {
+			// NotoSansMiao has GPOS type 7 (Context) format 2
+			const buffer = new UnicodeBuffer().addStr("\u{16F00}\u{16F51}\u{16F61}");
+			const result = shape(miaoFont, buffer, { script: "plrd" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("exercises GPOS chaining context format 2", () => {
+			// Lepcha has GPOS type 8 (Chaining Context) format 2
+			const buffer = new UnicodeBuffer().addStr(
+				"\u1C00\u1C24\u1C25\u1C26\u1C27\u1C28\u1C29",
+			);
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("exercises single positioning format 1 fast path", () => {
+			// Single positioning with various texts
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C01\u1C02\u1C03");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("exercises pair positioning format 1 and 2", () => {
+			// Pair positioning with various sequences
+			const buffer = new UnicodeBuffer().addStr(
+				"\u1C00\u1C01\u1C02\u1C03\u1C04\u1C05",
+			);
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB ReverseChainingSingle", () => {
+		let localMongolianFont: Font;
+
+		beforeAll(async () => {
+			localMongolianFont = await Font.fromFile(
+				"tests/fixtures/NotoSansMongolian-Regular.ttf",
+			);
+		});
+
+		test("exercises reverse chaining with Coptic", () => {
+			// Coptic has GSUB type 8 (ReverseChainingSingle)
+			const buffer = new UnicodeBuffer().addStr(
+				"\u2C80\u2C81\u2C82\u2C83\u2C84\u2C85",
+			);
+			const result = shape(copticFont, buffer, { script: "copt" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("exercises reverse chaining with Mongolian", () => {
+			// Mongolian has GSUB type 8
+			const buffer = new UnicodeBuffer().addStr(
+				"\u1820\u1821\u1822\u1823\u1824\u1825",
+			);
+			const result = shape(localMongolianFont, buffer, { script: "mong" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("GSUB Alternate substitution", () => {
+		test("exercises alternate substitution with NKo", () => {
+			// NKo has GSUB type 3 (Alternate)
+			const buffer = new UnicodeBuffer().addStr(
+				"\u07C0\u07C1\u07C2\u07C3\u07C4\u07C5",
+			);
+			const result = shape(nkoFont, buffer, { script: "nkoo" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Edge cases and error paths", () => {
+		test("handles buffer with only marks", () => {
+			// Buffer with only marks - tests edge cases in positioning
+			const buffer = new UnicodeBuffer().addStr("\u1C26\u1C27\u1C28");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles very long sequences", () => {
+			// Long text to test performance-optimized paths
+			const text = "\u1C00\u1C01\u1C02".repeat(100);
+			const buffer = new UnicodeBuffer().addStr(text);
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("handles mixed scripts in shaping", () => {
+			// Mix of scripts - tests fallback handling
+			const buffer = new UnicodeBuffer().addStr("ABC\u1C00\u1C01XYZ");
+			const result = shape(lepchaFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("MORX (AAT) shaping", () => {
+		let zapfinoFont: Font | null = null;
+
+		beforeAll(async () => {
+			try {
+				zapfinoFont = await Font.fromFile(
+					"/System/Library/Fonts/Supplemental/Zapfino.ttf",
+				);
+			} catch {
+				// Zapfino not available on this system
+			}
+		});
+
+		test("shapes with MORX noncontextual substitution", () => {
+			if (!zapfinoFont) return;
+			const buffer = new UnicodeBuffer().addStr("Hello World");
+			const result = shape(zapfinoFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes with MORX contextual substitution", () => {
+			if (!zapfinoFont) return;
+			const buffer = new UnicodeBuffer().addStr("Testing MORX");
+			const result = shape(zapfinoFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes with MORX ligatures", () => {
+			if (!zapfinoFont) return;
+			const buffer = new UnicodeBuffer().addStr("fifl");
+			const result = shape(zapfinoFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("shapes with MORX rearrangement", () => {
+			if (!zapfinoFont) return;
+			const buffer = new UnicodeBuffer().addStr("The quick brown fox");
+			const result = shape(zapfinoFont, buffer);
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
+
+	describe("Mark-to-ligature positioning", () => {
+		test("positions marks on ligatures with Newa", () => {
+			// Newa has ligatures with marks
+			const buffer = new UnicodeBuffer().addStr("\u{11400}\u{1143F}\u{11401}\u{11442}");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("positions marks on ligatures with Lepcha", () => {
+			// Lepcha consonant + vowel sign forms
+			const buffer = new UnicodeBuffer().addStr("\u1C00\u1C24\u1C25\u1C26\u1C27\u1C28\u1C29\u1C2A");
+			const result = shape(lepchaFont, buffer, { script: "lepc" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+
+		test("positions multiple marks on same ligature", () => {
+			// Multiple marks attached to base
+			const buffer = new UnicodeBuffer().addStr("\u{11400}\u{11442}\u{11443}\u{11444}");
+			const result = shape(newaFont, buffer, { script: "newa" });
+			expect(result.length).toBeGreaterThan(0);
+		});
+	});
 });

@@ -783,3 +783,9 @@ export function applyLigatureSubstDirect(
 
 	return null;
 }
+
+// Export internal functions for testing
+export const __testing = {
+	parseGsubLookup,
+	parseExtensionLookup,
+};

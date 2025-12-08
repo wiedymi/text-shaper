@@ -684,3 +684,19 @@ export function calculateVariationDelta(
 
 	return Math.round(delta);
 }
+
+// Export internal functions for testing
+export const __testing = {
+	parseIndex,
+	readOffset,
+	parseDict,
+	parseReal,
+	parseCff2TopDict,
+	parseCff2FDDict,
+	parseCff2PrivateDict,
+	deltaToAbsolute,
+	parseFDSelect,
+	parseItemVariationStore,
+	parseVariationRegionList,
+	parseItemVariationData,
+};

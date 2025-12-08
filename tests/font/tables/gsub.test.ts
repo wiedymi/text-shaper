@@ -6,6 +6,7 @@ import {
 	applySingleSubst,
 	applyLigatureSubst,
 	applyLigatureSubstDirect,
+	__testing,
 	type GsubTable,
 	type SingleSubstLookup,
 	type LigatureSubstLookup,
@@ -3707,5 +3708,114 @@ describe("GSUB - Unknown lookup types", () => {
 		// Only the valid lookup should be present
 		expect(gsub.lookups.length).toBe(1);
 		expect(gsub.lookups[0]!.type).toBe(GsubLookupType.Single);
+	});
+});
+
+describe("GSUB Extension lookup unit tests", () => {
+	// Helper to build Extension subtable
+	function buildExtensionSubtable(wrappedType: number, wrappedData: Uint8Array): Uint8Array {
+		const extensionOffset = 8;
+		const subtable = new Uint8Array(8 + wrappedData.length);
+		const view = new DataView(subtable.buffer);
+		view.setUint16(0, 1); // format = 1
+		view.setUint16(2, wrappedType);
+		view.setUint32(4, extensionOffset);
+		subtable.set(wrappedData, 8);
+		return subtable;
+	}
+
+	// Helper to build lookup header with Extension type 7
+	function buildExtensionLookup(subtableOffsets: number[], flag: number = 0): Uint8Array {
+		const size = 6 + subtableOffsets.length * 2;
+		const header = new Uint8Array(size);
+		const view = new DataView(header.buffer);
+		view.setUint16(0, GsubLookupType.Extension); // type 7
+		view.setUint16(2, flag);
+		view.setUint16(4, subtableOffsets.length);
+		for (let i = 0; i < subtableOffsets.length; i++) {
+			view.setUint16(6 + i * 2, subtableOffsets[i]);
+		}
+		return header;
+	}
+
+	test("Extension lookup wrapping AlternateSubst (type 3)", () => {
+		// AlternateSubst Format 1: format(2), coverageOffset(2), alternateSetCount(2), alternateSetOffsets[]
+		// AlternateSet: glyphCount(2), alternateGlyphIds[]
+		const headerSize = 8; // format + coverageOffset + count + offset
+		const alternateSetOffset = headerSize;
+		const alternateSetSize = 4; // count=1, glyph
+		const coverageOffset = alternateSetOffset + alternateSetSize;
+
+		const subtable = new Uint8Array(coverageOffset + 6);
+		const view = new DataView(subtable.buffer);
+		view.setUint16(0, 1); // format = 1
+		view.setUint16(2, coverageOffset);
+		view.setUint16(4, 1); // alternateSetCount
+		view.setUint16(6, alternateSetOffset);
+		// AlternateSet
+		view.setUint16(alternateSetOffset, 1); // glyphCount
+		view.setUint16(alternateSetOffset + 2, 100); // alternate glyph
+		// Coverage format 1
+		view.setUint16(coverageOffset, 1);
+		view.setUint16(coverageOffset + 2, 1);
+		view.setUint16(coverageOffset + 4, 42);
+
+		const extSubtable = buildExtensionSubtable(GsubLookupType.Alternate, subtable);
+		const header = buildExtensionLookup([8]); // subtable at offset 8
+
+		const data = new Uint8Array(header.length + extSubtable.length);
+		data.set(header, 0);
+		data.set(extSubtable, header.length);
+
+		const reader = new Reader(data.buffer);
+		const lookup = __testing.parseGsubLookup(reader);
+
+		expect(lookup).not.toBeNull();
+		expect(lookup!.type).toBe(GsubLookupType.Alternate);
+	});
+
+	test("Extension lookup wrapping ContextSubst (type 5)", () => {
+		// ContextSubst Format 2 (class-based)
+		const headerSize = 10;
+		const coverageOffset = headerSize;
+		const classDefOffset = coverageOffset + 6;
+		const classDefSize = 8;
+		const subClassSetOffset = classDefOffset + classDefSize;
+		const subClassSetSize = 8; // count + offset + rule
+
+		const subtable = new Uint8Array(subClassSetOffset + subClassSetSize);
+		const view = new DataView(subtable.buffer);
+		view.setUint16(0, 2); // format = 2
+		view.setUint16(2, coverageOffset);
+		view.setUint16(4, classDefOffset);
+		view.setUint16(6, 1); // subClassSetCount
+		view.setUint16(8, subClassSetOffset);
+		// Coverage format 1
+		view.setUint16(coverageOffset, 1);
+		view.setUint16(coverageOffset + 2, 1);
+		view.setUint16(coverageOffset + 4, 42);
+		// ClassDef format 1
+		view.setUint16(classDefOffset, 1);
+		view.setUint16(classDefOffset + 2, 42);
+		view.setUint16(classDefOffset + 4, 1);
+		view.setUint16(classDefOffset + 6, 0);
+		// SubClassSet
+		view.setUint16(subClassSetOffset, 1); // count
+		view.setUint16(subClassSetOffset + 2, 4); // offset to rule
+		view.setUint16(subClassSetOffset + 4, 1); // glyphCount
+		view.setUint16(subClassSetOffset + 6, 0); // substCount
+
+		const extSubtable = buildExtensionSubtable(GsubLookupType.Context, subtable);
+		const header = buildExtensionLookup([8]);
+
+		const data = new Uint8Array(header.length + extSubtable.length);
+		data.set(header, 0);
+		data.set(extSubtable, header.length);
+
+		const reader = new Reader(data.buffer);
+		const lookup = __testing.parseGsubLookup(reader);
+
+		expect(lookup).not.toBeNull();
+		expect(lookup!.type).toBe(GsubLookupType.Context);
 	});
 });

@@ -851,3 +851,12 @@ export function applyKerningDirect(
 
 	return false;
 }
+
+// Export internal functions for testing
+export const __testing = {
+	parseGposLookup,
+	parseExtensionLookup,
+	parseSinglePos,
+	parsePairPos,
+	parseValueRecord,
+};
