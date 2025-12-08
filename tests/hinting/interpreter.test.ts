@@ -25,6 +25,22 @@ function runBytecode(code: Uint8Array, ctx?: ExecContext): ExecContext {
 	return context;
 }
 
+// Helper to set up a context with properly initialized zone pointers
+function setupContextWithPoints(nPoints: number, nContours: number = 1): ExecContext {
+	const ctx = createExecContext();
+	ctx.pts.nPoints = nPoints;
+	ctx.pts.nContours = nContours;
+	ctx.pts.contours = new Uint16Array(nContours).fill(nPoints - 1);
+	ctx.pts.cur = Array.from({ length: nPoints }, () => ({ x: 0, y: 0 }));
+	ctx.pts.org = Array.from({ length: nPoints }, () => ({ x: 0, y: 0 }));
+	ctx.pts.tags = new Uint8Array(nPoints);
+	// Set zone pointers to the glyph zone (pts)
+	ctx.zp0 = ctx.pts;
+	ctx.zp1 = ctx.pts;
+	ctx.zp2 = ctx.pts;
+	return ctx;
+}
+
 describe("TrueType Interpreter - Stack Operations", () => {
 	test("PUSHB[n] pushes bytes to stack", () => {
 		// PUSHB[2] pushes 3 bytes
@@ -1017,24 +1033,28 @@ describe("TrueType Interpreter - Vector Operations", () => {
 	});
 
 	test("SPVFS sets projection vector from stack", () => {
+		// Use a unit vector (x=0x4000, y=0) for predictable output
 		const ctx = runBytecode(new Uint8Array([
-			0xb8, 0x20, 0x00, // PUSHW[0] x=0x2000 (in 2.14 format)
-			0xb8, 0x30, 0x00, // PUSHW[0] y=0x3000
+			0xb8, 0x40, 0x00, // PUSHW[0] x=0x4000 (1.0 in 2.14 format)
+			0xb8, 0x00, 0x00, // PUSHW[0] y=0x0000
 			0x0a, // SPVFS
 		]));
 		expect(ctx.error).toBeNull();
-		expect(ctx.GS.projVector.x).toBe(0x2000);
-		expect(ctx.GS.projVector.y).toBe(0x3000);
+		// After normalization, this should be (0x4000, 0)
+		expect(ctx.GS.projVector.x).toBe(0x4000);
+		expect(ctx.GS.projVector.y).toBe(0);
 	});
 
 	test("SFVFS sets freedom vector from stack", () => {
+		// Use a unit vector (x=0, y=0x4000) for predictable output
 		const ctx = runBytecode(new Uint8Array([
-			0xb8, 0x10, 0x00, // PUSHW[0] x=0x1000
-			0xb8, 0x40, 0x00, // PUSHW[0] y=0x4000
+			0xb8, 0x00, 0x00, // PUSHW[0] x=0x0000
+			0xb8, 0x40, 0x00, // PUSHW[0] y=0x4000 (1.0 in 2.14 format)
 			0x0b, // SFVFS
 		]));
 		expect(ctx.error).toBeNull();
-		expect(ctx.GS.freeVector.x).toBe(0x1000);
+		// After normalization, this should be (0, 0x4000)
+		expect(ctx.GS.freeVector.x).toBe(0);
 		expect(ctx.GS.freeVector.y).toBe(0x4000);
 	});
 });
@@ -1127,18 +1147,11 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("MIAP_0 moves point to CVT without rounding", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
-		ctx.zp0 = ctx.pts;
-		ctx.zp1 = ctx.pts;
-		ctx.zp2 = ctx.pts;
+		const ctx = setupContextWithPoints(5);
 		ctx.cvt = new Int32Array([100, 200, 300]);
 		ctx.cvtSize = 3;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
-			0xb1, 2, 1, // PUSHB[1] cvt=2 point=1
+			0xb1, 1, 2, // PUSHB[1] point=1 cvt=2 (MIAP pops cvt first, then point)
 			0x3e, // MIAP_0
 		]));
 		runProgram(ctx, CodeRange.Glyph);
@@ -1148,18 +1161,11 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("MIAP_1 moves point to CVT with rounding", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
-		ctx.zp0 = ctx.pts;
-		ctx.zp1 = ctx.pts;
-		ctx.zp2 = ctx.pts;
+		const ctx = setupContextWithPoints(5);
 		ctx.cvt = new Int32Array([100, 200, 300]);
 		ctx.cvtSize = 3;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
-			0xb1, 1, 2, // PUSHB[1] cvt=1 point=2
+			0xb1, 2, 1, // PUSHB[1] point=2 cvt=1 (MIAP pops cvt first, then point)
 			0x3f, // MIAP_1
 		]));
 		runProgram(ctx, CodeRange.Glyph);
@@ -1233,13 +1239,8 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("SHC_0 shifts contour using rp2", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.nContours = 2;
+		const ctx = setupContextWithPoints(5, 2);
 		ctx.pts.contours = new Uint16Array([2, 4]);
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
 		ctx.GS.rp2 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb0, 1, // PUSHB[0] 1 (contour)
@@ -1250,13 +1251,8 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("SHC_1 shifts contour using rp1", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.nContours = 2;
+		const ctx = setupContextWithPoints(5, 2);
 		ctx.pts.contours = new Uint16Array([2, 4]);
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
 		ctx.GS.rp1 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb0, 0, // PUSHB[0] 0 (contour)
@@ -1267,11 +1263,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("SHZ_0 shifts zone using rp2", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 3;
-		ctx.pts.cur = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(3);
+		const ctx = setupContextWithPoints(3);
 		ctx.GS.rp2 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb0, 1, // PUSHB[0] 1 (zone)
@@ -1282,11 +1274,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("SHZ_1 shifts zone using rp1", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 3;
-		ctx.pts.cur = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 3 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(3);
+		const ctx = setupContextWithPoints(3);
 		ctx.GS.rp1 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb0, 1, // PUSHB[0] 1 (zone)
@@ -1297,14 +1285,10 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("SHPIX shifts points by pixels", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.GS.loop = 1;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
-			0xb1, 64, 2, // PUSHB[1] amount=64 point=2
+			0xb1, 2, 64, // PUSHB[1] point=2 amount=64 (SHPIX pops amount first, then point(s))
 			0x38, // SHPIX
 		]));
 		runProgram(ctx, CodeRange.Glyph);
@@ -1312,11 +1296,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("IP interpolates points", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.GS.loop = 1;
 		ctx.GS.rp1 = 0;
 		ctx.GS.rp2 = 4;
@@ -1329,14 +1309,10 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("MSIRP_0 moves point and sets rp without rp0 update", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.GS.rp0 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
-			0xb1, 64, 2, // PUSHB[1] distance=64 point=2
+			0xb1, 2, 64, // PUSHB[1] point=2 distance=64 (MSIRP pops distance first, then point)
 			0x3a, // MSIRP_0
 		]));
 		runProgram(ctx, CodeRange.Glyph);
@@ -1346,14 +1322,10 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("MSIRP_1 moves point and sets rp with rp0 update", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.GS.rp0 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
-			0xb1, 64, 3, // PUSHB[1] distance=64 point=3
+			0xb1, 3, 64, // PUSHB[1] point=3 distance=64 (MSIRP pops distance first, then point)
 			0x3b, // MSIRP_1
 		]));
 		runProgram(ctx, CodeRange.Glyph);
@@ -1364,11 +1336,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("ALIGNRP aligns points to reference", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.GS.rp0 = 0;
 		ctx.GS.loop = 1;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
@@ -1380,11 +1348,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("ALIGNPTS aligns two points", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb1, 1, 2, // PUSHB[1] p1=1 p2=2
 			0x27, // ALIGNPTS
@@ -1394,9 +1358,10 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("UTP untouches point", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.tags = new Uint8Array([3, 3, 3, 3, 3]); // All touched
+		const ctx = setupContextWithPoints(5);
+		ctx.pts.tags = new Uint8Array([3, 3, 3, 3, 3]); // All touched (X=1, Y=2)
+		// Set freedom vector to have both X and Y components so both flags are cleared
+		ctx.GS.freeVector = { x: 0x4000, y: 0x4000 };
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb0, 2, // PUSHB[0] 2 (point)
 			0x29, // UTP
@@ -1406,8 +1371,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 	});
 
 	test("ISECT moves point to intersection", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
+		const ctx = setupContextWithPoints(5);
 		ctx.pts.cur = [
 			{ x: 0, y: 0 },
 			{ x: 100, y: 0 },
@@ -1433,8 +1397,7 @@ describe("TrueType Interpreter - Point Movement", () => {
 
 describe("TrueType Interpreter - Point Measurement", () => {
 	test("GC_0 gets current coordinate", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
+		const ctx = setupContextWithPoints(5);
 		ctx.pts.cur = [
 			{ x: 0, y: 0 },
 			{ x: 100, y: 200 },
@@ -1451,8 +1414,7 @@ describe("TrueType Interpreter - Point Measurement", () => {
 	});
 
 	test("GC_1 gets original coordinate", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
+		const ctx = setupContextWithPoints(5);
 		ctx.pts.org = [
 			{ x: 0, y: 0 },
 			{ x: 150, y: 250 },
@@ -1469,12 +1431,9 @@ describe("TrueType Interpreter - Point Measurement", () => {
 	});
 
 	test("SCFS sets coordinate from stack", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
-		ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
+		const ctx = setupContextWithPoints(5);
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
-			0xb1, 128, 2, // PUSHB[1] value=128 point=2
+			0xb1, 2, 128, // PUSHB[1] point=2 value=128 (SCFS pops value first, then point)
 			0x48, // SCFS
 		]));
 		runProgram(ctx, CodeRange.Glyph);
@@ -1482,8 +1441,7 @@ describe("TrueType Interpreter - Point Measurement", () => {
 	});
 
 	test("MD_0 measures distance current", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
+		const ctx = setupContextWithPoints(5);
 		ctx.pts.cur = [
 			{ x: 0, y: 0 },
 			{ x: 100, y: 0 },
@@ -1500,8 +1458,7 @@ describe("TrueType Interpreter - Point Measurement", () => {
 	});
 
 	test("MD_1 measures distance original", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
+		const ctx = setupContextWithPoints(5);
 		ctx.pts.org = [
 			{ x: 0, y: 0 },
 			{ x: 150, y: 0 },
@@ -1520,11 +1477,7 @@ describe("TrueType Interpreter - Point Measurement", () => {
 
 describe("TrueType Interpreter - MDRP and MIRP", () => {
 	test("MDRP moves direct relative point", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.GS.rp0 = 0;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb0, 2, // PUSHB[0] 2 (point)
@@ -1535,11 +1488,7 @@ describe("TrueType Interpreter - MDRP and MIRP", () => {
 	});
 
 	test("MIRP moves indirect relative point", () => {
-		const ctx = createExecContext();
-		ctx.pts.nPoints = 5;
-		ctx.pts.cur = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.org = Array.from({ length: 5 }, () => ({ x: 0, y: 0 }));
-		ctx.pts.tags = new Uint8Array(5);
+		const ctx = setupContextWithPoints(5);
 		ctx.cvt = new Int32Array([100, 200, 300]);
 		ctx.cvtSize = 3;
 		ctx.GS.rp0 = 0;
@@ -1780,13 +1729,14 @@ describe("TrueType Interpreter - Scan Control", () => {
 
 describe("TrueType Interpreter - IDEF", () => {
 	test("IDEF defines instruction and calls it", () => {
-		const ctx = createExecContext();
+		// Use maxIDefs=256 to allow redefining opcode 0x10 (16)
+		const ctx = createExecContext(256, 64, 64, 256);
 		const code = new Uint8Array([
-			0xb0, 0x91, // PUSHB[0] 0x91 (opcode to redefine)
+			0xb0, 0x10, // PUSHB[0] 0x10 (opcode to redefine, within maxIDefs=256)
 			0x89, // IDEF
 			0xb0, 99, // PUSHB[0] 99 (custom behavior)
 			0x2d, // ENDF
-			0x91, // Call custom instruction
+			0x10, // Call custom instruction (SRP0, now redefined)
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, code);
 		runProgram(ctx, CodeRange.Glyph);
@@ -1796,14 +1746,13 @@ describe("TrueType Interpreter - IDEF", () => {
 	});
 
 	test("IDEF call stack overflow error", () => {
-		const ctx = createExecContext();
-		ctx.maxCallStack = 1;
+		const ctx = createExecContext(256, 64, 64, 256, 1);
 		const code = new Uint8Array([
-			0xb0, 0x91, // PUSHB[0] 0x91
+			0xb0, 0x10, // PUSHB[0] 0x10
 			0x89, // IDEF
-			0x91, // Recursive call
+			0x10, // Recursive call
 			0x2d, // ENDF
-			0x91, // Start recursion
+			0x10, // Start recursion
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, code);
 		runProgram(ctx, CodeRange.Glyph);
@@ -1811,10 +1760,10 @@ describe("TrueType Interpreter - IDEF", () => {
 	});
 
 	test("IDEF switches code ranges correctly", () => {
-		const ctx = createExecContext();
+		const ctx = createExecContext(256, 64, 64, 256);
 		// Set up font program code range first
 		const fontCode = new Uint8Array([
-			0xb0, 0x92, // PUSHB[0] 0x92 (opcode to redefine)
+			0xb0, 0x11, // PUSHB[0] 0x11 (opcode to redefine, within maxIDefs=256)
 			0x89, // IDEF
 			0xb0, 77, // PUSHB[0] 77 (custom behavior)
 			0x2d, // ENDF
@@ -1824,7 +1773,7 @@ describe("TrueType Interpreter - IDEF", () => {
 
 		// Now call the IDEF from glyph program
 		const glyphCode = new Uint8Array([
-			0x92, // Call custom instruction
+			0x11, // Call custom instruction (SRP1, now redefined)
 		]);
 		setCodeRange(ctx, CodeRange.Glyph, glyphCode);
 		runProgram(ctx, CodeRange.Glyph);
@@ -1836,7 +1785,7 @@ describe("TrueType Interpreter - IDEF", () => {
 
 	test("inactive IDEF is not called", () => {
 		const ctx = createExecContext();
-		// Try to call an undefined instruction
+		// Try to call an undefined instruction - opcode 0x93 is not defined in TrueType
 		const code = new Uint8Array([
 			0x93, // Call undefined instruction
 		]);

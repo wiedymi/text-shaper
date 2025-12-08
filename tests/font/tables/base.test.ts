@@ -847,7 +847,7 @@ describe("BASE table", () => {
 			view.setUint16(24, 8, false); // offset to BaseScript table
 
 			// BaseScript table at offset 26 (18 + 8)
-			view.setUint16(26, 18, false); // baseValuesOffset -> offset 44
+			view.setUint16(26, 20, false); // baseValuesOffset -> offset 46
 			view.setUint16(28, 10, false); // defaultMinMaxOffset -> offset 36
 			view.setUint16(30, 0, false); // baseLangSysCount
 
@@ -860,9 +860,9 @@ describe("BASE table", () => {
 			view.setUint16(42, 1, false); // format
 			view.setInt16(44, -200, false); // coordinate
 
-			// Empty BaseValues at offset 44 (26 + 18)
-			view.setUint16(44, 0, false); // defaultBaselineIndex
-			view.setUint16(46, 0, false); // baseCoordCount = 0
+			// Empty BaseValues at offset 46 (26 + 20)
+			view.setUint16(46, 0, false); // defaultBaselineIndex
+			view.setUint16(48, 0, false); // baseCoordCount = 0
 
 			const reader = new Reader(buffer);
 			const base = parseBase(reader);
@@ -926,6 +926,9 @@ describe("BASE table", () => {
 		test("parses MinMax with FeatMinMaxRecords", () => {
 			const buffer = new ArrayBuffer(300);
 			const view = new DataView(buffer);
+			for (let i = 0; i < buffer.byteLength; i++) {
+				view.setUint8(i, 0);
+			}
 
 			// BASE table header
 			view.setUint16(0, 1, false);
@@ -946,7 +949,7 @@ describe("BASE table", () => {
 			view.setUint16(24, 8, false); // offset to BaseScript table
 
 			// BaseScript table at offset 26 (18 + 8)
-			view.setUint16(26, 0, false); // baseValuesOffset (null)
+			view.setUint16(26, 46, false); // baseValuesOffset -> offset 72
 			view.setUint16(28, 6, false); // defaultMinMaxOffset
 			view.setUint16(30, 0, false); // baseLangSysCount
 
@@ -977,6 +980,10 @@ describe("BASE table", () => {
 			view.setUint16(68, 1, false); // format
 			view.setInt16(70, -200, false); // coordinate
 
+			// Empty BaseValues at offset 72 (26 + 46)
+			view.setUint16(72, 0, false); // defaultBaselineIndex
+			view.setUint16(74, 0, false); // baseCoordCount = 0
+
 			const reader = new Reader(buffer);
 			const base = parseBase(reader);
 
@@ -997,6 +1004,9 @@ describe("BASE table", () => {
 		test("parses FeatMinMaxRecord with null min and non-null max", () => {
 			const buffer = new ArrayBuffer(300);
 			const view = new DataView(buffer);
+			for (let i = 0; i < buffer.byteLength; i++) {
+				view.setUint8(i, 0);
+			}
 
 			// BASE table header
 			view.setUint16(0, 1, false);
@@ -1017,7 +1027,7 @@ describe("BASE table", () => {
 			view.setUint16(24, 8, false);
 
 			// BaseScript table at offset 26 (18 + 8)
-			view.setUint16(26, 0, false);
+			view.setUint16(26, 24, false); // baseValuesOffset -> offset 50
 			view.setUint16(28, 6, false);
 			view.setUint16(30, 0, false);
 
@@ -1034,6 +1044,10 @@ describe("BASE table", () => {
 			// BaseCoord for max at offset 46 (32 + 14)
 			view.setUint16(46, 1, false); // format
 			view.setInt16(48, 800, false); // coordinate
+
+			// Empty BaseValues at offset 50 (26 + 24)
+			view.setUint16(50, 0, false); // defaultBaselineIndex
+			view.setUint16(52, 0, false); // baseCoordCount = 0
 
 			const reader = new Reader(buffer);
 			const base = parseBase(reader);
@@ -1100,6 +1114,9 @@ describe("BASE table", () => {
 		test("parses BaseLangSys records with MinMax", () => {
 			const buffer = new ArrayBuffer(300);
 			const view = new DataView(buffer);
+			for (let i = 0; i < buffer.byteLength; i++) {
+				view.setUint8(i, 0);
+			}
 
 			// BASE table header
 			view.setUint16(0, 1, false);
@@ -1120,8 +1137,8 @@ describe("BASE table", () => {
 			view.setUint16(24, 8, false); // offset to BaseScript table
 
 			// BaseScript table at offset 26 (18 + 8)
-			view.setUint16(26, 0, false); // baseValuesOffset (null)
-			view.setUint16(28, 0, false); // defaultMinMaxOffset (null)
+			view.setUint16(26, 56, false); // baseValuesOffset -> offset 82
+			view.setUint16(28, 60, false); // defaultMinMaxOffset -> offset 86 (to avoid offset 0 issue)
 			view.setUint16(30, 2, false); // baseLangSysCount
 
 			// BaseLangSysRecord 1
@@ -1130,7 +1147,7 @@ describe("BASE table", () => {
 
 			// BaseLangSysRecord 2
 			view.setUint32(38, 0x46524120, false); // languageTag 'FRA '
-			view.setUint16(42, 32, false); // offset to MinMax
+			view.setUint16(42, 34, false); // offset to MinMax -> offset 60
 
 			// MinMax for DEU at offset 44 (26 + 18)
 			view.setUint16(44, 6, false); // minCoordOffset
@@ -1145,18 +1162,27 @@ describe("BASE table", () => {
 			view.setUint16(56, 1, false); // format
 			view.setInt16(58, 950, false); // coordinate
 
-			// MinMax for FRA at offset 58 (26 + 32)
-			view.setUint16(58, 6, false); // minCoordOffset
-			view.setUint16(60, 12, false); // maxCoordOffset
-			view.setUint16(62, 0, false); // featMinMaxCount
+			// MinMax for FRA at offset 60 (26 + 34)
+			view.setUint16(60, 8, false); // minCoordOffset (offset 68)
+			view.setUint16(62, 14, false); // maxCoordOffset (offset 74)
+			view.setUint16(64, 0, false); // featMinMaxCount
 
-			// BaseCoord for FRA min at offset 64 (58 + 6)
-			view.setUint16(64, 1, false); // format
-			view.setInt16(66, -300, false); // coordinate
+			// BaseCoord for FRA min at offset 68 (60 + 8)
+			view.setUint16(68, 1, false); // format
+			view.setInt16(70, -300, false); // coordinate
 
-			// BaseCoord for FRA max at offset 70 (58 + 12)
-			view.setUint16(70, 1, false); // format
-			view.setInt16(72, 1000, false); // coordinate
+			// BaseCoord for FRA max at offset 74 (60 + 14)
+			view.setUint16(74, 1, false); // format
+			view.setInt16(76, 1000, false); // coordinate
+
+			// Empty BaseValues at offset 82 (26 + 56)
+			view.setUint16(82, 0, false); // defaultBaselineIndex
+			view.setUint16(84, 0, false); // baseCoordCount = 0
+
+			// Empty defaultMinMax at offset 86 (26 + 60) - just to avoid parsing garbage
+			view.setUint16(86, 0, false); // minCoordOffset
+			view.setUint16(88, 0, false); // maxCoordOffset
+			view.setUint16(90, 0, false); // featMinMaxCount
 
 			const reader = new Reader(buffer);
 			const base = parseBase(reader);
