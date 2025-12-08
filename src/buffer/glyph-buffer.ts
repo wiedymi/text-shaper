@@ -36,6 +36,8 @@ export class GlyphBuffer {
 	private _infoPool: GlyphInfo[] = [];
 	/** Pre-allocated position pool for reuse */
 	private _posPool: GlyphPosition[] = [];
+	/** Pre-allocated capacity hint */
+	private _capacity = 0;
 
 	/** Create buffer with pre-allocated capacity (lazy object creation) */
 	static withCapacity(capacity: number): GlyphBuffer {
