@@ -1,6 +1,6 @@
 {
   "name": "text-shaper",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "devDependencies": {
@@ -50,7 +50,7 @@
     "postinstall": "node scripts/patch-pkg-prebuilds.js",
     "bench": "bun test ./bench/ --timeout 120000",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser --minify --sourcemap=linked",
-    "build:prod": "bun build ./src/index.ts --outdir ./dist --target browser --production --sourcemap=external",
+    "build:prod": "bun build ./src/index.ts --outdir ./dist --target browser --production",
     "build:analyze": "bun build ./src/index.ts --outdir ./dist --target browser --minify --metafile=./dist/meta.json",
     "build:dts": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
