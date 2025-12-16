@@ -16,37 +16,37 @@ const benchmarks: Benchmark[] = [
 	{
 		title: "Glyph path extraction",
 		results: [
-			{ name: "text-shaper", value: 831300, unit: "ops/s" },
-			{ name: "opentype.js", value: 86850, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 52350, unit: "ops/s" },
+			{ name: "text-shaper", value: 2300000, unit: "ops/s" },
+			{ name: "opentype.js", value: 154510, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 50120, unit: "ops/s" },
 		],
 	},
 	{
 		title: "English shaping (1056 chars)",
 		results: [
-			{ name: "text-shaper", value: 7890, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 5300, unit: "ops/s" },
+			{ name: "text-shaper", value: 6980, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 4890, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Myanmar shaping (1916 chars)",
 		results: [
-			{ name: "text-shaper", value: 4000, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 380, unit: "ops/s" },
+			{ name: "text-shaper", value: 3260, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 366, unit: "ops/s" },
 		],
 	},
 	{
 		title: "UI Simulation (8 labels)",
 		results: [
-			{ name: "text-shaper", value: 95550, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 19980, unit: "ops/s" },
+			{ name: "text-shaper", value: 79160, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 7370, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Rasterization @ 96px",
 		results: [
-			{ name: "text-shaper", value: 13260, unit: "ops/s" },
-			{ name: "freetype2", value: 2040, unit: "ops/s" },
+			{ name: "text-shaper", value: 15700, unit: "ops/s" },
+			{ name: "freetype2", value: 2580, unit: "ops/s" },
 		],
 	},
 ]
@@ -94,7 +94,7 @@ function isOurs(name: string): boolean {
 				</div>
 			</div>
 			<div class="chart-footer">
-				MacBook Pro M1 Pro, 16 GB, Bun 1.3.3
+				MacBook Pro M1 Pro, 16 GB, Bun 1.3.4
 			</div>
 		</div>
 		<div class="info-side">
