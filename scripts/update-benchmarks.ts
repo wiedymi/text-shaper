@@ -94,7 +94,8 @@ async function runBenchmarks(numRuns: number): Promise<Map<string, Map<string, n
 		for (const file of BENCHMARK_FILES) {
 			console.log(`  Running ${file}...`)
 			try {
-				const result = await $`bun test ./${file} 2>&1`.text()
+				// Use .nothrow() since bun test may return non-zero even on success
+				const result = await $`bun test ./${file} 2>&1`.nothrow().text()
 				const parsed = parseBenchmarkOutput(result)
 
 				for (const bench of parsed) {
