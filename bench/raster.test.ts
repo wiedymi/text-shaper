@@ -5,6 +5,9 @@ import freetype, { RenderMode, type FontFace } from "freetype2"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 
+// Rasterization is slow, use reduced iterations
+const RASTER_OPTS = { warmup: 20, iterations: 3, batchSize: 100 }
+
 describe("Rasterization Benchmark", () => {
 	let notoSans: Font
 	let notoSansArabic: Font
@@ -51,7 +54,7 @@ describe("Rasterization Benchmark", () => {
 						for (const glyphId of LATIN_GLYPHS) {
 							rasterizeGlyph(notoSans, glyphId, size, { pixelMode: PixelMode.Gray })
 						}
-					}),
+					}, RASTER_OPTS),
 				)
 
 				// freetype2
@@ -61,7 +64,7 @@ describe("Rasterization Benchmark", () => {
 						for (const glyphId of LATIN_GLYPHS) {
 							ftNotoSans.loadGlyph(glyphId, { render: true })
 						}
-					}),
+					}, RASTER_OPTS),
 				)
 
 				printComparison(`Rasterization - ${size}px Grayscale (5 glyphs)`, results, "freetype2")
@@ -80,7 +83,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { pixelMode: PixelMode.Gray })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -89,7 +92,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Grayscale (24px, 5 glyphs)", results, "freetype2")
@@ -105,7 +108,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { pixelMode: PixelMode.LCD })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -115,7 +118,7 @@ describe("Rasterization Benchmark", () => {
 						ftNotoSans.loadGlyph(glyphId, { render: true, loadTarget: RenderMode.LCD })
 						ftNotoSans.renderGlyph(RenderMode.LCD)
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - LCD (24px, 5 glyphs)", results, "freetype2")
@@ -131,7 +134,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { pixelMode: PixelMode.Mono })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -140,7 +143,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true, monochrome: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Mono (24px, 5 glyphs)", results, "freetype2")
@@ -156,7 +159,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { pixelMode: PixelMode.Gray })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -165,7 +168,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Grayscale (48px, 5 glyphs)", results, "freetype2")
@@ -183,7 +186,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { hinting: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -192,7 +195,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Hinted (24px, 5 glyphs)", results, "freetype2")
@@ -208,7 +211,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { hinting: false })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -217,7 +220,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true, noHinting: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Unhinted (24px, 5 glyphs)", results, "freetype2")
@@ -233,7 +236,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize, { hinting: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -242,7 +245,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Hinted (12px, 5 glyphs)", results, "freetype2")
@@ -260,7 +263,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize)
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -269,7 +272,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Latin (24px, 5 glyphs)", results, "freetype2")
@@ -285,7 +288,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of ARABIC_GLYPHS) {
 						rasterizeGlyph(notoSansArabic, glyphId, fontSize)
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -294,7 +297,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of ARABIC_GLYPHS) {
 						ftNotoSansArabic.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Arabic (24px, 5 glyphs)", results, "freetype2")
@@ -312,7 +315,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize)
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -321,7 +324,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Static Font (24px, 5 glyphs)", results, "freetype2")
@@ -337,7 +340,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						rasterizeGlyph(variableFont, glyphId, fontSize)
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -346,7 +349,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of LATIN_GLYPHS) {
 						ftVariableFont.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Rasterization - Variable Font (24px, 5 glyphs)", results, "freetype2")
@@ -367,7 +370,7 @@ describe("Rasterization Benchmark", () => {
 							rasterizeGlyph(notoSans, glyphId, fontSize)
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -380,7 +383,7 @@ describe("Rasterization Benchmark", () => {
 							ftNotoSans.loadGlyph(glyphId, { render: true })
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -400,7 +403,7 @@ describe("Rasterization Benchmark", () => {
 							rasterizeGlyph(notoSans, glyphId, fontSize)
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -413,7 +416,7 @@ describe("Rasterization Benchmark", () => {
 							ftNotoSans.loadGlyph(glyphId, { render: true })
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -434,7 +437,7 @@ describe("Rasterization Benchmark", () => {
 							rasterizeGlyph(notoSans, glyphId, size)
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -447,7 +450,7 @@ describe("Rasterization Benchmark", () => {
 							ftNotoSans.loadGlyph(glyphId, { render: true })
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -472,7 +475,7 @@ describe("Rasterization Benchmark", () => {
 							rasterizeGlyph(notoSans, glyphId, fontSize)
 						}
 					},
-					{ warmup: 0, iterations: 50 },
+					{ warmup: 0, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -485,7 +488,7 @@ describe("Rasterization Benchmark", () => {
 							ftNotoSans.loadGlyph(glyphId, { render: true })
 						}
 					},
-					{ warmup: 0, iterations: 50 },
+					{ warmup: 0, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -509,7 +512,7 @@ describe("Rasterization Benchmark", () => {
 							rasterizeGlyph(notoSansArabic, glyphId, fontSize)
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -522,7 +525,7 @@ describe("Rasterization Benchmark", () => {
 							ftNotoSansArabic.loadGlyph(glyphId, { render: true })
 						}
 					},
-					{ iterations: 50 },
+					{ warmup: 10, iterations: 3, batchSize: 50 },
 				),
 			)
 
@@ -541,7 +544,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of MANY_LATIN_GLYPHS) {
 						rasterizeGlyph(notoSans, glyphId, fontSize)
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			results.push(
@@ -550,7 +553,7 @@ describe("Rasterization Benchmark", () => {
 					for (const glyphId of MANY_LATIN_GLYPHS) {
 						ftNotoSans.loadGlyph(glyphId, { render: true })
 					}
-				}),
+				}, RASTER_OPTS),
 			)
 
 			printComparison("Very small - 26 glyphs at 8px", results, "freetype2")
@@ -569,7 +572,7 @@ describe("Rasterization Benchmark", () => {
 							rasterizeGlyph(notoSans, glyphId, fontSize)
 						}
 					},
-					{ iterations: 20 },
+					{ warmup: 5, iterations: 3, batchSize: 20 },
 				),
 			)
 
@@ -582,7 +585,7 @@ describe("Rasterization Benchmark", () => {
 							ftNotoSans.loadGlyph(glyphId, { render: true })
 						}
 					},
-					{ iterations: 20 },
+					{ warmup: 5, iterations: 3, batchSize: 20 },
 				),
 			)
 

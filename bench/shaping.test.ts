@@ -7,6 +7,9 @@ const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 const TEXTS_DIR = "reference/rustybuzz/benches/texts"
 const BENCH_TEXTS_DIR = "bench/texts"
 
+// Reduced iterations for faster benchmarks
+const SHAPE_OPTS = { warmup: 10, iterations: 3, batchSize: 100 }
+
 interface ScriptConfig {
 	name: string
 	font: string
@@ -234,7 +237,7 @@ describe("Text Shaping Benchmark", () => {
 							uBuffer.addStr(text)
 							gBuffer.reset()
 							shapeInto(font, uBuffer, gBuffer)
-						}),
+						}, SHAPE_OPTS),
 					)
 
 					// harfbuzzjs
@@ -245,14 +248,14 @@ describe("Text Shaping Benchmark", () => {
 							buffer.guessSegmentProperties()
 							hb.shape(hbFont.font, buffer)
 							buffer.destroy()
-						}),
+						}, SHAPE_OPTS),
 					)
 
 					// opentype.js
 					results.push(
 						measure("opentype.js", () => {
 							otFont.stringToGlyphs(text)
-						}),
+						}, SHAPE_OPTS),
 					)
 
 					printComparison(
@@ -299,7 +302,7 @@ describe("Text Shaping Benchmark", () => {
 							uBuffer.addStr(text)
 							gBuffer.reset()
 							shapeInto(font, uBuffer, gBuffer)
-						}),
+						}, SHAPE_OPTS),
 					)
 
 					// harfbuzzjs
@@ -310,14 +313,14 @@ describe("Text Shaping Benchmark", () => {
 							buffer.guessSegmentProperties()
 							hb.shape(hbFont.font, buffer)
 							buffer.destroy()
-						}),
+						}, SHAPE_OPTS),
 					)
 
 					// opentype.js
 					results.push(
 						measure("opentype.js", () => {
 							otFont.stringToGlyphs(text)
-						}),
+						}, SHAPE_OPTS),
 					)
 
 					printComparison(
@@ -350,7 +353,7 @@ describe("Text Shaping Benchmark", () => {
 					uBuffer.addStr(text)
 					gBuffer.reset()
 					shapeInto(font, uBuffer, gBuffer)
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			results.push(
@@ -360,13 +363,13 @@ describe("Text Shaping Benchmark", () => {
 					buffer.guessSegmentProperties()
 					hb.shape(hbFont.font, buffer)
 					buffer.destroy()
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			results.push(
 				measure("opentype.js", () => {
 					otFont.stringToGlyphs(text)
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			printComparison(
@@ -395,7 +398,7 @@ describe("Text Shaping Benchmark", () => {
 					uBuffer.addStr(text)
 					gBuffer.reset()
 					shapeInto(font, uBuffer, gBuffer)
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			results.push(
@@ -405,13 +408,13 @@ describe("Text Shaping Benchmark", () => {
 					buffer.guessSegmentProperties()
 					hb.shape(hbFont.font, buffer)
 					buffer.destroy()
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			results.push(
 				measure("opentype.js", () => {
 					otFont.stringToGlyphs(text)
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			printComparison(
@@ -454,7 +457,7 @@ describe("Text Shaping Benchmark", () => {
 					uBuffer.addStr(text)
 					gBuffer.reset()
 					shapeInto(variableFont, uBuffer, gBuffer)
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			results.push(
@@ -464,13 +467,13 @@ describe("Text Shaping Benchmark", () => {
 					buffer.guessSegmentProperties()
 					hb.shape(hbVariableFont.font, buffer)
 					buffer.destroy()
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			results.push(
 				measure("opentype.js", () => {
 					otVariableFont.stringToGlyphs(text)
-				}),
+				}, SHAPE_OPTS),
 			)
 
 			printComparison(
