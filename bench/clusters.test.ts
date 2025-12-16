@@ -70,7 +70,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							countGraphemes(text)
 						},
-						{ iterations: name.startsWith("long") ? 100 : 1000 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -85,7 +85,7 @@ describe("Cluster Iteration Benchmark", () => {
 								count++
 							}
 						},
-						{ iterations: name.startsWith("long") ? 100 : 1000 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -97,7 +97,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							graphemer.countGraphemes(text)
 						},
-						{ iterations: name.startsWith("long") ? 100 : 1000 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -119,7 +119,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							splitGraphemes(text)
 						},
-						{ iterations: name.startsWith("long") ? 100 : 500 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -134,7 +134,7 @@ describe("Cluster Iteration Benchmark", () => {
 								result.push(seg.segment)
 							}
 						},
-						{ iterations: name.startsWith("long") ? 100 : 500 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -146,7 +146,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							graphemer.splitGraphemes(text)
 						},
-						{ iterations: name.startsWith("long") ? 100 : 500 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -168,7 +168,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							findGraphemeBoundaries([...text].map((c) => c.codePointAt(0)!))
 						},
-						{ iterations: name.startsWith("long") ? 100 : 500 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -189,7 +189,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							findWordBoundaries([...text].map((c) => c.codePointAt(0)!))
 						},
-						{ iterations: name.startsWith("long") ? 100 : 500 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -210,7 +210,7 @@ describe("Cluster Iteration Benchmark", () => {
 						() => {
 							splitWords(text)
 						},
-						{ iterations: name.startsWith("long") ? 100 : 500 },
+						CLUSTER_OPTS,
 					),
 				)
 
@@ -358,7 +358,7 @@ describe("Cluster Iteration Benchmark", () => {
 							clusterMap.get(cluster)!.push(i)
 						}
 					},
-					{ iterations: 50 },
+					CLUSTER_OPTS,
 				),
 			)
 
@@ -471,7 +471,7 @@ describe("Cluster Iteration Benchmark", () => {
 							}
 						}
 					},
-					{ iterations: 100 },
+					CLUSTER_OPTS,
 				),
 			)
 
@@ -491,7 +491,7 @@ describe("Cluster Iteration Benchmark", () => {
 					() => {
 						splitGraphemes(text)
 					},
-					{ iterations: 500 },
+					CLUSTER_OPTS,
 				),
 			)
 
@@ -501,7 +501,7 @@ describe("Cluster Iteration Benchmark", () => {
 					() => {
 						countGraphemes(text)
 					},
-					{ iterations: 1000 },
+					CLUSTER_OPTS,
 				),
 			)
 
@@ -524,7 +524,7 @@ describe("Cluster Iteration Benchmark", () => {
 					() => {
 						splitGraphemes(text)
 					},
-					{ iterations: 500 },
+					CLUSTER_OPTS,
 				),
 			)
 
