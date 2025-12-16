@@ -10,6 +10,7 @@ import {
 	findWordBoundaries,
 	splitWords,
 } from "../src"
+import Graphemer from "graphemer"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 
@@ -85,9 +86,21 @@ describe("Cluster Iteration Benchmark", () => {
 					),
 				)
 
+				// graphemer comparison
+				const graphemer = new Graphemer()
+				results.push(
+					measure(
+						"graphemer",
+						() => {
+							graphemer.countGraphemes(text)
+						},
+						{ iterations: name.startsWith("long") ? 100 : 1000 },
+					),
+				)
+
 				const graphemeCount = countGraphemes(text)
 				printComparison(`Count Graphemes - ${name} (${text.length} chars, ${graphemeCount} graphemes)`, results, "text-shaper")
-				expect(results.length).toBe(2)
+				expect(results.length).toBe(3)
 			})
 		}
 	})
@@ -122,9 +135,21 @@ describe("Cluster Iteration Benchmark", () => {
 					),
 				)
 
+				// graphemer comparison
+				const graphemer = new Graphemer()
+				results.push(
+					measure(
+						"graphemer",
+						() => {
+							graphemer.splitGraphemes(text)
+						},
+						{ iterations: name.startsWith("long") ? 100 : 500 },
+					),
+				)
+
 				const graphemes = splitGraphemes(text)
 				printComparison(`Split Graphemes - ${name} (${graphemes.length} graphemes)`, results, "text-shaper")
-				expect(results.length).toBe(2)
+				expect(results.length).toBe(3)
 			})
 		}
 	})

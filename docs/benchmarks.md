@@ -146,7 +146,7 @@ Compared against FreeType2 (WebAssembly). TextShaper is <CompareText :keys="['ra
 
 ## Grapheme Clusters
 
-<CompareText :keys="['graphemes.ascii', 'graphemes.emojiSimple', 'graphemes.emojiZwj', 'graphemes.devanagari', 'graphemes.mixed']" vs="intlSegmenter" /> compared to native Intl.Segmenter.
+<CompareText :keys="['graphemes.ascii', 'graphemes.emojiSimple', 'graphemes.emojiZwj', 'graphemes.devanagari', 'graphemes.mixed']" vs="intlSegmenter" /> compared to native Intl.Segmenter, <CompareText :keys="['graphemes.ascii', 'graphemes.emojiSimple', 'graphemes.emojiZwj', 'graphemes.devanagari', 'graphemes.mixed']" vs="graphemer" /> compared to graphemer.
 
 <BenchmarkFromData data-key="graphemes.ascii" title="Count graphemes - ASCII (11 chars)" />
 
