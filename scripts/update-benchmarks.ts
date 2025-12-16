@@ -68,7 +68,7 @@ function parseBenchmarkOutput(output: string): BenchmarkResult[] {
 			if (parts.length >= 2) {
 				const name = parts[0]
 				const opsStr = parts[1]
-				if (name && opsStr && !name.includes("(first)") && name !== "(first call)") {
+				if (name && opsStr) {
 					const ops = parseOps(opsStr)
 					if (!isNaN(ops) && ops > 0) {
 						currentResults.set(name, ops)
@@ -172,10 +172,10 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 	const textSvgHello = getResult(averages, "Text to SVG - 'Hello World'")
 	const textSvgPara = getResult(averages, "Text to SVG - Paragraph")
 
-	// Basic shaping
-	const ltrNoFeatures = getResultFirst(averages, /LTR text.*no features/i)
-	const ligaKern = getResultFirst(averages, /liga.*kern/i)
-	const manyFeatures = getResultFirst(averages, /Many features/i)
+	// Basic shaping - from features.test.ts
+	const ltrNoFeatures = getResultFirst(averages, /No Features - mixed text/i)
+	const ligaKern = getResultFirst(averages, /All Common Features - mixed text/i)
+	const manyFeatures = getResultFirst(averages, /Standard Ligatures - mixed text/i)
 
 	// Cyrillic
 	const russian = getResult(averages, /Russian paragraph_long/i)
@@ -206,38 +206,38 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 	// Caching
 	const cachingHello = getResult(averages, /Repeated Shaping - "Hello"/i)
 	const cachingPara = getResult(averages, /Repeated Shaping - paragraph/i)
-	const glyphPathCache = getResultFirst(averages, /Glyph Path Cache/i)
+	const glyphPathSame = getResultFirst(averages, /Glyph Path - same glyph/i)
 	const uiSim = getResult(averages, "UI Simulation - 8 labels")
 	const docSim = getResultFirst(averages, /Document Simulation/i)
 
 	// Rasterization
-	const raster12 = getResult(averages, /Rasterization - 12px Grayscale/i)
-	const raster24 = getResult(averages, /Rasterization - 24px Grayscale/i)
-	const raster48 = getResult(averages, /Rasterization - 48px/i)
-	const raster96 = getResult(averages, /Rasterization - 96px/i)
-	const raster200 = getResult(averages, /200px|Very large/i)
-	const lcd24 = getResultFirst(averages, /LCD subpixel.*24px/i)
-	const hinted12 = getResultFirst(averages, /Hinted.*12px/i)
-	const throughput62 = getResultFirst(averages, /62 glyphs/i)
-	const varyingSizes = getResultFirst(averages, /Varying sizes/i)
+	const raster12 = getResultFirst(averages, /Rasterization - 12px Grayscale/i)
+	const raster24 = getResultFirst(averages, /Rasterization - 24px Grayscale/i)
+	const raster48 = getResultFirst(averages, /Rasterization - 48px Grayscale/i)
+	const raster96 = getResultFirst(averages, /Rasterization - 96px Grayscale/i)
+	const raster200 = getResultFirst(averages, /Very large - 5 glyphs at 200px/i)
+	const lcd24 = getResultFirst(averages, /Rasterization - LCD \(24px/i)
+	const hinted12 = getResultFirst(averages, /Rasterization - Hinted \(12px/i)
+	const throughput62 = getResultFirst(averages, /Throughput - 62 glyphs at 16px/i)
+	const varyingSizes = getResultFirst(averages, /Varying sizes - 15 sizes/i)
 
 	// Features
-	const noFeatures = getResultFirst(averages, /No features - mixed/i)
-	const liga = getResultFirst(averages, /Standard ligatures \(liga\)/i)
-	const kern = getResultFirst(averages, /Kerning pairs/i)
-	const smcp = getResultFirst(averages, /Small caps/i)
-	const onum = getResultFirst(averages, /Oldstyle figures/i)
-	const tnum = getResultFirst(averages, /Tabular figures/i)
-	const frac = getResultFirst(averages, /Fractions/i)
-	const allCommon = getResultFirst(averages, /All common features/i)
+	const noFeatures = getResultFirst(averages, /No Features - mixed text/i)
+	const liga = getResultFirst(averages, /Standard Ligatures - liga text/i)
+	const kern = getResultFirst(averages, /Kerning - pairs text/i)
+	const smcp = getResultFirst(averages, /Small Caps - text/i)
+	const onum = getResultFirst(averages, /Oldstyle Figures - numbers/i)
+	const tnum = getResultFirst(averages, /Tabular Figures - numbers/i)
+	const frac = getResultFirst(averages, /Fractions - text/i)
+	const allCommon = getResultFirst(averages, /All Common Features - mixed text/i)
 
 	// Grapheme clusters
-	const graphAscii = getResultFirst(averages, /Count graphemes - ASCII/i)
-	const graphEmojiSimple = getResultFirst(averages, /emoji simple/i)
-	const graphEmojiZwj = getResultFirst(averages, /Count graphemes - emoji ZWJ/i)
-	const graphDevanagari = getResultFirst(averages, /Devanagari/i)
-	const graphMixed = getResultFirst(averages, /mixed.*graphemes/i)
-	const graphSplit = getResultFirst(averages, /Split graphemes/i)
+	const graphAscii = getResultFirst(averages, /Count Graphemes - ascii/i)
+	const graphEmojiSimple = getResultFirst(averages, /Count Graphemes - emoji_simple/i)
+	const graphEmojiZwj = getResultFirst(averages, /Count Graphemes - emoji_zwj/i)
+	const graphDevanagari = getResultFirst(averages, /Count Graphemes - devanagari/i)
+	const graphMixed = getResultFirst(averages, /Count Graphemes - mixed/i)
+	const graphSplit = getResultFirst(averages, /Split Graphemes - emoji_zwj/i)
 
 	return {
 		meta: {
@@ -452,8 +452,8 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 					firstCall: r(cachingPara?.get("text-shaper (first)") || 0),
 				},
 				glyphPath: {
-					textShaper: r(glyphPathCache?.get("cached") || 0),
-					firstCall: r(glyphPathCache?.get("uncached") || 0),
+					textShaper: r(glyphPathSame?.get("repeated access") || 0),
+					firstCall: r(glyphPathSame?.get("first access") || 0),
 				},
 			},
 			simulation: {

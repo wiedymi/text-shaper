@@ -24,11 +24,11 @@ Full text-to-SVG pipeline including shaping and path generation. <CompareText :k
 
 ### Basic Shaping
 
-<BenchmarkFromData data-key="basic.ltrNoFeatures" title="LTR text (no features)" />
+<BenchmarkFromData data-key="basic.ltrNoFeatures" title="No features - mixed text" />
 
-<BenchmarkFromData data-key="basic.ligaKern" title="liga + kern features" />
+<BenchmarkFromData data-key="basic.ligaKern" title="All common features (liga + kern + calt)" />
 
-<BenchmarkFromData data-key="basic.manyFeatures" title="Many features" />
+<BenchmarkFromData data-key="basic.manyFeatures" title="Standard ligatures - mixed text" />
 
 ### Cyrillic Scripts
 
