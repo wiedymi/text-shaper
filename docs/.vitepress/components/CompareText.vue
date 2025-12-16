@@ -4,7 +4,7 @@ import benchmarkData from "../data/benchmarks.json"
 
 interface Props {
 	keys: string[] // e.g., ["path.extraction", "path.svgGeneration"]
-	vs: "harfbuzzjs" | "opentypeJs" | "freetype2"
+	vs: "harfbuzzjs" | "opentypeJs" | "freetype2" | "intlSegmenter" | "graphemer"
 }
 
 const props = defineProps<Props>()
@@ -49,6 +49,8 @@ const result = computed(() => {
 		harfbuzzjs: "HarfBuzz",
 		opentypeJs: "opentype.js",
 		freetype2: "FreeType2",
+		intlSegmenter: "Intl.Segmenter",
+		graphemer: "graphemer",
 	}
 	const label = labels[props.vs]
 
