@@ -1,8 +1,8 @@
 # Benchmarks
 
 <BenchmarkSummary :items="[
-  { category: 'Path Extraction', vsHarfbuzz: '58x faster', vsOpentype: '14x faster' },
-  { category: 'SVG Generation', vsHarfbuzz: '1.4x faster', vsOpentype: '5x faster' },
+  { category: 'Path Extraction', vsHarfbuzz: '50x faster', vsOpentype: '15x faster' },
+  { category: 'SVG Generation', vsHarfbuzz: '1.1x slower', vsOpentype: '3.7x faster' },
   { category: 'Latin Shaping', vsHarfbuzz: '1.4x faster', vsOpentype: '12x faster', highlight: true },
   { category: 'Cyrillic Shaping', vsHarfbuzz: '1.1x faster', vsOpentype: '21-41x faster' },
   { category: 'CJK Shaping', vsHarfbuzz: '1.3-1.4x faster', vsOpentype: '12-14x faster', highlight: true },
@@ -12,8 +12,8 @@
   { category: 'Thai Shaping', vsHarfbuzz: '1.0x', vsOpentype: '9x faster', highlight: true },
   { category: 'Myanmar Shaping', vsHarfbuzz: '1.0x', vsOpentype: '14x faster', highlight: true },
   { category: 'Khmer Shaping', vsHarfbuzz: '1.0x', vsOpentype: '6x faster', highlight: true },
-  { category: 'UI Simulation', vsHarfbuzz: '10x faster', highlight: true },
-  { category: 'Rasterization', vsFreetype: '1.7-11x faster', highlight: true },
+  { category: 'UI Simulation', vsHarfbuzz: '4x faster', highlight: true },
+  { category: 'Rasterization', vsFreetype: '1.5-12x faster', highlight: true },
   { category: 'Cache Benefits', improvement: '3x speedup on repeated shaping' }
 ]" />
 
@@ -26,34 +26,34 @@
 
 ## Glyph Paths
 
-58x faster than HarfBuzz, 14x faster than opentype.js for path extraction.
+50x faster than HarfBuzz, 15x faster than opentype.js for path extraction.
 
 <BenchmarkChart title="Extract 10 glyph paths" :results="[
-  { name: 'text-shaper', opsPerSec: 1930000 },
-  { name: 'opentype.js', opsPerSec: 138050 },
-  { name: 'harfbuzzjs', opsPerSec: 33500 }
+  { name: 'text-shaper', opsPerSec: 2090000 },
+  { name: 'opentype.js', opsPerSec: 141220 },
+  { name: 'harfbuzzjs', opsPerSec: 41660 }
 ]" />
 
 <BenchmarkChart title="SVG path generation (10 glyphs)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 91760 },
-  { name: 'text-shaper', opsPerSec: 71950 },
-  { name: 'opentype.js', opsPerSec: 17280 }
+  { name: 'harfbuzzjs', opsPerSec: 81850 },
+  { name: 'text-shaper', opsPerSec: 72970 },
+  { name: 'opentype.js', opsPerSec: 19960 }
 ]" />
 
 ## Text to SVG
 
-Full text-to-SVG pipeline including shaping and path generation. 1.4x faster than HarfBuzz, 5x faster than opentype.js.
+Full text-to-SVG pipeline including shaping and path generation. 1.1x faster than HarfBuzz, 4x faster than opentype.js.
 
 <BenchmarkChart title="Hello World" :results="[
-  { name: 'text-shaper', opsPerSec: 52170 },
-  { name: 'harfbuzzjs', opsPerSec: 37670 },
-  { name: 'opentype.js', opsPerSec: 10650 }
+  { name: 'text-shaper', opsPerSec: 44660 },
+  { name: 'harfbuzzjs', opsPerSec: 41490 },
+  { name: 'opentype.js', opsPerSec: 10850 }
 ]" />
 
 <BenchmarkChart title="Paragraph (87 chars)" :results="[
-  { name: 'text-shaper', opsPerSec: 10170 },
-  { name: 'harfbuzzjs', opsPerSec: 7030 },
-  { name: 'opentype.js', opsPerSec: 1630 }
+  { name: 'harfbuzzjs', opsPerSec: 7830 },
+  { name: 'text-shaper', opsPerSec: 7420 },
+  { name: 'opentype.js', opsPerSec: 1790 }
 ]" />
 
 ## Text Shaping
@@ -207,71 +207,71 @@ Shape plan caching provides significant speedups for repeated shaping.
 ## Real-World Simulations
 
 <BenchmarkChart title="UI Simulation - 8 labels with paths" :results="[
-  { name: 'text-shaper', opsPerSec: 60730 },
-  { name: 'harfbuzzjs', opsPerSec: 6170 }
+  { name: 'text-shaper', opsPerSec: 90190 },
+  { name: 'harfbuzzjs', opsPerSec: 21270 }
 ]" />
 
 <BenchmarkChart title="Document Simulation - 4 paragraphs" :results="[
-  { name: 'text-shaper', opsPerSec: 19720 },
-  { name: 'harfbuzzjs', opsPerSec: 32000 }
+  { name: 'text-shaper', opsPerSec: 42960 },
+  { name: 'harfbuzzjs', opsPerSec: 33800 }
 ]" />
 
 ## Rasterization
 
-Compared against FreeType2 (WebAssembly). TextShaper is 1.7-11x faster at all sizes.
+Compared against FreeType2 (WebAssembly). TextShaper is 1.5-12x faster at all sizes.
 
 <BenchmarkChart title="12px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 40990 },
-  { name: 'freetype2', opsPerSec: 23250 }
+  { name: 'text-shaper', opsPerSec: 46240 },
+  { name: 'freetype2', opsPerSec: 26030 }
 ]" />
 
 <BenchmarkChart title="24px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 39120 },
-  { name: 'freetype2', opsPerSec: 16930 }
+  { name: 'text-shaper', opsPerSec: 40500 },
+  { name: 'freetype2', opsPerSec: 17290 }
 ]" />
 
 <BenchmarkChart title="48px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 24410 },
-  { name: 'freetype2', opsPerSec: 7280 }
+  { name: 'text-shaper', opsPerSec: 23260 },
+  { name: 'freetype2', opsPerSec: 7350 }
 ]" />
 
 <BenchmarkChart title="96px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 12590 },
-  { name: 'freetype2', opsPerSec: 2360 }
+  { name: 'text-shaper', opsPerSec: 13320 },
+  { name: 'freetype2', opsPerSec: 2110 }
 ]" />
 
 <BenchmarkChart title="200px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 5810 },
-  { name: 'freetype2', opsPerSec: 565 }
+  { name: 'text-shaper', opsPerSec: 6540 },
+  { name: 'freetype2', opsPerSec: 556 }
 ]" />
 
 ### Render Modes
 
 <BenchmarkChart title="LCD subpixel (24px)" :results="[
-  { name: 'text-shaper', opsPerSec: 45370 },
-  { name: 'freetype2', opsPerSec: 20610 }
+  { name: 'text-shaper', opsPerSec: 31970 },
+  { name: 'freetype2', opsPerSec: 19570 }
 ]" />
 
 <BenchmarkChart title="Hinted (12px)" :results="[
-  { name: 'text-shaper', opsPerSec: 71070 },
-  { name: 'freetype2', opsPerSec: 19810 }
+  { name: 'text-shaper', opsPerSec: 74440 },
+  { name: 'freetype2', opsPerSec: 26400 }
 ]" />
 
 ### Throughput
 
 <BenchmarkChart title="62 glyphs at 16px" :results="[
-  { name: 'text-shaper', opsPerSec: 4330 },
-  { name: 'freetype2', opsPerSec: 1670 }
+  { name: 'text-shaper', opsPerSec: 3650 },
+  { name: 'freetype2', opsPerSec: 1610 }
 ]" />
 
 <BenchmarkChart title="Varying sizes - 15 sizes per iteration" :results="[
-  { name: 'text-shaper', opsPerSec: 12430 },
-  { name: 'freetype2', opsPerSec: 3330 }
+  { name: 'text-shaper', opsPerSec: 10090 },
+  { name: 'freetype2', opsPerSec: 3260 }
 ]" />
 
 <BenchmarkChart title="Very large - 5 glyphs at 200px" :results="[
-  { name: 'text-shaper', opsPerSec: 5810 },
-  { name: 'freetype2', opsPerSec: 565 }
+  { name: 'text-shaper', opsPerSec: 6540 },
+  { name: 'freetype2', opsPerSec: 556 }
 ]" />
 
 ## OpenType Features

@@ -306,8 +306,8 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path);
-			// Default flipY is true, so y becomes -20
-			expect(result).toContain("M 10 -20");
+			// Default flipY is true, so y becomes -20. SVG_SCALE=10 multiplies coords
+			expect(result).toContain("M 100 -200");
 		});
 
 		test("line command produces L", () => {
@@ -316,7 +316,7 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path);
-			expect(result).toContain("L 100 -50");
+			expect(result).toContain("L 1000 -500");
 		});
 
 		test("quadratic command produces Q", () => {
@@ -325,7 +325,7 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path);
-			expect(result).toContain("Q 50 -100 100 0");
+			expect(result).toContain("Q 500 -1000 1000 0");
 		});
 
 		test("cubic command produces C", () => {
@@ -334,7 +334,7 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path);
-			expect(result).toContain("C 25 -50 75 -50 100 0");
+			expect(result).toContain("C 250 -500 750 -500 1000 0");
 		});
 
 		test("close command produces Z", () => {
@@ -352,7 +352,8 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path, { flipY: false });
-			expect(result).toContain("M 10 20");
+			// SVG_SCALE=10 multiplies coords
+			expect(result).toContain("M 100 200");
 		});
 
 		test("scale option multiplies coordinates", () => {
@@ -361,7 +362,8 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path, { scale: 2, flipY: false });
-			expect(result).toContain("M 20 40");
+			// scale=2 * SVG_SCALE=10 = 20x
+			expect(result).toContain("M 200 400");
 		});
 
 		test("multiple commands joined by spaces", () => {
@@ -374,7 +376,8 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVG(path, { flipY: false });
-			expect(result).toBe("M 0 0 L 100 0 Z");
+			// SVG_SCALE=10 multiplies coords
+			expect(result).toBe("M 0 0 L 1000 0 Z");
 		});
 	});
 
@@ -2342,14 +2345,14 @@ describe("render/path", () => {
 				bounds: null,
 			};
 			const result = pathToSVGDirect(path, 2, 100, 200);
-			// Scale = 2, offsetX = 100, offsetY = 200
-			// x1 = 10 * 2 + 100 = 120
-			// y1 = 20 * -2 + 200 = 160
-			// x2 = 30 * 2 + 100 = 160
-			// y2 = 40 * -2 + 200 = 120
-			// x = 50 * 2 + 100 = 200
-			// y = 60 * -2 + 200 = 80
-			expect(result).toBe("C 120 160 160 120 200 80");
+			// Scale = 2, offsetX = 100, offsetY = 200, SVG_SCALE = 10
+			// x1 = (10 * 2 + 100) * 10 = 1200
+			// y1 = (20 * -2 + 200) * 10 = 1600
+			// x2 = (30 * 2 + 100) * 10 = 1600
+			// y2 = (40 * -2 + 200) * 10 = 1200
+			// x = (50 * 2 + 100) * 10 = 2000
+			// y = (60 * -2 + 200) * 10 = 800
+			expect(result).toBe("C 1200 1600 1600 1200 2000 800");
 		});
 	});
 

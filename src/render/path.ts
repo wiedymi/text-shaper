@@ -307,14 +307,21 @@ export function getGlyphPath(font: Font, glyphId: GlyphId): GlyphPath | null {
 }
 
 /**
+ * SVG coordinate scaling factor for sub-pixel precision.
+ * Path data is output at 10x scale with integer coordinates,
+ * viewBox is scaled to match, giving 0.1px precision with integer performance.
+ */
+export const SVG_SCALE = 10;
+
+/**
  * Convert path commands to SVG path data string
- * Uses Math.round for ~40% faster string generation
+ * Outputs at SVG_SCALE (10x) with integer coordinates for performance
  */
 export function pathToSVG(
 	path: GlyphPath,
 	options?: { flipY?: boolean; scale?: number },
 ): string {
-	const s = options?.scale ?? 1;
+	const s = (options?.scale ?? 1) * SVG_SCALE;
 	const flipY = options?.flipY ?? true;
 	const ys = flipY ? -s : s;
 
@@ -472,12 +479,17 @@ export function glyphToSVG(
 	const height = Math.ceil(
 		(bounds.yMax - bounds.yMin) * scale + strokePadding * 2,
 	);
-	const viewBox = `${bounds.xMin - strokePadding} ${-bounds.yMax - strokePadding} ${bounds.xMax - bounds.xMin + strokePadding * 2} ${bounds.yMax - bounds.yMin + strokePadding * 2}`;
+	// ViewBox is scaled by SVG_SCALE to match path coordinates
+	const vbX = Math.round((bounds.xMin - strokePadding) * SVG_SCALE);
+	const vbY = Math.round((-bounds.yMax - strokePadding) * SVG_SCALE);
+	const vbW = Math.round((bounds.xMax - bounds.xMin + strokePadding * 2) * SVG_SCALE);
+	const vbH = Math.round((bounds.yMax - bounds.yMin + strokePadding * 2) * SVG_SCALE);
+	const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
 
 	const pathData = pathToSVG(path, { flipY: true, scale: 1 });
 
 	const strokeAttr = stroke
-		? ` stroke="${stroke}" stroke-width="${strokeWidth}"`
+		? ` stroke="${stroke}" stroke-width="${strokeWidth * SVG_SCALE}"`
 		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
@@ -773,10 +785,15 @@ export function shapedTextToSVG(
 	const strokePadding = stroke ? strokeWidth / 2 : 0;
 	const width = Math.ceil(maxX - minX + strokePadding * 2);
 	const height = Math.ceil(maxY - minY + strokePadding * 2);
-	const viewBox = `${Math.floor(minX - strokePadding)} ${Math.floor(minY - strokePadding)} ${width} ${height}`;
+	// ViewBox is scaled by SVG_SCALE to match path coordinates
+	const vbX = Math.floor((minX - strokePadding) * SVG_SCALE);
+	const vbY = Math.floor((minY - strokePadding) * SVG_SCALE);
+	const vbW = Math.ceil(width * SVG_SCALE);
+	const vbH = Math.ceil(height * SVG_SCALE);
+	const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
 
 	const strokeAttr = stroke
-		? ` stroke="${stroke}" stroke-width="${strokeWidth}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
+		? ` stroke="${stroke}" stroke-width="${strokeWidth * SVG_SCALE}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
 		: "";
 
 	// Use native transform attribute if requested (only for 2D matrix)
@@ -951,10 +968,15 @@ export function shapedTextToSVGWithVariation(
 	const strokePadding = stroke ? strokeWidth / 2 : 0;
 	const width = Math.ceil(maxX - minX + strokePadding * 2);
 	const height = Math.ceil(maxY - minY + strokePadding * 2);
-	const viewBox = `${Math.floor(minX - strokePadding)} ${Math.floor(minY - strokePadding)} ${width} ${height}`;
+	// ViewBox is scaled by SVG_SCALE to match path coordinates
+	const vbX = Math.floor((minX - strokePadding) * SVG_SCALE);
+	const vbY = Math.floor((minY - strokePadding) * SVG_SCALE);
+	const vbW = Math.ceil(width * SVG_SCALE);
+	const vbH = Math.ceil(height * SVG_SCALE);
+	const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
 
 	const strokeAttr = stroke
-		? ` stroke="${stroke}" stroke-width="${strokeWidth}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
+		? ` stroke="${stroke}" stroke-width="${strokeWidth * SVG_SCALE}"${options?.lineCap ? ` stroke-linecap="${options.lineCap}"` : ""}${options?.lineJoin ? ` stroke-linejoin="${options.lineJoin}"` : ""}`
 		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
@@ -1215,7 +1237,7 @@ export function matrixToSVGTransform(matrix: Matrix2D): string {
 /**
  * Direct SVG serialization with transform applied in single pass
  * Avoids creating intermediate PathCommand arrays
- * Uses Math.round for ~40% faster string generation
+ * Outputs at SVG_SCALE (10x) with integer coordinates for performance
  */
 export function pathToSVGDirect(
 	path: GlyphPath,
@@ -1224,10 +1246,10 @@ export function pathToSVGDirect(
 	offsetY: number,
 ): string {
 	let result = "";
-	const s = scale;
-	const ns = -scale;
-	const ox = offsetX;
-	const oy = offsetY;
+	const s = scale * SVG_SCALE;
+	const ns = -scale * SVG_SCALE;
+	const ox = offsetX * SVG_SCALE;
+	const oy = offsetY * SVG_SCALE;
 
 	for (let i = 0; i < path.commands.length; i++) {
 		const cmd = path.commands[i]!;

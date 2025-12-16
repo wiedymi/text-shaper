@@ -16,9 +16,9 @@ const benchmarks: Benchmark[] = [
 	{
 		title: "Glyph path extraction",
 		results: [
-			{ name: "text-shaper", value: 1930000, unit: "ops/s" },
-			{ name: "opentype.js", value: 138050, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 33500, unit: "ops/s" },
+			{ name: "text-shaper", value: 2090000, unit: "ops/s" },
+			{ name: "opentype.js", value: 141220, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 41660, unit: "ops/s" },
 		],
 	},
 	{
@@ -38,15 +38,15 @@ const benchmarks: Benchmark[] = [
 	{
 		title: "UI Simulation (8 labels)",
 		results: [
-			{ name: "text-shaper", value: 60730, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 6170, unit: "ops/s" },
+			{ name: "text-shaper", value: 90190, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: 21270, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Rasterization @ 96px",
 		results: [
-			{ name: "text-shaper", value: 12590, unit: "ops/s" },
-			{ name: "freetype2", value: 2360, unit: "ops/s" },
+			{ name: "text-shaper", value: 13320, unit: "ops/s" },
+			{ name: "freetype2", value: 2110, unit: "ops/s" },
 		],
 	},
 ]
