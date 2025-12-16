@@ -14,6 +14,9 @@ import Graphemer from "graphemer"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
 
+// Reduced iterations for faster benchmarks
+const CLUSTER_OPTS = { warmup: 10, iterations: 3, batchSize: 100 }
+
 // Test texts with various cluster complexities
 const CLUSTER_TEXTS = {
 	// Simple ASCII
@@ -237,7 +240,7 @@ describe("Cluster Iteration Benchmark", () => {
 							lastCluster = info.cluster
 						}
 					}
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			results.push(
@@ -256,7 +259,7 @@ describe("Cluster Iteration Benchmark", () => {
 						}
 					}
 					buffer.destroy()
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			printComparison("Shaped Cluster Iteration - ASCII", results, "text-shaper")
@@ -280,7 +283,7 @@ describe("Cluster Iteration Benchmark", () => {
 							lastCluster = info.cluster
 						}
 					}
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			results.push(
@@ -299,7 +302,7 @@ describe("Cluster Iteration Benchmark", () => {
 						}
 					}
 					buffer.destroy()
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			printComparison("Shaped Cluster Iteration - Combining", results, "text-shaper")
@@ -327,7 +330,7 @@ describe("Cluster Iteration Benchmark", () => {
 						}
 						clusterMap.get(cluster)!.push(i)
 					}
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			printComparison("Cluster-to-Glyph Map - short", results, "text-shaper")
@@ -388,7 +391,7 @@ describe("Cluster Iteration Benchmark", () => {
 						xPos += shaped.positions[i].xAdvance
 					}
 					positions.push(xPos)
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			printComparison("Cursor Positions - short text", results, "text-shaper")
@@ -417,7 +420,7 @@ describe("Cluster Iteration Benchmark", () => {
 						xPos += shaped.positions[i].xAdvance
 					}
 					positions.push(xPos)
-				}),
+				}, CLUSTER_OPTS),
 			)
 
 			printComparison("Cursor Positions - mixed text", results, "text-shaper")
