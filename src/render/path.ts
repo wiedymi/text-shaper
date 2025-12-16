@@ -313,16 +313,28 @@ export function getGlyphPath(font: Font, glyphId: GlyphId): GlyphPath | null {
  */
 export const SVG_SCALE = 10;
 
+// Cache for default SVG strings (flipY=true, scale=1)
+const svgCache = new WeakMap<GlyphPath, string>();
+
 /**
  * Convert path commands to SVG path data string
  * Outputs at SVG_SCALE (10x) with integer coordinates for performance
+ * Caches results for default options (flipY=true, scale=1)
  */
 export function pathToSVG(
 	path: GlyphPath,
 	options?: { flipY?: boolean; scale?: number },
 ): string {
-	const s = (options?.scale ?? 1) * SVG_SCALE;
+	const scale = options?.scale ?? 1;
 	const flipY = options?.flipY ?? true;
+
+	// Use cache for default options
+	if (scale === 1 && flipY) {
+		const cached = svgCache.get(path);
+		if (cached) return cached;
+	}
+
+	const s = scale * SVG_SCALE;
 	const ys = flipY ? -s : s;
 
 	let result = "";
@@ -332,10 +344,10 @@ export function pathToSVG(
 		if (i > 0) result += " ";
 		switch (cmd.type) {
 			case "M":
-				result += `M ${Math.round(cmd.x * s)} ${Math.round(cmd.y * ys)}`;
+				result += "M " + Math.round(cmd.x * s) + " " + Math.round(cmd.y * ys);
 				break;
 			case "L":
-				result += `L ${Math.round(cmd.x * s)} ${Math.round(cmd.y * ys)}`;
+				result += "L " + Math.round(cmd.x * s) + " " + Math.round(cmd.y * ys);
 				break;
 			case "Q":
 				result +=
@@ -367,6 +379,11 @@ export function pathToSVG(
 				result += "Z";
 				break;
 		}
+	}
+
+	// Cache for default options
+	if (scale === 1 && flipY) {
+		svgCache.set(path, result);
 	}
 
 	return result;

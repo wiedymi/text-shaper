@@ -2,7 +2,7 @@
 
 <BenchmarkSummary :items="[
   { category: 'Path Extraction', vsHarfbuzz: '50x faster', vsOpentype: '15x faster' },
-  { category: 'SVG Generation', vsHarfbuzz: '1.1x slower', vsOpentype: '3.7x faster' },
+  { category: 'SVG Generation', vsHarfbuzz: '23x faster', vsOpentype: '99x faster', highlight: true },
   { category: 'Latin Shaping', vsHarfbuzz: '1.4x faster', vsOpentype: '12x faster', highlight: true },
   { category: 'Cyrillic Shaping', vsHarfbuzz: '1.1x faster', vsOpentype: '21-41x faster' },
   { category: 'CJK Shaping', vsHarfbuzz: '1.3-1.4x faster', vsOpentype: '12-14x faster', highlight: true },
@@ -35,25 +35,25 @@
 ]" />
 
 <BenchmarkChart title="SVG path generation (10 glyphs)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 81850 },
-  { name: 'text-shaper', opsPerSec: 72970 },
-  { name: 'opentype.js', opsPerSec: 19960 }
+  { name: 'text-shaper', opsPerSec: 1800000 },
+  { name: 'harfbuzzjs', opsPerSec: 77500 },
+  { name: 'opentype.js', opsPerSec: 18250 }
 ]" />
 
 ## Text to SVG
 
-Full text-to-SVG pipeline including shaping and path generation. 1.1x faster than HarfBuzz, 4x faster than opentype.js.
+Full text-to-SVG pipeline including shaping and path generation. 3.3x faster than HarfBuzz, 13x faster than opentype.js.
 
 <BenchmarkChart title="Hello World" :results="[
-  { name: 'text-shaper', opsPerSec: 44660 },
-  { name: 'harfbuzzjs', opsPerSec: 41490 },
-  { name: 'opentype.js', opsPerSec: 10850 }
+  { name: 'text-shaper', opsPerSec: 151490 },
+  { name: 'harfbuzzjs', opsPerSec: 46150 },
+  { name: 'opentype.js', opsPerSec: 11890 }
 ]" />
 
 <BenchmarkChart title="Paragraph (87 chars)" :results="[
-  { name: 'harfbuzzjs', opsPerSec: 7830 },
-  { name: 'text-shaper', opsPerSec: 7420 },
-  { name: 'opentype.js', opsPerSec: 1790 }
+  { name: 'text-shaper', opsPerSec: 40520 },
+  { name: 'harfbuzzjs', opsPerSec: 7710 },
+  { name: 'opentype.js', opsPerSec: 1700 }
 ]" />
 
 ## Text Shaping

@@ -49,6 +49,7 @@
   "scripts": {
     "postinstall": "node scripts/patch-pkg-prebuilds.js",
     "bench": "bun test ./bench/ --timeout 120000",
+    "bench:update": "bun scripts/update-benchmarks.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser --minify --sourcemap=linked",
     "build:prod": "bun build ./src/index.ts --outdir ./dist --target browser --production",
     "build:analyze": "bun build ./src/index.ts --outdir ./dist --target browser --minify --metafile=./dist/meta.json",

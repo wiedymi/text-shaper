@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import benchmarkData from "../data/benchmarks.json"
 
 interface Result {
 	name: string
@@ -16,37 +16,37 @@ const benchmarks: Benchmark[] = [
 	{
 		title: "Glyph path extraction",
 		results: [
-			{ name: "text-shaper", value: 2090000, unit: "ops/s" },
-			{ name: "opentype.js", value: 141220, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 41660, unit: "ops/s" },
+			{ name: "text-shaper", value: benchmarkData.path.extraction.textShaper, unit: "ops/s" },
+			{ name: "opentype.js", value: benchmarkData.path.extraction.opentypeJs, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: benchmarkData.path.extraction.harfbuzzjs, unit: "ops/s" },
 		],
 	},
 	{
 		title: "English shaping (1056 chars)",
 		results: [
-			{ name: "text-shaper", value: 7410, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 5257, unit: "ops/s" },
+			{ name: "text-shaper", value: benchmarkData.shaping.english1056.textShaper, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: benchmarkData.shaping.english1056.harfbuzzjs, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Myanmar shaping (984 chars)",
 		results: [
-			{ name: "text-shaper", value: 5697, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 5460, unit: "ops/s" },
+			{ name: "text-shaper", value: benchmarkData.shaping.myanmar984.textShaper, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: benchmarkData.shaping.myanmar984.harfbuzzjs, unit: "ops/s" },
 		],
 	},
 	{
 		title: "UI Simulation (8 labels)",
 		results: [
-			{ name: "text-shaper", value: 90190, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: 21270, unit: "ops/s" },
+			{ name: "text-shaper", value: benchmarkData.caching.uiSimulation.textShaper, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: benchmarkData.caching.uiSimulation.harfbuzzjs, unit: "ops/s" },
 		],
 	},
 	{
 		title: "Rasterization @ 96px",
 		results: [
-			{ name: "text-shaper", value: 13320, unit: "ops/s" },
-			{ name: "freetype2", value: 2110, unit: "ops/s" },
+			{ name: "text-shaper", value: benchmarkData.rasterization["96px"].textShaper, unit: "ops/s" },
+			{ name: "freetype2", value: benchmarkData.rasterization["96px"].freetype2, unit: "ops/s" },
 		],
 	},
 ]
@@ -94,7 +94,7 @@ function isOurs(name: string): boolean {
 				</div>
 			</div>
 			<div class="chart-footer">
-				MacBook Pro M1 Pro, 16 GB, Bun 1.3.4
+				{{ benchmarkData.meta.environment.platform }}, {{ benchmarkData.meta.environment.memory }}, {{ benchmarkData.meta.environment.runtime }}
 			</div>
 		</div>
 		<div class="info-side">

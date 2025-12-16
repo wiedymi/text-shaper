@@ -1,0 +1,83 @@
+{
+	"meta": {
+		"generatedAt": "2024-12-16T00:00:00.000Z",
+		"runs": 3,
+		"environment": {
+			"platform": "MacBook Pro M1 Pro",
+			"memory": "16 GB",
+			"runtime": "Bun 1.3.4"
+		}
+	},
+	"path": {
+		"extraction": {
+			"textShaper": 1930000,
+			"opentypeJs": 138050,
+			"harfbuzzjs": 33500
+		},
+		"svgGeneration": {
+			"textShaper": 71950,
+			"opentypeJs": 17280,
+			"harfbuzzjs": 91760
+		},
+		"textToSvgHello": {
+			"textShaper": 52170,
+			"opentypeJs": 10650,
+			"harfbuzzjs": 37670
+		},
+		"textToSvgParagraph": {
+			"textShaper": 10170,
+			"opentypeJs": 1630,
+			"harfbuzzjs": 7030
+		}
+	},
+	"shaping": {
+		"english1056": {
+			"textShaper": 7410,
+			"harfbuzzjs": 5257
+		},
+		"myanmar984": {
+			"textShaper": 5697,
+			"harfbuzzjs": 5460
+		},
+		"arabic1121": {
+			"textShaper": 3560,
+			"harfbuzzjs": 3430
+		}
+	},
+	"caching": {
+		"hello": {
+			"textShaper": 228350,
+			"harfbuzzjs": 79380
+		},
+		"paragraph": {
+			"textShaper": 26560,
+			"harfbuzzjs": 12680
+		},
+		"uiSimulation": {
+			"textShaper": 60730,
+			"harfbuzzjs": 6170
+		}
+	},
+	"rasterization": {
+		"12px": {
+			"textShaper": 40990,
+			"freetype2": 23250
+		},
+		"24px": {
+			"textShaper": 39120,
+			"freetype2": 16930
+		},
+		"48px": {
+			"textShaper": 24410,
+			"freetype2": 7280
+		},
+		"96px": {
+			"textShaper": 12590,
+			"freetype2": 2360
+		},
+		"200px": {
+			"textShaper": 5810,
+			"freetype2": 565
+		}
+	}
+}
