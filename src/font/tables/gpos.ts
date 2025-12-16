@@ -736,9 +736,10 @@ function parseExtensionLookup(
 /**
  * Binary search for pair value record in a PairSet.
  * PairValueRecords are sorted by secondGlyph per OpenType spec.
+ * Note: We trust the array is well-formed (no sparse entries) for performance.
  */
 function findPairValueRecord(
-	records: PairValueRecord[],
+	records: readonly PairValueRecord[],
 	secondGlyph: GlyphId,
 ): PairValueRecord | null {
 	let low = 0;
@@ -746,12 +747,12 @@ function findPairValueRecord(
 
 	while (low <= high) {
 		const mid = (low + high) >>> 1;
-		const record = records[mid];
-		if (!record) return null;
+		const record = records[mid]!; // Trust array bounds - no null check needed
+		const sg = record.secondGlyph;
 
-		if (record.secondGlyph < secondGlyph) {
+		if (sg < secondGlyph) {
 			low = mid + 1;
-		} else if (record.secondGlyph > secondGlyph) {
+		} else if (sg > secondGlyph) {
 			high = mid - 1;
 		} else {
 			return record;
@@ -785,13 +786,16 @@ export function getKerning(
 			}
 		} else if (subtable.format === 2) {
 			const class1 = subtable.classDef1.get(firstGlyph);
+			// Early bounds check before array access
+			const class1Records = subtable.class1Records;
+			if (class1 >= class1Records.length) continue;
+
+			const class1Record = class1Records[class1]!;
 			const class2 = subtable.classDef2.get(secondGlyph);
+			const class2Records = class1Record.class2Records;
+			if (class2 >= class2Records.length) continue;
 
-			const class1Record = subtable.class1Records[class1];
-			if (!class1Record) continue;
-
-			const class2Record = class1Record.class2Records[class2];
-			if (!class2Record) continue;
+			const class2Record = class2Records[class2]!;
 
 			return {
 				xAdvance1: class2Record.value1.xAdvance ?? 0,
@@ -833,14 +837,16 @@ export function applyKerningDirect(
 			}
 		} else if (subtable.format === 2) {
 			const class1 = subtable.classDef1.get(firstGlyph);
+			// Early bounds check before array access
+			const class1Records = subtable.class1Records;
+			if (class1 >= class1Records.length) continue;
+
+			const class1Record = class1Records[class1]!;
 			const class2 = subtable.classDef2.get(secondGlyph);
+			const class2Records = class1Record.class2Records;
+			if (class2 >= class2Records.length) continue;
 
-			const class1Record = subtable.class1Records[class1];
-			if (!class1Record) continue;
-
-			const class2Record = class1Record.class2Records[class2];
-			if (!class2Record) continue;
-
+			const class2Record = class2Records[class2]!;
 			const xAdv1 = class2Record.value1.xAdvance;
 			const xAdv2 = class2Record.value2.xAdvance;
 			if (xAdv1) pos1.xAdvance += xAdv1;
