@@ -10,21 +10,24 @@ export interface BenchResult {
 export function measure(
 	name: string,
 	fn: () => void,
-	options: { warmup?: number; iterations?: number } = {},
+	options: { warmup?: number; iterations?: number; batchSize?: number } = {},
 ): BenchResult {
-	const { warmup = 50, iterations = 500 } = options
+	const { warmup = 1000, iterations = 10, batchSize = 5000 } = options
 
-	// Warmup
+	// Warmup - more iterations to ensure JIT optimization
 	for (let i = 0; i < warmup; i++) {
 		fn()
 	}
 
-	// Measure
+	// Measure using batch timing to reduce per-call overhead
+	// Each iteration measures a batch of operations
 	const times: number[] = []
 	for (let i = 0; i < iterations; i++) {
 		const start = performance.now()
-		fn()
-		times.push(performance.now() - start)
+		for (let j = 0; j < batchSize; j++) {
+			fn()
+		}
+		times.push((performance.now() - start) / batchSize)
 	}
 
 	times.sort((a, b) => a - b)
@@ -33,7 +36,7 @@ export function measure(
 	const avgMs = times.reduce((a, b) => a + b, 0) / times.length
 	const opsPerSec = 1000 / avgMs
 
-	return { name, opsPerSec, avgMs, minMs, maxMs, samples: iterations }
+	return { name, opsPerSec, avgMs, minMs, maxMs, samples: iterations * batchSize }
 }
 
 export async function measureAsync(

@@ -1756,14 +1756,149 @@ function applyPairPosLookup(
 	const positions = buffer.positions;
 	const len = infos.length;
 	const digest = lookup.digest;
+	const subtables = lookup.subtables;
+	const subtableCount = subtables.length;
 
 	// FAST PATH: No skip checking needed (no flags, no GDEF, or no marks to skip)
 	// This handles simple Latin text - O(n) with zero allocation
 	const needsSkip = hasMarks && lookup.flag !== 0 && font.gdef !== null;
 	if (!needsSkip) {
+		// SUPER-FAST PATH: Single subtable (very common for kerning)
+		// Inline all logic to avoid function call overhead
+		if (subtableCount === 1) {
+			const subtable = subtables[0]!;
+			const coverage = subtable.coverage;
+
+			if (subtable.format === 1) {
+				// Format 1: Per-glyph pair sets with binary search
+				const pairSets = subtable.pairSets;
+				for (let i = 0; i < len - 1; i++) {
+					const gid1 = infos[i]!.glyphId;
+					if (!digest.mayHave(gid1)) continue;
+					const coverageIndex = coverage.get(gid1);
+					if (coverageIndex === null) continue;
+					const pairSet = pairSets[coverageIndex];
+					if (!pairSet) continue;
+
+					const gid2 = infos[i + 1]!.glyphId;
+					const records = pairSet.pairValueRecords;
+					// Binary search for secondGlyph
+					let low = 0;
+					let high = records.length - 1;
+					while (low <= high) {
+						const mid = (low + high) >>> 1;
+						const record = records[mid]!;
+						const sg = record.secondGlyph;
+						if (sg < gid2) {
+							low = mid + 1;
+						} else if (sg > gid2) {
+							high = mid - 1;
+						} else {
+							const xAdv1 = record.value1.xAdvance;
+							if (xAdv1) positions[i]!.xAdvance += xAdv1;
+							break;
+						}
+					}
+				}
+			} else {
+				// Format 2: Class-based kerning
+				const classDef1 = subtable.classDef1;
+				const classDef2 = subtable.classDef2;
+				const class1Records = subtable.class1Records;
+				const class1Count = class1Records.length;
+
+				for (let i = 0; i < len - 1; i++) {
+					const gid1 = infos[i]!.glyphId;
+					if (!digest.mayHave(gid1)) continue;
+					if (coverage.get(gid1) === null) continue;
+
+					const class1 = classDef1.get(gid1);
+					if (class1 >= class1Count) continue;
+					const class1Record = class1Records[class1]!;
+
+					const gid2 = infos[i + 1]!.glyphId;
+					const class2 = classDef2.get(gid2);
+					const class2Records = class1Record.class2Records;
+					if (class2 >= class2Records.length) continue;
+
+					const xAdv1 = class2Records[class2]!.value1.xAdvance;
+					if (xAdv1) positions[i]!.xAdvance += xAdv1;
+				}
+			}
+			return;
+		}
+
+		// FAST PATH: Two subtables (Format 1 + Format 2) - common for kerning
+		// Inline both lookups to avoid function call overhead
+		if (subtableCount === 2) {
+			const st0 = subtables[0]!;
+			const st1 = subtables[1]!;
+
+			// Common case: Format 1 (specific pairs) + Format 2 (class-based)
+			if (st0.format === 1 && st1.format === 2) {
+				const cov0 = st0.coverage;
+				const pairSets = st0.pairSets;
+				const cov1 = st1.coverage;
+				const classDef1 = st1.classDef1;
+				const classDef2 = st1.classDef2;
+				const class1Records = st1.class1Records;
+				const class1Count = class1Records.length;
+
+				for (let i = 0; i < len - 1; i++) {
+					const gid1 = infos[i]!.glyphId;
+					if (!digest.mayHave(gid1)) continue;
+
+					const gid2 = infos[i + 1]!.glyphId;
+
+					// Try Format 1 first (specific pairs)
+					const covIdx0 = cov0.get(gid1);
+					if (covIdx0 !== null) {
+						const pairSet = pairSets[covIdx0];
+						if (pairSet) {
+							const records = pairSet.pairValueRecords;
+							let low = 0;
+							let high = records.length - 1;
+							let found = false;
+							while (low <= high) {
+								const mid = (low + high) >>> 1;
+								const record = records[mid]!;
+								const sg = record.secondGlyph;
+								if (sg < gid2) {
+									low = mid + 1;
+								} else if (sg > gid2) {
+									high = mid - 1;
+								} else {
+									const xAdv1 = record.value1.xAdvance;
+									if (xAdv1) positions[i]!.xAdvance += xAdv1;
+									found = true;
+									break;
+								}
+							}
+							if (found) continue;
+						}
+					}
+
+					// Fall back to Format 2 (class-based)
+					if (cov1.get(gid1) !== null) {
+						const class1 = classDef1.get(gid1);
+						if (class1 < class1Count) {
+							const class1Record = class1Records[class1]!;
+							const class2 = classDef2.get(gid2);
+							const class2Records = class1Record.class2Records;
+							if (class2 < class2Records.length) {
+								const xAdv1 = class2Records[class2]!.value1.xAdvance;
+								if (xAdv1) positions[i]!.xAdvance += xAdv1;
+							}
+						}
+					}
+				}
+				return;
+			}
+		}
+
+		// Multiple subtables - use function call
 		for (let i = 0; i < len - 1; i++) {
 			const info1 = infos[i]!;
-			// Fast digest check before expensive Coverage lookup
 			if (!digest.mayHave(info1.glyphId)) continue;
 			const info2 = infos[i + 1]!;
 			const pos1 = positions[i]!;
