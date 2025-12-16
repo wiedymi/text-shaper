@@ -657,7 +657,7 @@ export function shapedTextToSVG(
 	const useNativeTransform = options?.useNativeTransform ?? false;
 	const scale = fontSize / font.unitsPerEm;
 
-	const paths: string[] = [];
+	let pathsStr = "";
 	let x = 0;
 	let y = 0;
 	let minX = Infinity;
@@ -787,14 +787,15 @@ export function shapedTextToSVG(
 				maxY = Math.max(maxY, offsetY - b.yMin * scale);
 			}
 
-			paths.push(pathStr);
+			if (pathsStr) pathsStr += " ";
+			pathsStr += pathStr;
 		}
 
 		x += glyph.xAdvance * scale;
 		y += glyph.yAdvance * scale;
 	}
 
-	if (paths.length === 0) {
+	if (!pathsStr) {
 		return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
 	}
 
@@ -820,7 +821,7 @@ export function shapedTextToSVG(
 			: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-  <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}${transformAttr}/>
+  <path d="${pathsStr}" fill="${fill}"${strokeAttr}${transformAttr}/>
 </svg>`;
 }
 
@@ -947,7 +948,7 @@ export function shapedTextToSVGWithVariation(
 	const strokeWidth = options?.strokeWidth ?? 1;
 	const scale = fontSize / font.unitsPerEm;
 
-	const paths: string[] = [];
+	let pathsStr = "";
 	let x = 0;
 	let y = 0;
 	let minX = Infinity;
@@ -964,7 +965,8 @@ export function shapedTextToSVGWithVariation(
 
 			// Direct SVG serialization - no intermediate array allocation
 			const pathStr = pathToSVGDirect(path, scale, offsetX, offsetY);
-			paths.push(pathStr);
+			if (pathsStr) pathsStr += " ";
+			pathsStr += pathStr;
 
 			const b = path.bounds;
 			minX = Math.min(minX, offsetX + b.xMin * scale);
@@ -977,7 +979,7 @@ export function shapedTextToSVGWithVariation(
 		y += glyph.yAdvance * scale;
 	}
 
-	if (paths.length === 0) {
+	if (!pathsStr) {
 		return '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
 	}
 
@@ -997,7 +999,7 @@ export function shapedTextToSVGWithVariation(
 		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${viewBox}">
-  <path d="${paths.join(" ")}" fill="${fill}"${strokeAttr}/>
+  <path d="${pathsStr}" fill="${fill}"${strokeAttr}/>
 </svg>`;
 }
 
@@ -1091,41 +1093,54 @@ export function pathToSVGWithMatrix(
 ): string {
 	const flipY = options?.flipY ?? true;
 	const ySign = flipY ? -1 : 1;
-	const parts: string[] = [];
+	let result = "";
 
 	for (let i = 0; i < path.commands.length; i++) {
 		const cmd = path.commands[i]!;
+		if (i > 0) result += " ";
 		switch (cmd.type) {
 			case "M": {
 				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`M ${p.x} ${p.y}`);
+				result += "M " + p.x + " " + p.y;
 				break;
 			}
 			case "L": {
 				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`L ${p.x} ${p.y}`);
+				result += "L " + p.x + " " + p.y;
 				break;
 			}
 			case "Q": {
 				const p1 = transformPoint2D(cmd.x1, cmd.y1 * ySign, matrix);
 				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`Q ${p1.x} ${p1.y} ${p.x} ${p.y}`);
+				result += "Q " + p1.x + " " + p1.y + " " + p.x + " " + p.y;
 				break;
 			}
 			case "C": {
 				const p1 = transformPoint2D(cmd.x1, cmd.y1 * ySign, matrix);
 				const p2 = transformPoint2D(cmd.x2, cmd.y2 * ySign, matrix);
 				const p = transformPoint2D(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`C ${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p.x} ${p.y}`);
+				result +=
+					"C " +
+					p1.x +
+					" " +
+					p1.y +
+					" " +
+					p2.x +
+					" " +
+					p2.y +
+					" " +
+					p.x +
+					" " +
+					p.y;
 				break;
 			}
 			case "Z":
-				parts.push("Z");
+				result += "Z";
 				break;
 		}
 	}
 
-	return parts.join(" ");
+	return result;
 }
 
 /**
@@ -1185,41 +1200,54 @@ export function pathToSVGWithMatrix3D(
 ): string {
 	const flipY = options?.flipY ?? true;
 	const ySign = flipY ? -1 : 1;
-	const parts: string[] = [];
+	let result = "";
 
 	for (let i = 0; i < path.commands.length; i++) {
 		const cmd = path.commands[i]!;
+		if (i > 0) result += " ";
 		switch (cmd.type) {
 			case "M": {
 				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`M ${p.x} ${p.y}`);
+				result += "M " + p.x + " " + p.y;
 				break;
 			}
 			case "L": {
 				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`L ${p.x} ${p.y}`);
+				result += "L " + p.x + " " + p.y;
 				break;
 			}
 			case "Q": {
 				const p1 = transformPoint3x3(cmd.x1, cmd.y1 * ySign, matrix);
 				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`Q ${p1.x} ${p1.y} ${p.x} ${p.y}`);
+				result += "Q " + p1.x + " " + p1.y + " " + p.x + " " + p.y;
 				break;
 			}
 			case "C": {
 				const p1 = transformPoint3x3(cmd.x1, cmd.y1 * ySign, matrix);
 				const p2 = transformPoint3x3(cmd.x2, cmd.y2 * ySign, matrix);
 				const p = transformPoint3x3(cmd.x, cmd.y * ySign, matrix);
-				parts.push(`C ${p1.x} ${p1.y} ${p2.x} ${p2.y} ${p.x} ${p.y}`);
+				result +=
+					"C " +
+					p1.x +
+					" " +
+					p1.y +
+					" " +
+					p2.x +
+					" " +
+					p2.y +
+					" " +
+					p.x +
+					" " +
+					p.y;
 				break;
 			}
 			case "Z":
-				parts.push("Z");
+				result += "Z";
 				break;
 		}
 	}
 
-	return parts.join(" ");
+	return result;
 }
 
 /**
