@@ -12,6 +12,8 @@ import BenchmarkSummary from '../components/BenchmarkSummary.vue'
 import BenchmarkHero from '../components/BenchmarkHero.vue'
 import BenchmarkFromData from '../components/BenchmarkFromData.vue'
 import BenchmarkEnv from '../components/BenchmarkEnv.vue'
+import BenchmarkSummaryFromData from '../components/BenchmarkSummaryFromData.vue'
+import CompareText from '../components/CompareText.vue'
 
 export default {
   extends: DefaultTheme,
@@ -27,5 +29,7 @@ export default {
     app.component('BenchmarkHero', BenchmarkHero)
     app.component('BenchmarkFromData', BenchmarkFromData)
     app.component('BenchmarkEnv', BenchmarkEnv)
+    app.component('BenchmarkSummaryFromData', BenchmarkSummaryFromData)
+    app.component('CompareText', CompareText)
   }
 } satisfies Theme

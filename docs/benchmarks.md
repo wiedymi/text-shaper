@@ -1,27 +1,12 @@
 # Benchmarks
 
-<BenchmarkSummary :items="[
-  { category: 'Path Extraction', vsHarfbuzz: '50x faster', vsOpentype: '15x faster' },
-  { category: 'SVG Generation', vsHarfbuzz: '23x faster', vsOpentype: '99x faster', highlight: true },
-  { category: 'Latin Shaping', vsHarfbuzz: '1.4x faster', vsOpentype: '12x faster', highlight: true },
-  { category: 'Cyrillic Shaping', vsHarfbuzz: '1.1x faster', vsOpentype: '21-41x faster' },
-  { category: 'CJK Shaping', vsHarfbuzz: '1.3-1.4x faster', vsOpentype: '12-14x faster', highlight: true },
-  { category: 'Arabic Shaping', vsHarfbuzz: '1.0x', vsOpentype: '66x faster', highlight: true },
-  { category: 'Hebrew Shaping', vsHarfbuzz: '1.5x faster', vsOpentype: '30x faster', highlight: true },
-  { category: 'Hindi Shaping', vsHarfbuzz: '1.0x', vsOpentype: '10x faster', highlight: true },
-  { category: 'Thai Shaping', vsHarfbuzz: '1.0x', vsOpentype: '9x faster', highlight: true },
-  { category: 'Myanmar Shaping', vsHarfbuzz: '1.0x', vsOpentype: '14x faster', highlight: true },
-  { category: 'Khmer Shaping', vsHarfbuzz: '1.0x', vsOpentype: '6x faster', highlight: true },
-  { category: 'UI Simulation', vsHarfbuzz: '4x faster', highlight: true },
-  { category: 'Rasterization', vsFreetype: '1.5-12x faster', highlight: true },
-  { category: 'Cache Benefits', improvement: '3x speedup on repeated shaping' }
-]" />
+<BenchmarkSummaryFromData />
 
 <BenchmarkEnv />
 
 ## Glyph Paths
 
-50x faster than HarfBuzz, 15x faster than opentype.js for path extraction.
+<CompareText :keys="['path.extraction']" vs="harfbuzzjs" />, <CompareText :keys="['path.extraction']" vs="opentypeJs" /> for path extraction.
 
 <BenchmarkFromData data-key="path.extraction" title="Extract 10 glyph paths" />
 
@@ -29,7 +14,7 @@
 
 ## Text to SVG
 
-Full text-to-SVG pipeline including shaping and path generation. 3.3x faster than HarfBuzz, 13x faster than opentype.js.
+Full text-to-SVG pipeline including shaping and path generation. <CompareText :keys="['path.textToSvgHello', 'path.textToSvgParagraph']" vs="harfbuzzjs" />, <CompareText :keys="['path.textToSvgHello', 'path.textToSvgParagraph']" vs="opentypeJs" />.
 
 <BenchmarkFromData data-key="path.textToSvgHello" title="Hello World" />
 
@@ -47,7 +32,7 @@ Full text-to-SVG pipeline including shaping and path generation. 3.3x faster tha
 
 ### Cyrillic Scripts
 
-1.1x faster than HarfBuzz across Russian, Ukrainian, and Belarusian. 21-41x faster than opentype.js.
+<CompareText :keys="['cyrillic.russian', 'cyrillic.ukrainian', 'cyrillic.belarusian']" vs="harfbuzzjs" /> across Russian, Ukrainian, and Belarusian. <CompareText :keys="['cyrillic.russian', 'cyrillic.ukrainian', 'cyrillic.belarusian']" vs="opentypeJs" />.
 
 <BenchmarkFromData data-key="cyrillic.russian" title="Russian paragraph (1001 chars)" />
 
@@ -57,7 +42,7 @@ Full text-to-SVG pipeline including shaping and path generation. 3.3x faster tha
 
 ### CJK Scripts
 
-1.3-1.4x faster than HarfBuzz for CJK text, 12-14x faster than opentype.js.
+<CompareText :keys="['cjk.chinese', 'cjk.japanese', 'cjk.korean']" vs="harfbuzzjs" /> for CJK text, <CompareText :keys="['cjk.chinese', 'cjk.japanese', 'cjk.korean']" vs="opentypeJs" />.
 
 <BenchmarkFromData data-key="cjk.chinese" title="Chinese Simplified (329 chars)" />
 
@@ -67,13 +52,13 @@ Full text-to-SVG pipeline including shaping and path generation. 3.3x faster tha
 
 ### Latin Scripts
 
-1.4x faster than HarfBuzz, 12x faster than opentype.js for Latin text.
+<CompareText :keys="['latin.english']" vs="harfbuzzjs" />, <CompareText :keys="['latin.english']" vs="opentypeJs" /> for Latin text.
 
 <BenchmarkFromData data-key="latin.english" title="English paragraph (1056 chars)" />
 
 ### RTL Scripts
 
-1.0-1.5x vs HarfBuzz for Arabic and Hebrew. 30-66x faster than opentype.js.
+<CompareText :keys="['rtl.arabic', 'rtl.hebrew']" vs="harfbuzzjs" /> for Arabic and Hebrew. <CompareText :keys="['rtl.arabic', 'rtl.hebrew']" vs="opentypeJs" />.
 
 <BenchmarkFromData data-key="rtl.arabic" title="Arabic paragraph (1121 chars)" />
 
@@ -81,7 +66,7 @@ Full text-to-SVG pipeline including shaping and path generation. 3.3x faster tha
 
 ### Complex Scripts
 
-TextShaper matches HarfBuzz on Indic and Southeast Asian scripts, 6-14x faster than opentype.js.
+TextShaper matches HarfBuzz on Indic and Southeast Asian scripts, <CompareText :keys="['complex.hindi', 'complex.myanmar', 'complex.khmer', 'complex.thai']" vs="opentypeJs" />.
 
 <BenchmarkFromData data-key="complex.hindi" title="Hindi paragraph (1105 chars)" />
 
@@ -93,7 +78,7 @@ TextShaper matches HarfBuzz on Indic and Southeast Asian scripts, 6-14x faster t
 
 ### Greek
 
-1.0x vs HarfBuzz, 23x faster than opentype.js for Greek text.
+<CompareText :keys="['greek.greek']" vs="harfbuzzjs" />, <CompareText :keys="['greek.greek']" vs="opentypeJs" /> for Greek text.
 
 <BenchmarkFromData data-key="greek.greek" title="Greek paragraph (997 chars)" />
 
@@ -115,7 +100,7 @@ Shape plan caching provides significant speedups for repeated shaping.
 
 ## Rasterization
 
-Compared against FreeType2 (WebAssembly). TextShaper is 1.5-12x faster at all sizes.
+Compared against FreeType2 (WebAssembly). TextShaper is <CompareText :keys="['raster.12px', 'raster.24px', 'raster.48px', 'raster.96px', 'raster.200px']" vs="freetype2" /> at all sizes.
 
 <BenchmarkFromData data-key="raster.12px" title="12px grayscale (5 glyphs)" />
 
