@@ -29,10 +29,10 @@ const benchmarks: Benchmark[] = [
 		],
 	},
 	{
-		title: "Myanmar shaping (984 chars)",
+		title: "Myanmar shaping (1916 chars)",
 		results: [
-			{ name: "text-shaper", value: benchmarkData.shaping.myanmar984.textShaper, unit: "ops/s" },
-			{ name: "harfbuzzjs", value: benchmarkData.shaping.myanmar984.harfbuzzjs, unit: "ops/s" },
+			{ name: "text-shaper", value: benchmarkData.shaping.myanmar1916.textShaper, unit: "ops/s" },
+			{ name: "harfbuzzjs", value: benchmarkData.shaping.myanmar1916.harfbuzzjs, unit: "ops/s" },
 		],
 	},
 	{

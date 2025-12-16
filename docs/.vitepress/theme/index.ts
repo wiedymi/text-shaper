@@ -10,6 +10,8 @@ import RasterPreview from '../components/RasterPreview.vue'
 import BenchmarkChart from '../components/BenchmarkChart.vue'
 import BenchmarkSummary from '../components/BenchmarkSummary.vue'
 import BenchmarkHero from '../components/BenchmarkHero.vue'
+import BenchmarkFromData from '../components/BenchmarkFromData.vue'
+import BenchmarkEnv from '../components/BenchmarkEnv.vue'
 
 export default {
   extends: DefaultTheme,
@@ -23,5 +25,7 @@ export default {
     app.component('BenchmarkChart', BenchmarkChart)
     app.component('BenchmarkSummary', BenchmarkSummary)
     app.component('BenchmarkHero', BenchmarkHero)
+    app.component('BenchmarkFromData', BenchmarkFromData)
+    app.component('BenchmarkEnv', BenchmarkEnv)
   }
 } satisfies Theme

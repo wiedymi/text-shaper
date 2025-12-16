@@ -24,6 +24,9 @@ const BENCHMARK_FILES = [
 	"bench/shaping.test.ts",
 	"bench/caching.test.ts",
 	"bench/raster.test.ts",
+	"bench/cjk.test.ts",
+	"bench/features.test.ts",
+	"bench/clusters.test.ts",
 ]
 
 // Parse ops/sec from formatted string like "1.93M", "138.05k", "33500"
@@ -138,8 +141,19 @@ function calculateAverages(allResults: Map<string, Map<string, number[]>>): Map<
 	return averages
 }
 
-// Get result by title pattern
+// Get result by title pattern - returns LAST match (longest text variant)
 function getResult(averages: Map<string, Map<string, number>>, pattern: string | RegExp): Map<string, number> | undefined {
+	let lastMatch: Map<string, number> | undefined
+	for (const [title, results] of averages) {
+		if (typeof pattern === "string" ? title.includes(pattern) : pattern.test(title)) {
+			lastMatch = results
+		}
+	}
+	return lastMatch
+}
+
+// Get result by exact title match or first match
+function getResultFirst(averages: Map<string, Map<string, number>>, pattern: string | RegExp): Map<string, number> | undefined {
 	for (const [title, results] of averages) {
 		if (typeof pattern === "string" ? title.includes(pattern) : pattern.test(title)) {
 			return results
@@ -158,37 +172,72 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 	const textSvgHello = getResult(averages, "Text to SVG - 'Hello World'")
 	const textSvgPara = getResult(averages, "Text to SVG - Paragraph")
 
+	// Basic shaping
+	const ltrNoFeatures = getResultFirst(averages, /LTR text.*no features/i)
+	const ligaKern = getResultFirst(averages, /liga.*kern/i)
+	const manyFeatures = getResultFirst(averages, /Many features/i)
+
+	// Cyrillic
+	const russian = getResult(averages, /Russian paragraph_long/i)
+	const ukrainian = getResult(averages, /Ukrainian paragraph_long/i)
+	const belarusian = getResult(averages, /Belarusian paragraph_long/i)
+
+	// CJK
+	const chinese = getResult(averages, /Chinese.*paragraph_long/i)
+	const japanese = getResult(averages, /Japanese paragraph_long/i)
+	const korean = getResult(averages, /Korean paragraph_long/i)
+
+	// Latin
+	const english = getResult(averages, /English paragraph_long/i)
+
+	// RTL
+	const arabic = getResult(averages, /Arabic paragraph_long/i)
+	const hebrew = getResult(averages, /Hebrew paragraph_long/i)
+
+	// Complex scripts
+	const hindi = getResult(averages, /Hindi paragraph_long/i)
+	const myanmar = getResult(averages, /Myanmar paragraph_long/i)
+	const khmer = getResult(averages, /Khmer paragraph_long/i)
+	const thai = getResult(averages, /Thai paragraph_long/i)
+
+	// Greek
+	const greek = getResult(averages, /Greek paragraph_long/i)
+
 	// Caching
-	const cachingHello = getResult(averages, /Repeated Shaping - "Hello"/)
-	const cachingPara = getResult(averages, /Repeated Shaping - paragraph/)
+	const cachingHello = getResult(averages, /Repeated Shaping - "Hello"/i)
+	const cachingPara = getResult(averages, /Repeated Shaping - paragraph/i)
+	const glyphPathCache = getResultFirst(averages, /Glyph Path Cache/i)
 	const uiSim = getResult(averages, "UI Simulation - 8 labels")
+	const docSim = getResultFirst(averages, /Document Simulation/i)
 
-	// Rasterization (case-insensitive)
-	const raster12 = getResult(averages, /12px Grayscale/i)
-	const raster24 = getResult(averages, /24px Grayscale/i)
-	const raster48 = getResult(averages, /48px Grayscale/i)
-	const raster96 = getResult(averages, /96px Grayscale/i)
+	// Rasterization
+	const raster12 = getResult(averages, /Rasterization - 12px Grayscale/i)
+	const raster24 = getResult(averages, /Rasterization - 24px Grayscale/i)
+	const raster48 = getResult(averages, /Rasterization - 48px/i)
+	const raster96 = getResult(averages, /Rasterization - 96px/i)
 	const raster200 = getResult(averages, /200px|Very large/i)
+	const lcd24 = getResultFirst(averages, /LCD subpixel.*24px/i)
+	const hinted12 = getResultFirst(averages, /Hinted.*12px/i)
+	const throughput62 = getResultFirst(averages, /62 glyphs/i)
+	const varyingSizes = getResultFirst(averages, /Varying sizes/i)
 
-	// Shaping - find English and Myanmar paragraphs
-	let englishOps = { ts: 0, hb: 0 }
-	let myanmarOps = { ts: 0, hb: 0 }
-	let arabicOps = { ts: 0, hb: 0 }
+	// Features
+	const noFeatures = getResultFirst(averages, /No features - mixed/i)
+	const liga = getResultFirst(averages, /Standard ligatures \(liga\)/i)
+	const kern = getResultFirst(averages, /Kerning pairs/i)
+	const smcp = getResultFirst(averages, /Small caps/i)
+	const onum = getResultFirst(averages, /Oldstyle figures/i)
+	const tnum = getResultFirst(averages, /Tabular figures/i)
+	const frac = getResultFirst(averages, /Fractions/i)
+	const allCommon = getResultFirst(averages, /All common features/i)
 
-	for (const [title, results] of averages) {
-		if ((title.includes("English") || title.includes("1056")) && title.includes("paragraph")) {
-			englishOps.ts = results.get("text-shaper") || 0
-			englishOps.hb = results.get("harfbuzzjs") || 0
-		}
-		if (title.includes("Myanmar") && title.includes("paragraph")) {
-			myanmarOps.ts = results.get("text-shaper") || 0
-			myanmarOps.hb = results.get("harfbuzzjs") || 0
-		}
-		if (title.includes("Arabic") && title.includes("paragraph")) {
-			arabicOps.ts = results.get("text-shaper") || 0
-			arabicOps.hb = results.get("harfbuzzjs") || 0
-		}
-	}
+	// Grapheme clusters
+	const graphAscii = getResultFirst(averages, /Count graphemes - ASCII/i)
+	const graphEmojiSimple = getResultFirst(averages, /emoji simple/i)
+	const graphEmojiZwj = getResultFirst(averages, /Count graphemes - emoji ZWJ/i)
+	const graphDevanagari = getResultFirst(averages, /Devanagari/i)
+	const graphMixed = getResultFirst(averages, /mixed.*graphemes/i)
+	const graphSplit = getResultFirst(averages, /Split graphemes/i)
 
 	return {
 		meta: {
@@ -224,16 +273,16 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 		},
 		shaping: {
 			english1056: {
-				textShaper: r(englishOps.ts),
-				harfbuzzjs: r(englishOps.hb),
+				textShaper: r(english?.get("text-shaper") || 0),
+				harfbuzzjs: r(english?.get("harfbuzzjs") || 0),
 			},
-			myanmar984: {
-				textShaper: r(myanmarOps.ts),
-				harfbuzzjs: r(myanmarOps.hb),
+			myanmar1916: {
+				textShaper: r(myanmar?.get("text-shaper") || 0),
+				harfbuzzjs: r(myanmar?.get("harfbuzzjs") || 0),
 			},
 			arabic1121: {
-				textShaper: r(arabicOps.ts),
-				harfbuzzjs: r(arabicOps.hb),
+				textShaper: r(arabic?.get("text-shaper") || 0),
+				harfbuzzjs: r(arabic?.get("harfbuzzjs") || 0),
 			},
 		},
 		caching: {
@@ -270,6 +319,252 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 			"200px": {
 				textShaper: r(raster200?.get("text-shaper") || 0),
 				freetype2: r(raster200?.get("freetype2") || 0),
+			},
+		},
+		benchmarks: {
+			path: {
+				extraction: {
+					textShaper: r(pathExtract?.get("text-shaper") || 0),
+					opentypeJs: r(pathExtract?.get("opentype.js") || 0),
+					harfbuzzjs: r(pathExtract?.get("harfbuzzjs") || 0),
+				},
+				svgGeneration: {
+					textShaper: r(svgGen?.get("text-shaper") || 0),
+					opentypeJs: r(svgGen?.get("opentype.js") || 0),
+					harfbuzzjs: r(svgGen?.get("harfbuzzjs") || 0),
+				},
+				textToSvgHello: {
+					textShaper: r(textSvgHello?.get("text-shaper") || 0),
+					opentypeJs: r(textSvgHello?.get("opentype.js") || 0),
+					harfbuzzjs: r(textSvgHello?.get("harfbuzzjs") || 0),
+				},
+				textToSvgParagraph: {
+					textShaper: r(textSvgPara?.get("text-shaper") || 0),
+					opentypeJs: r(textSvgPara?.get("opentype.js") || 0),
+					harfbuzzjs: r(textSvgPara?.get("harfbuzzjs") || 0),
+				},
+			},
+			basic: {
+				ltrNoFeatures: {
+					textShaper: r(ltrNoFeatures?.get("text-shaper") || 0),
+					harfbuzzjs: r(ltrNoFeatures?.get("harfbuzzjs") || 0),
+				},
+				ligaKern: {
+					textShaper: r(ligaKern?.get("text-shaper") || 0),
+					harfbuzzjs: r(ligaKern?.get("harfbuzzjs") || 0),
+				},
+				manyFeatures: {
+					textShaper: r(manyFeatures?.get("text-shaper") || 0),
+					harfbuzzjs: r(manyFeatures?.get("harfbuzzjs") || 0),
+				},
+			},
+			cyrillic: {
+				russian: {
+					textShaper: r(russian?.get("text-shaper") || 0),
+					harfbuzzjs: r(russian?.get("harfbuzzjs") || 0),
+					opentypeJs: r(russian?.get("opentype.js") || 0),
+				},
+				ukrainian: {
+					textShaper: r(ukrainian?.get("text-shaper") || 0),
+					harfbuzzjs: r(ukrainian?.get("harfbuzzjs") || 0),
+					opentypeJs: r(ukrainian?.get("opentype.js") || 0),
+				},
+				belarusian: {
+					textShaper: r(belarusian?.get("text-shaper") || 0),
+					harfbuzzjs: r(belarusian?.get("harfbuzzjs") || 0),
+					opentypeJs: r(belarusian?.get("opentype.js") || 0),
+				},
+			},
+			cjk: {
+				chinese: {
+					textShaper: r(chinese?.get("text-shaper") || 0),
+					harfbuzzjs: r(chinese?.get("harfbuzzjs") || 0),
+					opentypeJs: r(chinese?.get("opentype.js") || 0),
+				},
+				japanese: {
+					textShaper: r(japanese?.get("text-shaper") || 0),
+					harfbuzzjs: r(japanese?.get("harfbuzzjs") || 0),
+					opentypeJs: r(japanese?.get("opentype.js") || 0),
+				},
+				korean: {
+					textShaper: r(korean?.get("text-shaper") || 0),
+					harfbuzzjs: r(korean?.get("harfbuzzjs") || 0),
+					opentypeJs: r(korean?.get("opentype.js") || 0),
+				},
+			},
+			latin: {
+				english: {
+					textShaper: r(english?.get("text-shaper") || 0),
+					harfbuzzjs: r(english?.get("harfbuzzjs") || 0),
+					opentypeJs: r(english?.get("opentype.js") || 0),
+				},
+			},
+			rtl: {
+				arabic: {
+					textShaper: r(arabic?.get("text-shaper") || 0),
+					harfbuzzjs: r(arabic?.get("harfbuzzjs") || 0),
+					opentypeJs: r(arabic?.get("opentype.js") || 0),
+				},
+				hebrew: {
+					textShaper: r(hebrew?.get("text-shaper") || 0),
+					harfbuzzjs: r(hebrew?.get("harfbuzzjs") || 0),
+					opentypeJs: r(hebrew?.get("opentype.js") || 0),
+				},
+			},
+			complex: {
+				hindi: {
+					textShaper: r(hindi?.get("text-shaper") || 0),
+					harfbuzzjs: r(hindi?.get("harfbuzzjs") || 0),
+					opentypeJs: r(hindi?.get("opentype.js") || 0),
+				},
+				myanmar: {
+					textShaper: r(myanmar?.get("text-shaper") || 0),
+					harfbuzzjs: r(myanmar?.get("harfbuzzjs") || 0),
+					opentypeJs: r(myanmar?.get("opentype.js") || 0),
+				},
+				khmer: {
+					textShaper: r(khmer?.get("text-shaper") || 0),
+					harfbuzzjs: r(khmer?.get("harfbuzzjs") || 0),
+					opentypeJs: r(khmer?.get("opentype.js") || 0),
+				},
+				thai: {
+					textShaper: r(thai?.get("text-shaper") || 0),
+					harfbuzzjs: r(thai?.get("harfbuzzjs") || 0),
+					opentypeJs: r(thai?.get("opentype.js") || 0),
+				},
+			},
+			greek: {
+				greek: {
+					textShaper: r(greek?.get("text-shaper") || 0),
+					harfbuzzjs: r(greek?.get("harfbuzzjs") || 0),
+					opentypeJs: r(greek?.get("opentype.js") || 0),
+				},
+			},
+			caching: {
+				hello: {
+					textShaper: r(cachingHello?.get("text-shaper (repeat)") || 0),
+					harfbuzzjs: r(cachingHello?.get("harfbuzzjs") || 0),
+					firstCall: r(cachingHello?.get("text-shaper (first)") || 0),
+				},
+				paragraph: {
+					textShaper: r(cachingPara?.get("text-shaper (repeat)") || 0),
+					harfbuzzjs: r(cachingPara?.get("harfbuzzjs") || 0),
+					firstCall: r(cachingPara?.get("text-shaper (first)") || 0),
+				},
+				glyphPath: {
+					textShaper: r(glyphPathCache?.get("cached") || 0),
+					firstCall: r(glyphPathCache?.get("uncached") || 0),
+				},
+			},
+			simulation: {
+				ui: {
+					textShaper: r(uiSim?.get("text-shaper") || 0),
+					harfbuzzjs: r(uiSim?.get("harfbuzzjs") || 0),
+				},
+				document: {
+					textShaper: r(docSim?.get("text-shaper") || 0),
+					harfbuzzjs: r(docSim?.get("harfbuzzjs") || 0),
+				},
+			},
+			raster: {
+				"12px": {
+					textShaper: r(raster12?.get("text-shaper") || 0),
+					freetype2: r(raster12?.get("freetype2") || 0),
+				},
+				"24px": {
+					textShaper: r(raster24?.get("text-shaper") || 0),
+					freetype2: r(raster24?.get("freetype2") || 0),
+				},
+				"48px": {
+					textShaper: r(raster48?.get("text-shaper") || 0),
+					freetype2: r(raster48?.get("freetype2") || 0),
+				},
+				"96px": {
+					textShaper: r(raster96?.get("text-shaper") || 0),
+					freetype2: r(raster96?.get("freetype2") || 0),
+				},
+				"200px": {
+					textShaper: r(raster200?.get("text-shaper") || 0),
+					freetype2: r(raster200?.get("freetype2") || 0),
+				},
+			},
+			rasterModes: {
+				lcd24px: {
+					textShaper: r(lcd24?.get("text-shaper") || 0),
+					freetype2: r(lcd24?.get("freetype2") || 0),
+				},
+				hinted12px: {
+					textShaper: r(hinted12?.get("text-shaper") || 0),
+					freetype2: r(hinted12?.get("freetype2") || 0),
+				},
+			},
+			throughput: {
+				"62glyphs16px": {
+					textShaper: r(throughput62?.get("text-shaper") || 0),
+					freetype2: r(throughput62?.get("freetype2") || 0),
+				},
+				varyingSizes: {
+					textShaper: r(varyingSizes?.get("text-shaper") || 0),
+					freetype2: r(varyingSizes?.get("freetype2") || 0),
+				},
+				veryLarge: {
+					textShaper: r(raster200?.get("text-shaper") || 0),
+					freetype2: r(raster200?.get("freetype2") || 0),
+				},
+			},
+			features: {
+				noFeatures: {
+					textShaper: r(noFeatures?.get("text-shaper") || 0),
+					harfbuzzjs: r(noFeatures?.get("harfbuzzjs") || 0),
+				},
+				liga: {
+					textShaper: r(liga?.get("text-shaper") || 0),
+					harfbuzzjs: r(liga?.get("harfbuzzjs") || 0),
+				},
+				kern: {
+					textShaper: r(kern?.get("text-shaper") || 0),
+					harfbuzzjs: r(kern?.get("harfbuzzjs") || 0),
+				},
+				smcp: {
+					textShaper: r(smcp?.get("text-shaper") || 0),
+					harfbuzzjs: r(smcp?.get("harfbuzzjs") || 0),
+				},
+				onum: {
+					textShaper: r(onum?.get("text-shaper") || 0),
+					harfbuzzjs: r(onum?.get("harfbuzzjs") || 0),
+				},
+				tnum: {
+					textShaper: r(tnum?.get("text-shaper") || 0),
+					harfbuzzjs: r(tnum?.get("harfbuzzjs") || 0),
+				},
+				frac: {
+					textShaper: r(frac?.get("text-shaper") || 0),
+					harfbuzzjs: r(frac?.get("harfbuzzjs") || 0),
+				},
+				allCommon: {
+					textShaper: r(allCommon?.get("text-shaper") || 0),
+					harfbuzzjs: r(allCommon?.get("harfbuzzjs") || 0),
+				},
+			},
+			graphemes: {
+				ascii: {
+					textShaper: r(graphAscii?.get("text-shaper") || 0),
+				},
+				emojiSimple: {
+					textShaper: r(graphEmojiSimple?.get("text-shaper") || 0),
+				},
+				emojiZwj: {
+					textShaper: r(graphEmojiZwj?.get("text-shaper") || 0),
+				},
+				devanagari: {
+					textShaper: r(graphDevanagari?.get("text-shaper") || 0),
+				},
+				mixed: {
+					textShaper: r(graphMixed?.get("text-shaper") || 0),
+				},
+				splitEmojiZwj: {
+					textShaper: r(graphSplit?.get("text-shaper") || 0),
+				},
 			},
 		},
 	}
