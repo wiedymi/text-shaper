@@ -70,9 +70,24 @@ describe("Cluster Iteration Benchmark", () => {
 					),
 				)
 
+				// Intl.Segmenter comparison
+				const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" })
+				results.push(
+					measure(
+						"Intl.Segmenter",
+						() => {
+							let count = 0
+							for (const _ of segmenter.segment(text)) {
+								count++
+							}
+						},
+						{ iterations: name.startsWith("long") ? 100 : 1000 },
+					),
+				)
+
 				const graphemeCount = countGraphemes(text)
 				printComparison(`Count Graphemes - ${name} (${text.length} chars, ${graphemeCount} graphemes)`, results, "text-shaper")
-				expect(results.length).toBe(1)
+				expect(results.length).toBe(2)
 			})
 		}
 	})
@@ -92,9 +107,24 @@ describe("Cluster Iteration Benchmark", () => {
 					),
 				)
 
+				// Intl.Segmenter comparison
+				const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" })
+				results.push(
+					measure(
+						"Intl.Segmenter",
+						() => {
+							const result: string[] = []
+							for (const seg of segmenter.segment(text)) {
+								result.push(seg.segment)
+							}
+						},
+						{ iterations: name.startsWith("long") ? 100 : 500 },
+					),
+				)
+
 				const graphemes = splitGraphemes(text)
 				printComparison(`Split Graphemes - ${name} (${graphemes.length} graphemes)`, results, "text-shaper")
-				expect(results.length).toBe(1)
+				expect(results.length).toBe(2)
 			})
 		}
 	})

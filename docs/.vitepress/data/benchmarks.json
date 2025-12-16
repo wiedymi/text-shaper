@@ -1,7 +1,7 @@
 {
 	"meta": {
-		"generatedAt": "2025-12-16T08:50:31.112Z",
-		"runs": 1,
+		"generatedAt": "2025-12-16T08:53:38.367Z",
+		"runs": 3,
 		"environment": {
 			"platform": "MacBook Pro M1 Pro",
 			"memory": "16 GB",
@@ -10,319 +10,319 @@
 	},
 	"path": {
 		"extraction": {
-			"textShaper": 2220000,
-			"opentypeJs": 151470,
-			"harfbuzzjs": 55010
+			"textShaper": 2270000,
+			"opentypeJs": 151083,
+			"harfbuzzjs": 55070
 		},
 		"svgGeneration": {
-			"textShaper": 1870000,
-			"opentypeJs": 18170,
-			"harfbuzzjs": 83600
+			"textShaper": 1990000,
+			"opentypeJs": 19723,
+			"harfbuzzjs": 83097
 		},
 		"textToSvgHello": {
-			"textShaper": 164240,
-			"opentypeJs": 11710,
-			"harfbuzzjs": 46070
+			"textShaper": 163457,
+			"opentypeJs": 11993,
+			"harfbuzzjs": 49040
 		},
 		"textToSvgParagraph": {
-			"textShaper": 42060,
-			"opentypeJs": 1750,
-			"harfbuzzjs": 7850
+			"textShaper": 42427,
+			"opentypeJs": 1733,
+			"harfbuzzjs": 7727
 		}
 	},
 	"shaping": {
 		"english1056": {
-			"textShaper": 7740,
-			"harfbuzzjs": 5330
+			"textShaper": 7880,
+			"harfbuzzjs": 5280
 		},
 		"myanmar1916": {
-			"textShaper": 3890,
-			"harfbuzzjs": 385
+			"textShaper": 4117,
+			"harfbuzzjs": 391
 		},
 		"arabic1121": {
-			"textShaper": 4080,
-			"harfbuzzjs": 3550
+			"textShaper": 4177,
+			"harfbuzzjs": 3647
 		}
 	},
 	"caching": {
 		"hello": {
-			"textShaper": 283520,
-			"harfbuzzjs": 190780
+			"textShaper": 303443,
+			"harfbuzzjs": 118837
 		},
 		"paragraph": {
-			"textShaper": 40830,
-			"harfbuzzjs": 26250
+			"textShaper": 40373,
+			"harfbuzzjs": 25450
 		},
 		"uiSimulation": {
-			"textShaper": 70950,
-			"harfbuzzjs": 8780
+			"textShaper": 75473,
+			"harfbuzzjs": 10987
 		}
 	},
 	"rasterization": {
 		"12px": {
-			"textShaper": 49750,
-			"freetype2": 25820
+			"textShaper": 48570,
+			"freetype2": 26450
 		},
 		"24px": {
-			"textShaper": 44080,
-			"freetype2": 17780
+			"textShaper": 43737,
+			"freetype2": 18040
 		},
 		"48px": {
-			"textShaper": 26540,
-			"freetype2": 7900
+			"textShaper": 25760,
+			"freetype2": 8087
 		},
 		"96px": {
-			"textShaper": 16040,
-			"freetype2": 2620
+			"textShaper": 15260,
+			"freetype2": 2627
 		},
 		"200px": {
-			"textShaper": 8120,
-			"freetype2": 654
+			"textShaper": 7743,
+			"freetype2": 670
 		}
 	},
 	"benchmarks": {
 		"path": {
 			"extraction": {
-				"textShaper": 2220000,
-				"opentypeJs": 151470,
-				"harfbuzzjs": 55010
+				"textShaper": 2270000,
+				"opentypeJs": 151083,
+				"harfbuzzjs": 55070
 			},
 			"svgGeneration": {
-				"textShaper": 1870000,
-				"opentypeJs": 18170,
-				"harfbuzzjs": 83600
+				"textShaper": 1990000,
+				"opentypeJs": 19723,
+				"harfbuzzjs": 83097
 			},
 			"textToSvgHello": {
-				"textShaper": 164240,
-				"opentypeJs": 11710,
-				"harfbuzzjs": 46070
+				"textShaper": 163457,
+				"opentypeJs": 11993,
+				"harfbuzzjs": 49040
 			},
 			"textToSvgParagraph": {
-				"textShaper": 42060,
-				"opentypeJs": 1750,
-				"harfbuzzjs": 7850
+				"textShaper": 42427,
+				"opentypeJs": 1733,
+				"harfbuzzjs": 7727
 			}
 		},
 		"basic": {
 			"ltrNoFeatures": {
-				"textShaper": 59710,
-				"harfbuzzjs": 64580
+				"textShaper": 57470,
+				"harfbuzzjs": 62553
 			},
 			"ligaKern": {
-				"textShaper": 93970,
-				"harfbuzzjs": 100930
+				"textShaper": 98327,
+				"harfbuzzjs": 106773
 			},
 			"manyFeatures": {
-				"textShaper": 85860,
-				"harfbuzzjs": 96220
+				"textShaper": 85343,
+				"harfbuzzjs": 94857
 			}
 		},
 		"cyrillic": {
 			"russian": {
-				"textShaper": 20090,
-				"harfbuzzjs": 18380,
-				"opentypeJs": 794
+				"textShaper": 21833,
+				"harfbuzzjs": 18763,
+				"opentypeJs": 797
 			},
 			"ukrainian": {
-				"textShaper": 29290,
-				"harfbuzzjs": 22760,
+				"textShaper": 27107,
+				"harfbuzzjs": 23047,
 				"opentypeJs": 1220
 			},
 			"belarusian": {
-				"textShaper": 32050,
-				"harfbuzzjs": 25380,
-				"opentypeJs": 1470
+				"textShaper": 29970,
+				"harfbuzzjs": 25717,
+				"opentypeJs": 1427
 			}
 		},
 		"cjk": {
 			"chinese": {
-				"textShaper": 66840,
-				"harfbuzzjs": 49980,
-				"opentypeJs": 5590
+				"textShaper": 68133,
+				"harfbuzzjs": 50960,
+				"opentypeJs": 5610
 			},
 			"japanese": {
-				"textShaper": 45790,
-				"harfbuzzjs": 35070,
-				"opentypeJs": 3630
+				"textShaper": 46327,
+				"harfbuzzjs": 35313,
+				"opentypeJs": 3547
 			},
 			"korean": {
-				"textShaper": 36360,
-				"harfbuzzjs": 26460,
-				"opentypeJs": 3220
+				"textShaper": 37133,
+				"harfbuzzjs": 26630,
+				"opentypeJs": 3210
 			}
 		},
 		"latin": {
 			"english": {
-				"textShaper": 7740,
-				"harfbuzzjs": 5330,
-				"opentypeJs": 614
+				"textShaper": 7880,
+				"harfbuzzjs": 5280,
+				"opentypeJs": 623
 			}
 		},
 		"rtl": {
 			"arabic": {
-				"textShaper": 4080,
-				"harfbuzzjs": 3550,
-				"opentypeJs": 54
+				"textShaper": 4177,
+				"harfbuzzjs": 3647,
+				"opentypeJs": 55
 			},
 			"hebrew": {
-				"textShaper": 10570,
-				"harfbuzzjs": 8180,
-				"opentypeJs": 549
+				"textShaper": 10503,
+				"harfbuzzjs": 8200,
+				"opentypeJs": 560
 			}
 		},
 		"complex": {
 			"hindi": {
-				"textShaper": 4720,
-				"harfbuzzjs": 1470,
-				"opentypeJs": 500
+				"textShaper": 4780,
+				"harfbuzzjs": 1497,
+				"opentypeJs": 519
 			},
 			"myanmar": {
-				"textShaper": 3890,
-				"harfbuzzjs": 385,
-				"opentypeJs": 248
+				"textShaper": 4117,
+				"harfbuzzjs": 391,
+				"opentypeJs": 256
 			},
 			"khmer": {
-				"textShaper": 4870,
-				"harfbuzzjs": 2150,
-				"opentypeJs": 626
+				"textShaper": 4853,
+				"harfbuzzjs": 2143,
+				"opentypeJs": 631
 			},
 			"thai": {
-				"textShaper": 5850,
-				"harfbuzzjs": 3470,
-				"opentypeJs": 480
+				"textShaper": 6063,
+				"harfbuzzjs": 3497,
+				"opentypeJs": 484
 			}
 		},
 		"greek": {
 			"greek": {
-				"textShaper": 21790,
-				"harfbuzzjs": 17990,
-				"opentypeJs": 800
+				"textShaper": 23493,
+				"harfbuzzjs": 18250,
+				"opentypeJs": 783
 			}
 		},
 		"caching": {
 			"hello": {
-				"textShaper": 283520,
-				"harfbuzzjs": 190780,
-				"firstCall": 28070
+				"textShaper": 303443,
+				"harfbuzzjs": 118837,
+				"firstCall": 25230
 			},
 			"paragraph": {
-				"textShaper": 40830,
-				"harfbuzzjs": 26250,
-				"firstCall": 6170
+				"textShaper": 40373,
+				"harfbuzzjs": 25450,
+				"firstCall": 5247
 			},
 			"glyphPath": {
-				"textShaper": 6590000,
-				"firstCall": 1060
+				"textShaper": 7106667,
+				"firstCall": 1263
 			}
 		},
 		"simulation": {
 			"ui": {
-				"textShaper": 70950,
-				"harfbuzzjs": 8780
+				"textShaper": 75473,
+				"harfbuzzjs": 10987
 			},
 			"document": {
-				"textShaper": 24680,
-				"harfbuzzjs": 34020
+				"textShaper": 23220,
+				"harfbuzzjs": 34140
 			}
 		},
 		"raster": {
 			"12px": {
-				"textShaper": 49750,
-				"freetype2": 25820
+				"textShaper": 48570,
+				"freetype2": 26450
 			},
 			"24px": {
-				"textShaper": 44080,
-				"freetype2": 17780
+				"textShaper": 43737,
+				"freetype2": 18040
 			},
 			"48px": {
-				"textShaper": 26540,
-				"freetype2": 7900
+				"textShaper": 25760,
+				"freetype2": 8087
 			},
 			"96px": {
-				"textShaper": 16040,
-				"freetype2": 2620
+				"textShaper": 15260,
+				"freetype2": 2627
 			},
 			"200px": {
-				"textShaper": 8120,
-				"freetype2": 654
+				"textShaper": 7743,
+				"freetype2": 670
 			}
 		},
 		"rasterModes": {
 			"lcd24px": {
-				"textShaper": 46050,
-				"freetype2": 21370
+				"textShaper": 44150,
+				"freetype2": 22083
 			},
 			"hinted12px": {
-				"textShaper": 85030,
-				"freetype2": 25280
+				"textShaper": 81123,
+				"freetype2": 26860
 			}
 		},
 		"throughput": {
 			"62glyphs16px": {
-				"textShaper": 4270,
-				"freetype2": 1710
+				"textShaper": 4177,
+				"freetype2": 1730
 			},
 			"varyingSizes": {
-				"textShaper": 12410,
-				"freetype2": 3330
+				"textShaper": 11953,
+				"freetype2": 3320
 			},
 			"veryLarge": {
-				"textShaper": 8120,
-				"freetype2": 654
+				"textShaper": 7743,
+				"freetype2": 670
 			}
 		},
 		"features": {
 			"noFeatures": {
-				"textShaper": 59710,
-				"harfbuzzjs": 64580
+				"textShaper": 57470,
+				"harfbuzzjs": 62553
 			},
 			"liga": {
-				"textShaper": 176590,
-				"harfbuzzjs": 147850
+				"textShaper": 197520,
+				"harfbuzzjs": 124593
 			},
 			"kern": {
-				"textShaper": 107990,
-				"harfbuzzjs": 178530
+				"textShaper": 115090,
+				"harfbuzzjs": 168507
 			},
 			"smcp": {
-				"textShaper": 226660,
-				"harfbuzzjs": 190720
+				"textShaper": 253603,
+				"harfbuzzjs": 191233
 			},
 			"onum": {
-				"textShaper": 286370,
-				"harfbuzzjs": 292730
+				"textShaper": 311577,
+				"harfbuzzjs": 293497
 			},
 			"tnum": {
-				"textShaper": 344780,
-				"harfbuzzjs": 226890
+				"textShaper": 405233,
+				"harfbuzzjs": 358277
 			},
 			"frac": {
-				"textShaper": 339930,
-				"harfbuzzjs": 205740
+				"textShaper": 383850,
+				"harfbuzzjs": 202103
 			},
 			"allCommon": {
-				"textShaper": 93970,
-				"harfbuzzjs": 100930
+				"textShaper": 98327,
+				"harfbuzzjs": 106773
 			}
 		},
 		"graphemes": {
 			"ascii": {
-				"textShaper": 365830
+				"textShaper": 373860
 			},
 			"emojiSimple": {
-				"textShaper": 2570000
+				"textShaper": 3176667
 			},
 			"emojiZwj": {
-				"textShaper": 650730
+				"textShaper": 635407
 			},
 			"devanagari": {
-				"textShaper": 632180
+				"textShaper": 666640
 			},
 			"mixed": {
-				"textShaper": 243650
+				"textShaper": 250820
 			},
 			"splitEmojiZwj": {
-				"textShaper": 516680
+				"textShaper": 507630
 			}
 		}
 	}

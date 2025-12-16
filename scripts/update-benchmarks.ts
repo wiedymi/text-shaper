@@ -549,21 +549,27 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 			graphemes: {
 				ascii: {
 					textShaper: r(graphAscii?.get("text-shaper") || 0),
+					intlSegmenter: r(graphAscii?.get("Intl.Segmenter") || 0),
 				},
 				emojiSimple: {
 					textShaper: r(graphEmojiSimple?.get("text-shaper") || 0),
+					intlSegmenter: r(graphEmojiSimple?.get("Intl.Segmenter") || 0),
 				},
 				emojiZwj: {
 					textShaper: r(graphEmojiZwj?.get("text-shaper") || 0),
+					intlSegmenter: r(graphEmojiZwj?.get("Intl.Segmenter") || 0),
 				},
 				devanagari: {
 					textShaper: r(graphDevanagari?.get("text-shaper") || 0),
+					intlSegmenter: r(graphDevanagari?.get("Intl.Segmenter") || 0),
 				},
 				mixed: {
 					textShaper: r(graphMixed?.get("text-shaper") || 0),
+					intlSegmenter: r(graphMixed?.get("Intl.Segmenter") || 0),
 				},
 				splitEmojiZwj: {
 					textShaper: r(graphSplit?.get("text-shaper") || 0),
+					intlSegmenter: r(graphSplit?.get("Intl.Segmenter") || 0),
 				},
 			},
 		},
