@@ -596,12 +596,22 @@ export class GrayRaster {
 		fillRule: FillRule = FillRuleEnum.NonZero,
 		userData?: T,
 	): void {
-		for (const { y, cells } of this.cells.iterateCells()) {
+		const ycells = this.cells.getYCells();
+		const pool = this.cells.getPool();
+		const nullIndex = this.cells.getNullIndex();
+		const bandMinY = this.cells.getBandMinY();
+
+		for (let i = 0; i < ycells.length; i++) {
+			let cellIndex = ycells[i];
+			if (cellIndex === nullIndex) continue;
+
+			const y = bandMinY + i;
 			const spans: Span[] = [];
 			let cover = 0;
 			let spanStart = -1;
 
-			for (const cell of cells) {
+			while (cellIndex !== nullIndex) {
+				const cell = pool[cellIndex];
 				// If we have cover, emit span
 				if (cover !== 0 && cell.x > spanStart + 1) {
 					const gray = this.applyFillRule(cover, fillRule);
@@ -624,6 +634,7 @@ export class GrayRaster {
 
 				cover += cell.cover;
 				spanStart = cell.x;
+				cellIndex = cell.next;
 			}
 
 			if (spans.length > 0) {
@@ -649,12 +660,21 @@ export class GrayRaster {
 		userData?: T,
 	): void {
 		const spanBuffer: Span[] = [];
+		const ycells = this.cells.getYCells();
+		const pool = this.cells.getPool();
+		const nullIndex = this.cells.getNullIndex();
+		const bandMinY = this.cells.getBandMinY();
 
-		for (const { y, cells } of this.cells.iterateCells()) {
+		for (let i = 0; i < ycells.length; i++) {
+			let cellIndex = ycells[i];
+			if (cellIndex === nullIndex) continue;
+
+			const y = bandMinY + i;
 			let cover = 0;
 			let x = minX;
 
-			for (const cell of cells) {
+			while (cellIndex !== nullIndex) {
+				const cell = pool[cellIndex];
 				// Fill span from previous x to current cell
 				if (cover !== 0 && cell.x > x) {
 					const gray = this.applyFillRule(cover, fillRule);
@@ -683,6 +703,7 @@ export class GrayRaster {
 
 				cover += cell.cover;
 				x = cell.x + 1;
+				cellIndex = cell.next;
 			}
 
 			// Fill remaining span
@@ -881,18 +902,30 @@ export class GrayRaster {
 	): void {
 		const pitch = bitmap.pitch;
 		const origin = pitch < 0 ? (bitmap.rows - 1) * -pitch : 0;
+		const ycells = this.cells.getYCells();
+		const pool = this.cells.getPool();
+		const nullIndex = this.cells.getNullIndex();
+		const bandMinY = this.cells.getBandMinY();
 
 		for (let y = minY; y < maxY; y++) {
 			if (y < 0 || y >= bitmap.rows) continue;
+
+			const rowIndex = y - bandMinY;
+			if (rowIndex < 0 || rowIndex >= ycells.length) continue;
+
+			let cellIndex = ycells[rowIndex];
+			if (cellIndex === nullIndex) continue;
 
 			let cover = 0;
 			let x = minX;
 			const row = pitch < 0 ? origin - y * -pitch : y * pitch;
 
-			for (const cell of this.cells.iterateRowCells(y)) {
+			while (cellIndex !== nullIndex) {
+				const cell = pool[cellIndex];
 				// Skip cells outside X clip
 				if (cell.x < minX) {
 					cover += cell.cover;
+					cellIndex = cell.next;
 					continue;
 				}
 				if (cell.x >= maxX) {
@@ -933,6 +966,7 @@ export class GrayRaster {
 
 				cover += cell.cover;
 				x = cell.x + 1;
+				cellIndex = cell.next;
 			}
 
 			// Fill remaining span within X clip

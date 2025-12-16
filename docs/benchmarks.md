@@ -13,15 +13,15 @@
   { category: 'Myanmar Shaping', vsHarfbuzz: '10.5x faster', vsOpentype: '17x faster', highlight: true },
   { category: 'Khmer Shaping', vsHarfbuzz: '2.1x faster', vsOpentype: '8x faster', highlight: true },
   { category: 'UI Simulation', vsHarfbuzz: '4.8x faster', highlight: true },
-  { category: 'Rasterization', vsFreetype: '1.6-11x faster', highlight: true },
+  { category: 'Rasterization', vsFreetype: '1.6-15x faster', highlight: true },
   { category: 'Cache Benefits', improvement: '12x speedup on repeated shaping' }
 ]" />
 
 <div class="env-info">
   <span>MacBook Pro M1 Pro</span>
   <span>16 GB</span>
-  <span>Bun 1.3.3</span>
-  <span>text-shaper 0.1.3</span>
+  <span>Bun 1.3.4</span>
+  <span>text-shaper 0.1.4</span>
 </div>
 
 ## Glyph Paths
@@ -218,60 +218,60 @@ Shape plan caching provides significant speedups for repeated shaping.
 
 ## Rasterization
 
-Compared against FreeType2 (WebAssembly). TextShaper is 1.6-11x faster at all sizes.
+Compared against FreeType2 (WebAssembly). TextShaper is 1.6-15x faster at all sizes.
 
 <BenchmarkChart title="12px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 18520 },
-  { name: 'freetype2', opsPerSec: 11450 }
+  { name: 'text-shaper', opsPerSec: 34540 },
+  { name: 'freetype2', opsPerSec: 22080 }
 ]" />
 
 <BenchmarkChart title="24px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 38950 },
-  { name: 'freetype2', opsPerSec: 16560 }
+  { name: 'text-shaper', opsPerSec: 35720 },
+  { name: 'freetype2', opsPerSec: 15890 }
 ]" />
 
 <BenchmarkChart title="48px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 26770 },
-  { name: 'freetype2', opsPerSec: 6390 }
+  { name: 'text-shaper', opsPerSec: 22780 },
+  { name: 'freetype2', opsPerSec: 7790 }
 ]" />
 
 <BenchmarkChart title="96px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 13260 },
-  { name: 'freetype2', opsPerSec: 2040 }
+  { name: 'text-shaper', opsPerSec: 12990 },
+  { name: 'freetype2', opsPerSec: 2400 }
 ]" />
 
 <BenchmarkChart title="200px grayscale (5 glyphs)" :results="[
-  { name: 'text-shaper', opsPerSec: 6780 },
-  { name: 'freetype2', opsPerSec: 614 }
+  { name: 'text-shaper', opsPerSec: 8260 },
+  { name: 'freetype2', opsPerSec: 551 }
 ]" />
 
 ### Render Modes
 
 <BenchmarkChart title="LCD subpixel (24px)" :results="[
-  { name: 'text-shaper', opsPerSec: 38810 },
-  { name: 'freetype2', opsPerSec: 14310 }
+  { name: 'text-shaper', opsPerSec: 37310 },
+  { name: 'freetype2', opsPerSec: 20300 }
 ]" />
 
 <BenchmarkChart title="Hinted (12px)" :results="[
-  { name: 'text-shaper', opsPerSec: 71690 },
-  { name: 'freetype2', opsPerSec: 19880 }
+  { name: 'text-shaper', opsPerSec: 76540 },
+  { name: 'freetype2', opsPerSec: 25390 }
 ]" />
 
 ### Throughput
 
 <BenchmarkChart title="62 glyphs at 16px" :results="[
-  { name: 'text-shaper', opsPerSec: 3470 },
-  { name: 'freetype2', opsPerSec: 435 }
+  { name: 'text-shaper', opsPerSec: 3870 },
+  { name: 'freetype2', opsPerSec: 1650 }
 ]" />
 
 <BenchmarkChart title="Varying sizes - 15 sizes per iteration" :results="[
-  { name: 'text-shaper', opsPerSec: 10940 },
-  { name: 'freetype2', opsPerSec: 2530 }
+  { name: 'text-shaper', opsPerSec: 12690 },
+  { name: 'freetype2', opsPerSec: 3240 }
 ]" />
 
 <BenchmarkChart title="Very large - 5 glyphs at 200px" :results="[
-  { name: 'text-shaper', opsPerSec: 6780 },
-  { name: 'freetype2', opsPerSec: 614 }
+  { name: 'text-shaper', opsPerSec: 8260 },
+  { name: 'freetype2', opsPerSec: 551 }
 ]" />
 
 ## OpenType Features

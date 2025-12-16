@@ -781,9 +781,11 @@ type FlatSegment = [Point, Point];
  */
 function preFlattenContours(contours: MsdfEdge[][]): FlatSegment[][] {
 	const result: FlatSegment[][] = [];
-	for (const contour of contours) {
+	for (let ci = 0; ci < contours.length; ci++) {
+		const contour = contours[ci];
 		const segments: FlatSegment[] = [];
-		for (const edge of contour) {
+		for (let ei = 0; ei < contour.length; ei++) {
+			const edge = contour[ei];
 			if (edge.type === "line") {
 				segments.push([edge.p0, edge.p1]);
 			} else if (edge.type === "quadratic") {
@@ -838,8 +840,10 @@ function isPointInsideFast(
 	flatContours: FlatSegment[][],
 ): boolean {
 	let crossings = 0;
-	for (const segments of flatContours) {
-		for (const [p0, p1] of segments) {
+	for (let i = 0; i < flatContours.length; i++) {
+		const segments = flatContours[i];
+		for (let j = 0; j < segments.length; j++) {
+			const [p0, p1] = segments[j];
 			if (p0.y > py !== p1.y > py) {
 				const x = p0.x + ((p1.x - p0.x) * (py - p0.y)) / (p1.y - p0.y);
 				if (px < x) crossings++;
@@ -854,7 +858,8 @@ function isPointInsideFast(
  */
 function findMinDistance(px: number, py: number, edges: MsdfEdge[]): number {
 	let minDist = Infinity;
-	for (const edge of edges) {
+	for (let i = 0; i < edges.length; i++) {
+		const edge = edges[i];
 		// Bounding box culling - compute distance to bbox
 		const dx =
 			px < edge.minX ? edge.minX - px : px > edge.maxX ? px - edge.maxX : 0;
