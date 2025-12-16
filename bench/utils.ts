@@ -12,7 +12,7 @@ export function measure(
 	fn: () => void,
 	options: { warmup?: number; iterations?: number; batchSize?: number } = {},
 ): BenchResult {
-	const { warmup = 200, iterations = 5, batchSize = 2000 } = options
+	const { warmup = 100, iterations = 3, batchSize = 1000 } = options
 
 	// Warmup - more iterations to ensure JIT optimization
 	for (let i = 0; i < warmup; i++) {
