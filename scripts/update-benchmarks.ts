@@ -163,12 +163,12 @@ function buildJsonData(averages: Map<string, Map<string, number>>): object {
 	const cachingPara = getResult(averages, /Repeated Shaping - paragraph/)
 	const uiSim = getResult(averages, "UI Simulation - 8 labels")
 
-	// Rasterization
-	const raster12 = getResult(averages, /12px grayscale/)
-	const raster24 = getResult(averages, /24px grayscale/)
-	const raster48 = getResult(averages, /48px grayscale/)
-	const raster96 = getResult(averages, /96px grayscale/)
-	const raster200 = getResult(averages, /200px grayscale|Very large/)
+	// Rasterization (case-insensitive)
+	const raster12 = getResult(averages, /12px Grayscale/i)
+	const raster24 = getResult(averages, /24px Grayscale/i)
+	const raster48 = getResult(averages, /48px Grayscale/i)
+	const raster96 = getResult(averages, /96px Grayscale/i)
+	const raster200 = getResult(averages, /200px|Very large/i)
 
 	// Shaping - find English and Myanmar paragraphs
 	let englishOps = { ts: 0, hb: 0 }
