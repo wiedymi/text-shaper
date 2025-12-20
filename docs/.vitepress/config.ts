@@ -80,7 +80,8 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/wiedymi/text-shaper' }
+      { icon: 'github', link: 'https://github.com/wiedymi/text-shaper' },
+      { icon: 'npm', link: 'https://www.npmjs.com/package/text-shaper' }
     ]
   },
   markdown: {
