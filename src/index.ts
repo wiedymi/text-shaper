@@ -7,6 +7,57 @@ export {
 	processLigature,
 	processRearrangement,
 } from "./aat/state-machine.ts";
+// TrueType hinting
+export {
+	// Interpreter
+	execute,
+	runCVTProgram,
+	runFontProgram,
+	runGlyphProgram,
+	runProgram,
+	setCodeRange,
+	// Programs
+	createHintingEngine,
+	executeFontProgram,
+	type GlyphOutline,
+	type HintedGlyph,
+	type HintingEngine,
+	hintedToPixels,
+	hintGlyph,
+	loadCVTProgram,
+	loadFontProgram,
+	setSize,
+	// Rounding
+	compensate,
+	parseSuperRound,
+	round,
+	roundDownToGrid,
+	roundOff,
+	roundSuper,
+	roundSuper45,
+	roundToDoubleGrid,
+	roundToGrid,
+	roundToHalfGrid,
+	roundUpToGrid,
+	// Types
+	type CallRecord,
+	CodeRange,
+	createDefaultGraphicsState,
+	createExecContext,
+	createGlyphZone,
+	type ExecContext,
+	type F2Dot14,
+	type F26Dot6,
+	type FunctionDef,
+	type GlyphZone,
+	type GraphicsState,
+	type InstructionDef,
+	Opcode,
+	type Point as HintingPoint,
+	RoundMode,
+	TouchFlag,
+	type UnitVector,
+} from "./hinting/index.ts";
 export { GlyphBuffer } from "./buffer/glyph-buffer.ts";
 // Buffers
 export { UnicodeBuffer } from "./buffer/unicode-buffer.ts";
@@ -83,6 +134,24 @@ export { createFace, Face } from "./font/face.ts";
 export { Font, type FontLoadOptions } from "./font/font.ts";
 export type { AvarTable, AxisSegmentMap } from "./font/tables/avar.ts";
 export { applyAvar, applyAvarMapping } from "./font/tables/avar.ts";
+// BASE table (baseline alignment)
+export type {
+	AxisTable as BaseAxisTable,
+	BaselineValue,
+	BaseScriptRecord,
+	BaseTable,
+	BaseValues,
+	FeatMinMaxRecord,
+	MinMax,
+	MinMaxRecord,
+} from "./font/tables/base.ts";
+export {
+	BaselineTag,
+	getBaselineForScript,
+	getDefaultBaseline,
+	getMinMaxExtent,
+	parseBase,
+} from "./font/tables/base.ts";
 // CBDT/CBLC (Google color bitmap) tables
 export type {
 	BitmapGlyph,
@@ -105,6 +174,29 @@ export {
 	executeCffCharString,
 	getCffGlyphWidth,
 } from "./font/tables/cff-charstring.ts";
+// CFF table
+export type {
+	CffTable,
+	FDDict,
+	FDSelect,
+	PrivateDict,
+	TopDict,
+} from "./font/tables/cff.ts";
+export { getCffString, parseCff } from "./font/tables/cff.ts";
+// CFF2 table (variable fonts)
+export type {
+	Cff2FDDict,
+	Cff2FDSelect,
+	Cff2PrivateDict,
+	Cff2Table,
+	Cff2TopDict,
+	ItemVariationData as Cff2ItemVariationData,
+	ItemVariationStore as Cff2ItemVariationStore,
+	RegionAxisCoordinates as Cff2RegionAxisCoordinates,
+	VariationRegion as Cff2VariationRegion,
+	VariationRegionList,
+} from "./font/tables/cff2.ts";
+export { calculateVariationDelta, parseCff2 } from "./font/tables/cff2.ts";
 export type { CmapTable } from "./font/tables/cmap.ts";
 // COLR/CPAL color tables
 export type {
@@ -162,7 +254,7 @@ export {
 // AAT feat table
 export type {
 	FeatTable,
-	FeatureRecord,
+	FeatureRecord as AatFeatureRecord,
 	FeatureSetting,
 } from "./font/tables/feat.ts";
 export {
@@ -176,7 +268,7 @@ export {
 	FractionsSetting,
 	getAllFeatures,
 	getDefaultSetting,
-	getFeature,
+	getFeature as getAatFeature,
 	getSettingByValue,
 	hasSettingValue,
 	isExclusiveFeature,
@@ -198,6 +290,15 @@ export type {
 	VariationAxis,
 } from "./font/tables/fvar.ts";
 export { normalizeAxisValue } from "./font/tables/fvar.ts";
+// gasp table
+export type { GaspRange, GaspTable } from "./font/tables/gasp.ts";
+export {
+	GaspFlag,
+	getGaspBehavior,
+	parseGasp,
+	shouldDoGray,
+	shouldGridFit,
+} from "./font/tables/gasp.ts";
 // OpenType layout tables
 export type { GdefTable } from "./font/tables/gdef.ts";
 // Glyph outlines
@@ -216,6 +317,13 @@ export type {
 	TupleVariationHeader,
 } from "./font/tables/gvar.ts";
 export { calculateTupleScalar, getGlyphDelta } from "./font/tables/gvar.ts";
+// Hinting tables (fpgm, prep, cvt)
+export type {
+	CvtTable,
+	FpgmTable,
+	PrepTable,
+} from "./font/tables/hinting.ts";
+export { parseCvt, parseFpgm, parsePrep } from "./font/tables/hinting.ts";
 // Required tables
 export type { HeadTable } from "./font/tables/head.ts";
 export type { HheaTable } from "./font/tables/hhea.ts";
@@ -230,6 +338,33 @@ export { getKerxValue } from "./font/tables/kerx.ts";
 export type { LocaTable } from "./font/tables/loca.ts";
 export { getGlyphLocation, hasGlyphOutline } from "./font/tables/loca.ts";
 export type { MaxpTable } from "./font/tables/maxp.ts";
+// MATH table (mathematical typesetting)
+export type {
+	ExtendedShapeCoverage,
+	GlyphAssembly,
+	GlyphPartRecord,
+	MathConstants,
+	MathGlyphConstruction,
+	MathGlyphInfo,
+	MathItalicsCorrection,
+	MathKernInfo,
+	MathKernInfoTable,
+	MathKernRecord,
+	MathTable,
+	MathTopAccentAttachment,
+	MathValueRecord,
+	MathVariants,
+} from "./font/tables/math.ts";
+export {
+	getHorizontalAssembly,
+	getHorizontalVariants,
+	getItalicsCorrection,
+	getTopAccentAttachment,
+	getVerticalAssembly,
+	getVerticalVariants,
+	isExtendedShape,
+	parseMath,
+} from "./font/tables/math.ts";
 // AAT tables
 export type { MorxChain, MorxSubtable, MorxTable } from "./font/tables/morx.ts";
 export { applyNonContextual, MorxSubtableType } from "./font/tables/morx.ts";
@@ -242,6 +377,36 @@ export {
 	getXHeightDelta,
 	MvarTags,
 } from "./font/tables/mvar.ts";
+// name table
+export type { NameRecord, NameTable } from "./font/tables/name.ts";
+export {
+	getFontFamily,
+	getFontSubfamily,
+	getFullName,
+	getNameById,
+	getPostScriptName,
+	getVersion,
+	NameId,
+	parseName,
+	PlatformId,
+	WindowsEncodingId,
+} from "./font/tables/name.ts";
+// OS/2 table
+export type { Os2Table } from "./font/tables/os2.ts";
+export {
+	FsSelection,
+	FsType,
+	getEmbeddingPermission,
+	isBold,
+	isItalic,
+	parseOs2,
+	useTypoMetrics,
+	WeightClass,
+	WidthClass,
+} from "./font/tables/os2.ts";
+// post table
+export type { PostTable } from "./font/tables/post.ts";
+export { getGlyphName, isMonospaced, parsePost } from "./font/tables/post.ts";
 // SBIX (Apple bitmap) table
 export type { SbixGlyph, SbixStrike, SbixTable } from "./font/tables/sbix.ts";
 export {
@@ -280,6 +445,30 @@ export {
 	getSvgGlyphIds,
 	hasSvgGlyph,
 } from "./font/tables/svg.ts";
+// JSTF table (justification)
+export type {
+	JstfLangSys,
+	JstfMax,
+	JstfModList,
+	JstfPriorityRecord,
+	JstfScriptRecord,
+	JstfTable,
+} from "./font/tables/jstf.ts";
+export {
+	getExtenderGlyphs,
+	getExtensionMods,
+	getJstfPriorities,
+	getShrinkageMods,
+	JstfPriority,
+	parseJstf,
+} from "./font/tables/jstf.ts";
+// SFNT font directory
+export type { FontDirectory } from "./font/tables/sfnt.ts";
+export {
+	isCFF,
+	isTrueType,
+	parseFontDirectory,
+} from "./font/tables/sfnt.ts";
 export type { TrackData, TrakTable } from "./font/tables/trak.ts";
 export { applyTracking, getTrackingValue } from "./font/tables/trak.ts";
 // Vertical metrics tables
@@ -309,9 +498,15 @@ export {
 	justify,
 	justifyParagraph,
 } from "./layout/justify.ts";
-export type { ClassDef } from "./layout/structures/class-def.ts";
+export { ClassDef } from "./layout/structures/class-def.ts";
+export {
+	EMPTY_CLASS_DEF,
+	parseClassDef,
+	parseClassDefAt,
+} from "./layout/structures/class-def.ts";
 // Layout structures
-export type { Coverage } from "./layout/structures/coverage.ts";
+export { Coverage } from "./layout/structures/coverage.ts";
+export { parseCoverage, parseCoverageAt } from "./layout/structures/coverage.ts";
 // Device tables
 export type {
 	DeviceOrVariationIndex,
@@ -336,6 +531,30 @@ export {
 	findMatchingFeatureVariation,
 	getSubstitutedLookups,
 } from "./layout/structures/feature-variations.ts";
+// Layout common structures
+export type {
+	Feature,
+	FeatureList,
+	FeatureRecord,
+	LangSys,
+	LangSysRecord,
+	LookupHeader,
+	Script as LayoutScript,
+	ScriptList,
+	ScriptRecord,
+} from "./layout/structures/layout-common.ts";
+export {
+	findLangSys,
+	findScript,
+	getFeature,
+	getMarkAttachmentType,
+	LookupFlag,
+	parseFeatureList,
+	parseLookupHeaders,
+	parseScriptList,
+} from "./layout/structures/layout-common.ts";
+// Set digest for fast glyph coverage checking
+export { createLookupDigest, SetDigest } from "./layout/structures/set-digest.ts";
 // Asymmetric stroke (independent x/y border widths)
 export {
 	type AsymmetricStrokeOptions,
@@ -354,6 +573,44 @@ export {
 } from "./raster/atlas.ts";
 // Exact bounding box
 export { getExactBounds } from "./raster/bbox.ts";
+// Fixed-point math utilities
+export {
+	abs,
+	ceilPixel,
+	clamp,
+	divFix,
+	downscale,
+	f26Dot6ToFloat,
+	F16DOT16_ONE,
+	F16DOT16_SHIFT,
+	F26DOT6_ONE,
+	F26DOT6_SHIFT,
+	floatToF26Dot6,
+	floatToPixel,
+	floorPixel,
+	fracPixel,
+	hypot,
+	mulDiv,
+	mulFix,
+	normalizeVector,
+	ONE_PIXEL,
+	PIXEL_BITS,
+	PIXEL_MASK,
+	roundPixel,
+	sign,
+	truncPixel,
+	upscale,
+	vectorLength,
+} from "./raster/fixed-point.ts";
+// Outline decomposition
+export type { ValidationResult } from "./raster/outline-decompose.ts";
+export {
+	decomposePath,
+	getFillRuleFromFlags,
+	getPathBounds,
+	OutlineError,
+	validateOutline,
+} from "./raster/outline-decompose.ts";
 // Bitmap utilities
 export {
 	addBitmaps,
@@ -395,6 +652,15 @@ export {
 	type RadialGradient,
 	rasterizePathWithGradient,
 } from "./raster/gradient.ts";
+// LCD subpixel rendering
+export {
+	LCD_FILTER_DEFAULT,
+	LCD_FILTER_LEGACY,
+	LCD_FILTER_LIGHT,
+	lcdToRGBA,
+	LcdMode,
+	rasterizeLcd,
+} from "./raster/lcd-filter.ts";
 // MSDF (Multi-channel Signed Distance Field) rendering
 export {
 	assignEdgeColors,

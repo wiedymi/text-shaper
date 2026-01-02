@@ -173,63 +173,32 @@ function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
 	const advanceWidth = font.advanceWidth(glyphId);
 	const lsb = font.leftSideBearing(glyphId);
 
-	if (glyph.type === "simple") {
-		let pointIndex = 0;
-		for (let i = 0; i < glyph.contours.length; i++) {
-			const contour = glyph.contours[i]!;
-			for (let j = 0; j < contour.length; j++) {
-				const point = contour[j]!;
-				xCoords.push(point.x);
-				yCoords.push(point.y);
-				flags.push(point.onCurve ? 1 : 0);
-				pointIndex++;
-			}
-			contourEnds.push(pointIndex - 1);
-		}
-		return {
-			xCoords,
-			yCoords,
-			flags: new Uint8Array(flags),
-			contourEnds,
-			instructions: glyph.instructions,
-			lsb,
-			advanceWidth,
-		};
-	} else {
-		// Composite - flatten components
-		for (let i = 0; i < glyph.components.length; i++) {
-			const component = glyph.components[i]!;
-			const compGlyph = font.getGlyph(component.glyphId);
-			if (!compGlyph || compGlyph.type !== "simple") continue;
+	const contours =
+		glyph.type === "simple" ? glyph.contours : font.getGlyphContours(glyphId);
+	if (!contours || contours.length === 0) return null;
 
-			const [a, b, c, d] = component.transform;
-			const ox = component.arg1,
-				oy = component.arg2;
-			let pointOffset = xCoords.length;
-
-			for (let j = 0; j < compGlyph.contours.length; j++) {
-				const contour = compGlyph.contours[j]!;
-				for (let k = 0; k < contour.length; k++) {
-					const point = contour[k]!;
-					xCoords.push(point.x * a + point.y * c + ox);
-					yCoords.push(point.x * b + point.y * d + oy);
-					flags.push(point.onCurve ? 1 : 0);
-					pointOffset++;
-				}
-				contourEnds.push(pointOffset - 1);
-			}
+	let pointIndex = 0;
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			const point = contour[j]!;
+			xCoords.push(point.x);
+			yCoords.push(point.y);
+			flags.push(point.onCurve ? 1 : 0);
+			pointIndex++;
 		}
-		if (xCoords.length === 0) return null;
-		return {
-			xCoords,
-			yCoords,
-			flags: new Uint8Array(flags),
-			contourEnds,
-			instructions: glyph.instructions,
-			lsb,
-			advanceWidth,
-		};
+		contourEnds.push(pointIndex - 1);
 	}
+
+	return {
+		xCoords,
+		yCoords,
+		flags: new Uint8Array(flags),
+		contourEnds,
+		instructions: glyph.instructions,
+		lsb,
+		advanceWidth,
+	};
 }
 
 /** Decompose hinted glyph to rasterizer */
@@ -476,7 +445,7 @@ function rasterizeHintedGlyph(
 	raster.reset();
 
 	const offsetX = -bMinX + padding;
-	const offsetY = height - 1 + bMinY - padding;
+	const offsetY = bMaxY + padding;
 
 	decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
 	raster.sweep(tempBitmap, FillRule.NonZero);

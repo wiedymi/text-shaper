@@ -352,6 +352,106 @@ function parseCompositeGlyph(
 	};
 }
 
+function shouldScaleComponentOffset(
+	flags: uint16,
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+): boolean {
+	if (flags & CompositeFlag.UnscaledComponentOffset) return false;
+	if (flags & CompositeFlag.ScaledComponentOffset) return true;
+	return a !== 1 || b !== 0 || c !== 0 || d !== 1;
+}
+
+function flattenContoursPoints(contours: Contour[]): GlyphPoint[] {
+	const points: GlyphPoint[] = [];
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			points.push(contour[j]!);
+		}
+	}
+	return points;
+}
+
+function transformContour(
+	contour: Contour,
+	a: number,
+	b: number,
+	c: number,
+	d: number,
+	dx: number,
+	dy: number,
+): Contour {
+	const transformed: Contour = new Array(contour.length);
+	for (let i = 0; i < contour.length; i++) {
+		const point = contour[i]!;
+		const x = Math.round(a * point.x + c * point.y + dx);
+		const y = Math.round(b * point.x + d * point.y + dy);
+		const transformedPoint: GlyphPoint = { x, y, onCurve: point.onCurve };
+		if (point.cubic) transformedPoint.cubic = true;
+		transformed[i] = transformedPoint;
+	}
+	return transformed;
+}
+
+function appendComponentContours(
+	result: Contour[],
+	parentPoints: GlyphPoint[],
+	component: GlyphComponent,
+	componentContours: Contour[],
+): void {
+	const [a, b, c, d] = component.transform;
+	const hasXY = (component.flags & CompositeFlag.ArgsAreXYValues) !== 0;
+	const componentPoints = flattenContoursPoints(componentContours);
+
+	let dx = 0;
+	let dy = 0;
+
+	if (hasXY) {
+		dx = component.arg1;
+		dy = component.arg2;
+
+		if (shouldScaleComponentOffset(component.flags, a, b, c, d)) {
+			const scaledX = a * dx + c * dy;
+			const scaledY = b * dx + d * dy;
+			dx = scaledX;
+			dy = scaledY;
+		}
+
+		if (component.flags & CompositeFlag.RoundXYToGrid) {
+			dx = Math.round(dx);
+			dy = Math.round(dy);
+		}
+	} else {
+		const parentIndex = component.arg1;
+		const compIndex = component.arg2;
+		if (
+			parentIndex >= 0 &&
+			parentIndex < parentPoints.length &&
+			compIndex >= 0 &&
+			compIndex < componentPoints.length
+		) {
+			const parentPoint = parentPoints[parentIndex]!;
+			const compPoint = componentPoints[compIndex]!;
+			const compX = a * compPoint.x + c * compPoint.y;
+			const compY = b * compPoint.x + d * compPoint.y;
+			dx = parentPoint.x - compX;
+			dy = parentPoint.y - compY;
+		}
+	}
+
+	for (let i = 0; i < componentContours.length; i++) {
+		const contour = componentContours[i]!;
+		const transformedContour = transformContour(contour, a, b, c, d, dx, dy);
+		result.push(transformedContour);
+		for (let j = 0; j < transformedContour.length; j++) {
+			parentPoints.push(transformedContour[j]!);
+		}
+	}
+}
+
 /**
  * Flatten a composite glyph into simple contours
  * Recursively resolves all component glyphs and applies transformations
@@ -368,6 +468,7 @@ export function flattenCompositeGlyph(
 	}
 
 	const result: Contour[] = [];
+	const parentPoints: GlyphPoint[] = [];
 
 	for (let i = 0; i < glyph.components.length; i++) {
 		const component = glyph.components[i]!;
@@ -387,22 +488,7 @@ export function flattenCompositeGlyph(
 			continue;
 		}
 
-		// Apply transformation and offset
-		const [a, b, c, d] = component.transform;
-		const dx =
-			component.flags & CompositeFlag.ArgsAreXYValues ? component.arg1 : 0;
-		const dy =
-			component.flags & CompositeFlag.ArgsAreXYValues ? component.arg2 : 0;
-
-		for (let j = 0; j < componentContours.length; j++) {
-			const contour = componentContours[j]!;
-			const transformedContour: Contour = contour.map((point) => ({
-				x: Math.round(a * point.x + c * point.y + dx),
-				y: Math.round(b * point.x + d * point.y + dy),
-				onCurve: point.onCurve,
-			}));
-			result.push(transformedContour);
-		}
+		appendComponentContours(result, parentPoints, component, componentContours);
 	}
 
 	return result;
@@ -667,6 +753,7 @@ function flattenCompositeGlyphWithVariation(
 	}
 
 	const result: Contour[] = [];
+	const parentPoints: GlyphPoint[] = [];
 
 	for (let i = 0; i < glyph.components.length; i++) {
 		const component = glyph.components[i]!;
@@ -706,22 +793,7 @@ function flattenCompositeGlyphWithVariation(
 			continue;
 		}
 
-		// Apply transformation and offset
-		const [a, b, c, d] = component.transform;
-		const dx =
-			component.flags & CompositeFlag.ArgsAreXYValues ? component.arg1 : 0;
-		const dy =
-			component.flags & CompositeFlag.ArgsAreXYValues ? component.arg2 : 0;
-
-		for (let j = 0; j < componentContours.length; j++) {
-			const contour = componentContours[j]!;
-			const transformedContour: Contour = contour.map((point) => ({
-				x: Math.round(a * point.x + c * point.y + dx),
-				y: Math.round(b * point.x + d * point.y + dy),
-				onCurve: point.onCurve,
-			}));
-			result.push(transformedContour);
-		}
+		appendComponentContours(result, parentPoints, component, componentContours);
 	}
 
 	return result;
