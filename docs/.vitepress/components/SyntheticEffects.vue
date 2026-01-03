@@ -34,6 +34,7 @@ async function generatePreviews() {
 
   try {
     const { getGlyphPath, pathToSVG, obliquePath, emboldenPath, condensePath } = await import('text-shaper')
+    const svgScale = 10
 
     const characters = Array.from(text.value)
     let xOffset = 0
@@ -41,8 +42,8 @@ async function generatePreviews() {
     let transformedPaths: string[] = []
 
     // Calculate total width and metrics for viewBox
-    let maxY = 0
-    let minY = 0
+    let maxY = -Infinity
+    let minY = Infinity
     let totalWidth = 0
 
     for (const char of characters) {
@@ -58,7 +59,7 @@ async function generatePreviews() {
 
       // Get original path
       const pathStr = pathToSVG(path, { flipY: false })
-      originalPaths.push(`<path d="${pathStr}" transform="translate(${xOffset}, 0)"/>`)
+      originalPaths.push(`<path d="${pathStr}" transform="translate(${xOffset * svgScale}, 0)"/>`)
 
       // Apply transformations
       let transformedPath = path
@@ -77,7 +78,7 @@ async function generatePreviews() {
       }
 
       const transformedPathStr = pathToSVG(transformedPath, { flipY: false })
-      transformedPaths.push(`<path d="${transformedPathStr}" transform="translate(${xOffset}, 0)"/>`)
+      transformedPaths.push(`<path d="${transformedPathStr}" transform="translate(${xOffset * svgScale}, 0)"/>`)
 
       // Update bounds
       if (transformedPath.bounds) {
@@ -105,22 +106,28 @@ async function generatePreviews() {
       return
     }
 
+    if (!Number.isFinite(maxY)) {
+      maxY = 0
+      minY = 0
+    }
+
     // Create viewBox with some padding
     const padding = 50
-    const viewBoxMinY = minY - padding
-    const viewBoxHeight = maxY - minY + padding * 2
-    const viewBoxWidth = totalWidth + padding * 2
+    const viewBoxMinY = (minY - padding) * svgScale
+    const viewBoxHeight = (maxY - minY + padding * 2) * svgScale
+    const viewBoxWidth = (totalWidth + padding * 2) * svgScale
+    const viewBoxMinX = -padding * svgScale
 
     // Calculate display dimensions
-    const displayWidth = fontSize.value * (viewBoxWidth / (maxY - minY || 100))
+    const displayWidth = fontSize.value * ((totalWidth + padding * 2) / (maxY - minY || 100))
     const displayHeight = fontSize.value
 
     originalSvg.value = `
-      <svg viewBox="${-padding} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}"
+      <svg viewBox="${viewBoxMinX} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}"
            width="${displayWidth}"
            height="${displayHeight}"
            style="transform: scaleY(-1)">
-        <line x1="${-padding}" y1="0" x2="${totalWidth + padding}" y2="0" stroke="#ccc" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="${-padding * svgScale}" y1="0" x2="${(totalWidth + padding) * svgScale}" y2="0" stroke="#ccc" stroke-width="1" stroke-dasharray="4"/>
         <g fill="currentColor">
           ${originalPaths.join('\n')}
         </g>
@@ -128,11 +135,11 @@ async function generatePreviews() {
     `
 
     transformedSvg.value = `
-      <svg viewBox="${-padding} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}"
+      <svg viewBox="${viewBoxMinX} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}"
            width="${displayWidth}"
            height="${displayHeight}"
            style="transform: scaleY(-1)">
-        <line x1="${-padding}" y1="0" x2="${totalWidth + padding}" y2="0" stroke="#ccc" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="${-padding * svgScale}" y1="0" x2="${(totalWidth + padding) * svgScale}" y2="0" stroke="#ccc" stroke-width="1" stroke-dasharray="4"/>
         <g fill="currentColor">
           ${transformedPaths.join('\n')}
         </g>
