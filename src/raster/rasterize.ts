@@ -115,10 +115,12 @@ function buildGlyphPoints26(
 	glyphId: GlyphId,
 	scale: number,
 	depth: number = 0,
+	options?: { roundCompositeOffsets?: boolean },
 ): Points26 | null {
 	if (depth > 32) return null;
 	const glyph = font.getGlyph(glyphId);
 	if (!glyph || glyph.type === "empty") return null;
+	const roundCompositeOffsets = options?.roundCompositeOffsets ?? true;
 
 	if (glyph.type === "simple") {
 		const xCoords: number[] = [];
@@ -151,12 +153,9 @@ function buildGlyphPoints26(
 	let pointIndex = 0;
 
 	for (const component of glyph.components) {
-		const comp = buildGlyphPoints26(
-			font,
-			component.glyphId,
-			scale,
-			depth + 1,
-		);
+		const comp = buildGlyphPoints26(font, component.glyphId, scale, depth + 1, {
+			roundCompositeOffsets,
+		});
 		if (!comp || comp.xCoords.length === 0) continue;
 
 		const [a, b, c, d] = component.transform;
@@ -187,7 +186,10 @@ function buildGlyphPoints26(
 				dy26 = Math.round(rawDy * scale);
 			}
 
-			if (component.flags & CompositeFlag.RoundXYToGrid) {
+			if (
+				roundCompositeOffsets &&
+				(component.flags & CompositeFlag.RoundXYToGrid)
+			) {
 				dx26 = roundOffsetToGrid(dx26);
 				dy26 = roundOffsetToGrid(dy26);
 			}
@@ -331,7 +333,7 @@ function getCachedHintedGlyph(
 	ppem: number,
 	depth: number = 0,
 ): HintedGlyph | null {
-	const key = `${glyphId}:${ppem}`;
+	const key = `${glyphId}:${ppem}:${engine.ctx.lightMode ? "light" : "full"}`;
 	let cache = hintedGlyphCache.get(font);
 	if (!cache) {
 		cache = new Map();
@@ -604,13 +606,24 @@ export function rasterizeGlyph(
 	}
 
 	// Fall back to unhinted rendering
+	if (font.isTrueType) {
+		const scale26 = (fontSize * 64) / font.unitsPerEm;
+		const points26 = buildGlyphPoints26(font, glyphId, scale26, 0, {
+			roundCompositeOffsets: false,
+		});
+		if (points26) {
+			const raster = rasterizeTrueTypePoints26(points26, padding, pixelMode);
+			if (raster) return raster;
+		}
+	}
+
 	const path = getGlyphPath(font, glyphId);
 	if (!path) return null;
 
 	const scale = fontSize / font.unitsPerEm;
 
 	// Get bounds
-	const bounds = getPathBounds(path, scale, true);
+	const bounds = getPathBounds(path, scale, true, true);
 	if (!bounds) {
 		return {
 			bitmap: createBitmap(1, 1, pixelMode),
@@ -662,15 +675,18 @@ function rasterizeHintedGlyph(
 	if (!engine) return null;
 
 	const ppem = Math.round(fontSize);
+	engine.ctx.lightMode = pixelMode === PixelMode.Gray;
 
 	// Get cached hinted glyph (includes outline computation and hinting)
 	const hinted = getCachedHintedGlyph(engine, font, glyphId, ppem);
 	if (!hinted) return null;
 	let hintedForRaster = hinted;
 	if (pixelMode === PixelMode.Gray) {
-		// Match FreeType light hinting: keep original X positions, hint Y only.
+		// Light hinting fallback: keep original X positions, hint Y only.
 		const baseScale = (ppem * 64) / font.unitsPerEm;
-		const base = buildGlyphPoints26(font, glyphId, baseScale);
+		const base = buildGlyphPoints26(font, glyphId, baseScale, 0, {
+			roundCompositeOffsets: false,
+		});
 		if (base && base.xCoords.length === hinted.xCoords.length) {
 			hintedForRaster = { ...hinted, xCoords: base.xCoords };
 		}
@@ -774,6 +790,85 @@ function rasterizeHintedGlyph(
 	}
 
 	// Copy to owned buffer (shared buffer will be reused on next call)
+	const bitmap = createBitmap(width, height, pixelMode);
+	bitmap.buffer.set(tempBitmap.buffer);
+
+	return {
+		bitmap,
+		bearingX: bMinX - padding,
+		bearingY: bMaxY + padding,
+	};
+}
+
+function rasterizeTrueTypePoints26(
+	points: Points26,
+	padding: number,
+	pixelMode: PixelMode,
+): RasterizedGlyph | null {
+	const xCoords = points.xCoords;
+	const yCoords = points.yCoords;
+	if (xCoords.length === 0) return null;
+
+	let minX26 = xCoords[0]!;
+	let minY26 = yCoords[0]!;
+	let maxX26 = xCoords[0]!;
+	let maxY26 = yCoords[0]!;
+	for (let i = 1; i < xCoords.length; i++) {
+		const x = xCoords[i]!;
+		const y = yCoords[i]!;
+		if (x < minX26) minX26 = x;
+		if (x > maxX26) maxX26 = x;
+		if (y < minY26) minY26 = y;
+		if (y > maxY26) maxY26 = y;
+	}
+
+	if (!Number.isFinite(minX26)) {
+		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
+	}
+
+	const bMinX = Math.floor(minX26 / 64);
+	const bMinY = Math.floor(minY26 / 64);
+	const bMaxX = Math.floor((maxX26 + 63) / 64);
+	const bMaxY = Math.floor((maxY26 + 63) / 64);
+	const width = bMaxX - bMinX + padding * 2;
+	const height = bMaxY - bMinY + padding * 2;
+	if (width <= 0 || height <= 0) {
+		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
+	}
+
+	const tempBitmap = createBitmapShared(width, height, pixelMode);
+	const raster = getSharedRaster();
+	raster.setClip(0, 0, width, height);
+	raster.reset();
+
+	const offsetX = -bMinX + padding;
+	const offsetY = bMaxY + padding;
+	const hinted: HintedGlyph = {
+		xCoords: points.xCoords,
+		yCoords: points.yCoords,
+		flags: points.flags,
+		contourEnds: points.contourEnds,
+		error: null,
+	};
+
+	const decomposeFn = () => decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
+	try {
+		decomposeFn();
+		raster.sweep(tempBitmap, FillRule.NonZero);
+	} catch (e) {
+		if (e instanceof PoolOverflowError) {
+			raster.reset();
+			raster.renderWithBands(
+				tempBitmap,
+				decomposeFn,
+				{ minY: 0, maxY: height, minX: 0, maxX: width },
+				FillRule.NonZero,
+			);
+		} else {
+			throw e;
+		}
+	}
+
 	const bitmap = createBitmap(width, height, pixelMode);
 	bitmap.buffer.set(tempBitmap.buffer);
 

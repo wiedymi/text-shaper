@@ -262,7 +262,8 @@ export function SZPS(ctx: ExecContext): void {
 export function SLOOP(ctx: ExecContext): void {
 	const count = ctx.stack[--ctx.stackTop];
 	if (count <= 0) {
-		ctx.error = `SLOOP: invalid count ${count}`;
+		// Lenient handling: a non-positive loop count disables looping.
+		ctx.GS.loop = 0;
 		return;
 	}
 	ctx.GS.loop = count;

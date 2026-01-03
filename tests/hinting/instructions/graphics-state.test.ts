@@ -507,7 +507,8 @@ describe("Graphics State Instructions", () => {
 
 			SLOOP(ctx);
 
-			expect(ctx.error).toContain("invalid count");
+			expect(ctx.error).toBeNull();
+			expect(ctx.GS.loop).toBe(0);
 		});
 
 		test("SLOOP rejects negative count", () => {
@@ -516,7 +517,8 @@ describe("Graphics State Instructions", () => {
 
 			SLOOP(ctx);
 
-			expect(ctx.error).toContain("invalid count");
+			expect(ctx.error).toBeNull();
+			expect(ctx.GS.loop).toBe(0);
 		});
 
 		test("SMD sets minimum distance", () => {

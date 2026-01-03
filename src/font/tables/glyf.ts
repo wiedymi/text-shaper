@@ -361,7 +361,7 @@ function shouldScaleComponentOffset(
 ): boolean {
 	if (flags & CompositeFlag.UnscaledComponentOffset) return false;
 	if (flags & CompositeFlag.ScaledComponentOffset) return true;
-	return false;
+	return a !== 1 || b !== 0 || c !== 0 || d !== 1;
 }
 
 function flattenContoursPoints(contours: Contour[]): GlyphPoint[] {
@@ -580,8 +580,30 @@ export function getGlyphContoursAndBounds(
 		}
 		cache.set(glyphId, contours);
 	}
+	if (contours.length === 0) {
+		return { contours, bounds: null };
+	}
 
-	return { contours, bounds };
+	let xMin = Infinity;
+	let yMin = Infinity;
+	let xMax = -Infinity;
+	let yMax = -Infinity;
+
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			const point = contour[j]!;
+			xMin = Math.min(xMin, point.x);
+			yMin = Math.min(yMin, point.y);
+			xMax = Math.max(xMax, point.x);
+			yMax = Math.max(yMax, point.y);
+		}
+	}
+
+	const compositeBounds =
+		xMin === Infinity ? null : { xMin, yMin, xMax, yMax };
+
+	return { contours, bounds: compositeBounds };
 }
 
 /**

@@ -289,6 +289,8 @@ export interface ExecContext {
 	scale: number;
 	// Scale factor in 16.16 fixed-point
 	scaleFix: number;
+	// Light hinting mode (vertical-only for grayscale rendering)
+	lightMode: boolean;
 
 	// Error state
 	error: string | null;
@@ -390,6 +392,7 @@ export function createExecContext(
 	pointSize: 12,
 	scale: 1,
 	scaleFix: 0x10000,
+	lightMode: false,
 
 		error: null,
 

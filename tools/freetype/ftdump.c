@@ -59,7 +59,8 @@ int main(int argc, char **argv) {
 	const char *flags = argc >= 5 ? argv[4] : NULL;
 
 	FT_Render_Mode render_mode = FT_RENDER_MODE_NORMAL;
-	FT_Int32 load_flags = FT_LOAD_DEFAULT | FT_LOAD_NO_AUTOHINT;
+	FT_Int32 load_flags =
+		FT_LOAD_DEFAULT | FT_LOAD_NO_AUTOHINT | FT_LOAD_NO_BITMAP;
 	if (flag_includes(flags, "nohint")) {
 		load_flags |= FT_LOAD_NO_HINTING;
 	}

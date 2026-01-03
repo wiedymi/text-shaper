@@ -320,7 +320,9 @@ export function hintGlyph(
 		ctx.cvt.set(engine.cvtBase);
 	}
 	ctx.error = null;
-	if (outline.instructions.length > 0) {
+	if ((ctx.GS.instructControl & 1) !== 0) {
+		// INSTCTRL bit 0: inhibit grid-fitting (skip glyph instructions).
+	} else if (outline.instructions.length > 0) {
 		runGlyphProgram(ctx, outline.instructions);
 	}
 

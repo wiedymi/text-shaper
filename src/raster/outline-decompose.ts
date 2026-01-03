@@ -264,15 +264,88 @@ export function decomposePath(
  * @param flipY Flip Y axis for bitmap coordinates (default: true)
  * @returns Bounding box in pixel coordinates, or null if path has no bounds
  */
+function mulFix(value: number, scaleFix: number): number {
+	if (value === 0 || scaleFix === 0) return 0;
+	let sign = 1;
+	let a = value;
+	let b = scaleFix;
+	if (a < 0) {
+		a = -a;
+		sign = -sign;
+	}
+	if (b < 0) {
+		b = -b;
+		sign = -sign;
+	}
+	const result = Math.floor((a * b + 0x8000) / 0x10000);
+	return sign < 0 ? -result : result;
+}
+
 export function getPathBounds(
 	path: GlyphPath,
 	scale: number,
 	flipY: boolean = true,
+	roundToGrid: boolean = false,
 ): { minX: number; minY: number; maxX: number; maxY: number } | null {
+	if (roundToGrid) {
+		const scale26Fix = Math.round(scale * 64 * 0x10000);
+		let minX26 = Infinity;
+		let minY26 = Infinity;
+		let maxX26 = -Infinity;
+		let maxY26 = -Infinity;
+
+		const update = (x: number, y: number): void => {
+			const rx = mulFix(x, scale26Fix);
+			const ry = mulFix(y, scale26Fix);
+			if (rx < minX26) minX26 = rx;
+			if (rx > maxX26) maxX26 = rx;
+			if (ry < minY26) minY26 = ry;
+			if (ry > maxY26) maxY26 = ry;
+		};
+
+		for (const cmd of path.commands) {
+			switch (cmd.type) {
+				case "M":
+				case "L":
+					update(cmd.x, cmd.y);
+					break;
+				case "Q":
+					update(cmd.x1, cmd.y1);
+					update(cmd.x, cmd.y);
+					break;
+				case "C":
+					update(cmd.x1, cmd.y1);
+					update(cmd.x2, cmd.y2);
+					update(cmd.x, cmd.y);
+					break;
+				default:
+					break;
+			}
+		}
+
+		if (!Number.isFinite(minX26) || !Number.isFinite(minY26)) return null;
+
+		if (flipY) {
+			const flippedMinY = -maxY26;
+			const flippedMaxY = -minY26;
+			return {
+				minX: Math.floor(minX26 / 64),
+				minY: Math.floor(flippedMinY / 64),
+				maxX: Math.floor((maxX26 + 63) / 64),
+				maxY: Math.floor((flippedMaxY + 63) / 64),
+			};
+		}
+		return {
+			minX: Math.floor(minX26 / 64),
+			minY: Math.floor(minY26 / 64),
+			maxX: Math.floor((maxX26 + 63) / 64),
+			maxY: Math.floor((maxY26 + 63) / 64),
+		};
+	}
+
 	if (!path.bounds) return null;
 
 	const b = path.bounds;
-
 	if (flipY) {
 		return {
 			minX: Math.floor(b.xMin * scale),

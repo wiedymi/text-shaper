@@ -108,6 +108,11 @@ export function movePoint(
 	const fv = ctx.GS.freeVector;
 	const pv = ctx.GS.projVector;
 
+	if (ctx.lightMode && (pv.x !== 0 || fv.x !== 0)) {
+		// Light hinting: only allow vertical moves (no x component).
+		return;
+	}
+
 	// Calculate dot product of freedom and projection vectors (F2Dot14)
 	const dot = dotFix14Vectors(fv.x, fv.y, pv.x, pv.y);
 
@@ -364,7 +369,6 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 	const currentDist =
 		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
 	const move = distance - currentDist;
-
 	movePoint(ctx, zp1, pointIndex, move);
 	touchPoint(ctx, zp1, pointIndex);
 
@@ -959,7 +963,7 @@ export function GC(ctx: ExecContext, useOriginal: boolean): void {
 	}
 
 	const coord = useOriginal
-		? project(ctx, zone.org[pointIndex])
+		? dualProject(ctx, zone.org[pointIndex])
 		: getCurrent(ctx, zone, pointIndex);
 
 	ctx.stack[ctx.stackTop++] = coord;
