@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef FT_LOAD_TARGET_MASK
+#define FT_LOAD_TARGET_MASK (FT_LOAD_TARGET_(0xF))
+#endif
+
 static int *parse_glyph_list(const char *list, size_t *out_count) {
 	if (!list || !*list) {
 		*out_count = 0;
@@ -38,15 +42,36 @@ static int *parse_glyph_list(const char *list, size_t *out_count) {
 	return gids;
 }
 
+static int flag_includes(const char *flags, const char *needle) {
+	if (!flags || !*flags || !needle || !*needle) return 0;
+	return strstr(flags, needle) != NULL;
+}
+
 int main(int argc, char **argv) {
 	if (argc < 4) {
-		fprintf(stderr, "usage: %s <font-path> <pixel-size> <gid-list>\n", argv[0]);
+		fprintf(stderr, "usage: %s <font-path> <pixel-size> <gid-list> [flags]\n", argv[0]);
 		return 1;
 	}
 
 	const char *font_path = argv[1];
 	int pixel_size = atoi(argv[2]);
 	const char *gid_list = argv[3];
+	const char *flags = argc >= 5 ? argv[4] : NULL;
+
+	FT_Render_Mode render_mode = FT_RENDER_MODE_NORMAL;
+	FT_Int32 load_flags = FT_LOAD_DEFAULT | FT_LOAD_NO_AUTOHINT;
+	if (flag_includes(flags, "nohint")) {
+		load_flags |= FT_LOAD_NO_HINTING;
+	}
+	if (flag_includes(flags, "light")) {
+		load_flags &= ~FT_LOAD_TARGET_MASK;
+		load_flags |= FT_LOAD_TARGET_LIGHT;
+	}
+	if (flag_includes(flags, "mono")) {
+		load_flags &= ~FT_LOAD_TARGET_MASK;
+		load_flags |= FT_LOAD_TARGET_MONO;
+		render_mode = FT_RENDER_MODE_MONO;
+	}
 
 	FT_Library library;
 	FT_Face face;
@@ -83,10 +108,10 @@ int main(int argc, char **argv) {
 	for (size_t i = 0; i < gid_count; i++) {
 		FT_UInt gid = (FT_UInt)gids[i];
 		FT_Error load_err =
-			FT_Load_Glyph(face, gid, FT_LOAD_DEFAULT | FT_LOAD_NO_AUTOHINT);
+			FT_Load_Glyph(face, gid, load_flags);
 		FT_Error render_err = 0;
 		if (!load_err) {
-			render_err = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+			render_err = FT_Render_Glyph(face->glyph, render_mode);
 		}
 
 		if (i > 0) printf(",");

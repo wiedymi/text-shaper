@@ -23,6 +23,10 @@ const SYSTEM_FONT_DIRS = [
 
 const fontExts = new Set([".ttf", ".otf", ".ttc", ".woff2"]);
 
+function shouldSkipFtDumpFont(fontPath: string): boolean {
+	return fontPath.toLowerCase().endsWith(".woff2");
+}
+
 function collectFonts(dirs: string[]): string[] {
 	const fonts: string[] = [];
 	function walk(dir: string): void {
@@ -109,14 +113,27 @@ function resolveFtDumpBin(): string | null {
 
 const ftdumpBin = resolveFtDumpBin();
 const testFn = ftdumpBin ? test : test.skip;
+const debug = process.env.HINTING_PARITY_DEBUG === "1";
 
 function runFtDump(
 	bin: string,
 	fontPath: string,
 	fontSize: number,
 	glyphIds: number[],
+	options?: {
+		hinting?: boolean;
+		renderMode?: "normal" | "mono";
+		target?: "normal" | "light" | "mono";
+	},
 ) {
+	const flags: string[] = [];
+	if (options?.hinting === false) flags.push("nohint");
+	if (options?.target === "light") flags.push("light");
+	if (options?.target === "mono") flags.push("mono");
+	if (options?.renderMode === "mono") flags.push("mono");
+
 	const args = [fontPath, String(fontSize), glyphIds.join(",")];
+	if (flags.length > 0) args.push(flags.join(","));
 	const res = spawnSync(bin, args, { encoding: "utf8" });
 	if (res.status !== 0) {
 		throw new Error(res.stderr || res.stdout || "ftdump failed");
@@ -129,6 +146,16 @@ function runFtDump(
 		top: number;
 		advanceX: number;
 	}>;
+}
+
+function getSizes(): number[] {
+	const sizesEnv = process.env.HINTING_PARITY_SIZES;
+	if (!sizesEnv) return [16, 24, 32];
+	const sizes = sizesEnv
+		.split(",")
+		.map((size) => Number.parseInt(size.trim(), 10))
+		.filter((size) => Number.isFinite(size) && size > 0);
+	return sizes.length > 0 ? sizes : [16, 24, 32];
 }
 
 function pickGlyphs(font: Font, maxCount: number): number[] {
@@ -158,6 +185,20 @@ function pickGlyphs(font: Font, maxCount: number): number[] {
 	return glyphs;
 }
 
+function pickGlyphsByPredicate(
+	font: Font,
+	maxCount: number,
+	predicate: (gid: number) => boolean,
+): number[] {
+	const glyphs: number[] = [];
+	for (let gid = 0; gid < font.numGlyphs; gid++) {
+		if (!predicate(gid)) continue;
+		glyphs.push(gid);
+		if (glyphs.length >= maxCount) break;
+	}
+	return glyphs;
+}
+
 function glyphHasInstructions(
 	font: Font,
 	glyphId: number,
@@ -174,6 +215,198 @@ function glyphHasInstructions(
 	}
 	return false;
 }
+
+testFn("hinted raster metrics match FreeType across sizes", async () => {
+	const fontPaths = getFontList();
+	if (fontPaths.length === 0) {
+		console.warn("hinting parity: no candidate fonts found");
+		return;
+	}
+	if (!ftdumpBin) {
+		console.warn("hinting parity: ftdump binary not available");
+		return;
+	}
+
+	const sizes = getSizes();
+	const strict = process.env.HINTING_PARITY_STRICT === "1";
+	const includeInstructions =
+		process.env.HINTING_PARITY_INCLUDE_INSTRUCTIONS === "1";
+
+	const padding = Number.parseInt(
+		process.env.HINTING_PARITY_PADDING ?? "0",
+		10,
+	);
+	const tolerance = Number.parseInt(
+		process.env.HINTING_PARITY_TOLERANCE ?? "1",
+		10,
+	);
+	const glyphCount = Number.parseInt(
+		process.env.HINTING_PARITY_GLYPHS ?? "12",
+		10,
+	);
+	const instrCount = Number.parseInt(
+		process.env.HINTING_PARITY_GLYPHS_INSTR ?? "4",
+		10,
+	);
+
+	for (const fontPath of fontPaths) {
+		if (shouldSkipFtDumpFont(fontPath)) continue;
+		let font: Font;
+		try {
+			font = await Font.fromFile(fontPath);
+		} catch {
+			continue;
+		}
+		if (!font.hasHinting) continue;
+
+		let glyphIds = pickGlyphs(font, glyphCount);
+		if (!strict) {
+			glyphIds = glyphIds.filter((gid) => !glyphHasInstructions(font, gid));
+		}
+
+		if ((strict || includeInstructions) && instrCount > 0) {
+			const instructionGlyphs = pickGlyphsByPredicate(
+				font,
+				instrCount,
+				(gid) => glyphHasInstructions(font, gid),
+			);
+			glyphIds = Array.from(new Set([...glyphIds, ...instructionGlyphs]));
+		}
+
+		if (glyphIds.length === 0) continue;
+
+		for (const fontSize of sizes) {
+			const ft = runFtDump(ftdumpBin, fontPath, fontSize, glyphIds, {
+				target: "light",
+			});
+			const ftMap = new Map(ft.map((entry) => [entry.gid, entry]));
+
+			for (const gid of glyphIds) {
+				const ftEntry = ftMap.get(gid);
+				if (!ftEntry) continue;
+				if (ftEntry.width === 0 || ftEntry.rows === 0) continue;
+
+				const ours = rasterizeGlyph(font, gid, fontSize, {
+					hinting: true,
+					padding,
+					pixelMode: PixelMode.Gray,
+				});
+				expect(ours).not.toBeNull();
+				if (!ours) continue;
+
+				const widthDelta = Math.abs(ours.bitmap.width - ftEntry.width);
+				const heightDelta = Math.abs(ours.bitmap.rows - ftEntry.rows);
+				const leftDelta = Math.abs(ours.bearingX - ftEntry.left);
+				const topDelta = Math.abs(ours.bearingY - ftEntry.top);
+				if (
+					debug &&
+					(widthDelta > tolerance ||
+						heightDelta > tolerance ||
+						leftDelta > tolerance ||
+						topDelta > tolerance)
+				) {
+					console.warn(
+						`hinted mismatch size=${fontSize} font=${fontPath} gid=${gid} ` +
+							`ours=${ours.bitmap.width}x${ours.bitmap.rows} ` +
+							`b=${ours.bearingX},${ours.bearingY} ` +
+							`ft=${ftEntry.width}x${ftEntry.rows} ` +
+							`b=${ftEntry.left},${ftEntry.top}`,
+					);
+				}
+				expect(widthDelta).toBeLessThanOrEqual(tolerance);
+				expect(heightDelta).toBeLessThanOrEqual(tolerance);
+				expect(leftDelta).toBeLessThanOrEqual(tolerance);
+				expect(topDelta).toBeLessThanOrEqual(tolerance);
+			}
+		}
+	}
+});
+
+testFn("unhinted raster metrics match FreeType", async () => {
+	const fontPaths = getFontList();
+	if (fontPaths.length === 0) {
+		console.warn("hinting parity: no candidate fonts found");
+		return;
+	}
+	if (!ftdumpBin) {
+		console.warn("hinting parity: ftdump binary not available");
+		return;
+	}
+
+	const sizes = getSizes();
+	const padding = Number.parseInt(
+		process.env.HINTING_PARITY_PADDING ?? "0",
+		10,
+	);
+	const tolerance = Number.parseInt(
+		process.env.HINTING_PARITY_TOLERANCE ?? "1",
+		10,
+	);
+	const glyphCount = Number.parseInt(
+		process.env.HINTING_PARITY_GLYPHS ?? "12",
+		10,
+	);
+
+	for (const fontPath of fontPaths) {
+		if (shouldSkipFtDumpFont(fontPath)) continue;
+		let font: Font;
+		try {
+			font = await Font.fromFile(fontPath);
+		} catch {
+			continue;
+		}
+		if (font.isColorFont) continue;
+		if (font.isCFF && font.isVariable) continue;
+
+		const glyphIds = pickGlyphs(font, glyphCount);
+		if (glyphIds.length === 0) continue;
+
+		for (const fontSize of sizes) {
+			const ft = runFtDump(ftdumpBin, fontPath, fontSize, glyphIds, {
+				hinting: false,
+			});
+			const ftMap = new Map(ft.map((entry) => [entry.gid, entry]));
+
+			for (const gid of glyphIds) {
+				const ftEntry = ftMap.get(gid);
+				if (!ftEntry) continue;
+				if (ftEntry.width === 0 || ftEntry.rows === 0) continue;
+
+				const ours = rasterizeGlyph(font, gid, fontSize, {
+					hinting: false,
+					padding,
+					pixelMode: PixelMode.Gray,
+				});
+				expect(ours).not.toBeNull();
+				if (!ours) continue;
+
+				const widthDelta = Math.abs(ours.bitmap.width - ftEntry.width);
+				const heightDelta = Math.abs(ours.bitmap.rows - ftEntry.rows);
+				const leftDelta = Math.abs(ours.bearingX - ftEntry.left);
+				const topDelta = Math.abs(ours.bearingY - ftEntry.top);
+				if (
+					debug &&
+					(widthDelta > tolerance ||
+						heightDelta > tolerance ||
+						leftDelta > tolerance ||
+						topDelta > tolerance)
+				) {
+					console.warn(
+						`unhinted mismatch size=${fontSize} font=${fontPath} gid=${gid} ` +
+							`ours=${ours.bitmap.width}x${ours.bitmap.rows} ` +
+							`b=${ours.bearingX},${ours.bearingY} ` +
+							`ft=${ftEntry.width}x${ftEntry.rows} ` +
+							`b=${ftEntry.left},${ftEntry.top}`,
+					);
+				}
+				expect(widthDelta).toBeLessThanOrEqual(tolerance);
+				expect(heightDelta).toBeLessThanOrEqual(tolerance);
+				expect(leftDelta).toBeLessThanOrEqual(tolerance);
+				expect(topDelta).toBeLessThanOrEqual(tolerance);
+			}
+		}
+	}
+});
 
 testFn("hinted raster metrics match FreeType for composite glyphs", async () => {
 	const fontPaths = getFontList();
@@ -205,6 +438,7 @@ testFn("hinted raster metrics match FreeType for composite glyphs", async () => 
 	);
 
 	for (const fontPath of fontPaths) {
+		if (shouldSkipFtDumpFont(fontPath)) continue;
 		let font: Font;
 		try {
 			font = await Font.fromFile(fontPath);
@@ -213,13 +447,15 @@ testFn("hinted raster metrics match FreeType for composite glyphs", async () => 
 		}
 		if (!font.hasHinting) continue;
 
-		let glyphIds = pickGlyphs(font, glyphCount);
-		if (!strict) {
-			glyphIds = glyphIds.filter((gid) => !glyphHasInstructions(font, gid));
-		}
-		if (glyphIds.length === 0) continue;
+	let glyphIds = pickGlyphs(font, glyphCount);
+	if (!strict) {
+		glyphIds = glyphIds.filter((gid) => !glyphHasInstructions(font, gid));
+	}
+	if (glyphIds.length === 0) continue;
 
-		const ft = runFtDump(ftdumpBin, fontPath, fontSize, glyphIds);
+		const ft = runFtDump(ftdumpBin, fontPath, fontSize, glyphIds, {
+			target: "light",
+		});
 		const ftMap = new Map(ft.map((entry) => [entry.gid, entry]));
 
 		for (const gid of glyphIds) {
@@ -239,6 +475,21 @@ testFn("hinted raster metrics match FreeType for composite glyphs", async () => 
 			const heightDelta = Math.abs(ours.bitmap.rows - ftEntry.rows);
 			const leftDelta = Math.abs(ours.bearingX - ftEntry.left);
 			const topDelta = Math.abs(ours.bearingY - ftEntry.top);
+			if (
+				debug &&
+				(widthDelta > tolerance ||
+					heightDelta > tolerance ||
+					leftDelta > tolerance ||
+					topDelta > tolerance)
+			) {
+				console.warn(
+					`composite mismatch size=${fontSize} font=${fontPath} gid=${gid} ` +
+						`ours=${ours.bitmap.width}x${ours.bitmap.rows} ` +
+						`b=${ours.bearingX},${ours.bearingY} ` +
+						`ft=${ftEntry.width}x${ftEntry.rows} ` +
+						`b=${ftEntry.left},${ftEntry.top}`,
+				);
+			}
 			expect(widthDelta).toBeLessThanOrEqual(tolerance);
 			expect(heightDelta).toBeLessThanOrEqual(tolerance);
 			expect(leftDelta).toBeLessThanOrEqual(tolerance);
@@ -289,7 +540,9 @@ testFn("Geneva hinted metrics match FreeType (strict)", async () => {
 	}
 
 	for (const fontSize of sizes) {
-		const ft = runFtDump(ftdumpBin, genevaPath, fontSize, [glyphId]);
+		const ft = runFtDump(ftdumpBin, genevaPath, fontSize, [glyphId], {
+			target: "light",
+		});
 		const ftEntry = ft[0];
 		if (!ftEntry || ftEntry.width === 0 || ftEntry.rows === 0) continue;
 
