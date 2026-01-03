@@ -137,7 +137,12 @@ import {
 	ROLL,
 	SWAP,
 } from "./instructions/stack.ts";
-import { CodeRange, type ExecContext, Opcode } from "./types.ts";
+import {
+	CodeRange,
+	createDefaultGraphicsState,
+	type ExecContext,
+	Opcode,
+} from "./types.ts";
 
 /**
  * Execute bytecode from the current instruction pointer
@@ -161,6 +166,21 @@ export function execute(ctx: ExecContext): void {
  * Execute a single opcode
  */
 function executeOpcode(ctx: ExecContext, opcode: number): void {
+	if (
+		process.env.HINT_TRACE_FUNC48 === "1" &&
+		ctx.currentRange === CodeRange.Font &&
+		ctx.IP - 1 >= 1527 &&
+		ctx.IP - 1 < 1582
+	) {
+		console.log("trace func48", {
+			ip: ctx.IP - 1,
+			opcode,
+			stackTop: ctx.stackTop,
+			stackTail: Array.from(
+				ctx.stack.slice(Math.max(0, ctx.stackTop - 6), ctx.stackTop),
+			),
+		});
+	}
 	// Handle PUSHB[n] (0xB0-0xB7)
 	if (opcode >= 0xb0 && opcode <= 0xb7) {
 		PUSHB(ctx, opcode - 0xb0 + 1);
@@ -433,10 +453,10 @@ function executeOpcode(ctx: ExecContext, opcode: number): void {
 			SCFS(ctx);
 			break;
 		case Opcode.MD_0:
-			MD(ctx, false);
+			MD(ctx, true);
 			break;
 		case Opcode.MD_1:
-			MD(ctx, true);
+			MD(ctx, false);
 			break;
 		case Opcode.MPPEM:
 			MPPEM(ctx);
@@ -716,6 +736,10 @@ export function runProgram(ctx: ExecContext, range: CodeRange): void {
 		return;
 	}
 
+	// Reset stack and call stack for each program execution
+	ctx.stackTop = 0;
+	ctx.callStackTop = 0;
+
 	ctx.currentRange = range;
 	ctx.code = codeRange.code;
 	ctx.codeSize = codeRange.size;
@@ -729,6 +753,21 @@ export function runProgram(ctx: ExecContext, range: CodeRange): void {
  * Run the font program (fpgm table)
  */
 export function runFontProgram(ctx: ExecContext): void {
+	// FPGM operates in the twilight zone.
+	ctx.twilight.nPoints = ctx.twilight.org.length;
+	for (let i = 0; i < ctx.twilight.nPoints; i++) {
+		ctx.twilight.org[i].x = 0;
+		ctx.twilight.org[i].y = 0;
+		ctx.twilight.cur[i].x = 0;
+		ctx.twilight.cur[i].y = 0;
+		ctx.twilight.tags[i] = 0;
+	}
+	ctx.zp0 = ctx.twilight;
+	ctx.zp1 = ctx.twilight;
+	ctx.zp2 = ctx.twilight;
+	ctx.GS.gep0 = 0;
+	ctx.GS.gep1 = 0;
+	ctx.GS.gep2 = 0;
 	runProgram(ctx, CodeRange.Font);
 }
 
@@ -738,9 +777,34 @@ export function runFontProgram(ctx: ExecContext): void {
 export function runCVTProgram(ctx: ExecContext): void {
 	// Reset graphics state to default before prep
 	ctx.GS = { ...ctx.defaultGS };
+	// PREP operates in the twilight zone.
+	ctx.twilight.nPoints = ctx.twilight.org.length;
+	for (let i = 0; i < ctx.twilight.nPoints; i++) {
+		ctx.twilight.org[i].x = 0;
+		ctx.twilight.org[i].y = 0;
+		ctx.twilight.cur[i].x = 0;
+		ctx.twilight.cur[i].y = 0;
+		ctx.twilight.tags[i] = 0;
+	}
+	ctx.zp0 = ctx.twilight;
+	ctx.zp1 = ctx.twilight;
+	ctx.zp2 = ctx.twilight;
+	ctx.GS.gep0 = 0;
+	ctx.GS.gep1 = 0;
+	ctx.GS.gep2 = 0;
 	runProgram(ctx, CodeRange.CVT);
-	// Save modified GS as new default for glyphs
+	// Save modified GS as new default for glyphs, but reset per-glyph vectors.
 	ctx.defaultGS = { ...ctx.GS };
+	ctx.defaultGS.projVector = { x: 0x4000, y: 0 };
+	ctx.defaultGS.freeVector = { x: 0x4000, y: 0 };
+	ctx.defaultGS.dualVector = { x: 0x4000, y: 0 };
+	ctx.defaultGS.rp0 = 0;
+	ctx.defaultGS.rp1 = 0;
+	ctx.defaultGS.rp2 = 0;
+	ctx.defaultGS.loop = 1;
+	ctx.defaultGS.gep0 = 1;
+	ctx.defaultGS.gep1 = 1;
+	ctx.defaultGS.gep2 = 1;
 }
 
 /**
@@ -757,6 +821,9 @@ export function runGlyphProgram(
 	ctx.zp0 = ctx.pts;
 	ctx.zp1 = ctx.pts;
 	ctx.zp2 = ctx.pts;
+	ctx.GS.gep0 = 1;
+	ctx.GS.gep1 = 1;
+	ctx.GS.gep2 = 1;
 
 	// Set up glyph code range
 	setCodeRange(ctx, CodeRange.Glyph, instructions);

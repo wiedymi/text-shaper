@@ -3,6 +3,7 @@
  */
 
 import type { Font } from "../font/font.ts";
+import { CompositeFlag } from "../font/tables/glyf.ts";
 import {
 	createHintingEngine,
 	type GlyphOutline,
@@ -13,8 +14,10 @@ import {
 	loadFontProgram,
 	setSize,
 } from "../hinting/programs.ts";
+import { scaleFUnits } from "../hinting/scale.ts";
 import { type GlyphPath, getGlyphPath } from "../render/path.ts";
 import type { GlyphId } from "../types.ts";
+import { PoolOverflowError } from "./cell.ts";
 import { GrayRaster } from "./gray-raster.ts";
 import { decomposePath, getPathBounds } from "./outline-decompose.ts";
 import {
@@ -89,12 +92,243 @@ function createBitmapShared(
 /** Cached hinted glyphs per font */
 const hintedGlyphCache = new WeakMap<Font, Map<string, HintedGlyph | null>>();
 
+function shouldScaleComponentOffset(flags: number): boolean {
+	if (flags & CompositeFlag.UnscaledComponentOffset) return false;
+	if (flags & CompositeFlag.ScaledComponentOffset) return true;
+	return false;
+}
+
+function roundOffsetToGrid(value26: number): number {
+	return Math.round(value26 / 64) * 64;
+}
+
+type Points26 = {
+	xCoords: number[];
+	yCoords: number[];
+	flags: Uint8Array;
+	contourEnds: number[];
+};
+
+function buildGlyphPoints26(
+	font: Font,
+	glyphId: GlyphId,
+	scale: number,
+	depth: number = 0,
+): Points26 | null {
+	if (depth > 32) return null;
+	const glyph = font.getGlyph(glyphId);
+	if (!glyph || glyph.type === "empty") return null;
+
+	if (glyph.type === "simple") {
+		const xCoords: number[] = [];
+		const yCoords: number[] = [];
+		const flags: number[] = [];
+		const contourEnds: number[] = [];
+		let pointIndex = 0;
+		for (const contour of glyph.contours) {
+			for (const point of contour) {
+				xCoords.push(Math.round(point.x * scale));
+				yCoords.push(Math.round(point.y * scale));
+				flags.push(point.onCurve ? 1 : 0);
+				pointIndex++;
+			}
+			contourEnds.push(pointIndex - 1);
+		}
+		return {
+			xCoords,
+			yCoords,
+			flags: new Uint8Array(flags),
+			contourEnds,
+		};
+	}
+
+	const xCoords: number[] = [];
+	const yCoords: number[] = [];
+	const flags: number[] = [];
+	const contourEnds: number[] = [];
+	const parentPoints: { x: number; y: number }[] = [];
+	let pointIndex = 0;
+
+	for (const component of glyph.components) {
+		const comp = buildGlyphPoints26(
+			font,
+			component.glyphId,
+			scale,
+			depth + 1,
+		);
+		if (!comp || comp.xCoords.length === 0) continue;
+
+		const [a, b, c, d] = component.transform;
+		const hasXY = (component.flags & CompositeFlag.ArgsAreXYValues) !== 0;
+
+		const tx: number[] = new Array(comp.xCoords.length);
+		const ty: number[] = new Array(comp.yCoords.length);
+		for (let i = 0; i < comp.xCoords.length; i++) {
+			const cx = comp.xCoords[i]!;
+			const cy = comp.yCoords[i]!;
+			tx[i] = Math.round(a * cx + c * cy);
+			ty[i] = Math.round(b * cx + d * cy);
+		}
+
+		let dx26 = 0;
+		let dy26 = 0;
+
+		if (hasXY) {
+			const rawDx = component.arg1;
+			const rawDy = component.arg2;
+			if (shouldScaleComponentOffset(component.flags)) {
+				const dx = Math.round(rawDx * scale);
+				const dy = Math.round(rawDy * scale);
+				dx26 = Math.round(a * dx + c * dy);
+				dy26 = Math.round(b * dx + d * dy);
+			} else {
+				dx26 = Math.round(rawDx * scale);
+				dy26 = Math.round(rawDy * scale);
+			}
+
+			if (component.flags & CompositeFlag.RoundXYToGrid) {
+				dx26 = roundOffsetToGrid(dx26);
+				dy26 = roundOffsetToGrid(dy26);
+			}
+		} else {
+			const parentIndex = component.arg1;
+			const compIndex = component.arg2;
+			if (
+				parentIndex >= 0 &&
+				parentIndex < parentPoints.length &&
+				compIndex >= 0 &&
+				compIndex < tx.length
+			) {
+				const parentPoint = parentPoints[parentIndex]!;
+				dx26 = parentPoint.x - tx[compIndex]!;
+				dy26 = parentPoint.y - ty[compIndex]!;
+			}
+		}
+
+		for (let i = 0; i < tx.length; i++) {
+			const x = tx[i]! + dx26;
+			const y = ty[i]! + dy26;
+			xCoords.push(x);
+			yCoords.push(y);
+			flags.push(comp.flags[i] ?? 0);
+			parentPoints.push({ x, y });
+		}
+
+		for (let i = 0; i < comp.contourEnds.length; i++) {
+			contourEnds.push(pointIndex + comp.contourEnds[i]!);
+		}
+		pointIndex += tx.length;
+	}
+
+	if (xCoords.length === 0) return null;
+	return {
+		xCoords,
+		yCoords,
+		flags: new Uint8Array(flags),
+		contourEnds,
+	};
+}
+
+function hintCompositeGlyph(
+	engine: HintingEngine,
+	font: Font,
+	glyph: NonNullable<ReturnType<Font["getGlyph"]>>,
+	ppem: number,
+	depth: number,
+): HintedGlyph | null {
+	if (glyph.type !== "composite") return null;
+	if (depth > 16) return null;
+
+	const xCoords: number[] = [];
+	const yCoords: number[] = [];
+	const flags: number[] = [];
+	const contourEnds: number[] = [];
+	const parentPoints: { x: number; y: number }[] = [];
+	let pointIndex = 0;
+
+	for (let i = 0; i < glyph.components.length; i++) {
+		const component = glyph.components[i]!;
+		const hinted = getCachedHintedGlyph(
+			engine,
+			font,
+			component.glyphId,
+			ppem,
+			depth + 1,
+		);
+		if (!hinted || hinted.xCoords.length === 0) continue;
+
+		const [a, b, c, d] = component.transform;
+		const hasXY = (component.flags & CompositeFlag.ArgsAreXYValues) !== 0;
+
+		let dx26 = 0;
+		let dy26 = 0;
+
+		if (hasXY) {
+			let dx = component.arg1;
+			let dy = component.arg2;
+			if (shouldScaleComponentOffset(component.flags)) {
+				const scaledX = a * dx + c * dy;
+				const scaledY = b * dx + d * dy;
+				dx = scaledX;
+				dy = scaledY;
+			}
+			dx26 = scaleFUnits(dx, engine.ctx.scaleFix);
+			dy26 = scaleFUnits(dy, engine.ctx.scaleFix);
+			if (component.flags & CompositeFlag.RoundXYToGrid) {
+				dx26 = roundOffsetToGrid(dx26);
+				dy26 = roundOffsetToGrid(dy26);
+			}
+		} else {
+			const parentIndex = component.arg1;
+			const compIndex = component.arg2;
+			if (
+				parentIndex >= 0 &&
+				parentIndex < parentPoints.length &&
+				compIndex >= 0 &&
+				compIndex < hinted.xCoords.length
+			) {
+				const parentPoint = parentPoints[parentIndex]!;
+				const compX = a * hinted.xCoords[compIndex]! + c * hinted.yCoords[compIndex]!;
+				const compY = b * hinted.xCoords[compIndex]! + d * hinted.yCoords[compIndex]!;
+				dx26 = Math.round(parentPoint.x - compX);
+				dy26 = Math.round(parentPoint.y - compY);
+			}
+		}
+
+		for (let j = 0; j < hinted.xCoords.length; j++) {
+			const hx = hinted.xCoords[j]!;
+			const hy = hinted.yCoords[j]!;
+			const x = Math.round(a * hx + c * hy + dx26);
+			const y = Math.round(b * hx + d * hy + dy26);
+			xCoords.push(x);
+			yCoords.push(y);
+			flags.push(hinted.flags[j] ?? 0);
+			parentPoints.push({ x, y });
+		}
+
+		for (let j = 0; j < hinted.contourEnds.length; j++) {
+			contourEnds.push(pointIndex + hinted.contourEnds[j]!);
+		}
+		pointIndex += hinted.xCoords.length;
+	}
+
+	if (xCoords.length === 0) return null;
+	return {
+		xCoords,
+		yCoords,
+		flags: new Uint8Array(flags),
+		contourEnds,
+		error: null,
+	};
+}
+
 /** Get cached hinted glyph or compute and cache it */
 function getCachedHintedGlyph(
 	engine: HintingEngine,
 	font: Font,
 	glyphId: GlyphId,
 	ppem: number,
+	depth: number = 0,
 ): HintedGlyph | null {
 	const key = `${glyphId}:${ppem}`;
 	let cache = hintedGlyphCache.get(font);
@@ -106,15 +340,29 @@ function getCachedHintedGlyph(
 	const cached = cache.get(key);
 	if (cached !== undefined) return cached;
 
-	// Compute hinted glyph
-	const outline = glyphToOutline(font, glyphId);
-	if (!outline) {
+	const glyph = font.getGlyph(glyphId);
+	if (!glyph || glyph.type === "empty") {
 		cache.set(key, null);
 		return null;
 	}
 
 	const error = setSize(engine, ppem, ppem);
 	if (error) {
+		cache.set(key, null);
+		return null;
+	}
+
+	if (glyph.type === "composite" && glyph.instructions.length === 0) {
+		const compositeHinted = hintCompositeGlyph(engine, font, glyph, ppem, depth);
+		if (compositeHinted && compositeHinted.xCoords.length > 0) {
+			cache.set(key, compositeHinted);
+			return compositeHinted;
+		}
+	}
+
+	// Compute hinted glyph from flattened outline
+	const outline = glyphToOutline(font, glyphId, engine.ctx.scale);
+	if (!outline) {
 		cache.set(key, null);
 		return null;
 	}
@@ -160,7 +408,11 @@ function getHintingEngine(font: Font): HintingEngine | null {
 }
 
 /** Convert TrueType glyph to outline for hinting */
-function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
+function glyphToOutline(
+	font: Font,
+	glyphId: GlyphId,
+	scale?: number,
+): GlyphOutline | null {
 	const glyph = font.getGlyph(glyphId);
 	if (!glyph || glyph.type === "empty") return null;
 
@@ -173,21 +425,37 @@ function glyphToOutline(font: Font, glyphId: GlyphId): GlyphOutline | null {
 	const advanceWidth = font.advanceWidth(glyphId);
 	const lsb = font.leftSideBearing(glyphId);
 
-	const contours =
-		glyph.type === "simple" ? glyph.contours : font.getGlyphContours(glyphId);
-	if (!contours || contours.length === 0) return null;
-
-	let pointIndex = 0;
-	for (let i = 0; i < contours.length; i++) {
-		const contour = contours[i]!;
-		for (let j = 0; j < contour.length; j++) {
-			const point = contour[j]!;
-			xCoords.push(point.x);
-			yCoords.push(point.y);
-			flags.push(point.onCurve ? 1 : 0);
-			pointIndex++;
+	if (glyph.type === "composite" && glyph.instructions.length > 0 && scale) {
+		const points26 = buildGlyphPoints26(font, glyphId, scale);
+		if (!points26 || points26.xCoords.length === 0) return null;
+		const invScale = 1 / scale;
+		for (let i = 0; i < points26.xCoords.length; i++) {
+			xCoords.push(points26.xCoords[i]! * invScale);
+			yCoords.push(points26.yCoords[i]! * invScale);
+			flags.push(points26.flags[i] ?? 0);
 		}
-		contourEnds.push(pointIndex - 1);
+		for (let i = 0; i < points26.contourEnds.length; i++) {
+			contourEnds.push(points26.contourEnds[i]!);
+		}
+	} else {
+		const contours =
+			glyph.type === "simple"
+				? glyph.contours
+				: font.getGlyphContours(glyphId);
+		if (!contours || contours.length === 0) return null;
+
+		let pointIndex = 0;
+		for (let i = 0; i < contours.length; i++) {
+			const contour = contours[i]!;
+			for (let j = 0; j < contour.length; j++) {
+				const point = contour[j]!;
+				xCoords.push(point.x);
+				yCoords.push(point.y);
+				flags.push(point.onCurve ? 1 : 0);
+				pointIndex++;
+			}
+			contourEnds.push(pointIndex - 1);
+		}
 	}
 
 	return {
@@ -397,11 +665,19 @@ function rasterizeHintedGlyph(
 	// Get cached hinted glyph (includes outline computation and hinting)
 	const hinted = getCachedHintedGlyph(engine, font, glyphId, ppem);
 	if (!hinted) return null;
+	let hintedForRaster = hinted;
+	if (pixelMode === PixelMode.Gray) {
+		// Match FreeType light hinting: keep original X positions, hint Y only.
+		const base = buildGlyphPoints26(font, glyphId, engine.ctx.scale);
+		if (base && base.xCoords.length === hinted.xCoords.length) {
+			hintedForRaster = { ...hinted, xCoords: base.xCoords };
+		}
+	}
 
 	// Calculate bounds from hinted coordinates (26.6 fixed point)
 	// Keep in 26.6 format, divide once at end (batch conversion)
-	const xCoords = hinted.xCoords;
-	const yCoords = hinted.yCoords;
+	const xCoords = hintedForRaster.xCoords;
+	const yCoords = hintedForRaster.yCoords;
 	let minX26 = xCoords[0];
 	let minY26 = yCoords[0];
 	let maxX26 = xCoords[0];
@@ -415,22 +691,50 @@ function rasterizeHintedGlyph(
 		if (y > maxY26) maxY26 = y;
 	}
 
-	// Single division at end
-	const minX = minX26 / 64;
-	const minY = minY26 / 64;
-	const maxX = maxX26 / 64;
-	const maxY = maxY26 / 64;
-
-	if (!Number.isFinite(minX)) {
+	if (!Number.isFinite(minX26)) {
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
 	}
 
-	const bMinX = Math.floor(minX);
-	const bMinY = Math.floor(minY);
-	const bMaxX = Math.ceil(maxX);
-	const bMaxY = Math.ceil(maxY);
+	const glyphBounds = font.getGlyphBounds(glyphId);
+	if (glyphBounds) {
+		const scale = fontSize / font.unitsPerEm;
+		const unhintedWidth = (glyphBounds.xMax - glyphBounds.xMin) * scale;
+		const unhintedHeight = (glyphBounds.yMax - glyphBounds.yMin) * scale;
+		const maxWidth = Math.max(unhintedWidth * 8, fontSize * 8, unhintedWidth + 64);
+		const maxHeight = Math.max(
+			unhintedHeight * 8,
+			fontSize * 8,
+			unhintedHeight + 64,
+		);
+
+		const hintedWidth = (maxX26 - minX26) / 64;
+		const hintedHeight = (maxY26 - minY26) / 64;
+		if (hintedWidth > maxWidth || hintedHeight > maxHeight) {
+			return null;
+		}
+	}
+
+	const bMinX = Math.floor(minX26 / 64);
+	const bMinY = Math.floor(minY26 / 64);
+	const bMaxX = Math.floor((maxX26 + 63) / 64);
+	const bMaxY = Math.floor((maxY26 + 63) / 64);
 	const width = bMaxX - bMinX + padding * 2;
 	const height = bMaxY - bMinY + padding * 2;
+	if (process.env.HINT_TRACE_GLYPH === String(glyphId)) {
+		console.log("trace hinted bounds", {
+			glyphId,
+			minX26,
+			maxX26,
+			minY26,
+			maxY26,
+			bMinX,
+			bMaxX,
+			bMinY,
+			bMaxY,
+			width,
+			height,
+		});
+	}
 
 	if (width <= 0 || height <= 0) {
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
@@ -447,8 +751,25 @@ function rasterizeHintedGlyph(
 	const offsetX = -bMinX + padding;
 	const offsetY = bMaxY + padding;
 
-	decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
-	raster.sweep(tempBitmap, FillRule.NonZero);
+	const decomposeFn = () =>
+		decomposeHintedGlyph(raster, hintedForRaster, offsetX, offsetY);
+
+	try {
+		decomposeFn();
+		raster.sweep(tempBitmap, FillRule.NonZero);
+	} catch (e) {
+		if (e instanceof PoolOverflowError) {
+			raster.reset();
+			raster.renderWithBands(
+				tempBitmap,
+				decomposeFn,
+				{ minY: 0, maxY: height, minX: 0, maxX: width },
+				FillRule.NonZero,
+			);
+		} else {
+			throw e;
+		}
+	}
 
 	// Copy to owned buffer (shared buffer will be reused on next call)
 	const bitmap = createBitmap(width, height, pixelMode);

@@ -5,26 +5,90 @@
  */
 
 import { compensate, round } from "../rounding.ts";
+import { scaleFUnits } from "../scale.ts";
 import {
+	CodeRange,
 	type ExecContext,
 	type F26Dot6,
 	type GlyphZone,
 	type Point,
+	RoundMode,
 	TouchFlag,
 } from "../types.ts";
+
+function dotFix14(
+	ax: F26Dot6,
+	ay: F26Dot6,
+	bx: number,
+	by: number,
+): F26Dot6 {
+	const c = ax * bx + ay * by;
+	const rounded = c + 0x2000 + (c < 0 ? -1 : 0);
+	return Math.floor(rounded / 0x4000);
+}
+
+function mulFix14(a: F26Dot6, b: number): F26Dot6 {
+	const c = a * b;
+	const rounded = c + 0x2000 + (c < 0 ? -1 : 0);
+	return Math.floor(rounded / 0x4000);
+}
+
+function dotFix14Vectors(ax: number, ay: number, bx: number, by: number): number {
+	const c = ax * bx + ay * by;
+	const rounded = c + 0x2000 + (c < 0 ? -1 : 0);
+	return Math.floor(rounded / 0x4000);
+}
+
+function dualProjectOrusDelta(
+	ctx: ExecContext,
+	zone1: GlyphZone,
+	p1: number,
+	zone2: GlyphZone,
+	p2: number,
+): F26Dot6 {
+	const pt1 = zone1.orus[p1];
+	const pt2 = zone2.orus[p2];
+	if (!pt1 || !pt2) return 0;
+
+	const dx = pt1.x - pt2.x;
+	const dy = pt1.y - pt2.y;
+	const dist = dotFix14(dx, dy, ctx.GS.dualVector.x, ctx.GS.dualVector.y);
+	return scaleFUnits(dist, ctx.scaleFix);
+}
+
+function mulDiv(a: number, b: number, c: number): number {
+	if (c === 0) return a ^ b < 0 ? -0x7fffffff : 0x7fffffff;
+
+	let sign = 1;
+	if (a < 0) {
+		a = -a;
+		sign = -sign;
+	}
+	if (b < 0) {
+		b = -b;
+		sign = -sign;
+	}
+	if (c < 0) {
+		c = -c;
+		sign = -sign;
+	}
+
+	const result = Math.floor((a * b + (c >> 1)) / c);
+	return sign < 0 ? -result : result;
+}
 
 /**
  * Project a point onto the projection vector
  */
 export function project(ctx: ExecContext, p: Point): F26Dot6 {
-	return (p.x * ctx.GS.projVector.x + p.y * ctx.GS.projVector.y + 0x2000) >> 14;
+	return dotFix14(p.x, p.y, ctx.GS.projVector.x, ctx.GS.projVector.y);
 }
 
 /**
  * Project using dual vector (for original positions)
  */
 export function dualProject(ctx: ExecContext, p: Point): F26Dot6 {
-	return (p.x * ctx.GS.dualVector.x + p.y * ctx.GS.dualVector.y + 0x2000) >> 14;
+	return dotFix14(p.x, p.y, ctx.GS.dualVector.x, ctx.GS.dualVector.y);
 }
 
 /**
@@ -43,8 +107,8 @@ export function movePoint(
 	const fv = ctx.GS.freeVector;
 	const pv = ctx.GS.projVector;
 
-	// Calculate dot product of freedom and projection vectors
-	const dot = (fv.x * pv.x + fv.y * pv.y + 0x2000) >> 14;
+	// Calculate dot product of freedom and projection vectors (F2Dot14)
+	const dot = dotFix14Vectors(fv.x, fv.y, pv.x, pv.y);
 
 	if (dot === 0) {
 		// Vectors are perpendicular, can't move
@@ -52,11 +116,58 @@ export function movePoint(
 	}
 
 	// Scale distance by freedom/projection relationship
-	const dx = Math.round((distance * fv.x) / dot);
-	const dy = Math.round((distance * fv.y) / dot);
+	const dx = mulDiv(distance, fv.x, dot);
+	const dy = mulDiv(distance, fv.y, dot);
+
+	if (process.env.HINT_TRACE_POINTS) {
+		const targets = process.env.HINT_TRACE_POINTS.split(",").map((value) =>
+			Number.parseInt(value.trim(), 10),
+		);
+		if (targets.includes(pointIndex)) {
+			console.log("trace movePoint", {
+				pointIndex,
+				opcode: ctx.opcode,
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				distance,
+				dx,
+				dy,
+				proj: ctx.GS.projVector,
+				free: ctx.GS.freeVector,
+				dual: ctx.GS.dualVector,
+				rp0: ctx.GS.rp0,
+				rp1: ctx.GS.rp1,
+				rp2: ctx.GS.rp2,
+			});
+		}
+	}
+
+	if (process.env.HINT_TRACE_GENEVA === "1" && zone === ctx.pts) {
+		console.log("trace movePoint", {
+			pointIndex,
+			opcode: ctx.opcode,
+			ip: ctx.IP,
+			distance,
+			dx,
+			dy,
+			proj: ctx.GS.projVector,
+			free: ctx.GS.freeVector,
+			dual: ctx.GS.dualVector,
+			rp0: ctx.GS.rp0,
+			rp1: ctx.GS.rp1,
+			rp2: ctx.GS.rp2,
+		});
+	}
 
 	pt.x += dx;
 	pt.y += dy;
+
+	// Twilight points have no true original positions; keep org in sync.
+	if (zone === ctx.twilight) {
+		const orgPt = zone.org[pointIndex];
+		orgPt.x += dx;
+		orgPt.y += dy;
+	}
 }
 
 /**
@@ -131,6 +242,14 @@ export function MDAP(ctx: ExecContext, doRound: boolean): void {
 
 	ctx.GS.rp0 = pointIndex;
 	ctx.GS.rp1 = pointIndex;
+	if (process.env.HINT_TRACE_RP0 === "1") {
+		console.log("trace rp0", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			opcode: ctx.opcode,
+			rp0: ctx.GS.rp0,
+		});
+	}
 }
 
 // =============================================================================
@@ -170,11 +289,36 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 	}
 
 	const distance = cvtDistance - currentPos;
+	if (
+		process.env.HINT_TRACE_GENEVA === "1" &&
+		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts) &&
+		(pointIndex === 0 || pointIndex === 2 || pointIndex === 4 || pointIndex === 7)
+	) {
+		console.log("trace MIAP", {
+			pointIndex,
+			cvtIndex,
+			doRound,
+			currentPos,
+			cvtDistance,
+			distance,
+			rp0: ctx.GS.rp0,
+			proj: ctx.GS.projVector,
+			dual: ctx.GS.dualVector,
+		});
+	}
 	movePoint(ctx, zone, pointIndex, distance);
 	touchPoint(ctx, zone, pointIndex);
 
 	ctx.GS.rp0 = pointIndex;
 	ctx.GS.rp1 = pointIndex;
+	if (process.env.HINT_TRACE_RP0 === "1") {
+		console.log("trace rp0", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			opcode: ctx.opcode,
+			rp0: ctx.GS.rp0,
+		});
+	}
 }
 
 // =============================================================================
@@ -188,7 +332,15 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 	const setRp0 = (flags & 0x10) !== 0;
 	const keepMinDist = (flags & 0x08) !== 0;
 	const doRound = (flags & 0x04) !== 0;
-	// bits 0-1 are distance type (ignored for now)
+	const distanceType = flags & 0x03;
+	let roundState = ctx.GS.roundState;
+	if (distanceType === 1) {
+		roundState = RoundMode.ToGrid;
+	} else if (distanceType === 2) {
+		roundState = RoundMode.ToHalfGrid;
+	} else if (distanceType === 3) {
+		roundState = RoundMode.ToDoubleGrid;
+	}
 
 	const zp0 = ctx.zp0;
 	const zp1 = ctx.zp1;
@@ -205,108 +357,26 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 	}
 
 	// Get original distance (using dual projection vector)
-	let distance = getOriginal(ctx, zp1, pointIndex) - getOriginal(ctx, zp0, rp0);
-
-	// Auto-flip if enabled and distance is negative
-	if (ctx.GS.autoFlip && distance < 0) {
-		distance = -distance;
-	}
-
-	if (doRound) {
-		const comp = compensate(distance, ctx.GS);
-		distance = round(distance, comp, ctx.GS);
-	}
-
-	// Apply minimum distance
-	if (keepMinDist) {
-		if (distance >= 0) {
-			if (distance < ctx.GS.minimumDistance) {
-				distance = ctx.GS.minimumDistance;
-			}
-		} else {
-			if (distance > -ctx.GS.minimumDistance) {
-				distance = -ctx.GS.minimumDistance;
-			}
-		}
-	}
-
-	// Calculate actual movement needed
-	const currentDist =
-		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
-	const move = distance - currentDist;
-
-	movePoint(ctx, zp1, pointIndex, move);
-	touchPoint(ctx, zp1, pointIndex);
-
-	ctx.GS.rp1 = ctx.GS.rp0;
-	ctx.GS.rp2 = pointIndex;
-	if (setRp0) {
-		ctx.GS.rp0 = pointIndex;
-	}
-}
-
-// =============================================================================
-// MIRP - Move Indirect Relative Point
-// =============================================================================
-
-/** MIRP - Move Indirect Relative Point (uses CVT) */
-export function MIRP(ctx: ExecContext, flags: number): void {
-	const cvtIndex = ctx.stack[--ctx.stackTop];
-	const pointIndex = ctx.stack[--ctx.stackTop];
-
-	const setRp0 = (flags & 0x10) !== 0;
-	const keepMinDist = (flags & 0x08) !== 0;
-	const doRound = (flags & 0x04) !== 0;
-	// bits 0-1 are distance type (ignored for now)
-
-	const zp0 = ctx.zp0;
-	const zp1 = ctx.zp1;
-
-	if (pointIndex < 0 || pointIndex >= zp1.nPoints) {
-		ctx.error = `MIRP: invalid point ${pointIndex}`;
-		return;
-	}
-
-	if (cvtIndex < 0 || cvtIndex >= ctx.cvtSize) {
-		ctx.error = `MIRP: invalid CVT index ${cvtIndex}`;
-		return;
-	}
-
-	const rp0 = ctx.GS.rp0;
-	if (rp0 < 0 || rp0 >= zp0.nPoints) {
-		ctx.error = `MIRP: invalid rp0 ${rp0}`;
-		return;
-	}
-
-	// Get original distance for comparison
-	const orgDist =
+	let orgDist =
 		getOriginal(ctx, zp1, pointIndex) - getOriginal(ctx, zp0, rp0);
 
-	// Get CVT distance
-	let cvtDist = ctx.cvt[cvtIndex];
-
-	// Auto-flip
-	if (ctx.GS.autoFlip) {
-		if ((orgDist < 0 && cvtDist > 0) || (orgDist > 0 && cvtDist < 0)) {
-			cvtDist = -cvtDist;
-		}
+	// Single width cut-in test
+	if (
+		ctx.GS.singleWidthCutIn > 0 &&
+		Math.abs(orgDist - ctx.GS.singleWidthValue) < ctx.GS.singleWidthCutIn
+	) {
+		orgDist = orgDist >= 0 ? ctx.GS.singleWidthValue : -ctx.GS.singleWidthValue;
 	}
 
-	// Check control value cut-in
-	const diff = Math.abs(orgDist - cvtDist);
+	const comp = compensate(orgDist, ctx.GS);
 	let distance: F26Dot6;
-
-	if (diff > ctx.GS.controlValueCutIn) {
-		// Use original distance
-		distance = orgDist;
-	} else {
-		// Use CVT distance
-		distance = cvtDist;
-	}
-
 	if (doRound) {
-		const comp = compensate(distance, ctx.GS);
-		distance = round(distance, comp, ctx.GS);
+		const savedRound = ctx.GS.roundState;
+		ctx.GS.roundState = roundState;
+		distance = round(orgDist, comp, ctx.GS);
+		ctx.GS.roundState = savedRound;
+	} else {
+		distance = orgDist + comp;
 	}
 
 	// Apply minimum distance
@@ -326,6 +396,31 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	const currentDist =
 		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
 	const move = distance - currentDist;
+	if (
+		process.env.HINT_TRACE_GENEVA === "1" &&
+		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts)
+	) {
+		console.log("trace MIRP", {
+			pointIndex,
+			cvtIndex,
+			orgDist,
+			cvtDist,
+			currentDist,
+			distance,
+			move,
+			flags,
+			rp0,
+			gep0: ctx.GS.gep0,
+			gep1: ctx.GS.gep1,
+			roundState: ctx.GS.roundState,
+			controlValueCutIn: ctx.GS.controlValueCutIn,
+			minimumDistance: ctx.GS.minimumDistance,
+			singleWidthCutIn: ctx.GS.singleWidthCutIn,
+			singleWidthValue: ctx.GS.singleWidthValue,
+			proj: ctx.GS.projVector,
+			dual: ctx.GS.dualVector,
+		});
+	}
 
 	movePoint(ctx, zp1, pointIndex, move);
 	touchPoint(ctx, zp1, pointIndex);
@@ -334,6 +429,199 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
+		if (process.env.HINT_TRACE_RP0 === "1") {
+			console.log("trace rp0", {
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				opcode: ctx.opcode,
+				rp0: ctx.GS.rp0,
+			});
+		}
+	}
+	if (
+		process.env.HINT_TRACE_GENEVA === "1" &&
+		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts)
+	) {
+		console.log("trace MIRP rp", {
+			pointIndex,
+			setRp0,
+			rp0: ctx.GS.rp0,
+			rp1: ctx.GS.rp1,
+			rp2: ctx.GS.rp2,
+		});
+	}
+}
+
+// =============================================================================
+// MIRP - Move Indirect Relative Point
+// =============================================================================
+
+/** MIRP - Move Indirect Relative Point (uses CVT) */
+export function MIRP(ctx: ExecContext, flags: number): void {
+	const cvtIndex = ctx.stack[--ctx.stackTop];
+	const pointIndex = ctx.stack[--ctx.stackTop];
+
+	const setRp0 = (flags & 0x10) !== 0;
+	const keepMinDist = (flags & 0x08) !== 0;
+	const doRound = (flags & 0x04) !== 0;
+	const distanceType = flags & 0x03;
+	let roundState = ctx.GS.roundState;
+	if (distanceType === 1) {
+		roundState = RoundMode.ToGrid;
+	} else if (distanceType === 2) {
+		roundState = RoundMode.ToHalfGrid;
+	} else if (distanceType === 3) {
+		roundState = RoundMode.ToDoubleGrid;
+	}
+
+	const zp0 = ctx.zp0;
+	const zp1 = ctx.zp1;
+
+	if (pointIndex < 0 || pointIndex >= zp1.nPoints) {
+		ctx.error = `MIRP: invalid point ${pointIndex}`;
+		return;
+	}
+
+	if (cvtIndex < -1 || cvtIndex >= ctx.cvtSize) {
+		ctx.error = `MIRP: invalid CVT index ${cvtIndex}`;
+		return;
+	}
+
+	const rp0 = ctx.GS.rp0;
+	if (rp0 < 0 || rp0 >= zp0.nPoints) {
+		ctx.error = `MIRP: invalid rp0 ${rp0}`;
+		return;
+	}
+
+	// Get original distance for comparison
+	const orgDist =
+		getOriginal(ctx, zp1, pointIndex) - getOriginal(ctx, zp0, rp0);
+
+	// Get CVT distance (cvt[-1] = 0)
+	let cvtDist = cvtIndex === -1 ? 0 : ctx.cvt[cvtIndex];
+
+	// Single width test
+	if (
+		ctx.GS.singleWidthCutIn > 0 &&
+		Math.abs(cvtDist - ctx.GS.singleWidthValue) < ctx.GS.singleWidthCutIn
+	) {
+		cvtDist = cvtDist >= 0 ? ctx.GS.singleWidthValue : -ctx.GS.singleWidthValue;
+	}
+
+	// Twilight points special case: update org/cur from CVT + free vector
+	if (ctx.GS.gep1 === 0) {
+		const orgRp0 = ctx.zp0.org[rp0];
+		const dx = mulFix14(cvtDist, ctx.GS.freeVector.x);
+		const dy = mulFix14(cvtDist, ctx.GS.freeVector.y);
+		ctx.zp1.org[pointIndex].x = orgRp0.x + dx;
+		ctx.zp1.org[pointIndex].y = orgRp0.y + dy;
+		ctx.zp1.cur[pointIndex].x = ctx.zp1.org[pointIndex].x;
+		ctx.zp1.cur[pointIndex].y = ctx.zp1.org[pointIndex].y;
+	}
+
+	// Auto-flip test.
+	if (ctx.GS.autoFlip) {
+		if ((orgDist ^ cvtDist) < 0) {
+			cvtDist = -cvtDist;
+		}
+	}
+
+	let distance: F26Dot6 = cvtDist;
+	const comp = compensate(cvtDist, ctx.GS);
+
+	if (doRound) {
+		// Cut-in test only if both points are in the same zone.
+		if (ctx.GS.gep0 === ctx.GS.gep1) {
+			const diff = Math.abs(cvtDist - orgDist);
+			if (diff > ctx.GS.controlValueCutIn) {
+				distance = orgDist;
+			}
+		}
+		const savedRound = ctx.GS.roundState;
+		ctx.GS.roundState = roundState;
+		distance = round(distance, comp, ctx.GS);
+		ctx.GS.roundState = savedRound;
+	} else {
+		distance = distance + comp;
+	}
+
+	// Apply minimum distance
+	if (keepMinDist) {
+		if (orgDist >= 0) {
+			if (distance < ctx.GS.minimumDistance) {
+				distance = ctx.GS.minimumDistance;
+			}
+		} else {
+			if (distance > -ctx.GS.minimumDistance) {
+				distance = -ctx.GS.minimumDistance;
+			}
+		}
+	}
+
+	// Calculate actual movement needed
+	const currentDist =
+		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
+	const move = distance - currentDist;
+	if (process.env.HINT_TRACE_MIRP) {
+		const targets = process.env.HINT_TRACE_MIRP
+			.split(",")
+			.map((value) => Number.parseInt(value.trim(), 10))
+			.filter((value) => Number.isFinite(value));
+		if (targets.length === 0 || targets.includes(pointIndex)) {
+			console.log("trace MIRP", {
+				pointIndex,
+				cvtIndex,
+				orgDist,
+				cvtDist,
+				currentDist,
+				distance,
+				move,
+				flags,
+				rp0,
+				roundState: ctx.GS.roundState,
+			});
+		}
+	}
+	if (
+		process.env.HINT_TRACE_GENEVA === "1" &&
+		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts) &&
+		(pointIndex === 0 || pointIndex === 2 || pointIndex === 4 || pointIndex === 7)
+	) {
+		console.log("trace MIRP", {
+			pointIndex,
+			cvtIndex,
+			orgDist,
+			cvtDist,
+			currentDist,
+			distance,
+			move,
+			flags,
+			rp0,
+			gep0: ctx.GS.gep0,
+			gep1: ctx.GS.gep1,
+			roundState: ctx.GS.roundState,
+			controlValueCutIn: ctx.GS.controlValueCutIn,
+			minimumDistance: ctx.GS.minimumDistance,
+			proj: ctx.GS.projVector,
+			dual: ctx.GS.dualVector,
+		});
+	}
+
+	movePoint(ctx, zp1, pointIndex, move);
+	touchPoint(ctx, zp1, pointIndex);
+
+	ctx.GS.rp1 = ctx.GS.rp0;
+	ctx.GS.rp2 = pointIndex;
+	if (setRp0) {
+		ctx.GS.rp0 = pointIndex;
+		if (process.env.HINT_TRACE_RP0 === "1") {
+			console.log("trace rp0", {
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				opcode: ctx.opcode,
+				rp0: ctx.GS.rp0,
+			});
+		}
 	}
 }
 
@@ -352,9 +640,23 @@ export function SHP(ctx: ExecContext, useRp1: boolean): void {
 	}
 
 	// Calculate shift amount from reference point movement
-	const orgRef = getOriginal(ctx, refZone, refPoint);
+	const orgRef = project(ctx, refZone.org[refPoint]);
 	const curRef = getCurrent(ctx, refZone, refPoint);
 	const shift = curRef - orgRef;
+	if (process.env.HINT_TRACE_SHP === "1") {
+		console.log("trace SHP", {
+			refPoint,
+			orgRef,
+			curRef,
+			shift,
+			useRp1,
+			gep0: ctx.GS.gep0,
+			gep1: ctx.GS.gep1,
+			gep2: ctx.GS.gep2,
+			ip: ctx.IP,
+			range: ctx.currentRange,
+		});
+	}
 
 	// Apply to loop count points
 	const zone = ctx.zp2;
@@ -397,7 +699,7 @@ export function SHC(ctx: ExecContext, useRp1: boolean): void {
 	}
 
 	// Calculate shift amount
-	const orgRef = getOriginal(ctx, refZone, refPoint);
+	const orgRef = project(ctx, refZone.org[refPoint]);
 	const curRef = getCurrent(ctx, refZone, refPoint);
 	const shift = curRef - orgRef;
 
@@ -432,7 +734,7 @@ export function SHZ(ctx: ExecContext, useRp1: boolean): void {
 	const zone = zoneIndex === 0 ? ctx.twilight : ctx.pts;
 
 	// Calculate shift amount
-	const orgRef = getOriginal(ctx, refZone, refPoint);
+	const orgRef = project(ctx, refZone.org[refPoint]);
 	const curRef = getCurrent(ctx, refZone, refPoint);
 	const shift = curRef - orgRef;
 
@@ -487,14 +789,13 @@ export function IP(ctx: ExecContext): void {
 		return;
 	}
 
-	// Get original and current positions of reference points
-	const org1 = getOriginal(ctx, ctx.zp0, rp1);
-	const org2 = getOriginal(ctx, ctx.zp1, rp2);
-	const cur1 = getCurrent(ctx, ctx.zp0, rp1);
-	const cur2 = getCurrent(ctx, ctx.zp1, rp2);
-
-	const orgRange = org2 - org1;
-	const curRange = cur2 - cur1;
+	// Get original and current ranges between reference points.
+	const orgRange =
+		getOriginal(ctx, ctx.zp1, rp2) - getOriginal(ctx, ctx.zp0, rp1);
+	const curRange =
+		getCurrent(ctx, ctx.zp1, rp2) - getCurrent(ctx, ctx.zp0, rp1);
+	const orgBase = getOriginal(ctx, ctx.zp0, rp1);
+	const curBase = getCurrent(ctx, ctx.zp0, rp1);
 
 	const zone = ctx.zp2;
 	const count = ctx.GS.loop;
@@ -508,21 +809,21 @@ export function IP(ctx: ExecContext): void {
 			return;
 		}
 
-		const orgPt = getOriginal(ctx, zone, pointIndex);
-		const curPt = getCurrent(ctx, zone, pointIndex);
+		const orgDist = getOriginal(ctx, zone, pointIndex) - orgBase;
+		const curDist = getCurrent(ctx, zone, pointIndex) - curBase;
 
-		let newPos: F26Dot6;
-
-		if (orgRange !== 0) {
-			// Interpolate based on relative position
-			const t = orgPt - org1;
-			newPos = cur1 + Math.round((t * curRange) / orgRange);
+		let newDist: F26Dot6;
+		if (orgDist !== 0) {
+			if (orgRange !== 0) {
+				newDist = mulDiv(orgDist, curRange, orgRange);
+			} else {
+				newDist = orgDist;
+			}
 		} else {
-			// Reference points coincide, just shift
-			newPos = curPt + (cur1 - org1);
+			newDist = 0;
 		}
 
-		movePoint(ctx, zone, pointIndex, newPos - curPt);
+		movePoint(ctx, zone, pointIndex, newDist - curDist);
 		touchPoint(ctx, zone, pointIndex);
 	}
 }
@@ -540,7 +841,10 @@ export function ALIGNRP(ctx: ExecContext): void {
 		return;
 	}
 
-	const refPos = getCurrent(ctx, ctx.zp0, rp0);
+	const refPos =
+		ctx.GS.gep0 === 0
+			? getOriginal(ctx, ctx.zp0, rp0)
+			: getCurrent(ctx, ctx.zp0, rp0);
 
 	const zone = ctx.zp1;
 	const count = ctx.GS.loop;
@@ -556,6 +860,27 @@ export function ALIGNRP(ctx: ExecContext): void {
 
 		const curPos = getCurrent(ctx, zone, pointIndex);
 		const distance = refPos - curPos;
+
+		if (process.env.HINT_TRACE_POINTS) {
+			const targets = process.env.HINT_TRACE_POINTS.split(",").map((value) =>
+				Number.parseInt(value.trim(), 10),
+			);
+			if (targets.includes(pointIndex)) {
+				const refOrg = getOriginal(ctx, ctx.zp0, rp0);
+				const refCur = getCurrent(ctx, ctx.zp0, rp0);
+				console.log("trace ALIGNRP", {
+					pointIndex,
+					refPos,
+					refOrg,
+					refCur,
+					curPos,
+					distance,
+					gep0: ctx.GS.gep0,
+					gep1: ctx.GS.gep1,
+					gep2: ctx.GS.gep2,
+				});
+			}
+		}
 
 		movePoint(ctx, zone, pointIndex, distance);
 		touchPoint(ctx, zone, pointIndex);
@@ -597,6 +922,14 @@ export function MSIRP(ctx: ExecContext, setRp0: boolean): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
+		if (process.env.HINT_TRACE_RP0 === "1") {
+			console.log("trace rp0", {
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				opcode: ctx.opcode,
+				rp0: ctx.GS.rp0,
+			});
+		}
 	}
 }
 
@@ -718,7 +1051,7 @@ export function GC(ctx: ExecContext, useOriginal: boolean): void {
 	}
 
 	const coord = useOriginal
-		? getOriginal(ctx, zone, pointIndex)
+		? project(ctx, zone.org[pointIndex])
 		: getCurrent(ctx, zone, pointIndex);
 
 	ctx.stack[ctx.stackTop++] = coord;
@@ -736,6 +1069,17 @@ export function SCFS(ctx: ExecContext): void {
 	const zone = ctx.zp2;
 
 	if (pointIndex < 0 || pointIndex >= zone.nPoints) {
+		if (process.env.HINT_TRACE_GENEVA === "1") {
+			console.log("trace SCFS invalid", {
+				pointIndex,
+				opcode: ctx.opcode,
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				stackTop: ctx.stackTop,
+				top: ctx.stack[ctx.stackTop - 1],
+				second: ctx.stack[ctx.stackTop - 2],
+			});
+		}
 		ctx.error = `SCFS: invalid point ${pointIndex}`;
 		return;
 	}
