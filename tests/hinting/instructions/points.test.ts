@@ -50,9 +50,9 @@ describe("Point Movement Instructions", () => {
 		for (let i = 0; i < 10; i++) {
 			zone.org[i] = { x: i * 64, y: i * 64 };
 			zone.cur[i] = { x: i * 64, y: i * 64 };
-			zone.orus[i] = { x: i * 64, y: i * 64 };
 			zone.tags[i] = 0;
 		}
+		zone.orus = zone.org;
 
 		ctx.pts = zone;
 		ctx.zp0 = zone;

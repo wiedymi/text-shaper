@@ -29,6 +29,7 @@ const glyphInfo = ref<{
 
 const svgPath = ref('')
 const pathData = ref<any[]>([])
+const svgScale = 10
 
 async function inspectGlyph() {
   if (!props.font) {
@@ -72,21 +73,23 @@ async function inspectGlyph() {
     const pathStr = pathToSVG(path, { flipY: false })
 
     // ViewBox in font coordinates (Y-up), then flip the entire SVG
-    const viewBoxMinX = bounds.xMin - padding
-    const viewBoxMinY = bounds.yMin - padding
+    const viewBoxMinX = (bounds.xMin - padding) * svgScale
+    const viewBoxMinY = (bounds.yMin - padding) * svgScale
+    const viewBoxWidth = width * svgScale
+    const viewBoxHeight = height * svgScale
 
     svgPath.value = `
-      <svg viewBox="${viewBoxMinX} ${viewBoxMinY} ${width} ${height}" width="${scale.value}" height="${scale.value * (height / width)}" style="transform: scaleY(-1)">
+      <svg viewBox="${viewBoxMinX} ${viewBoxMinY} ${viewBoxWidth} ${viewBoxHeight}" width="${scale.value}" height="${scale.value * (height / width)}" style="transform: scaleY(-1)">
         <!-- Grid - baseline at y=0 -->
-        <line x1="${bounds.xMin - padding}" y1="0" x2="${bounds.xMax + padding}" y2="0" stroke="#888" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="${(bounds.xMin - padding) * svgScale}" y1="0" x2="${(bounds.xMax + padding) * svgScale}" y2="0" stroke="#888" stroke-width="1" stroke-dasharray="4"/>
         <!-- Y-axis at x=0 -->
-        <line x1="0" y1="${bounds.yMin - padding}" x2="0" y2="${bounds.yMax + padding}" stroke="#888" stroke-width="1" stroke-dasharray="4"/>
+        <line x1="0" y1="${(bounds.yMin - padding) * svgScale}" x2="0" y2="${(bounds.yMax + padding) * svgScale}" stroke="#888" stroke-width="1" stroke-dasharray="4"/>
         <!-- Advance width marker -->
-        <line x1="${glyphInfo.value.advanceWidth}" y1="${bounds.yMin - padding}" x2="${glyphInfo.value.advanceWidth}" y2="${bounds.yMax + padding}" stroke="#4a9eff" stroke-width="1" stroke-dasharray="2"/>
+        <line x1="${glyphInfo.value.advanceWidth * svgScale}" y1="${(bounds.yMin - padding) * svgScale}" x2="${glyphInfo.value.advanceWidth * svgScale}" y2="${(bounds.yMax + padding) * svgScale}" stroke="#4a9eff" stroke-width="1" stroke-dasharray="2"/>
         <!-- LSB marker -->
-        <line x1="${glyphInfo.value.lsb}" y1="${bounds.yMin - padding}" x2="${glyphInfo.value.lsb}" y2="${bounds.yMax + padding}" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="2"/>
+        <line x1="${glyphInfo.value.lsb * svgScale}" y1="${(bounds.yMin - padding) * svgScale}" x2="${glyphInfo.value.lsb * svgScale}" y2="${(bounds.yMax + padding) * svgScale}" stroke="#ff6b6b" stroke-width="1" stroke-dasharray="2"/>
         <!-- Bounding box -->
-        <rect x="${bounds.xMin}" y="${bounds.yMin}" width="${bounds.xMax - bounds.xMin}" height="${bounds.yMax - bounds.yMin}" fill="none" stroke="#ccc" stroke-width="1"/>
+        <rect x="${bounds.xMin * svgScale}" y="${bounds.yMin * svgScale}" width="${(bounds.xMax - bounds.xMin) * svgScale}" height="${(bounds.yMax - bounds.yMin) * svgScale}" fill="none" stroke="#ccc" stroke-width="1"/>
         <!-- Glyph path in font coordinates -->
         <path d="${pathStr}" fill="currentColor"/>
       </svg>

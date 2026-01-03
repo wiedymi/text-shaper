@@ -6,6 +6,7 @@
  * of glyph hinting to smooth out the positions of all remaining points.
  */
 
+import { divFix, mulFix } from "../scale.ts";
 import { type ExecContext, type GlyphZone, TouchFlag } from "../types.ts";
 
 /**
@@ -81,6 +82,8 @@ function interpolateUntouched(
 						contourEnd,
 						isX,
 					);
+				} else {
+					shiftContour(zone, contourStart, contourEnd, firstTouched, isX);
 				}
 				break;
 			}
@@ -100,8 +103,30 @@ function interpolateUntouched(
 	}
 }
 
+function shiftContour(
+	zone: GlyphZone,
+	start: number,
+	end: number,
+	touched: number,
+	isX: boolean,
+): void {
+	const orgTouched = isX ? zone.org[touched]?.x : zone.org[touched]?.y;
+	const curTouched = isX ? zone.cur[touched]?.x : zone.cur[touched]?.y;
+	const delta = curTouched - orgTouched;
+	if (delta === 0) return;
+
+	for (let i = start; i <= end; i++) {
+		if (i === touched) continue;
+		if (isX) {
+			zone.cur[i].x += delta;
+		} else {
+			zone.cur[i].y += delta;
+		}
+	}
+}
+
 /**
- * Interpolate points between two touched reference points
+ * Interpolate points between two touched reference points (FreeType-style)
  */
 function interpolateRange(
 	zone: GlyphZone,
@@ -111,53 +136,46 @@ function interpolateRange(
 	contourEnd: number,
 	isX: boolean,
 ): void {
-	// Get original and current positions of reference points
-	const org1 = isX ? zone.org[p1]?.x : zone.org[p1]?.y;
-	const org2 = isX ? zone.org[p2]?.x : zone.org[p2]?.y;
-	const cur1 = isX ? zone.cur[p1]?.x : zone.cur[p1]?.y;
-	const cur2 = isX ? zone.cur[p2]?.x : zone.cur[p2]?.y;
+	let ref1 = p1;
+	let ref2 = p2;
 
-	// Ensure org1 <= org2 for interpolation
-	let lo_org: number, hi_org: number;
-	let lo_cur: number, hi_cur: number;
-
-	if (org1 <= org2) {
-		lo_org = org1;
-		hi_org = org2;
-		lo_cur = cur1;
-		hi_cur = cur2;
-	} else {
-		lo_org = org2;
-		hi_org = org1;
-		lo_cur = cur2;
-		hi_cur = cur1;
+	let orus1 = isX ? zone.orus[ref1]?.x : zone.orus[ref1]?.y;
+	let orus2 = isX ? zone.orus[ref2]?.x : zone.orus[ref2]?.y;
+	if (orus1 > orus2) {
+		const tmpO = orus1;
+		orus1 = orus2;
+		orus2 = tmpO;
+		const tmpR = ref1;
+		ref1 = ref2;
+		ref2 = tmpR;
 	}
 
-	const orgRange = hi_org - lo_org;
-	const curRange = hi_cur - lo_cur;
+	const org1 = isX ? zone.org[ref1]?.x : zone.org[ref1]?.y;
+	const org2 = isX ? zone.org[ref2]?.x : zone.org[ref2]?.y;
+	const cur1 = isX ? zone.cur[ref1]?.x : zone.cur[ref1]?.y;
+	const cur2 = isX ? zone.cur[ref2]?.x : zone.cur[ref2]?.y;
+	const delta1 = cur1 - org1;
+	const delta2 = cur2 - org2;
 
-	// Walk through points between p1 and p2 (wrapping around contour)
+	const useTrivial = cur1 === cur2 || orus1 === orus2;
+	const scale = useTrivial ? 0 : divFix(cur2 - cur1, orus2 - orus1);
+
 	let i = p1 + 1;
 	if (i > contourEnd) i = contourStart;
 
 	while (i !== p2) {
-		const org = isX ? zone.org[i]?.x : zone.org[i]?.y;
+		let org = isX ? zone.org[i]?.x : zone.org[i]?.y;
 		let newPos: number;
 
-		if (org <= lo_org) {
-			// Point is below/left of both references - shift by lo movement
-			newPos = (isX ? zone.cur[i]?.x : zone.cur[i]?.y) + (lo_cur - lo_org);
-		} else if (org >= hi_org) {
-			// Point is above/right of both references - shift by hi movement
-			newPos = (isX ? zone.cur[i]?.x : zone.cur[i]?.y) + (hi_cur - hi_org);
+		if (org <= org1) {
+			newPos = org + delta1;
+		} else if (org >= org2) {
+			newPos = org + delta2;
+		} else if (useTrivial) {
+			newPos = cur1;
 		} else {
-			// Point is between references - interpolate
-			if (orgRange !== 0) {
-				const t = org - lo_org;
-				newPos = lo_cur + Math.round((t * curRange) / orgRange);
-			} else {
-				newPos = lo_cur;
-			}
+			const orus = isX ? zone.orus[i]?.x : zone.orus[i]?.y;
+			newPos = cur1 + mulFix(orus - orus1, scale);
 		}
 
 		if (isX) {

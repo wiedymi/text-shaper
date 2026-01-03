@@ -48,9 +48,9 @@ export enum RoundMode {
  * Touch flags for points
  */
 export enum TouchFlag {
-	X = 0x01,
-	Y = 0x02,
-	Both = 0x03,
+	X = 0x10,
+	Y = 0x20,
+	Both = 0x30,
 }
 
 /**
@@ -287,6 +287,8 @@ export interface ExecContext {
 
 	// Scale factor from font units to 26.6 pixels
 	scale: number;
+	// Scale factor in 16.16 fixed-point
+	scaleFix: number;
 
 	// Error state
 	error: string | null;
@@ -384,9 +386,10 @@ export function createExecContext(
 
 		codeRanges: new Map(),
 
-		ppem: 12,
-		pointSize: 12,
-		scale: 1,
+	ppem: 12,
+	pointSize: 12,
+	scale: 1,
+	scaleFix: 0x10000,
 
 		error: null,
 

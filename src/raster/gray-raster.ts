@@ -868,6 +868,9 @@ export class GrayRaster {
 		maxX: number,
 		fillRule: FillRule,
 	): boolean {
+		// Clip to band bounds so X/Y bisection reduces cell usage
+		this.setClip(minX, minY, maxX, maxY);
+
 		// Set up band bounds
 		this.cells.setBandBounds(minY, maxY);
 		this.cells.reset();

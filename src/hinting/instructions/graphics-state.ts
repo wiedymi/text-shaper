@@ -3,6 +3,7 @@
  */
 
 import { parseSuperRound } from "../rounding.ts";
+import { scaleFUnits } from "../scale.ts";
 import {
 	type ExecContext,
 	RoundMode,
@@ -54,19 +55,21 @@ function vectorFromPoints(
 	p2: number,
 	zone1: number,
 	zone2: number,
+	useOriginal: boolean,
 ): UnitVector {
 	const z1 = zone1 === 0 ? ctx.twilight : ctx.pts;
 	const z2 = zone2 === 0 ? ctx.twilight : ctx.pts;
 
-	const pt1 = z1.cur[p1];
-	const pt2 = z2.cur[p2];
+	const pt1 = useOriginal ? z1.org[p1] : z1.cur[p1];
+	const pt2 = useOriginal ? z2.org[p2] : z2.cur[p2];
 
 	if (!pt1 || !pt2) {
 		return { x: 0x4000, y: 0 };
 	}
 
-	const dx = pt2.x - pt1.x;
-	const dy = pt2.y - pt1.y;
+	// Match FreeType: vector is p1 - p2 (zp1 - zp2).
+	const dx = pt1.x - pt2.x;
+	const dy = pt1.y - pt2.y;
 
 	const len = Math.sqrt(dx * dx + dy * dy);
 	if (len === 0) {
@@ -84,17 +87,18 @@ export function SPVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop];
 	const p1 = ctx.stack[--ctx.stackTop];
 
-	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
+	// FreeType uses current points and sets dual == proj.
+	const proj = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, false);
 
 	if (perpendicular) {
-		// Rotate 90 degrees
-		const temp = vec.x;
-		vec.x = vec.y;
-		vec.y = -temp;
+		// Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+		const tempProj = proj.x;
+		proj.x = proj.y;
+		proj.y = -tempProj;
 	}
 
-	ctx.GS.projVector = vec;
-	ctx.GS.dualVector = vec;
+	ctx.GS.projVector = proj;
+	ctx.GS.dualVector = { ...proj };
 }
 
 /** SFVTL - Set freedom vector to line */
@@ -102,7 +106,7 @@ export function SFVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop];
 	const p1 = ctx.stack[--ctx.stackTop];
 
-	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
+	const vec = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, false);
 
 	if (perpendicular) {
 		const temp = vec.x;
@@ -118,7 +122,8 @@ export function SDPVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop];
 	const p1 = ctx.stack[--ctx.stackTop];
 
-	const vec = vectorFromPoints(ctx, p1, p2, ctx.GS.gep1, ctx.GS.gep2);
+	// SDPVTL uses original points (scaled).
+	const vec = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, true);
 
 	if (perpendicular) {
 		const temp = vec.x;
@@ -187,6 +192,15 @@ export function SFVTPV(ctx: ExecContext): void {
 /** SRP0 - Set reference point 0 */
 export function SRP0(ctx: ExecContext): void {
 	ctx.GS.rp0 = ctx.stack[--ctx.stackTop];
+	if (process.env.HINT_TRACE_GENEVA === "1") {
+		console.log("trace SRP0", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			rp0: ctx.GS.rp0,
+			stackTop: ctx.stackTop,
+			stackTail: Array.from(ctx.stack.slice(Math.max(0, ctx.stackTop - 8), ctx.stackTop)),
+		});
+	}
 }
 
 /** SRP1 - Set reference point 1 */
@@ -270,6 +284,22 @@ export function SMD(ctx: ExecContext): void {
 /** SCVTCI - Set control value table cut-in */
 export function SCVTCI(ctx: ExecContext): void {
 	ctx.GS.controlValueCutIn = ctx.stack[--ctx.stackTop];
+	if (process.env.HINT_TRACE_GENEVA === "1") {
+		console.log("trace SCVTCI", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			value: ctx.GS.controlValueCutIn,
+			ppem: ctx.ppem,
+		});
+	}
+	if (process.env.HINT_TRACE_SCVTCI === "1") {
+		console.log("trace SCVTCI", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			value: ctx.GS.controlValueCutIn,
+			ppem: ctx.ppem,
+		});
+	}
 }
 
 /** SSWCI - Set single width cut-in */
@@ -383,9 +413,9 @@ export function GETINFO(ctx: ExecContext): void {
 	const selector = ctx.stack[--ctx.stackTop];
 	let result = 0;
 
-	// Bit 0: version (we claim version 35 = Windows 95)
+	// Bit 0: version (match FreeType's default interpreter version 40)
 	if (selector & 1) {
-		result |= 35;
+		result |= 40;
 	}
 
 	// Bit 1: glyph rotated
@@ -412,6 +442,19 @@ export function RS(ctx: ExecContext): void {
 		ctx.stack[ctx.stackTop++] = 0;
 		return;
 	}
+	if (process.env.HINT_TRACE_STORAGE) {
+		const targets = process.env.HINT_TRACE_STORAGE.split(",").map((value) =>
+			Number.parseInt(value.trim(), 10),
+		);
+		if (targets.includes(index)) {
+			console.log("trace RS", {
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				index,
+				value: ctx.storage[index],
+			});
+		}
+	}
 	ctx.stack[ctx.stackTop++] = ctx.storage[index];
 }
 
@@ -424,6 +467,19 @@ export function WS(ctx: ExecContext): void {
 		return;
 	}
 	ctx.storage[index] = value;
+	if (process.env.HINT_TRACE_STORAGE) {
+		const targets = process.env.HINT_TRACE_STORAGE.split(",").map((value) =>
+			Number.parseInt(value.trim(), 10),
+		);
+		if (targets.includes(index)) {
+			console.log("trace WS", {
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				index,
+				value,
+			});
+		}
+	}
 }
 
 /** RCVT - Read CVT value */
@@ -446,6 +502,43 @@ export function WCVTP(ctx: ExecContext): void {
 		return;
 	}
 	ctx.cvt[index] = value;
+	if (process.env.HINT_TRACE_CVT0 === "1" && index === 0) {
+		console.log("trace WCVTP", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			index,
+			value,
+			ppem: ctx.ppem,
+		});
+	}
+	if (process.env.HINT_TRACE_CVT) {
+		const targets = process.env.HINT_TRACE_CVT
+			.split(",")
+			.map((value) => Number.parseInt(value.trim(), 10))
+			.filter((value) => Number.isFinite(value));
+		if (targets.length === 0 || targets.includes(index)) {
+			console.log("trace WCVTP", {
+				ip: ctx.IP,
+				range: ctx.currentRange,
+				index,
+				value,
+				ppem: ctx.ppem,
+			});
+		}
+	}
+	if (
+		process.env.HINT_TRACE_GENEVA === "1" &&
+		(index === 75 || index === 67 || index === 25)
+	) {
+		console.log("trace WCVTP", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			index,
+			value,
+			ppem: ctx.ppem,
+			roundState: ctx.GS.roundState,
+		});
+	}
 }
 
 /** WCVTF - Write CVT value in font units */
@@ -457,7 +550,16 @@ export function WCVTF(ctx: ExecContext): void {
 		return;
 	}
 	// Convert from font units to pixels (26.6)
-	ctx.cvt[index] = Math.round(value * ctx.scale);
+	ctx.cvt[index] = scaleFUnits(value, ctx.scaleFix);
+	if (process.env.HINT_TRACE_CVT0 === "1" && index === 0) {
+		console.log("trace WCVTF", {
+			ip: ctx.IP,
+			range: ctx.currentRange,
+			index,
+			value,
+			ppem: ctx.ppem,
+		});
+	}
 }
 
 /** UTP - UnTouch Point */

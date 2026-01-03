@@ -112,7 +112,15 @@ export function JMPR(ctx: ExecContext): void {
 		ctx.stackTop++;
 		return;
 	}
-	ctx.IP += offset - 1; // -1 because IP was already incremented
+	if (process.env.HINT_TRACE_GENEVA === "1") {
+		console.log("trace JMPR", {
+			ip: ctx.IP,
+			offset,
+			range: ctx.currentRange,
+		});
+	}
+	// Jump is relative to current instruction address.
+	ctx.IP += offset - 1;
 }
 
 /** JROT - Jump relative on true */
@@ -125,6 +133,14 @@ export function JROT(ctx: ExecContext): void {
 		return;
 	}
 
+	if (process.env.HINT_TRACE_GENEVA === "1") {
+		console.log("trace JROT", {
+			ip: ctx.IP,
+			offset,
+			condition,
+			range: ctx.currentRange,
+		});
+	}
 	if (condition) {
 		ctx.IP += offset - 1;
 	}
@@ -140,6 +156,14 @@ export function JROF(ctx: ExecContext): void {
 		return;
 	}
 
+	if (process.env.HINT_TRACE_GENEVA === "1") {
+		console.log("trace JROF", {
+			ip: ctx.IP,
+			offset,
+			condition,
+			range: ctx.currentRange,
+		});
+	}
 	if (!condition) {
 		ctx.IP += offset - 1;
 	}
@@ -216,6 +240,16 @@ export function ENDF(ctx: ExecContext): void {
 		// Loop again
 		ctx.IP = call.def.start;
 	} else {
+		if (process.env.HINT_TRACE_GENEVA === "1" && call.def.id === 24) {
+			console.log("trace CALL exit", {
+				funcNum: call.def.id,
+				range: ctx.currentRange,
+				stackTop: ctx.stackTop,
+				stackTail: Array.from(
+					ctx.stack.slice(Math.max(0, ctx.stackTop - 8), ctx.stackTop),
+				),
+			});
+		}
 		// Return to caller
 		ctx.callStackTop--;
 		ctx.IP = call.callerIP;
@@ -238,6 +272,14 @@ export function CALL(ctx: ExecContext): void {
 		ctx.stackTop++;
 		return;
 	}
+	if (process.env.HINT_TRACE_CALLS === "1") {
+		console.log("trace CALL", {
+			funcNum,
+			range: ctx.currentRange,
+			ip: ctx.IP,
+			stackTop: ctx.stackTop,
+		});
+	}
 
 	if (funcNum < 0 || funcNum >= ctx.maxFDefs) {
 		ctx.error = `CALL: invalid function number ${funcNum}`;
@@ -253,6 +295,16 @@ export function CALL(ctx: ExecContext): void {
 	if (ctx.callStackTop >= ctx.maxCallStack) {
 		ctx.error = "CALL: call stack overflow";
 		return;
+	}
+	if (process.env.HINT_TRACE_GENEVA === "1" && funcNum === 24) {
+		console.log("trace CALL enter", {
+			funcNum,
+			range: ctx.currentRange,
+			stackTop: ctx.stackTop,
+			stackTail: Array.from(
+				ctx.stack.slice(Math.max(0, ctx.stackTop - 8), ctx.stackTop),
+			),
+		});
 	}
 
 	// Push call record

@@ -361,7 +361,7 @@ function shouldScaleComponentOffset(
 ): boolean {
 	if (flags & CompositeFlag.UnscaledComponentOffset) return false;
 	if (flags & CompositeFlag.ScaledComponentOffset) return true;
-	return a !== 1 || b !== 0 || c !== 0 || d !== 1;
+	return false;
 }
 
 function flattenContoursPoints(contours: Contour[]): GlyphPoint[] {
@@ -494,9 +494,18 @@ export function flattenCompositeGlyph(
 	return result;
 }
 
-/** LRU cache for composite glyph contours - using numeric keys for faster lookups */
-const compositeCache = new Map<GlyphId, Contour[]>();
+/** LRU cache for composite glyph contours (per glyf table) */
+const compositeCache = new WeakMap<GlyfTable, Map<GlyphId, Contour[]>>();
 const COMPOSITE_CACHE_SIZE = 256;
+
+function getCompositeCache(glyf: GlyfTable): Map<GlyphId, Contour[]> {
+	let cache = compositeCache.get(glyf);
+	if (!cache) {
+		cache = new Map();
+		compositeCache.set(glyf, cache);
+	}
+	return cache;
+}
 
 /**
  * Get all contours for a glyph, flattening composites
@@ -513,18 +522,19 @@ export function getGlyphContours(
 	} else if (glyph.type === "simple") {
 		return glyph.contours;
 	} else {
+		const cache = getCompositeCache(glyf);
 		// Check cache for composite glyphs using numeric key directly
-		const cached = compositeCache.get(glyphId);
+		const cached = cache.get(glyphId);
 		if (cached) return cached;
 
 		const result = flattenCompositeGlyph(glyf, loca, glyph);
 
 		// Cache result with LRU eviction
-		if (compositeCache.size >= COMPOSITE_CACHE_SIZE) {
-			const firstKey = compositeCache.keys().next().value;
-			if (firstKey !== undefined) compositeCache.delete(firstKey);
+		if (cache.size >= COMPOSITE_CACHE_SIZE) {
+			const firstKey = cache.keys().next().value;
+			if (firstKey !== undefined) cache.delete(firstKey);
 		}
-		compositeCache.set(glyphId, result);
+		cache.set(glyphId, result);
 
 		return result;
 	}
@@ -560,14 +570,15 @@ export function getGlyphContoursAndBounds(
 	}
 
 	// Composite glyph - check cache using numeric key directly
-	let contours = compositeCache.get(glyphId);
+	const cache = getCompositeCache(glyf);
+	let contours = cache.get(glyphId);
 	if (!contours) {
 		contours = flattenCompositeGlyph(glyf, loca, glyph);
-		if (compositeCache.size >= COMPOSITE_CACHE_SIZE) {
-			const firstKey = compositeCache.keys().next().value;
-			if (firstKey !== undefined) compositeCache.delete(firstKey);
+		if (cache.size >= COMPOSITE_CACHE_SIZE) {
+			const firstKey = cache.keys().next().value;
+			if (firstKey !== undefined) cache.delete(firstKey);
 		}
-		compositeCache.set(glyphId, contours);
+		cache.set(glyphId, contours);
 	}
 
 	return { contours, bounds };

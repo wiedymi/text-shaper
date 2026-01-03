@@ -5,6 +5,7 @@ import {
 	createGlyphZone,
 	RoundMode,
 	CodeRange,
+	TouchFlag,
 	type ExecContext,
 	Opcode,
 } from "../../src/hinting/types.ts";
@@ -740,6 +741,7 @@ describe("TrueType Interpreter - Storage and CVT", () => {
 		ctx.cvt = new Int32Array(10);
 		ctx.cvtSize = 10;
 		ctx.scale = 2.0; // 2x scale
+		ctx.scaleFix = Math.round(ctx.scale * 0x10000);
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
 			0xb1, 2, 100, // PUSHB[1] index=2 value=100 (font units)
 			0x70, // WCVTF
@@ -822,7 +824,7 @@ describe("TrueType Interpreter - GETINFO", () => {
 			0x88, // GETINFO
 		]));
 		expect(ctx.stackTop).toBe(1);
-		expect(ctx.stack[0]).toBe(35); // Version 35 (Windows 95 compatible)
+		expect(ctx.stack[0]).toBe(40); // Version 40 (FreeType default)
 	});
 
 	test("GETINFO with grayscale bit", () => {
@@ -850,20 +852,22 @@ describe("TrueType Interpreter - Code Ranges", () => {
 		const ctx = createExecContext();
 		ctx.GS.loop = 99; // Modify GS
 		const prepCode = new Uint8Array([
-			0xb0, 5, 0x17, // SLOOP 5
+			0xb0, 5, 0x17, // SLOOP 5 (non-persistent)
+			0xb0, 80, 0x1a, // SMD 80 (persistent)
 		]);
 		setCodeRange(ctx, CodeRange.CVT, prepCode);
 		runCVTProgram(ctx);
 		expect(ctx.error).toBeNull();
-		expect(ctx.defaultGS.loop).toBe(5); // Saved to default
+		expect(ctx.defaultGS.minimumDistance).toBe(80);
+		expect(ctx.defaultGS.loop).toBe(1);
 	});
 
-	test("runGlyphProgram resets to default GS", () => {
+	test("runGlyphProgram resets per-glyph state", () => {
 		const ctx = createExecContext();
 		ctx.defaultGS.loop = 7;
 		ctx.GS.loop = 99;
 		runGlyphProgram(ctx, new Uint8Array([]));
-		expect(ctx.GS.loop).toBe(7); // Reset to default
+		expect(ctx.GS.loop).toBe(1); // Loop counter resets per glyph
 	});
 });
 
@@ -1178,10 +1182,11 @@ describe("TrueType Interpreter - Point Movement", () => {
 		const ctx = createExecContext();
 		ctx.pts.nPoints = 5;
 		ctx.pts.nContours = 1;
-		ctx.pts.contours = new Uint16Array([4]);
-		ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
-		ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
-		ctx.pts.tags = new Uint8Array(5);
+	ctx.pts.contours = new Uint16Array([4]);
+	ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
+	ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
+	ctx.pts.orus = ctx.pts.org;
+	ctx.pts.tags = new Uint8Array(5);
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([0x30])); // IUP_Y
 		runProgram(ctx, CodeRange.Glyph);
 		expect(ctx.error).toBeNull();
@@ -1191,10 +1196,11 @@ describe("TrueType Interpreter - Point Movement", () => {
 		const ctx = createExecContext();
 		ctx.pts.nPoints = 5;
 		ctx.pts.nContours = 1;
-		ctx.pts.contours = new Uint16Array([4]);
-		ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
-		ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
-		ctx.pts.tags = new Uint8Array(5);
+	ctx.pts.contours = new Uint16Array([4]);
+	ctx.pts.cur = Array(5).fill({ x: 0, y: 0 });
+	ctx.pts.org = Array(5).fill({ x: 0, y: 0 });
+	ctx.pts.orus = ctx.pts.org;
+	ctx.pts.tags = new Uint8Array(5);
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([0x31])); // IUP_X
 		runProgram(ctx, CodeRange.Glyph);
 		expect(ctx.error).toBeNull();
@@ -1359,7 +1365,13 @@ describe("TrueType Interpreter - Point Movement", () => {
 
 	test("UTP untouches point", () => {
 		const ctx = setupContextWithPoints(5);
-		ctx.pts.tags = new Uint8Array([3, 3, 3, 3, 3]); // All touched (X=1, Y=2)
+		ctx.pts.tags = new Uint8Array([
+			TouchFlag.Both,
+			TouchFlag.Both,
+			TouchFlag.Both,
+			TouchFlag.Both,
+			TouchFlag.Both,
+		]);
 		// Set freedom vector to have both X and Y components so both flags are cleared
 		ctx.GS.freeVector = { x: 0x4000, y: 0x4000 };
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([

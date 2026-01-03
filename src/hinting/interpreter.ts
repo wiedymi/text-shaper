@@ -793,7 +793,7 @@ export function runCVTProgram(ctx: ExecContext): void {
 	ctx.GS.gep1 = 0;
 	ctx.GS.gep2 = 0;
 	runProgram(ctx, CodeRange.CVT);
-	// Save modified GS as new default for glyphs, but reset per-glyph vectors.
+	// Save modified GS as new default for glyphs, but reset non-persistent state.
 	ctx.defaultGS = { ...ctx.GS };
 	ctx.defaultGS.projVector = { x: 0x4000, y: 0 };
 	ctx.defaultGS.freeVector = { x: 0x4000, y: 0 };
@@ -816,6 +816,11 @@ export function runGlyphProgram(
 ): void {
 	// Reset graphics state to default
 	ctx.GS = { ...ctx.defaultGS };
+	// Reset per-glyph state
+	ctx.GS.rp0 = 0;
+	ctx.GS.rp1 = 0;
+	ctx.GS.rp2 = 0;
+	ctx.GS.loop = 1;
 
 	// Set up glyph zone pointers
 	ctx.zp0 = ctx.pts;

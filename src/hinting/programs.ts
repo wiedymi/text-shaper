@@ -13,6 +13,8 @@ import {
 	runGlyphProgram,
 	setCodeRange,
 } from "./interpreter.ts";
+import { roundToGrid } from "./rounding.ts";
+import { scaleFUnits } from "./scale.ts";
 import {
 	CodeRange,
 	createExecContext,
@@ -28,6 +30,10 @@ export interface HintingEngine {
 	ctx: ExecContext;
 	/** Units per EM from font */
 	unitsPerEM: number;
+	/** Original CVT values in font units */
+	cvtOriginal?: Int32Array;
+	/** Scaled CVT baseline after prep */
+	cvtBase?: Int32Array;
 	/** Has fpgm been executed */
 	fpgmExecuted: boolean;
 	/** Current ppem (prep needs re-run if this changes) */
@@ -54,8 +60,11 @@ export function createHintingEngine(
 		maxTwilightPoints,
 	);
 
+	let cvtOriginal: Int32Array | undefined;
+
 	// Initialize CVT if provided
 	if (cvtValues) {
+		cvtOriginal = new Int32Array(cvtValues);
 		ctx.cvt = new Int32Array(cvtValues);
 		ctx.cvtSize = cvtValues.length;
 	}
@@ -73,6 +82,7 @@ export function createHintingEngine(
 	return {
 		ctx,
 		unitsPerEM,
+		cvtOriginal,
 		fpgmExecuted: false,
 		currentPpem: 0,
 	};
@@ -125,16 +135,18 @@ export function setSize(
 	// Calculate scale factor: font units to 26.6 pixels
 	// scale = ppem / unitsPerEM * 64 (for 26.6 format)
 	engine.ctx.scale = (ppem * 64) / engine.unitsPerEM;
+	engine.ctx.scaleFix = Math.round(engine.ctx.scale * 0x10000);
 	engine.ctx.ppem = ppem;
-	engine.ctx.pointSize = pointSize;
+	engine.ctx.pointSize = pointSize * 64;
 
 	// Scale CVT values from font units to pixels
-	scaleCVT(engine.ctx);
+	scaleCVT(engine.ctx, engine.cvtOriginal);
 
 	// Run prep program
 	engine.ctx.error = null;
 	runCVTProgram(engine.ctx);
 	engine.currentPpem = ppem;
+	engine.cvtBase = new Int32Array(engine.ctx.cvt);
 
 	return engine.ctx.error;
 }
@@ -142,9 +154,16 @@ export function setSize(
 /**
  * Scale CVT values from font units to 26.6 pixels
  */
-function scaleCVT(ctx: ExecContext): void {
+function scaleCVT(ctx: ExecContext, original?: Int32Array): void {
+	if (!original) {
+		for (let i = 0; i < ctx.cvtSize; i++) {
+			ctx.cvt[i] = scaleFUnits(ctx.cvt[i], ctx.scaleFix);
+		}
+		return;
+	}
+
 	for (let i = 0; i < ctx.cvtSize; i++) {
-		ctx.cvt[i] = Math.round(ctx.cvt[i] * ctx.scale);
+		ctx.cvt[i] = scaleFUnits(original[i]!, ctx.scaleFix);
 	}
 }
 
@@ -209,8 +228,8 @@ export function hintGlyph(
 
 	// Scale and copy point coordinates
 	for (let i = 0; i < nPoints; i++) {
-		const x = Math.round(outline.xCoords[i] * ctx.scale);
-		const y = Math.round(outline.yCoords[i] * ctx.scale);
+		const x = scaleFUnits(outline.xCoords[i], ctx.scaleFix);
+		const y = scaleFUnits(outline.yCoords[i], ctx.scaleFix);
 
 		zone.org[i].x = x;
 		zone.org[i].y = y;
@@ -238,7 +257,7 @@ export function hintGlyph(
 	const advW = outline.advanceWidth ?? 0;
 
 	// Phantom point 0: horizontal origin
-	const pp0x = Math.round((xMin - lsb) * ctx.scale);
+	const pp0x = scaleFUnits(xMin - lsb, ctx.scaleFix);
 	zone.org[nPoints].x = pp0x;
 	zone.org[nPoints].y = 0;
 	zone.cur[nPoints].x = pp0x;
@@ -248,7 +267,7 @@ export function hintGlyph(
 	zone.tags[nPoints] = 0;
 
 	// Phantom point 1: advance width
-	const pp1x = Math.round((xMin - lsb + advW) * ctx.scale);
+	const pp1x = scaleFUnits(xMin - lsb + advW, ctx.scaleFix);
 	zone.org[nPoints + 1].x = pp1x;
 	zone.org[nPoints + 1].y = 0;
 	zone.cur[nPoints + 1].x = pp1x;
@@ -267,6 +286,12 @@ export function hintGlyph(
 		zone.orus[i].y = 0;
 		zone.tags[i] = 0;
 	}
+
+	// Round phantom points to grid (matches FreeType behavior).
+	zone.cur[nPoints].x = roundToGrid(zone.cur[nPoints].x, 0);
+	zone.cur[nPoints + 1].x = roundToGrid(zone.cur[nPoints + 1].x, 0);
+	zone.cur[nPoints + 2].y = roundToGrid(zone.cur[nPoints + 2].y, 0);
+	zone.cur[nPoints + 3].y = roundToGrid(zone.cur[nPoints + 3].y, 0);
 
 	// Copy contour ends
 	for (let i = 0; i < nContours; i++) {
@@ -290,6 +315,10 @@ export function hintGlyph(
 	}
 
 	// Run glyph instructions
+	ctx.storage.fill(0);
+	if (engine.cvtBase) {
+		ctx.cvt.set(engine.cvtBase);
+	}
 	ctx.error = null;
 	if (outline.instructions.length > 0) {
 		runGlyphProgram(ctx, outline.instructions);

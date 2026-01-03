@@ -5,6 +5,13 @@ import { Font } from "../../src/font/font.ts";
 const WOFF2_FONT_PATH =
 	"/Users/uyakauleu/vivy/experiments/typeshaper/node_modules/vitepress/dist/client/theme-default/fonts/inter-roman-latin.woff2";
 
+function isMissingFile(e: any): boolean {
+	return (
+		e?.code === "ENOENT" ||
+		String(e?.message ?? "").toLowerCase().includes("no such file")
+	);
+}
+
 describe("WOFF2 decoder", () => {
 	describe("woff2ToSfnt", () => {
 		test("throws on invalid signature", async () => {
@@ -32,7 +39,7 @@ describe("WOFF2 decoder", () => {
 				const sig = view.getUint32(0, false);
 				expect([0x00010000, 0x4f54544f, 0x74727565]).toContain(sig);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					// Skip if font file doesn't exist
 					expect(true).toBe(true);
 				} else {
@@ -52,7 +59,7 @@ describe("WOFF2 decoder", () => {
 				expect(font.numGlyphs).toBeGreaterThan(0);
 				expect(font.unitsPerEm).toBeGreaterThan(0);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -75,7 +82,7 @@ describe("WOFF2 decoder", () => {
 				const flavor = view.getUint32(0, false);
 				expect([0x00010000, 0x4f54544f]).toContain(flavor);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -114,7 +121,7 @@ describe("WOFF2 decoder", () => {
 					expect(font.hasTable("loca" as any)).toBe(true);
 				}
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -134,7 +141,7 @@ describe("WOFF2 decoder", () => {
 				expect(tables).toContain("head");
 				expect(tables).toContain("maxp");
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -154,7 +161,7 @@ describe("WOFF2 decoder", () => {
 				const font = Font.load(sfnt);
 				expect(font.head.magicNumber).toBe(0x5f0f3cf5);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -172,7 +179,7 @@ describe("WOFF2 decoder", () => {
 				// Head table should have checksumAdjustment field at offset 8
 				expect(view.byteLength).toBeGreaterThan(20);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -299,7 +306,7 @@ describe("WOFF2 decoder", () => {
 				const sfnt = await woff2ToSfnt(buffer);
 				expect(sfnt.byteLength).toBeGreaterThan(0);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -314,7 +321,7 @@ describe("WOFF2 decoder", () => {
 				const sfnt = await woff2ToSfnt(buffer);
 				expect(sfnt).toBeInstanceOf(ArrayBuffer);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -337,7 +344,7 @@ describe("WOFF2 decoder", () => {
 					const sfnt = await woff2ToSfnt(buffer);
 					expect(sfnt.byteLength).toBeGreaterThan(0);
 				} catch (e: any) {
-					if (!e.message.includes("No such file")) {
+					if (!isMissingFile(e)) {
 						throw e;
 					}
 				}
@@ -357,7 +364,7 @@ describe("WOFF2 decoder", () => {
 					expect(tables).toContain("loca");
 				}
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;
@@ -397,7 +404,7 @@ describe("WOFF2 decoder", () => {
 				// Just verify the font loads correctly
 				expect(font.numGlyphs).toBeGreaterThan(0);
 			} catch (e: any) {
-				if (e.message.includes("No such file")) {
+				if (isMissingFile(e)) {
 					expect(true).toBe(true);
 				} else {
 					throw e;

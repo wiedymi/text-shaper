@@ -13,6 +13,7 @@ describe("IUP - Interpolate Untouched Points", () => {
 		const zone = createGlyphZone(nPoints, nContours);
 		zone.nPoints = nPoints;
 		zone.nContours = nContours;
+		zone.orus = zone.org;
 		ctx.pts = zone;
 		ctx.zp0 = zone;
 		ctx.zp1 = zone;

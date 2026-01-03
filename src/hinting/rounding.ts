@@ -11,9 +11,9 @@ import { type F26Dot6, type GraphicsState, RoundMode } from "./types.ts";
  */
 export function roundToGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
 	if (distance >= 0) {
-		return (distance + 32 + compensation) & -64;
+		return (distance + compensation + 32) & -64;
 	} else {
-		return -((-distance + 32 + compensation) & -64);
+		return -((-distance + compensation + 32) & -64);
 	}
 }
 
@@ -25,9 +25,9 @@ export function roundToHalfGrid(
 	compensation: F26Dot6,
 ): F26Dot6 {
 	if (distance >= 0) {
-		return ((distance + 32 + compensation) & -64) + 32;
+		return ((distance + compensation + 32) & -64) + 32;
 	} else {
-		return -(((-distance + 32 + compensation) & -64) + 32);
+		return -(((-distance + compensation + 32) & -64) + 32);
 	}
 }
 
@@ -55,7 +55,7 @@ export function roundDownToGrid(
 	if (distance >= 0) {
 		return (distance + compensation) & -64;
 	} else {
-		return -((compensation - distance) & -64);
+		return -((-distance + compensation) & -64);
 	}
 }
 
@@ -67,9 +67,9 @@ export function roundUpToGrid(
 	compensation: F26Dot6,
 ): F26Dot6 {
 	if (distance >= 0) {
-		return (distance + 63 + compensation) & -64;
+		return (distance + compensation + 63) & -64;
 	} else {
-		return -((63 + compensation - distance) & -64);
+		return -((-distance + compensation + 63) & -64);
 	}
 }
 

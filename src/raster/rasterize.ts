@@ -668,7 +668,8 @@ function rasterizeHintedGlyph(
 	let hintedForRaster = hinted;
 	if (pixelMode === PixelMode.Gray) {
 		// Match FreeType light hinting: keep original X positions, hint Y only.
-		const base = buildGlyphPoints26(font, glyphId, engine.ctx.scale);
+		const baseScale = (ppem * 64) / font.unitsPerEm;
+		const base = buildGlyphPoints26(font, glyphId, baseScale);
 		if (base && base.xCoords.length === hinted.xCoords.length) {
 			hintedForRaster = { ...hinted, xCoords: base.xCoords };
 		}

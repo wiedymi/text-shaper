@@ -310,7 +310,8 @@ describe("Hinting Programs - Program Execution", () => {
 		expect(engine.ctx.cvt[2]).toBe(Math.round(300 * scale));
 
 		// prep should have executed
-		expect(engine.ctx.defaultGS.loop).toBe(5);
+		expect(engine.ctx.GS.loop).toBe(5);
+		expect(engine.ctx.defaultGS.loop).toBe(1);
 	});
 
 	test("setSize skips prep if size unchanged", () => {
@@ -319,14 +320,17 @@ describe("Hinting Programs - Program Execution", () => {
 		loadCVTProgram(engine, prepCode);
 
 		setSize(engine, 12, 12);
-		expect(engine.ctx.defaultGS.loop).toBe(5);
+		expect(engine.ctx.GS.loop).toBe(5);
+		expect(engine.ctx.defaultGS.loop).toBe(1);
 
 		// Change GS and call setSize again with same ppem
-		engine.ctx.defaultGS.loop = 1;
+		engine.ctx.defaultGS.loop = 2;
+		engine.ctx.GS.loop = 3;
 		setSize(engine, 12, 12);
 
 		// Should not re-run prep
-		expect(engine.ctx.defaultGS.loop).toBe(1);
+		expect(engine.ctx.defaultGS.loop).toBe(2);
+		expect(engine.ctx.GS.loop).toBe(3);
 	});
 
 	test("setSize returns prep error", () => {
@@ -860,9 +864,10 @@ describe("Hinting Programs - Edge Cases", () => {
 		// Modify GS before setSize
 		engine.ctx.GS.loop = 99;
 
-		setSize(engine, 12, 12);
+	setSize(engine, 12, 12);
 
-		// After prep, defaultGS should have new value
-		expect(engine.ctx.defaultGS.loop).toBe(10);
-	});
+	// After prep, defaultGS should have new value
+	expect(engine.ctx.GS.loop).toBe(10);
+	expect(engine.ctx.defaultGS.loop).toBe(1);
+});
 });

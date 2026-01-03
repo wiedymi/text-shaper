@@ -1,4 +1,5 @@
 import { describe, expect, test, beforeAll } from "bun:test";
+import { existsSync } from "node:fs";
 import { Font } from "../../../src/font/font.ts";
 import {
 	parseMath,
@@ -22,7 +23,11 @@ const STIX_TWO_MATH_PATH =
 const XITS_MATH_PATH =
 	"/Users/uyakauleu/vivy/experiments/typeshaper/tests/fonts/XITSMath-Regular.otf";
 
-describe("MATH table", () => {
+const HAS_MATH_FONTS =
+	existsSync(STIX_TWO_MATH_PATH) && existsSync(XITS_MATH_PATH);
+const describeMath = HAS_MATH_FONTS ? describe : describe.skip;
+
+describeMath("MATH table", () => {
 	let stixFont: Font;
 	let xitsFont: Font;
 	let stixMath: MathTable | null;

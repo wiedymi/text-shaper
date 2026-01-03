@@ -244,30 +244,34 @@ describe("Graphics State Instructions", () => {
 				const originalProj = { ...ctx.GS.projVector };
 				ctx.pts.cur[0] = { x: 0, y: 0 };
 				ctx.pts.cur[2] = { x: 400, y: 0 };
+				ctx.pts.org[0] = { x: 0, y: 0 };
+				ctx.pts.org[2] = { x: 400, y: 0 };
 
 				ctx.stack[ctx.stackTop++] = 0;
 				ctx.stack[ctx.stackTop++] = 2;
 
-				SDPVTL(ctx, false);
+			SDPVTL(ctx, false);
 
-				expect(ctx.GS.dualVector.x).toBe(0x4000);
-				expect(ctx.GS.projVector).toEqual(originalProj);
-			});
+			expect(ctx.GS.dualVector.x).toBe(0x4000);
+			expect(ctx.GS.projVector).toEqual(originalProj);
+		});
 
 			test("sets dual vector perpendicular to line", () => {
 				const ctx = createTestContext();
 				ctx.pts.cur[0] = { x: 0, y: 0 };
 				ctx.pts.cur[2] = { x: 400, y: 0 };
+				ctx.pts.org[0] = { x: 0, y: 0 };
+				ctx.pts.org[2] = { x: 400, y: 0 };
 
 				ctx.stack[ctx.stackTop++] = 0;
 				ctx.stack[ctx.stackTop++] = 2;
 
-				SDPVTL(ctx, true);
+			SDPVTL(ctx, true);
 
-				expect(ctx.GS.dualVector.x).toBe(0);
-				expect(ctx.GS.dualVector.y).toBe(-0x4000);
-			});
+			expect(ctx.GS.dualVector.x).toBe(0);
+			expect(ctx.GS.dualVector.y).toBe(-0x4000);
 		});
+	});
 
 		describe("SPVFS", () => {
 			test("sets projection vector from stack", () => {
@@ -750,7 +754,7 @@ describe("Graphics State Instructions", () => {
 
 			GETINFO(ctx);
 
-			expect(ctx.stack[0]).toBe(35);
+			expect(ctx.stack[0]).toBe(40);
 		});
 
 		test("returns grayscale flag", () => {
@@ -769,7 +773,7 @@ describe("Graphics State Instructions", () => {
 			GETINFO(ctx);
 
 			const result = ctx.stack[0]!;
-			expect(result & 35).toBeTruthy();
+			expect(result & 40).toBeTruthy();
 			expect(result & (1 << 12)).toBeTruthy();
 		});
 
@@ -906,6 +910,7 @@ describe("Graphics State Instructions", () => {
 			ctx.cvt = new Int32Array(10);
 			ctx.cvtSize = 10;
 			ctx.scale = 1.5;
+			ctx.scaleFix = Math.round(ctx.scale * 0x10000);
 			ctx.stack[ctx.stackTop++] = 2;
 			ctx.stack[ctx.stackTop++] = 100;
 

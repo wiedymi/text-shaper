@@ -65,13 +65,14 @@ export function MINDEX(ctx: ExecContext): void {
 
 /** ROLL - Roll top three elements */
 export function ROLL(ctx: ExecContext): void {
-	const a = ctx.stack[ctx.stackTop - 1];
-	const b = ctx.stack[ctx.stackTop - 2];
-	const c = ctx.stack[ctx.stackTop - 3];
+	const top = ctx.stack[ctx.stackTop - 1];
+	const second = ctx.stack[ctx.stackTop - 2];
+	const third = ctx.stack[ctx.stackTop - 3];
 
-	ctx.stack[ctx.stackTop - 1] = c;
-	ctx.stack[ctx.stackTop - 2] = a;
-	ctx.stack[ctx.stackTop - 3] = b;
+	// TrueType ROLL: (third, second, top) -> (second, top, third)
+	ctx.stack[ctx.stackTop - 3] = second;
+	ctx.stack[ctx.stackTop - 2] = top;
+	ctx.stack[ctx.stackTop - 1] = third;
 }
 
 /** Push byte(s) from instruction stream */

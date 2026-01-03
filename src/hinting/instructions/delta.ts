@@ -42,6 +42,9 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 	}
 
 	const zone = ctx.zp0;
+	if (process.env.HINT_TRACE_GENEVA === "1") {
+		console.log("trace DELTAP count", { count, rangeOffset, ppem: ctx.ppem });
+	}
 
 	for (let i = 0; i < count; i++) {
 		// Per Apple TrueType spec: pop point first, then arg
@@ -60,6 +63,14 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 		const magnitude = argByte & 0x0f;
 
 		// Check if we're at the target ppem
+		if (process.env.HINT_TRACE_GENEVA === "1") {
+			console.log("trace DELTAP arg", {
+				pointIndex,
+				argByte,
+				ppemDelta,
+				magnitude,
+			});
+		}
 		if (ppemDelta !== ctx.ppem) {
 			continue;
 		}
@@ -67,11 +78,20 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 		// Convert magnitude to actual delta value
 		// 0-7: positive 1-8 (shifted by deltaShift)
 		// 8-15: negative 1-8 (shifted by deltaShift)
-		let delta: number;
-		if (magnitude < 8) {
-			delta = (magnitude + 1) << (6 - ctx.GS.deltaShift);
-		} else {
-			delta = -((magnitude - 7) << (6 - ctx.GS.deltaShift));
+		const deltaStep = 1 << (6 - ctx.GS.deltaShift);
+		const delta =
+			magnitude >= 8
+				? -(magnitude - 7) * deltaStep
+				: (magnitude + 1) * deltaStep;
+
+		if (process.env.HINT_TRACE_GENEVA === "1") {
+			console.log("trace DELTAP", {
+				pointIndex,
+				argByte,
+				ppemDelta,
+				deltaShift: ctx.GS.deltaShift,
+				delta,
+			});
 		}
 
 		movePoint(ctx, zone, pointIndex, delta);
@@ -131,12 +151,11 @@ function deltaCVT(ctx: ExecContext, rangeOffset: number): void {
 		}
 
 		// Convert magnitude to actual delta value
-		let delta: number;
-		if (magnitude < 8) {
-			delta = (magnitude + 1) << (6 - ctx.GS.deltaShift);
-		} else {
-			delta = -((magnitude - 7) << (6 - ctx.GS.deltaShift));
-		}
+		const deltaStep = 1 << (6 - ctx.GS.deltaShift);
+		const delta =
+			magnitude >= 8
+				? -(magnitude - 7) * deltaStep
+				: (magnitude + 1) * deltaStep;
 
 		ctx.cvt[cvtIndex] += delta;
 	}

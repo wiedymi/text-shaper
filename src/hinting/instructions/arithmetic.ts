@@ -4,6 +4,48 @@
 
 import type { ExecContext } from "../types.ts";
 
+function mulDiv(a: number, b: number, c: number): number {
+	if (c === 0) return a ^ b < 0 ? -0x7fffffff : 0x7fffffff;
+
+	let sign = 1;
+	if (a < 0) {
+		a = -a;
+		sign = -sign;
+	}
+	if (b < 0) {
+		b = -b;
+		sign = -sign;
+	}
+	if (c < 0) {
+		c = -c;
+		sign = -sign;
+	}
+
+	const result = Math.floor((a * b + (c >> 1)) / c);
+	return sign < 0 ? -result : result;
+}
+
+function mulDivNoRound(a: number, b: number, c: number): number {
+	if (c === 0) return a ^ b < 0 ? -0x7fffffff : 0x7fffffff;
+
+	let sign = 1;
+	if (a < 0) {
+		a = -a;
+		sign = -sign;
+	}
+	if (b < 0) {
+		b = -b;
+		sign = -sign;
+	}
+	if (c < 0) {
+		c = -c;
+		sign = -sign;
+	}
+
+	const result = Math.floor((a * b) / c);
+	return sign < 0 ? -result : result;
+}
+
 /** ADD - Add top two values */
 export function ADD(ctx: ExecContext): void {
 	const b = ctx.stack[--ctx.stackTop];
@@ -47,8 +89,8 @@ export function DIV(ctx: ExecContext): void {
 		return;
 	}
 
-	// Result is (a * 64) / b for 26.6 precision
-	ctx.stack[ctx.stackTop++] = Math.trunc((a * 64) / b);
+	// Result is (a * 64) / b for 26.6 precision (rounded)
+	ctx.stack[ctx.stackTop++] = mulDiv(a, 64, b);
 }
 
 /** MUL - Multiply (26.6 fixed-point) */
@@ -62,8 +104,8 @@ export function MUL(ctx: ExecContext): void {
 		return;
 	}
 
-	// Result is (a * b) / 64 for 26.6 precision
-	ctx.stack[ctx.stackTop++] = Math.trunc((a * b) / 64);
+	// Result is (a * b) / 64 for 26.6 precision (rounded)
+	ctx.stack[ctx.stackTop++] = mulDiv(a, b, 64);
 }
 
 /** ABS - Absolute value */
