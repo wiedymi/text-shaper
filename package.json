@@ -1,6 +1,6 @@
 {
   "name": "text-shaper",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "repository": {
     "type": "git",
     "url": "https://github.com/wiedymi/text-shaper.git"
@@ -52,7 +52,7 @@
   ],
   "license": "MIT",
   "scripts": {
-    "postinstall": "node scripts/patch-pkg-prebuilds.js",
+    "patch:prebuilds": "node scripts/patch-pkg-prebuilds.js",
     "bench": "bun test ./bench/ --timeout 120000",
     "bench:update": "bun scripts/update-benchmarks.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser --minify --sourcemap=linked",
