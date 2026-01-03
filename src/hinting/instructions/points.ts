@@ -58,7 +58,7 @@ function dualProjectOrusDelta(
 }
 
 function mulDiv(a: number, b: number, c: number): number {
-	if (c === 0) return a ^ b < 0 ? -0x7fffffff : 0x7fffffff;
+	if (c === 0) return (a ^ b) < 0 ? -0x7fffffff : 0x7fffffff;
 
 	let sign = 1;
 	if (a < 0) {
