@@ -47,8 +47,8 @@ describe("Delta Instructions", () => {
 
 			// ArgByte encoding:
 			// High nibble: ppem - deltaBase = 12 - 9 = 3
-			// Low nibble: magnitude = 0 (which means +1 step)
-			const argByte = (3 << 4) | 0;
+			// Low nibble: magnitude = 8 (which means +1 step)
+			const argByte = (3 << 4) | 8;
 
 			// Per Apple TrueType spec: push arg first, then point, then count
 			ctx.stack[ctx.stackTop++] = argByte;
@@ -57,7 +57,7 @@ describe("Delta Instructions", () => {
 
 			DELTAP1(ctx);
 
-			// Delta = (0 + 1) << (6 - 3) = 1 << 3 = 8
+			// Delta = (1 step) << (6 - 3) = 1 << 3 = 8
 			expect(ctx.pts.cur[2]!.x).toBe(originalX + 8);
 			expect(ctx.pts.tags[2]! & TouchFlag.X).toBeTruthy();
 		});
@@ -71,7 +71,7 @@ describe("Delta Instructions", () => {
 			const originalX = ctx.pts.cur[2]!.x;
 
 			// Target ppem = (3 << 4) + 9 = 12, but current is 16
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 2;
@@ -90,9 +90,9 @@ describe("Delta Instructions", () => {
 
 			const originalX = ctx.pts.cur[3]!.x;
 
-			// Low nibble 8-15 means negative
-			// magnitude = 8 means -1 step
-			const argByte = (1 << 4) | 8;
+			// Low nibble 0-7 means negative
+			// magnitude = 7 means -1 step
+			const argByte = (1 << 4) | 7;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 3;
@@ -100,7 +100,7 @@ describe("Delta Instructions", () => {
 
 			DELTAP1(ctx);
 
-			// Delta = -((8 - 7) << (6 - 3)) = -(1 << 3) = -8
+			// Delta = -(1 step) << (6 - 3) = -8
 			expect(ctx.pts.cur[3]!.x).toBe(originalX - 8);
 		});
 
@@ -115,9 +115,9 @@ describe("Delta Instructions", () => {
 			const original3 = ctx.pts.cur[3]!.x;
 
 			// ppem - deltaBase = 3
-			const argByte1 = (3 << 4) | 0; // +8
-			const argByte2 = (3 << 4) | 1; // +16
-			const argByte3 = (3 << 4) | 8; // -8
+			const argByte1 = (3 << 4) | 8; // +8
+			const argByte2 = (3 << 4) | 9; // +16
+			const argByte3 = (3 << 4) | 7; // -8
 
 			// Per spec: push [arg, point] pairs, then count
 			ctx.stack[ctx.stackTop++] = argByte1;
@@ -143,7 +143,7 @@ describe("Delta Instructions", () => {
 
 			const originalX = ctx.pts.cur[2]!.x;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 2;
@@ -162,17 +162,17 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaShift = 3;
 
 			const testCases = [
-				{ magnitude: 0, expected: 8 },   // (0+1) << 3 = 8
-				{ magnitude: 1, expected: 16 },  // (1+1) << 3 = 16
-				{ magnitude: 2, expected: 24 },  // (2+1) << 3 = 24
-				{ magnitude: 3, expected: 32 },  // (3+1) << 3 = 32
-				{ magnitude: 4, expected: 40 },  // (4+1) << 3 = 40
-				{ magnitude: 5, expected: 48 },  // (5+1) << 3 = 48
-				{ magnitude: 6, expected: 56 },  // (6+1) << 3 = 56
-				{ magnitude: 7, expected: 64 },  // (7+1) << 3 = 64
-				{ magnitude: 8, expected: -8 },  // -((8-7) << 3) = -8
-				{ magnitude: 9, expected: -16 }, // -((9-7) << 3) = -16
-				{ magnitude: 15, expected: -64 }, // -((15-7) << 3) = -64
+				{ magnitude: 0, expected: -64 },  // (-8) << 3 = -64
+				{ magnitude: 1, expected: -56 },  // (-7) << 3 = -56
+				{ magnitude: 2, expected: -48 },  // (-6) << 3 = -48
+				{ magnitude: 3, expected: -40 },  // (-5) << 3 = -40
+				{ magnitude: 4, expected: -32 },  // (-4) << 3 = -32
+				{ magnitude: 5, expected: -24 },  // (-3) << 3 = -24
+				{ magnitude: 6, expected: -16 },  // (-2) << 3 = -16
+				{ magnitude: 7, expected: -8 },   // (-1) << 3 = -8
+				{ magnitude: 8, expected: 8 },    // (+1) << 3 = 8
+				{ magnitude: 9, expected: 16 },   // (+2) << 3 = 16
+				{ magnitude: 15, expected: 64 },  // (+8) << 3 = 64
 			];
 
 			for (const { magnitude, expected } of testCases) {
@@ -199,7 +199,7 @@ describe("Delta Instructions", () => {
 			ctx.ppem = 12;
 			ctx.GS.deltaBase = 9;
 
-			ctx.stack[ctx.stackTop++] = (3 << 4) | 0;
+			ctx.stack[ctx.stackTop++] = (3 << 4) | 8;
 			ctx.stack[ctx.stackTop++] = 999; // Invalid point
 			ctx.stack[ctx.stackTop++] = 1;
 
@@ -239,7 +239,7 @@ describe("Delta Instructions", () => {
 			const originalX = ctx.pts.cur[2]!.x;
 
 			// High nibble = 3 (ppem - deltaBase - 16 = 28 - 9 - 16 = 3)
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 2;
@@ -259,7 +259,7 @@ describe("Delta Instructions", () => {
 
 			const originalX = ctx.pts.cur[2]!.x;
 
-			const argByte = (15 << 4) | 0; // Max high nibble
+			const argByte = (15 << 4) | 8; // Max high nibble
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 2;
@@ -280,7 +280,7 @@ describe("Delta Instructions", () => {
 
 			const originalX = ctx.pts.cur[2]!.x;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 2;
@@ -299,7 +299,7 @@ describe("Delta Instructions", () => {
 
 			const originalX = ctx.pts.cur[2]!.x;
 
-			const argByte = (15 << 4) | 0;
+			const argByte = (15 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 2;
@@ -322,7 +322,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 3; // CVT index
@@ -343,7 +343,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 8; // -8
+			const argByte = (3 << 4) | 7; // -8
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 3;
@@ -366,7 +366,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 1;
@@ -393,7 +393,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 0; // Target ppem = 12
+			const argByte = (3 << 4) | 8; // Target ppem = 12
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 3;
@@ -411,7 +411,7 @@ describe("Delta Instructions", () => {
 			ctx.ppem = 12;
 			ctx.GS.deltaBase = 9;
 
-			ctx.stack[ctx.stackTop++] = (3 << 4) | 0;
+			ctx.stack[ctx.stackTop++] = (3 << 4) | 8;
 			ctx.stack[ctx.stackTop++] = 999; // Invalid CVT index
 			ctx.stack[ctx.stackTop++] = 1;
 
@@ -431,7 +431,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			// Test first CVT entry
 			ctx.stack[ctx.stackTop++] = argByte;
@@ -465,7 +465,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 3;
@@ -488,7 +488,7 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaBase = 9;
 			ctx.GS.deltaShift = 3;
 
-			const argByte = (3 << 4) | 0;
+			const argByte = (3 << 4) | 8;
 
 			ctx.stack[ctx.stackTop++] = argByte;
 			ctx.stack[ctx.stackTop++] = 3;
@@ -513,10 +513,11 @@ describe("Delta Instructions", () => {
 			ctx.pts.cur[1] = { x: 164, y: 0 }; // 1 pixel wide stem
 
 			// Adjust both sides to make stem slightly wider
-			const argByte = (3 << 4) | 0; // +8 (1/8 pixel)
+			const argByte = (3 << 4) | 8; // +8 (1/8 pixel)
+			const argByteNeg = (3 << 4) | 7; // -8 (1/8 pixel)
 
 			// Per spec: push [arg, point] pairs, then count
-			ctx.stack[ctx.stackTop++] = argByte | 8; // -8 for point 0
+			ctx.stack[ctx.stackTop++] = argByteNeg; // -8 for point 0
 			ctx.stack[ctx.stackTop++] = 0;
 			ctx.stack[ctx.stackTop++] = argByte; // +8 for point 1
 			ctx.stack[ctx.stackTop++] = 1;
@@ -538,10 +539,10 @@ describe("Delta Instructions", () => {
 			ctx.GS.deltaShift = 3;
 
 			// Adjust multiple CVT values for this size
-			// ppem 16 = deltaBase 9 + offset 16 + nibble -9 = error, use DELTAP1 with nibble 7
-			ctx.ppem = 16; // Use 16 = 9 + 0 + 7 for DELTAP1
+			// ppem 16 = deltaBase 9 + high nibble 7 for DELTAC1
+			ctx.ppem = 16;
 
-			const argByte = (7 << 4) | 1; // +16
+			const argByte = (7 << 4) | 9; // +16
 
 			// Per spec: push [arg, cvtIndex] pairs, then count
 			ctx.stack[ctx.stackTop++] = argByte;

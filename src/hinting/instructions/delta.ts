@@ -55,7 +55,7 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 
 		// Extract ppem delta and magnitude from argByte
 		// High nibble: ppem - deltaBase - rangeOffset
-		// Low nibble: magnitude (0-15, where 8-15 are negative)
+		// Low nibble: magnitude (0-15, where 0-7 are negative, 8-15 are positive)
 		const ppemDelta = ((argByte >> 4) & 0x0f) + ctx.GS.deltaBase + rangeOffset;
 		const magnitude = argByte & 0x0f;
 
@@ -65,13 +65,10 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 		}
 
 		// Convert magnitude to actual delta value
-		// 0-7: positive 1-8 (shifted by deltaShift)
-		// 8-15: negative 1-8 (shifted by deltaShift)
 		const deltaStep = 1 << (6 - ctx.GS.deltaShift);
-		const delta =
-			magnitude >= 8
-				? -(magnitude - 7) * deltaStep
-				: (magnitude + 1) * deltaStep;
+		let deltaValue = magnitude - 8;
+		if (deltaValue >= 0) deltaValue += 1;
+		const delta = deltaValue * deltaStep;
 
 		movePoint(ctx, zone, pointIndex, delta);
 		touchPoint(ctx, zone, pointIndex);
@@ -131,10 +128,9 @@ function deltaCVT(ctx: ExecContext, rangeOffset: number): void {
 
 		// Convert magnitude to actual delta value
 		const deltaStep = 1 << (6 - ctx.GS.deltaShift);
-		const delta =
-			magnitude >= 8
-				? -(magnitude - 7) * deltaStep
-				: (magnitude + 1) * deltaStep;
+		let deltaValue = magnitude - 8;
+		if (deltaValue >= 0) deltaValue += 1;
+		const delta = deltaValue * deltaStep;
 
 		ctx.cvt[cvtIndex] += delta;
 	}
