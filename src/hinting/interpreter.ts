@@ -137,6 +137,7 @@ import {
 	ROLL,
 	SWAP,
 } from "./instructions/stack.ts";
+import { env } from "../env.ts";
 import {
 	CodeRange,
 	createDefaultGraphicsState,
@@ -167,7 +168,7 @@ export function execute(ctx: ExecContext): void {
  */
 function executeOpcode(ctx: ExecContext, opcode: number): void {
 	if (
-		process.env.HINT_TRACE_FUNC48 === "1" &&
+		env?.HINT_TRACE_FUNC48 === "1" &&
 		ctx.currentRange === CodeRange.Font &&
 		ctx.IP - 1 >= 1527 &&
 		ctx.IP - 1 < 1582

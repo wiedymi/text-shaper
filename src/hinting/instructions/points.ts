@@ -4,6 +4,7 @@
  * These are the core hinting operations that actually move glyph points.
  */
 
+import { env } from "../../env.ts";
 import { compensate, round } from "../rounding.ts";
 import { scaleFUnits } from "../scale.ts";
 import {
@@ -119,8 +120,9 @@ export function movePoint(
 	const dx = mulDiv(distance, fv.x, dot);
 	const dy = mulDiv(distance, fv.y, dot);
 
-	if (process.env.HINT_TRACE_POINTS) {
-		const targets = process.env.HINT_TRACE_POINTS.split(",").map((value) =>
+	const tracePoints = env?.HINT_TRACE_POINTS;
+	if (tracePoints) {
+		const targets = tracePoints.split(",").map((value) =>
 			Number.parseInt(value.trim(), 10),
 		);
 		if (targets.includes(pointIndex)) {
@@ -140,23 +142,6 @@ export function movePoint(
 				rp2: ctx.GS.rp2,
 			});
 		}
-	}
-
-	if (process.env.HINT_TRACE_GENEVA === "1" && zone === ctx.pts) {
-		console.log("trace movePoint", {
-			pointIndex,
-			opcode: ctx.opcode,
-			ip: ctx.IP,
-			distance,
-			dx,
-			dy,
-			proj: ctx.GS.projVector,
-			free: ctx.GS.freeVector,
-			dual: ctx.GS.dualVector,
-			rp0: ctx.GS.rp0,
-			rp1: ctx.GS.rp1,
-			rp2: ctx.GS.rp2,
-		});
 	}
 
 	pt.x += dx;
@@ -242,7 +227,7 @@ export function MDAP(ctx: ExecContext, doRound: boolean): void {
 
 	ctx.GS.rp0 = pointIndex;
 	ctx.GS.rp1 = pointIndex;
-	if (process.env.HINT_TRACE_RP0 === "1") {
+	if (env?.HINT_TRACE_RP0 === "1") {
 		console.log("trace rp0", {
 			ip: ctx.IP,
 			range: ctx.currentRange,
@@ -289,29 +274,12 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 	}
 
 	const distance = cvtDistance - currentPos;
-	if (
-		process.env.HINT_TRACE_GENEVA === "1" &&
-		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts) &&
-		(pointIndex === 0 || pointIndex === 2 || pointIndex === 4 || pointIndex === 7)
-	) {
-		console.log("trace MIAP", {
-			pointIndex,
-			cvtIndex,
-			doRound,
-			currentPos,
-			cvtDistance,
-			distance,
-			rp0: ctx.GS.rp0,
-			proj: ctx.GS.projVector,
-			dual: ctx.GS.dualVector,
-		});
-	}
 	movePoint(ctx, zone, pointIndex, distance);
 	touchPoint(ctx, zone, pointIndex);
 
 	ctx.GS.rp0 = pointIndex;
 	ctx.GS.rp1 = pointIndex;
-	if (process.env.HINT_TRACE_RP0 === "1") {
+	if (env?.HINT_TRACE_RP0 === "1") {
 		console.log("trace rp0", {
 			ip: ctx.IP,
 			range: ctx.currentRange,
@@ -396,31 +364,6 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 	const currentDist =
 		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
 	const move = distance - currentDist;
-	if (
-		process.env.HINT_TRACE_GENEVA === "1" &&
-		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts)
-	) {
-		console.log("trace MIRP", {
-			pointIndex,
-			cvtIndex,
-			orgDist,
-			cvtDist,
-			currentDist,
-			distance,
-			move,
-			flags,
-			rp0,
-			gep0: ctx.GS.gep0,
-			gep1: ctx.GS.gep1,
-			roundState: ctx.GS.roundState,
-			controlValueCutIn: ctx.GS.controlValueCutIn,
-			minimumDistance: ctx.GS.minimumDistance,
-			singleWidthCutIn: ctx.GS.singleWidthCutIn,
-			singleWidthValue: ctx.GS.singleWidthValue,
-			proj: ctx.GS.projVector,
-			dual: ctx.GS.dualVector,
-		});
-	}
 
 	movePoint(ctx, zp1, pointIndex, move);
 	touchPoint(ctx, zp1, pointIndex);
@@ -429,7 +372,7 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
-		if (process.env.HINT_TRACE_RP0 === "1") {
+		if (env?.HINT_TRACE_RP0 === "1") {
 			console.log("trace rp0", {
 				ip: ctx.IP,
 				range: ctx.currentRange,
@@ -437,18 +380,6 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 				rp0: ctx.GS.rp0,
 			});
 		}
-	}
-	if (
-		process.env.HINT_TRACE_GENEVA === "1" &&
-		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts)
-	) {
-		console.log("trace MIRP rp", {
-			pointIndex,
-			setRp0,
-			rp0: ctx.GS.rp0,
-			rp1: ctx.GS.rp1,
-			rp2: ctx.GS.rp2,
-		});
 	}
 }
 
@@ -562,8 +493,9 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	const currentDist =
 		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
 	const move = distance - currentDist;
-	if (process.env.HINT_TRACE_MIRP) {
-		const targets = process.env.HINT_TRACE_MIRP
+	const traceMirp = env?.HINT_TRACE_MIRP;
+	if (traceMirp) {
+		const targets = traceMirp
 			.split(",")
 			.map((value) => Number.parseInt(value.trim(), 10))
 			.filter((value) => Number.isFinite(value));
@@ -582,31 +514,6 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 			});
 		}
 	}
-	if (
-		process.env.HINT_TRACE_GENEVA === "1" &&
-		(ctx.zp0 === ctx.pts || ctx.zp1 === ctx.pts) &&
-		(pointIndex === 0 || pointIndex === 2 || pointIndex === 4 || pointIndex === 7)
-	) {
-		console.log("trace MIRP", {
-			pointIndex,
-			cvtIndex,
-			orgDist,
-			cvtDist,
-			currentDist,
-			distance,
-			move,
-			flags,
-			rp0,
-			gep0: ctx.GS.gep0,
-			gep1: ctx.GS.gep1,
-			roundState: ctx.GS.roundState,
-			controlValueCutIn: ctx.GS.controlValueCutIn,
-			minimumDistance: ctx.GS.minimumDistance,
-			proj: ctx.GS.projVector,
-			dual: ctx.GS.dualVector,
-		});
-	}
-
 	movePoint(ctx, zp1, pointIndex, move);
 	touchPoint(ctx, zp1, pointIndex);
 
@@ -614,7 +521,7 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
-		if (process.env.HINT_TRACE_RP0 === "1") {
+		if (env?.HINT_TRACE_RP0 === "1") {
 			console.log("trace rp0", {
 				ip: ctx.IP,
 				range: ctx.currentRange,
@@ -643,7 +550,7 @@ export function SHP(ctx: ExecContext, useRp1: boolean): void {
 	const orgRef = project(ctx, refZone.org[refPoint]);
 	const curRef = getCurrent(ctx, refZone, refPoint);
 	const shift = curRef - orgRef;
-	if (process.env.HINT_TRACE_SHP === "1") {
+	if (env?.HINT_TRACE_SHP === "1") {
 		console.log("trace SHP", {
 			refPoint,
 			orgRef,
@@ -861,8 +768,9 @@ export function ALIGNRP(ctx: ExecContext): void {
 		const curPos = getCurrent(ctx, zone, pointIndex);
 		const distance = refPos - curPos;
 
-		if (process.env.HINT_TRACE_POINTS) {
-			const targets = process.env.HINT_TRACE_POINTS.split(",").map((value) =>
+		const tracePoints = env?.HINT_TRACE_POINTS;
+		if (tracePoints) {
+			const targets = tracePoints.split(",").map((value) =>
 				Number.parseInt(value.trim(), 10),
 			);
 			if (targets.includes(pointIndex)) {
@@ -922,7 +830,7 @@ export function MSIRP(ctx: ExecContext, setRp0: boolean): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
-		if (process.env.HINT_TRACE_RP0 === "1") {
+		if (env?.HINT_TRACE_RP0 === "1") {
 			console.log("trace rp0", {
 				ip: ctx.IP,
 				range: ctx.currentRange,
@@ -1069,17 +977,6 @@ export function SCFS(ctx: ExecContext): void {
 	const zone = ctx.zp2;
 
 	if (pointIndex < 0 || pointIndex >= zone.nPoints) {
-		if (process.env.HINT_TRACE_GENEVA === "1") {
-			console.log("trace SCFS invalid", {
-				pointIndex,
-				opcode: ctx.opcode,
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				stackTop: ctx.stackTop,
-				top: ctx.stack[ctx.stackTop - 1],
-				second: ctx.stack[ctx.stackTop - 2],
-			});
-		}
 		ctx.error = `SCFS: invalid point ${pointIndex}`;
 		return;
 	}

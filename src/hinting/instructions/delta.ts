@@ -42,9 +42,6 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 	}
 
 	const zone = ctx.zp0;
-	if (process.env.HINT_TRACE_GENEVA === "1") {
-		console.log("trace DELTAP count", { count, rangeOffset, ppem: ctx.ppem });
-	}
 
 	for (let i = 0; i < count; i++) {
 		// Per Apple TrueType spec: pop point first, then arg
@@ -63,14 +60,6 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 		const magnitude = argByte & 0x0f;
 
 		// Check if we're at the target ppem
-		if (process.env.HINT_TRACE_GENEVA === "1") {
-			console.log("trace DELTAP arg", {
-				pointIndex,
-				argByte,
-				ppemDelta,
-				magnitude,
-			});
-		}
 		if (ppemDelta !== ctx.ppem) {
 			continue;
 		}
@@ -83,16 +72,6 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 			magnitude >= 8
 				? -(magnitude - 7) * deltaStep
 				: (magnitude + 1) * deltaStep;
-
-		if (process.env.HINT_TRACE_GENEVA === "1") {
-			console.log("trace DELTAP", {
-				pointIndex,
-				argByte,
-				ppemDelta,
-				deltaShift: ctx.GS.deltaShift,
-				delta,
-			});
-		}
 
 		movePoint(ctx, zone, pointIndex, delta);
 		touchPoint(ctx, zone, pointIndex);

@@ -2,6 +2,7 @@
  * Graphics state manipulation instructions
  */
 
+import { env } from "../../env.ts";
 import { parseSuperRound } from "../rounding.ts";
 import { scaleFUnits } from "../scale.ts";
 import {
@@ -192,15 +193,6 @@ export function SFVTPV(ctx: ExecContext): void {
 /** SRP0 - Set reference point 0 */
 export function SRP0(ctx: ExecContext): void {
 	ctx.GS.rp0 = ctx.stack[--ctx.stackTop];
-	if (process.env.HINT_TRACE_GENEVA === "1") {
-		console.log("trace SRP0", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			rp0: ctx.GS.rp0,
-			stackTop: ctx.stackTop,
-			stackTail: Array.from(ctx.stack.slice(Math.max(0, ctx.stackTop - 8), ctx.stackTop)),
-		});
-	}
 }
 
 /** SRP1 - Set reference point 1 */
@@ -284,15 +276,7 @@ export function SMD(ctx: ExecContext): void {
 /** SCVTCI - Set control value table cut-in */
 export function SCVTCI(ctx: ExecContext): void {
 	ctx.GS.controlValueCutIn = ctx.stack[--ctx.stackTop];
-	if (process.env.HINT_TRACE_GENEVA === "1") {
-		console.log("trace SCVTCI", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			value: ctx.GS.controlValueCutIn,
-			ppem: ctx.ppem,
-		});
-	}
-	if (process.env.HINT_TRACE_SCVTCI === "1") {
+	if (env?.HINT_TRACE_SCVTCI === "1") {
 		console.log("trace SCVTCI", {
 			ip: ctx.IP,
 			range: ctx.currentRange,
@@ -442,8 +426,9 @@ export function RS(ctx: ExecContext): void {
 		ctx.stack[ctx.stackTop++] = 0;
 		return;
 	}
-	if (process.env.HINT_TRACE_STORAGE) {
-		const targets = process.env.HINT_TRACE_STORAGE.split(",").map((value) =>
+	const traceStorage = env?.HINT_TRACE_STORAGE;
+	if (traceStorage) {
+		const targets = traceStorage.split(",").map((value) =>
 			Number.parseInt(value.trim(), 10),
 		);
 		if (targets.includes(index)) {
@@ -467,8 +452,9 @@ export function WS(ctx: ExecContext): void {
 		return;
 	}
 	ctx.storage[index] = value;
-	if (process.env.HINT_TRACE_STORAGE) {
-		const targets = process.env.HINT_TRACE_STORAGE.split(",").map((value) =>
+	const traceStorage = env?.HINT_TRACE_STORAGE;
+	if (traceStorage) {
+		const targets = traceStorage.split(",").map((value) =>
 			Number.parseInt(value.trim(), 10),
 		);
 		if (targets.includes(index)) {
@@ -502,7 +488,7 @@ export function WCVTP(ctx: ExecContext): void {
 		return;
 	}
 	ctx.cvt[index] = value;
-	if (process.env.HINT_TRACE_CVT0 === "1" && index === 0) {
+	if (env?.HINT_TRACE_CVT0 === "1" && index === 0) {
 		console.log("trace WCVTP", {
 			ip: ctx.IP,
 			range: ctx.currentRange,
@@ -511,8 +497,9 @@ export function WCVTP(ctx: ExecContext): void {
 			ppem: ctx.ppem,
 		});
 	}
-	if (process.env.HINT_TRACE_CVT) {
-		const targets = process.env.HINT_TRACE_CVT
+	const traceCvt = env?.HINT_TRACE_CVT;
+	if (traceCvt) {
+		const targets = traceCvt
 			.split(",")
 			.map((value) => Number.parseInt(value.trim(), 10))
 			.filter((value) => Number.isFinite(value));
@@ -526,19 +513,6 @@ export function WCVTP(ctx: ExecContext): void {
 			});
 		}
 	}
-	if (
-		process.env.HINT_TRACE_GENEVA === "1" &&
-		(index === 75 || index === 67 || index === 25)
-	) {
-		console.log("trace WCVTP", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			index,
-			value,
-			ppem: ctx.ppem,
-			roundState: ctx.GS.roundState,
-		});
-	}
 }
 
 /** WCVTF - Write CVT value in font units */
@@ -551,7 +525,7 @@ export function WCVTF(ctx: ExecContext): void {
 	}
 	// Convert from font units to pixels (26.6)
 	ctx.cvt[index] = scaleFUnits(value, ctx.scaleFix);
-	if (process.env.HINT_TRACE_CVT0 === "1" && index === 0) {
+	if (env?.HINT_TRACE_CVT0 === "1" && index === 0) {
 		console.log("trace WCVTF", {
 			ip: ctx.IP,
 			range: ctx.currentRange,

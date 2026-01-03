@@ -4,6 +4,7 @@
 
 import type { Font } from "../font/font.ts";
 import { CompositeFlag } from "../font/tables/glyf.ts";
+import { env } from "../env.ts";
 import {
 	createHintingEngine,
 	type GlyphOutline,
@@ -721,7 +722,7 @@ function rasterizeHintedGlyph(
 	const bMaxY = Math.floor((maxY26 + 63) / 64);
 	const width = bMaxX - bMinX + padding * 2;
 	const height = bMaxY - bMinY + padding * 2;
-	if (process.env.HINT_TRACE_GLYPH === String(glyphId)) {
+	if (env?.HINT_TRACE_GLYPH === String(glyphId)) {
 		console.log("trace hinted bounds", {
 			glyphId,
 			minX26,
