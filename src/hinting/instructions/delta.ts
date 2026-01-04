@@ -6,7 +6,7 @@
  * rendering issues that only appear at certain sizes.
  */
 
-import type { ExecContext } from "../types.ts";
+import { TouchFlag, type ExecContext } from "../types.ts";
 import { movePoint, touchPoint } from "./points.ts";
 
 /**
@@ -69,6 +69,16 @@ function deltaPoint(ctx: ExecContext, rangeOffset: number): void {
 		let deltaValue = magnitude - 8;
 		if (deltaValue >= 0) deltaValue += 1;
 		const delta = deltaValue * deltaStep;
+
+		if (ctx.backwardCompatibility) {
+			if (ctx.backwardCompatibility === 0x7) continue;
+			if (
+				!((ctx.isComposite && ctx.GS.freeVector.y !== 0) ||
+					(zone.tags[pointIndex] & TouchFlag.Y))
+			) {
+				continue;
+			}
+		}
 
 		movePoint(ctx, zone, pointIndex, delta);
 		touchPoint(ctx, zone, pointIndex);

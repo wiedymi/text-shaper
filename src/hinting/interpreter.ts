@@ -137,7 +137,6 @@ import {
 	ROLL,
 	SWAP,
 } from "./instructions/stack.ts";
-import { env } from "../env.ts";
 import {
 	CodeRange,
 	createDefaultGraphicsState,
@@ -167,21 +166,6 @@ export function execute(ctx: ExecContext): void {
  * Execute a single opcode
  */
 function executeOpcode(ctx: ExecContext, opcode: number): void {
-	if (
-		env?.HINT_TRACE_FUNC48 === "1" &&
-		ctx.currentRange === CodeRange.Font &&
-		ctx.IP - 1 >= 1527 &&
-		ctx.IP - 1 < 1582
-	) {
-		console.log("trace func48", {
-			ip: ctx.IP - 1,
-			opcode,
-			stackTop: ctx.stackTop,
-			stackTail: Array.from(
-				ctx.stack.slice(Math.max(0, ctx.stackTop - 6), ctx.stackTop),
-			),
-		});
-	}
 	// Handle PUSHB[n] (0xB0-0xB7)
 	if (opcode >= 0xb0 && opcode <= 0xb7) {
 		PUSHB(ctx, opcode - 0xb0 + 1);
@@ -755,6 +739,7 @@ export function runProgram(ctx: ExecContext, range: CodeRange): void {
  */
 export function runFontProgram(ctx: ExecContext): void {
 	// FPGM operates in the twilight zone.
+	ctx.backwardCompatibility = 0;
 	ctx.twilight.nPoints = ctx.twilight.org.length;
 	for (let i = 0; i < ctx.twilight.nPoints; i++) {
 		ctx.twilight.org[i].x = 0;
@@ -778,6 +763,8 @@ export function runFontProgram(ctx: ExecContext): void {
 export function runCVTProgram(ctx: ExecContext): void {
 	// Reset graphics state to default before prep
 	ctx.GS = { ...ctx.defaultGS };
+	// CVT program always runs without backward compatibility hacks.
+	ctx.backwardCompatibility = 0;
 	// PREP operates in the twilight zone.
 	ctx.twilight.nPoints = ctx.twilight.org.length;
 	for (let i = 0; i < ctx.twilight.nPoints; i++) {

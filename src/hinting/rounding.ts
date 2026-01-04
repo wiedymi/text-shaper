@@ -11,9 +11,11 @@ import { type F26Dot6, type GraphicsState, RoundMode } from "./types.ts";
  */
 export function roundToGrid(distance: F26Dot6, compensation: F26Dot6): F26Dot6 {
 	if (distance >= 0) {
-		return (distance + compensation + 32) & -64;
+		const val = (distance + compensation + 32) & -64;
+		return val < 0 ? 0 : val;
 	} else {
-		return -((-distance + compensation + 32) & -64);
+		const val = -((-distance + compensation + 32) & -64);
+		return val > 0 ? 0 : val;
 	}
 }
 
@@ -25,9 +27,11 @@ export function roundToHalfGrid(
 	compensation: F26Dot6,
 ): F26Dot6 {
 	if (distance >= 0) {
-		return ((distance + compensation + 32) & -64) + 32;
+		const val = ((distance + compensation) & -64) + 32;
+		return val < 0 ? 32 : val;
 	} else {
-		return -(((-distance + compensation + 32) & -64) + 32);
+		const val = -(((-distance + compensation) & -64) + 32);
+		return val > 0 ? -32 : val;
 	}
 }
 
@@ -39,9 +43,11 @@ export function roundToDoubleGrid(
 	compensation: F26Dot6,
 ): F26Dot6 {
 	if (distance >= 0) {
-		return (distance + 16 + compensation) & -32;
+		const val = (distance + compensation + 16) & -32;
+		return val < 0 ? 0 : val;
 	} else {
-		return -((-distance + 16 + compensation) & -32);
+		const val = -((-distance + compensation + 16) & -32);
+		return val > 0 ? 0 : val;
 	}
 }
 
@@ -53,9 +59,11 @@ export function roundDownToGrid(
 	compensation: F26Dot6,
 ): F26Dot6 {
 	if (distance >= 0) {
-		return (distance + compensation) & -64;
+		const val = (distance + compensation) & -64;
+		return val < 0 ? 0 : val;
 	} else {
-		return -((-distance + compensation) & -64);
+		const val = -((-distance + compensation) & -64);
+		return val > 0 ? 0 : val;
 	}
 }
 
@@ -67,9 +75,11 @@ export function roundUpToGrid(
 	compensation: F26Dot6,
 ): F26Dot6 {
 	if (distance >= 0) {
-		return (distance + compensation + 63) & -64;
+		const val = (distance + compensation + 63) & -64;
+		return val < 0 ? 0 : val;
 	} else {
-		return -((-distance + compensation + 63) & -64);
+		const val = -((-distance + compensation + 63) & -64);
+		return val > 0 ? 0 : val;
 	}
 }
 

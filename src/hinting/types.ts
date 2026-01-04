@@ -54,6 +54,11 @@ export enum TouchFlag {
 }
 
 /**
+ * Render mode used for GETINFO responses.
+ */
+export type HintRenderMode = "mono" | "gray" | "lcd" | "lcd_v";
+
+/**
  * Glyph zone - holds glyph points
  */
 export interface GlyphZone {
@@ -291,6 +296,14 @@ export interface ExecContext {
 	scaleFix: number;
 	// Light hinting mode (vertical-only for grayscale rendering)
 	lightMode: boolean;
+	// Grayscale hinting flag (FreeType exc->grayscale)
+	grayscale: boolean;
+	// Render mode used for GETINFO responses
+	renderMode: HintRenderMode;
+	// Backward compatibility flags (bit2 = active, bits0-1 track IUP)
+	backwardCompatibility: number;
+	// True if current glyph is composite
+	isComposite: boolean;
 
 	// Error state
 	error: string | null;
@@ -393,6 +406,10 @@ export function createExecContext(
 	scale: 1,
 	scaleFix: 0x10000,
 	lightMode: false,
+	grayscale: true,
+	renderMode: "gray",
+	backwardCompatibility: 0,
+	isComposite: false,
 
 		error: null,
 

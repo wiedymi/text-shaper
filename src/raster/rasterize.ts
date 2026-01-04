@@ -4,7 +4,6 @@
 
 import type { Font } from "../font/font.ts";
 import { CompositeFlag } from "../font/tables/glyf.ts";
-import { env } from "../env.ts";
 import {
 	createHintingEngine,
 	type GlyphOutline,
@@ -476,6 +475,7 @@ function glyphToOutline(
 		instructions: glyph.instructions,
 		lsb,
 		advanceWidth,
+		isComposite: glyph.type === "composite",
 	};
 }
 
@@ -754,21 +754,21 @@ function rasterizeHintedGlyph(
 
 	const ppem = Math.round(fontSize);
 	engine.ctx.lightMode = pixelMode === PixelMode.Gray;
+	engine.ctx.renderMode =
+		pixelMode === PixelMode.Mono
+			? "mono"
+			: pixelMode === PixelMode.LCD
+				? "lcd"
+				: pixelMode === PixelMode.LCD_V
+					? "lcd_v"
+					: "gray";
+	engine.ctx.grayscale =
+		engine.ctx.renderMode !== "mono" && !engine.ctx.lightMode;
 
 	// Get cached hinted glyph (includes outline computation and hinting)
 	const hinted = getCachedHintedGlyph(engine, font, glyphId, ppem, pointSize);
 	if (!hinted) return null;
-	let hintedForRaster = hinted;
-	if (pixelMode === PixelMode.Gray) {
-		// Light hinting fallback: keep original X positions, hint Y only.
-		const baseScale = (ppem * 64) / font.unitsPerEm;
-		const base = buildGlyphPoints26(font, glyphId, baseScale, 0, {
-			roundCompositeOffsets: false,
-		});
-		if (base && base.xCoords.length === hinted.xCoords.length) {
-			hintedForRaster = { ...hinted, xCoords: base.xCoords };
-		}
-	}
+	const hintedForRaster = hinted;
 
 	// Calculate bounds from hinted coordinates (26.6 fixed point)
 	// Keep in 26.6 format, divide once at end (batch conversion)
@@ -816,22 +816,6 @@ function rasterizeHintedGlyph(
 	const bMaxY = Math.floor((maxY26 + 63) / 64);
 	const width = bMaxX - bMinX + padding * 2;
 	const height = bMaxY - bMinY + padding * 2;
-	if (env?.HINT_TRACE_GLYPH === String(glyphId)) {
-		console.log("trace hinted bounds", {
-			glyphId,
-			minX26,
-			maxX26,
-			minY26,
-			maxY26,
-			bMinX,
-			bMaxX,
-			bMinY,
-			bMaxY,
-			width,
-			height,
-		});
-	}
-
 	if (width <= 0 || height <= 0) {
 		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
 	}

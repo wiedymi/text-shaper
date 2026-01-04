@@ -2,11 +2,11 @@
  * Graphics state manipulation instructions
  */
 
-import { env } from "../../env.ts";
 import { parseSuperRound } from "../rounding.ts";
 import { scaleFUnits } from "../scale.ts";
 import {
 	type ExecContext,
+	CodeRange,
 	RoundMode,
 	TouchFlag,
 	type UnitVector,
@@ -57,7 +57,7 @@ function vectorFromPoints(
 	zone1: number,
 	zone2: number,
 	useOriginal: boolean,
-): UnitVector {
+): { vec: UnitVector; isZero: boolean } {
 	const z1 = zone1 === 0 ? ctx.twilight : ctx.pts;
 	const z2 = zone2 === 0 ? ctx.twilight : ctx.pts;
 
@@ -65,21 +65,28 @@ function vectorFromPoints(
 	const pt2 = useOriginal ? z2.org[p2] : z2.cur[p2];
 
 	if (!pt1 || !pt2) {
-		return { x: 0x4000, y: 0 };
+		return { vec: { x: 0x4000, y: 0 }, isZero: true };
 	}
 
 	// Match FreeType: vector is p1 - p2 (zp1 - zp2).
 	const dx = pt1.x - pt2.x;
 	const dy = pt1.y - pt2.y;
 
+	if (dx === 0 && dy === 0) {
+		return { vec: { x: 0x4000, y: 0 }, isZero: true };
+	}
+
 	const len = Math.sqrt(dx * dx + dy * dy);
 	if (len === 0) {
-		return { x: 0x4000, y: 0 };
+		return { vec: { x: 0x4000, y: 0 }, isZero: true };
 	}
 
 	return {
-		x: Math.round((dx / len) * 0x4000),
-		y: Math.round((dy / len) * 0x4000),
+		vec: {
+			x: Math.round((dx / len) * 0x4000),
+			y: Math.round((dy / len) * 0x4000),
+		},
+		isZero: false,
 	};
 }
 
@@ -88,14 +95,21 @@ export function SPVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop];
 	const p1 = ctx.stack[--ctx.stackTop];
 
-	// FreeType uses current points and sets dual == proj.
-	const proj = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, false);
+	// FreeType: args[0] from zp1, args[1] from zp2 -> vector = zp1[p2] - zp2[p1]
+	const { vec: proj, isZero } = vectorFromPoints(
+		ctx,
+		p2,
+		p1,
+		ctx.GS.gep1,
+		ctx.GS.gep2,
+		false,
+	);
 
-	if (perpendicular) {
-		// Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+	if (perpendicular && !isZero) {
+		// Rotate 90 degrees counter-clockwise: (x, y) -> (-y, x)
 		const tempProj = proj.x;
-		proj.x = proj.y;
-		proj.y = -tempProj;
+		proj.x = -proj.y;
+		proj.y = tempProj;
 	}
 
 	ctx.GS.projVector = proj;
@@ -107,12 +121,19 @@ export function SFVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop];
 	const p1 = ctx.stack[--ctx.stackTop];
 
-	const vec = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, false);
+	const { vec, isZero } = vectorFromPoints(
+		ctx,
+		p2,
+		p1,
+		ctx.GS.gep1,
+		ctx.GS.gep2,
+		false,
+	);
 
-	if (perpendicular) {
+	if (perpendicular && !isZero) {
 		const temp = vec.x;
-		vec.x = vec.y;
-		vec.y = -temp;
+		vec.x = -vec.y;
+		vec.y = temp;
 	}
 
 	ctx.GS.freeVector = vec;
@@ -123,18 +144,23 @@ export function SDPVTL(ctx: ExecContext, perpendicular: boolean): void {
 	const p2 = ctx.stack[--ctx.stackTop];
 	const p1 = ctx.stack[--ctx.stackTop];
 
-	// SDPVTL uses original points (scaled).
-	const vec = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, true);
+	// SDPVTL uses original points for dual vector and current points for proj.
+	const dual = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, true);
+	const proj = vectorFromPoints(ctx, p2, p1, ctx.GS.gep1, ctx.GS.gep2, false);
 
-	if (perpendicular) {
-		const temp = vec.x;
-		vec.x = vec.y;
-		vec.y = -temp;
+	if (perpendicular && !dual.isZero) {
+		const temp = dual.vec.x;
+		dual.vec.x = -dual.vec.y;
+		dual.vec.y = temp;
+	}
+	if (perpendicular && !proj.isZero) {
+		const temp = proj.vec.x;
+		proj.vec.x = -proj.vec.y;
+		proj.vec.y = temp;
 	}
 
-	// SDPVTL only sets dualVector (used for measuring original distances)
-	// Unlike SPVTL which sets both projVector and dualVector
-	ctx.GS.dualVector = vec;
+	ctx.GS.dualVector = dual.vec;
+	ctx.GS.projVector = proj.vec;
 }
 
 /** SPVFS - Set projection vector from stack */
@@ -277,14 +303,6 @@ export function SMD(ctx: ExecContext): void {
 /** SCVTCI - Set control value table cut-in */
 export function SCVTCI(ctx: ExecContext): void {
 	ctx.GS.controlValueCutIn = ctx.stack[--ctx.stackTop];
-	if (env?.HINT_TRACE_SCVTCI === "1") {
-		console.log("trace SCVTCI", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			value: ctx.GS.controlValueCutIn,
-			ppem: ctx.ppem,
-		});
-	}
 }
 
 /** SSWCI - Set single width cut-in */
@@ -294,7 +312,9 @@ export function SSWCI(ctx: ExecContext): void {
 
 /** SSW - Set single width value */
 export function SSW(ctx: ExecContext): void {
-	ctx.GS.singleWidthValue = ctx.stack[--ctx.stackTop];
+	const value = ctx.stack[--ctx.stackTop];
+	// SSW value is in font units; scale to 26.6 pixels like FreeType.
+	ctx.GS.singleWidthValue = scaleFUnits(value, ctx.scaleFix);
 }
 
 /** SDB - Set delta base */
@@ -384,12 +404,19 @@ export function INSTCTRL(ctx: ExecContext): void {
 
 	// Bit 0: inhibit grid-fitting
 	// Bit 1: ignore CVT values
-	if (selector === 1 || selector === 2) {
+	if (selector === 1 || selector === 2 || (selector === 3 && ctx.currentRange === CodeRange.CVT)) {
+		const flag = 1 << (selector - 1);
 		if (value) {
-			ctx.GS.instructControl |= selector;
+			ctx.GS.instructControl |= flag;
 		} else {
-			ctx.GS.instructControl &= ~selector;
+			ctx.GS.instructControl &= ~flag;
 		}
+	}
+
+	// Bit 2 (selector 3): native ClearType mode toggle for glyph programs.
+	if (selector === 3 && ctx.currentRange === CodeRange.Glyph && ctx.lightMode) {
+		// Mirror FreeType: value is expected to be 0 or flag (4).
+		ctx.backwardCompatibility = (value & 4) ^ 4;
 	}
 }
 
@@ -397,6 +424,12 @@ export function INSTCTRL(ctx: ExecContext): void {
 export function GETINFO(ctx: ExecContext): void {
 	const selector = ctx.stack[--ctx.stackTop];
 	let result = 0;
+	const mode = ctx.renderMode;
+	const isMono = mode === "mono";
+	const isLcd = mode === "lcd";
+	const isLcdV = mode === "lcd_v";
+	const grayscale = ctx.grayscale;
+	const subpixelHinting = ctx.lightMode;
 
 	// Bit 0: version (match FreeType's default interpreter version 40)
 	if (selector & 1) {
@@ -407,12 +440,37 @@ export function GETINFO(ctx: ExecContext): void {
 	// Bit 2: glyph stretched
 
 	// Bit 5: grayscale rendering
-	if (selector & 32) {
+	if ((selector & 32) && grayscale) {
 		result |= 1 << 12;
 	}
 
-	// Bit 6: ClearType enabled
-	// Bit 7: backwards compatible mode
+	// Subpixel hinting info is only exposed in v40 mode.
+	if (subpixelHinting && !isMono) {
+		// Bit 6: subpixel hinting (v40 default)
+		if (selector & 64) {
+			result |= 1 << 13;
+		}
+
+		// Bit 8: vertical LCD subpixels
+		if ((selector & 256) && isLcdV) {
+			result |= 1 << 15;
+		}
+
+		// Bit 10: subpixel positioned (FreeType reports support when queried)
+		if (selector & 1024) {
+			result |= 1 << 17;
+		}
+
+		// Bit 11: symmetrical smoothing
+		if ((selector & 2048) && !isMono) {
+			result |= 1 << 18;
+		}
+
+		// Bit 12: ClearType hinting + grayscale rendering
+		if ((selector & 4096) && !isLcd && !isLcdV) {
+			result |= 1 << 19;
+		}
+	}
 
 	ctx.stack[ctx.stackTop++] = result;
 }
@@ -427,20 +485,6 @@ export function RS(ctx: ExecContext): void {
 		ctx.stack[ctx.stackTop++] = 0;
 		return;
 	}
-	const traceStorage = env?.HINT_TRACE_STORAGE;
-	if (traceStorage) {
-		const targets = traceStorage.split(",").map((value) =>
-			Number.parseInt(value.trim(), 10),
-		);
-		if (targets.includes(index)) {
-			console.log("trace RS", {
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				index,
-				value: ctx.storage[index],
-			});
-		}
-	}
 	ctx.stack[ctx.stackTop++] = ctx.storage[index];
 }
 
@@ -453,27 +497,12 @@ export function WS(ctx: ExecContext): void {
 		return;
 	}
 	ctx.storage[index] = value;
-	const traceStorage = env?.HINT_TRACE_STORAGE;
-	if (traceStorage) {
-		const targets = traceStorage.split(",").map((value) =>
-			Number.parseInt(value.trim(), 10),
-		);
-		if (targets.includes(index)) {
-			console.log("trace WS", {
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				index,
-				value,
-			});
-		}
-	}
 }
 
 /** RCVT - Read CVT value */
 export function RCVT(ctx: ExecContext): void {
 	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.cvtSize) {
-		ctx.error = `RCVT: invalid index ${index}`;
 		ctx.stack[ctx.stackTop++] = 0;
 		return;
 	}
@@ -485,35 +514,9 @@ export function WCVTP(ctx: ExecContext): void {
 	const value = ctx.stack[--ctx.stackTop];
 	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.cvtSize) {
-		ctx.error = `WCVTP: invalid index ${index}`;
 		return;
 	}
 	ctx.cvt[index] = value;
-	if (env?.HINT_TRACE_CVT0 === "1" && index === 0) {
-		console.log("trace WCVTP", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			index,
-			value,
-			ppem: ctx.ppem,
-		});
-	}
-	const traceCvt = env?.HINT_TRACE_CVT;
-	if (traceCvt) {
-		const targets = traceCvt
-			.split(",")
-			.map((value) => Number.parseInt(value.trim(), 10))
-			.filter((value) => Number.isFinite(value));
-		if (targets.length === 0 || targets.includes(index)) {
-			console.log("trace WCVTP", {
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				index,
-				value,
-				ppem: ctx.ppem,
-			});
-		}
-	}
 }
 
 /** WCVTF - Write CVT value in font units */
@@ -521,20 +524,10 @@ export function WCVTF(ctx: ExecContext): void {
 	const value = ctx.stack[--ctx.stackTop];
 	const index = ctx.stack[--ctx.stackTop];
 	if (index < 0 || index >= ctx.cvtSize) {
-		ctx.error = `WCVTF: invalid index ${index}`;
 		return;
 	}
 	// Convert from font units to pixels (26.6)
 	ctx.cvt[index] = scaleFUnits(value, ctx.scaleFix);
-	if (env?.HINT_TRACE_CVT0 === "1" && index === 0) {
-		console.log("trace WCVTF", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			index,
-			value,
-			ppem: ctx.ppem,
-		});
-	}
 }
 
 /** UTP - UnTouch Point */

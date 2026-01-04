@@ -2,7 +2,6 @@
  * Control flow instructions
  */
 
-import { env } from "../../env.ts";
 import type { ExecContext } from "../types.ts";
 
 /** IF - Conditional branch */
@@ -113,7 +112,8 @@ export function JMPR(ctx: ExecContext): void {
 		ctx.stackTop++;
 		return;
 	}
-	// Jump is relative to current instruction address.
+	// Jump is relative to the current instruction address.
+	// IP is already advanced by one, so subtract 1 to match TT semantics.
 	ctx.IP += offset - 1;
 }
 
@@ -155,15 +155,17 @@ export function FDEF(ctx: ExecContext): void {
 		ctx.stackTop++;
 		return;
 	}
-
-	if (funcNum < 0 || funcNum >= ctx.maxFDefs) {
+	if (funcNum < 0 || funcNum > 0xffff) {
 		ctx.error = `FDEF: invalid function number ${funcNum}`;
 		return;
 	}
 
-	const def = ctx.FDefs[funcNum];
+	let def = ctx.FDefs.find((entry) => entry.active && entry.id === funcNum);
 	if (!def) {
-		ctx.error = `FDEF: no slot for function ${funcNum}`;
+		def = ctx.FDefs.find((entry) => !entry.active);
+	}
+	if (!def) {
+		ctx.error = `FDEF: too many function definitions`;
 		return;
 	}
 	def.id = funcNum;
@@ -240,22 +242,13 @@ export function CALL(ctx: ExecContext): void {
 		ctx.stackTop++;
 		return;
 	}
-	if (env?.HINT_TRACE_CALLS === "1") {
-		console.log("trace CALL", {
-			funcNum,
-			range: ctx.currentRange,
-			ip: ctx.IP,
-			stackTop: ctx.stackTop,
-		});
-	}
-
-	if (funcNum < 0 || funcNum >= ctx.maxFDefs) {
+	if (funcNum < 0 || funcNum > 0xffff) {
 		ctx.error = `CALL: invalid function number ${funcNum}`;
 		return;
 	}
 
-	const def = ctx.FDefs[funcNum];
-	if (!def || !def.active) {
+	const def = ctx.FDefs.find((entry) => entry.active && entry.id === funcNum);
+	if (!def) {
 		ctx.error = `CALL: function ${funcNum} not defined`;
 		return;
 	}
@@ -296,13 +289,13 @@ export function LOOPCALL(ctx: ExecContext): void {
 		return;
 	}
 
-	if (funcNum < 0 || funcNum >= ctx.maxFDefs) {
+	if (funcNum < 0 || funcNum > 0xffff) {
 		ctx.error = `LOOPCALL: invalid function number ${funcNum}`;
 		return;
 	}
 
-	const def = ctx.FDefs[funcNum];
-	if (!def || !def.active) {
+	const def = ctx.FDefs.find((entry) => entry.active && entry.id === funcNum);
+	if (!def) {
 		ctx.error = `LOOPCALL: function ${funcNum} not defined`;
 		return;
 	}

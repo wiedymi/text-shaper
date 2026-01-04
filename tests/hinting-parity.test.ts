@@ -129,6 +129,7 @@ function runFtDump(
 		renderMode?: "normal" | "mono";
 		target?: "normal" | "light" | "mono";
 		sizeMode?: "em" | "real";
+		pixels?: boolean;
 	},
 ) {
 	const flags: string[] = [];
@@ -137,6 +138,7 @@ function runFtDump(
 	if (options?.target === "mono") flags.push("mono");
 	if (options?.renderMode === "mono") flags.push("mono");
 	if (options?.sizeMode === "real") flags.push("real");
+	if (options?.pixels) flags.push("pixels");
 
 	const args = [fontPath, String(fontSize), glyphIds.join(",")];
 	if (flags.length > 0) args.push(flags.join(","));
@@ -151,6 +153,7 @@ function runFtDump(
 		left: number;
 		top: number;
 		advanceX: number;
+		pixels?: number[];
 	}>;
 }
 
@@ -548,6 +551,80 @@ testFn(
 				}
 			}
 		}
+	},
+);
+
+testFn(
+	"light hinting pixels match FreeType for Arial X",
+	{ timeout: testTimeout },
+	async () => {
+		if (!ftdumpBin) {
+			console.warn("hinting parity: ftdump binary not available");
+			return;
+		}
+
+		const preferredArial =
+			process.env.HINTING_PARITY_ARIAL_PATH ??
+			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
+				? "/Users/uyakauleu/Downloads/aria.ttf"
+				: "/System/Library/Fonts/Supplemental/Arial.ttf");
+		const arialPath = preferredArial;
+		if (!existsSync(arialPath)) {
+			console.warn("hinting parity: Arial.ttf not available");
+			return;
+		}
+
+		const font = await Font.fromFile(arialPath);
+		if (!font.hasHinting) return;
+
+		const gid = font.glyphId("X".codePointAt(0)!);
+		if (!gid) return;
+
+		const fontSize = 72;
+		const ft = runFtDump(ftdumpBin, arialPath, fontSize, [gid], {
+			target: "light",
+			pixels: true,
+		});
+		const ftEntry = ft[0];
+		if (!ftEntry || !ftEntry.pixels) return;
+
+		const ours = rasterizeGlyph(font, gid, fontSize, {
+			hinting: true,
+			padding: 0,
+			pixelMode: PixelMode.Gray,
+		});
+		expect(ours).not.toBeNull();
+		if (!ours) return;
+
+		expect(ours.bitmap.width).toBe(ftEntry.width);
+		expect(ours.bitmap.rows).toBe(ftEntry.rows);
+
+		const oursBuf = ours.bitmap.buffer;
+		const ftBuf = ftEntry.pixels;
+		const total = ours.bitmap.width * ours.bitmap.rows;
+		const tol = Number.parseInt(
+			process.env.HINTING_PARITY_PIXEL_TOLERANCE ?? "8",
+			10,
+		);
+		const maxRatio = Number.parseFloat(
+			process.env.HINTING_PARITY_PIXEL_MAX_RATIO ?? "0.02",
+		);
+
+		let diffCount = 0;
+		let maxDiff = 0;
+		for (let i = 0; i < total; i++) {
+			const d = Math.abs((oursBuf[i] ?? 0) - (ftBuf[i] ?? 0));
+			if (d > tol) diffCount++;
+			if (d > maxDiff) maxDiff = d;
+		}
+
+		const ratio = total > 0 ? diffCount / total : 0;
+		if (debug && ratio > maxRatio) {
+			console.warn(
+				`Arial X pixel diff ratio=${ratio.toFixed(4)} maxDiff=${maxDiff}`,
+			);
+		}
+		expect(ratio).toBeLessThanOrEqual(maxRatio);
 	},
 );
 

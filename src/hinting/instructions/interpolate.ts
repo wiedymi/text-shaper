@@ -13,6 +13,10 @@ import { type ExecContext, type GlyphZone, TouchFlag } from "../types.ts";
  * Interpolate untouched points in X direction
  */
 export function IUP_X(ctx: ExecContext): void {
+	if (ctx.backwardCompatibility) {
+		if (ctx.backwardCompatibility === 0x7) return;
+		ctx.backwardCompatibility |= 0x2;
+	}
 	interpolateUntouched(ctx, TouchFlag.X, true);
 }
 
@@ -20,6 +24,10 @@ export function IUP_X(ctx: ExecContext): void {
  * Interpolate untouched points in Y direction
  */
 export function IUP_Y(ctx: ExecContext): void {
+	if (ctx.backwardCompatibility) {
+		if (ctx.backwardCompatibility === 0x7) return;
+		ctx.backwardCompatibility |= 0x1;
+	}
 	interpolateUntouched(ctx, TouchFlag.Y, false);
 }
 

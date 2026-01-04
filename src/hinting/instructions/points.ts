@@ -4,7 +4,6 @@
  * These are the core hinting operations that actually move glyph points.
  */
 
-import { env } from "../../env.ts";
 import { compensate, round } from "../rounding.ts";
 import { scaleFUnits } from "../scale.ts";
 import {
@@ -119,39 +118,24 @@ export function movePoint(
 	// Scale distance by freedom/projection relationship
 	const dx = mulDiv(distance, fv.x, dot);
 	const dy = mulDiv(distance, fv.y, dot);
+	let moveX = dx;
+	let moveY = dy;
 
-	const tracePoints = env?.HINT_TRACE_POINTS;
-	if (tracePoints) {
-		const targets = tracePoints.split(",").map((value) =>
-			Number.parseInt(value.trim(), 10),
-		);
-		if (targets.includes(pointIndex)) {
-			console.log("trace movePoint", {
-				pointIndex,
-				opcode: ctx.opcode,
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				distance,
-				dx,
-				dy,
-				proj: ctx.GS.projVector,
-				free: ctx.GS.freeVector,
-				dual: ctx.GS.dualVector,
-				rp0: ctx.GS.rp0,
-				rp1: ctx.GS.rp1,
-				rp2: ctx.GS.rp2,
-			});
-		}
+	// Backward compatibility (light hinting): ignore X moves, and block
+	// all moves after both IUP[x] and IUP[y] have run.
+	if (ctx.backwardCompatibility) {
+		if (fv.x !== 0) moveX = 0;
+		if (fv.y !== 0 && ctx.backwardCompatibility === 0x7) moveY = 0;
 	}
 
-	pt.x += dx;
-	pt.y += dy;
+	pt.x += moveX;
+	pt.y += moveY;
 
 	// Twilight points have no true original positions; keep org in sync.
 	if (zone === ctx.twilight) {
 		const orgPt = zone.org[pointIndex];
-		orgPt.x += dx;
-		orgPt.y += dy;
+		orgPt.x += moveX;
+		orgPt.y += moveY;
 	}
 }
 
@@ -227,14 +211,6 @@ export function MDAP(ctx: ExecContext, doRound: boolean): void {
 
 	ctx.GS.rp0 = pointIndex;
 	ctx.GS.rp1 = pointIndex;
-	if (env?.HINT_TRACE_RP0 === "1") {
-		console.log("trace rp0", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			opcode: ctx.opcode,
-			rp0: ctx.GS.rp0,
-		});
-	}
 }
 
 // =============================================================================
@@ -253,7 +229,6 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 	}
 
 	if (cvtIndex < 0 || cvtIndex >= ctx.cvtSize) {
-		ctx.error = `MIAP: invalid CVT index ${cvtIndex}`;
 		return;
 	}
 
@@ -279,14 +254,6 @@ export function MIAP(ctx: ExecContext, doRound: boolean): void {
 
 	ctx.GS.rp0 = pointIndex;
 	ctx.GS.rp1 = pointIndex;
-	if (env?.HINT_TRACE_RP0 === "1") {
-		console.log("trace rp0", {
-			ip: ctx.IP,
-			range: ctx.currentRange,
-			opcode: ctx.opcode,
-			rp0: ctx.GS.rp0,
-		});
-	}
 }
 
 // =============================================================================
@@ -371,14 +338,6 @@ export function MDRP(ctx: ExecContext, flags: number): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
-		if (env?.HINT_TRACE_RP0 === "1") {
-			console.log("trace rp0", {
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				opcode: ctx.opcode,
-				rp0: ctx.GS.rp0,
-			});
-		}
 	}
 }
 
@@ -413,7 +372,6 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	}
 
 	if (cvtIndex < -1 || cvtIndex >= ctx.cvtSize) {
-		ctx.error = `MIRP: invalid CVT index ${cvtIndex}`;
 		return;
 	}
 
@@ -492,27 +450,6 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	const currentDist =
 		getCurrent(ctx, zp1, pointIndex) - getCurrent(ctx, zp0, rp0);
 	const move = distance - currentDist;
-	const traceMirp = env?.HINT_TRACE_MIRP;
-	if (traceMirp) {
-		const targets = traceMirp
-			.split(",")
-			.map((value) => Number.parseInt(value.trim(), 10))
-			.filter((value) => Number.isFinite(value));
-		if (targets.length === 0 || targets.includes(pointIndex)) {
-			console.log("trace MIRP", {
-				pointIndex,
-				cvtIndex,
-				orgDist,
-				cvtDist,
-				currentDist,
-				distance,
-				move,
-				flags,
-				rp0,
-				roundState: ctx.GS.roundState,
-			});
-		}
-	}
 	movePoint(ctx, zp1, pointIndex, move);
 	touchPoint(ctx, zp1, pointIndex);
 
@@ -520,14 +457,6 @@ export function MIRP(ctx: ExecContext, flags: number): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
-		if (env?.HINT_TRACE_RP0 === "1") {
-			console.log("trace rp0", {
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				opcode: ctx.opcode,
-				rp0: ctx.GS.rp0,
-			});
-		}
 	}
 }
 
@@ -549,20 +478,6 @@ export function SHP(ctx: ExecContext, useRp1: boolean): void {
 	const orgRef = project(ctx, refZone.org[refPoint]);
 	const curRef = getCurrent(ctx, refZone, refPoint);
 	const shift = curRef - orgRef;
-	if (env?.HINT_TRACE_SHP === "1") {
-		console.log("trace SHP", {
-			refPoint,
-			orgRef,
-			curRef,
-			shift,
-			useRp1,
-			gep0: ctx.GS.gep0,
-			gep1: ctx.GS.gep1,
-			gep2: ctx.GS.gep2,
-			ip: ctx.IP,
-			range: ctx.currentRange,
-		});
-	}
 
 	// Apply to loop count points
 	const zone = ctx.zp2;
@@ -656,6 +571,31 @@ export function SHZ(ctx: ExecContext, useRp1: boolean): void {
 // SHPIX - Shift Point by Pixel Amount
 // =============================================================================
 
+function movePointFree(
+	ctx: ExecContext,
+	zone: GlyphZone,
+	pointIndex: number,
+	dx: F26Dot6,
+	dy: F26Dot6,
+): void {
+	const fv = ctx.GS.freeVector;
+	if (fv.x !== 0) {
+		if (!ctx.backwardCompatibility) {
+			zone.cur[pointIndex].x += dx;
+		}
+	}
+	if (fv.y !== 0) {
+		if (ctx.backwardCompatibility !== 0x7) {
+			zone.cur[pointIndex].y += dy;
+		}
+	}
+	if (zone === ctx.twilight) {
+		const orgPt = zone.org[pointIndex];
+		if (fv.x !== 0 && !ctx.backwardCompatibility) orgPt.x += dx;
+		if (fv.y !== 0 && ctx.backwardCompatibility !== 0x7) orgPt.y += dy;
+	}
+}
+
 /** SHPIX - Shift Point by Pixel Amount */
 export function SHPIX(ctx: ExecContext): void {
 	const distance = ctx.stack[--ctx.stackTop];
@@ -663,6 +603,10 @@ export function SHPIX(ctx: ExecContext): void {
 	const zone = ctx.zp2;
 	const count = ctx.GS.loop;
 	ctx.GS.loop = 1;
+	const inTwilight =
+		ctx.GS.gep0 === 0 || ctx.GS.gep1 === 0 || ctx.GS.gep2 === 0;
+	const dx = mulFix14(distance, ctx.GS.freeVector.x);
+	const dy = mulFix14(distance, ctx.GS.freeVector.y);
 
 	for (let i = 0; i < count; i++) {
 		const pointIndex = ctx.stack[--ctx.stackTop];
@@ -672,8 +616,20 @@ export function SHPIX(ctx: ExecContext): void {
 			return;
 		}
 
-		movePoint(ctx, zone, pointIndex, distance);
-		touchPoint(ctx, zone, pointIndex);
+		if (ctx.backwardCompatibility) {
+			if (
+				inTwilight ||
+				(ctx.backwardCompatibility !== 0x7 &&
+					((ctx.isComposite && ctx.GS.freeVector.y !== 0) ||
+						(zone.tags[pointIndex] & TouchFlag.Y)))
+			) {
+				movePointFree(ctx, zone, pointIndex, 0, dy);
+				touchPoint(ctx, zone, pointIndex);
+			}
+		} else {
+			movePointFree(ctx, zone, pointIndex, dx, dy);
+			touchPoint(ctx, zone, pointIndex);
+		}
 	}
 }
 
@@ -747,10 +703,7 @@ export function ALIGNRP(ctx: ExecContext): void {
 		return;
 	}
 
-	const refPos =
-		ctx.GS.gep0 === 0
-			? getOriginal(ctx, ctx.zp0, rp0)
-			: getCurrent(ctx, ctx.zp0, rp0);
+	const refPos = getCurrent(ctx, ctx.zp0, rp0);
 
 	const zone = ctx.zp1;
 	const count = ctx.GS.loop;
@@ -766,28 +719,6 @@ export function ALIGNRP(ctx: ExecContext): void {
 
 		const curPos = getCurrent(ctx, zone, pointIndex);
 		const distance = refPos - curPos;
-
-		const tracePoints = env?.HINT_TRACE_POINTS;
-		if (tracePoints) {
-			const targets = tracePoints.split(",").map((value) =>
-				Number.parseInt(value.trim(), 10),
-			);
-			if (targets.includes(pointIndex)) {
-				const refOrg = getOriginal(ctx, ctx.zp0, rp0);
-				const refCur = getCurrent(ctx, ctx.zp0, rp0);
-				console.log("trace ALIGNRP", {
-					pointIndex,
-					refPos,
-					refOrg,
-					refCur,
-					curPos,
-					distance,
-					gep0: ctx.GS.gep0,
-					gep1: ctx.GS.gep1,
-					gep2: ctx.GS.gep2,
-				});
-			}
-		}
 
 		movePoint(ctx, zone, pointIndex, distance);
 		touchPoint(ctx, zone, pointIndex);
@@ -829,14 +760,6 @@ export function MSIRP(ctx: ExecContext, setRp0: boolean): void {
 	ctx.GS.rp2 = pointIndex;
 	if (setRp0) {
 		ctx.GS.rp0 = pointIndex;
-		if (env?.HINT_TRACE_RP0 === "1") {
-			console.log("trace rp0", {
-				ip: ctx.IP,
-				range: ctx.currentRange,
-				opcode: ctx.opcode,
-				rp0: ctx.GS.rp0,
-			});
-		}
 	}
 }
 
@@ -852,19 +775,19 @@ export function ISECT(ctx: ExecContext): void {
 	const a0 = ctx.stack[--ctx.stackTop];
 	const point = ctx.stack[--ctx.stackTop];
 
-	// Line A: points a0 to a1 in zp0
-	// Line B: points b0 to b1 in zp1
-	// Move point in zp2 to intersection
+	// Line A: points a0 to a1 in zp1
+	// Line B: points b0 to b1 in zp0
+	// Move point in zp2 to intersection (FreeType-style)
 
 	const zone0 = ctx.zp0;
 	const zone1 = ctx.zp1;
 	const zone2 = ctx.zp2;
 
-	if (a0 < 0 || a0 >= zone0.nPoints || a1 < 0 || a1 >= zone0.nPoints) {
+	if (a0 < 0 || a0 >= zone1.nPoints || a1 < 0 || a1 >= zone1.nPoints) {
 		ctx.error = `ISECT: invalid line A points`;
 		return;
 	}
-	if (b0 < 0 || b0 >= zone1.nPoints || b1 < 0 || b1 >= zone1.nPoints) {
+	if (b0 < 0 || b0 >= zone0.nPoints || b1 < 0 || b1 >= zone0.nPoints) {
 		ctx.error = `ISECT: invalid line B points`;
 		return;
 	}
@@ -873,35 +796,33 @@ export function ISECT(ctx: ExecContext): void {
 		return;
 	}
 
-	// Get line endpoints
-	const pa0 = zone0.cur[a0];
-	const pa1 = zone0.cur[a1];
-	const pb0 = zone1.cur[b0];
-	const pb1 = zone1.cur[b1];
+	const pa0 = zone1.cur[a0];
+	const pa1 = zone1.cur[a1];
+	const pb0 = zone0.cur[b0];
+	const pb1 = zone0.cur[b1];
 
-	// Calculate direction vectors
-	const dax = pa1.x - pa0.x;
-	const day = pa1.y - pa0.y;
 	const dbx = pb1.x - pb0.x;
 	const dby = pb1.y - pb0.y;
+	const dax = pa1.x - pa0.x;
+	const day = pa1.y - pa0.y;
+	const dx = pb0.x - pa0.x;
+	const dy = pb0.y - pa0.y;
 
-	// Cross product for denominator
-	const denom = dax * dby - day * dbx;
+	// Cross/dot products (scaled by 0x40 like FreeType)
+	const discriminant = mulDiv(dax, -dby, 0x40) + mulDiv(day, dbx, 0x40);
+	const dotproduct = mulDiv(dax, dbx, 0x40) + mulDiv(day, dby, 0x40);
 
 	const pt = zone2.cur[point];
-
-	if (denom === 0) {
-		// Lines are parallel, move point to midpoint
+	if (Math.abs(discriminant) * 19 > Math.abs(dotproduct) && discriminant !== 0) {
+		const val = mulDiv(dx, -dby, 0x40) + mulDiv(dy, dbx, 0x40);
+		const rx = mulDiv(val, dax, discriminant);
+		const ry = mulDiv(val, day, discriminant);
+		pt.x = pa0.x + rx;
+		pt.y = pa0.y + ry;
+	} else {
+		// Fallback: average of endpoints
 		pt.x = (pa0.x + pa1.x + pb0.x + pb1.x) >> 2;
 		pt.y = (pa0.y + pa1.y + pb0.y + pb1.y) >> 2;
-	} else {
-		// Calculate intersection
-		const dx = pb0.x - pa0.x;
-		const dy = pb0.y - pa0.y;
-		const t = (dx * dby - dy * dbx) / denom;
-
-		pt.x = Math.round(pa0.x + t * dax);
-		pt.y = Math.round(pa0.y + t * day);
 	}
 
 	zone2.tags[point] |= TouchFlag.Both;
@@ -1039,6 +960,7 @@ export function MPS(ctx: ExecContext): void {
 
 /** FLIPPT - Flip on-curve/off-curve flag */
 export function FLIPPT(ctx: ExecContext): void {
+	if (ctx.backwardCompatibility === 0x7) return;
 	const zone = ctx.pts;
 	const count = ctx.GS.loop;
 	ctx.GS.loop = 1;
@@ -1062,6 +984,7 @@ export function FLIPPT(ctx: ExecContext): void {
 
 /** FLIPRGON - Set on-curve flag for range */
 export function FLIPRGON(ctx: ExecContext): void {
+	if (ctx.backwardCompatibility === 0x7) return;
 	const endPoint = ctx.stack[--ctx.stackTop];
 	const startPoint = ctx.stack[--ctx.stackTop];
 
@@ -1079,6 +1002,7 @@ export function FLIPRGON(ctx: ExecContext): void {
 
 /** FLIPRGOFF - Clear on-curve flag for range */
 export function FLIPRGOFF(ctx: ExecContext): void {
+	if (ctx.backwardCompatibility === 0x7) return;
 	const endPoint = ctx.stack[--ctx.stackTop];
 	const startPoint = ctx.stack[--ctx.stackTop];
 

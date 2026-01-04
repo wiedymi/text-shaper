@@ -138,6 +138,8 @@ export function setSize(
 	engine.ctx.scaleFix = Math.round(engine.ctx.scale * 0x10000);
 	engine.ctx.ppem = ppem;
 	engine.ctx.pointSize = pointSize * 64;
+	engine.ctx.grayscale =
+		engine.ctx.renderMode !== "mono" && !engine.ctx.lightMode;
 
 	// Scale CVT values from font units to pixels
 	scaleCVT(engine.ctx, engine.cvtOriginal);
@@ -189,6 +191,8 @@ export interface GlyphOutline {
 	tsb?: number;
 	/** Advance height in font units (for vertical phantom point) */
 	advanceHeight?: number;
+	/** True if glyph is composite */
+	isComposite?: boolean;
 }
 
 /**
@@ -315,7 +319,8 @@ export function hintGlyph(
 	}
 
 	// Run glyph instructions
-	ctx.storage.fill(0);
+	ctx.isComposite = outline.isComposite ?? false;
+	ctx.backwardCompatibility = ctx.lightMode ? 0x4 : 0;
 	if (engine.cvtBase) {
 		ctx.cvt.set(engine.cvtBase);
 	}
