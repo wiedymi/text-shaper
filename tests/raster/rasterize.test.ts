@@ -917,6 +917,32 @@ describe("raster/rasterize", () => {
 				expect(resultDefault.bitmap.width).toBe(resultExplicit.bitmap.width);
 			}
 		});
+
+		test("rasterizeGlyph sizeMode height scales with font metrics", () => {
+			const glyphId = font.glyphId("A".codePointAt(0)!);
+			if (!glyphId) return;
+
+			const em = rasterizeGlyph(font, glyphId, 48, {
+				hinting: false,
+				padding: 0,
+				sizeMode: "em",
+			});
+			const height = rasterizeGlyph(font, glyphId, 48, {
+				hinting: false,
+				padding: 0,
+				sizeMode: "height",
+			});
+
+			expect(em).not.toBeNull();
+			expect(height).not.toBeNull();
+			if (!em || !height) return;
+
+			const metricRatio =
+				(font.ascender - font.descender + font.lineGap) / font.unitsPerEm;
+			const actualRatio = em.bitmap.rows / height.bitmap.rows;
+			expect(actualRatio).toBeGreaterThan(1.0);
+			expect(Math.abs(actualRatio - metricRatio)).toBeLessThan(0.25);
+		});
 	});
 
 	describe("band processing", () => {

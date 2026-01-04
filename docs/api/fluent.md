@@ -1215,7 +1215,7 @@ Build multi-channel signed distance field atlases for scalable GPU text.
 import { buildMsdfAtlas, buildMsdfAsciiAtlas, msdfAtlasToRGBA } from "text-shaper";
 
 // Build MSDF atlas for ASCII
-const msdfAtlas = buildMsdfAsciiAtlas(font, { fontSize: 32, spread: 4 });
+const msdfAtlas = buildMsdfAsciiAtlas(font, { fontSize: 32, spread: 4, sizeMode: "em" });
 
 // Convert to RGBA for GPU upload
 const msdfRgba = msdfAtlasToRGBA(msdfAtlas);
@@ -1229,13 +1229,13 @@ Rasterize glyphs without building a PathBuilder.
 import { rasterizeGlyph, rasterizeText } from "text-shaper";
 
 // Rasterize single glyph
-const result = rasterizeGlyph(font, glyphId, 24);
+const result = rasterizeGlyph(font, glyphId, 24, { sizeMode: "em" });
 if (result) {
   const { bitmap, bearingX, bearingY } = result;
 }
 
 // Rasterize text string (multiple glyphs)
-const textResult = rasterizeText(font, "Hello", 24);
+const textResult = rasterizeText(font, "Hello", 24, { sizeMode: "em" });
 ```
 
 ### Shaped Text Rendering

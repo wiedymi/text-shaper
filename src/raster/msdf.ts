@@ -25,6 +25,7 @@ import {
 	type MsdfAtlasOptions,
 	PixelMode,
 } from "./types.ts";
+import { resolveFontScale } from "./size.ts";
 
 /**
  * A 2D point
@@ -1187,13 +1188,14 @@ export function buildMsdfAtlas(
 ): GlyphAtlas {
 	const {
 		fontSize,
+		sizeMode,
 		padding = 2,
 		maxWidth = 2048,
 		maxHeight = 2048,
 		spread = 4,
 	} = options;
 
-	const scale = fontSize / font.unitsPerEm;
+	const scale = resolveFontScale(font, fontSize, sizeMode);
 
 	// First pass: render all MSDF glyphs and collect sizes
 	const glyphData: Array<{

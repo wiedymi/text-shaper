@@ -105,11 +105,27 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	if (FT_Set_Pixel_Sizes(face, 0, (FT_UInt)pixel_size)) {
-		fprintf(stderr, "failed to set pixel size\n");
-		FT_Done_Face(face);
-		FT_Done_FreeType(library);
-		return 1;
+	if (flag_includes(flags, "real")) {
+		FT_Size_RequestRec req;
+		memset(&req, 0, sizeof(req));
+		req.type = FT_SIZE_REQUEST_TYPE_REAL_DIM;
+		req.width = 0;
+		req.height = (FT_Long)pixel_size * 64;
+		req.horiResolution = 0;
+		req.vertResolution = 0;
+		if (FT_Request_Size(face, &req)) {
+			fprintf(stderr, "failed to request real dim size\n");
+			FT_Done_Face(face);
+			FT_Done_FreeType(library);
+			return 1;
+		}
+	} else {
+		if (FT_Set_Pixel_Sizes(face, 0, (FT_UInt)pixel_size)) {
+			fprintf(stderr, "failed to set pixel size\n");
+			FT_Done_Face(face);
+			FT_Done_FreeType(library);
+			return 1;
+		}
 	}
 
 	size_t gid_count = 0;

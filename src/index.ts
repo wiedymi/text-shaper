@@ -719,12 +719,15 @@ export { condensePath, emboldenPath, obliquePath } from "./raster/synth.ts";
 // Rasterization
 export type {
 	Bitmap,
+	FontSizeMode,
 	GlyphAtlas,
 	GlyphMetrics,
+	GlyphRasterizeOptions,
 	MsdfAtlasOptions,
 	RasterizedGlyph,
 	RasterizeOptions,
 	Span,
+	TextRasterizeOptions,
 } from "./raster/types.ts";
 export type {
 	BitmapTransformOptions,

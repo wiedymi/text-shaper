@@ -16,6 +16,7 @@ const result = rasterizeGlyph(font, glyphId, 48, {
   pixelMode: PixelMode.Gray,
   padding: 1,
   hinting: true,
+  // sizeMode: "em", // default
 });
 
 if (result) {
@@ -31,6 +32,25 @@ if (result) {
   const pixels = result.bitmap.buffer; // Uint8Array
 }
 ```
+
+### Font Size Modes
+
+By default, `fontSize` is treated as the **em size** (CSS-like). Some pipelines
+(e.g. FreeType `REAL_DIM`) interpret `fontSize` as the full font height
+(`ascender - descender + lineGap`). You can switch behavior with `sizeMode`:
+
+```typescript
+const emSized = rasterizeGlyph(font, glyphId, 48, {
+  sizeMode: "em", // default
+});
+
+const heightSized = rasterizeGlyph(font, glyphId, 48, {
+  sizeMode: "height", // FreeType REAL_DIM-style sizing
+});
+```
+
+Note: for CFF fonts, `sizeMode: "height"` ignores `lineGap` to match FreeType's
+REAL_DIM behavior.
 
 Rasterize a glyph and apply a raster-only transform:
 
@@ -75,6 +95,7 @@ const font = await Font.fromFile("font.ttf");
 const bitmap = rasterizeText(font, "Hello", 32, {
   pixelMode: PixelMode.Gray,
   padding: 2,
+  // sizeMode: "height",
 });
 
 if (bitmap) {
@@ -97,6 +118,7 @@ const font = await Font.fromFile("font.ttf");
 // Build atlas from specific glyph IDs
 const atlas = buildAtlas(font, [65, 66, 67], {
   fontSize: 32,
+  // sizeMode: "height",
   padding: 1,
   pixelMode: PixelMode.Gray,
   hinting: true,

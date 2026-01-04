@@ -33,6 +33,14 @@ enum LcdMode {
 }
 ```
 
+### FontSizeMode
+
+```typescript
+type FontSizeMode = "em" | "height";
+// "em"     -> fontSize is treated as em size (CSS-like)
+// "height" -> fontSize is treated as ascender-descender-lineGap height (FreeType REAL_DIM-style)
+```
+
 ### Bitmap
 
 ```typescript
@@ -85,6 +93,7 @@ interface GlyphAtlas {
 ```typescript
 interface AtlasOptions {
   fontSize: number;        // Target font size in pixels
+  sizeMode?: FontSizeMode; // Size interpretation (default: "em")
   padding?: number;        // Padding between glyphs (default: 1)
   maxWidth?: number;       // Max atlas width (default: 2048)
   maxHeight?: number;      // Max atlas height (default: 2048)
@@ -179,6 +188,7 @@ function rasterizeGlyph(
     pixelMode?: PixelMode;
     padding?: number;
     hinting?: boolean;
+    sizeMode?: FontSizeMode;
   }
 ): RasterizedGlyph | null
 ```
@@ -197,6 +207,7 @@ function rasterizeGlyphWithTransform(
     pixelMode?: PixelMode;
     padding?: number;
     hinting?: boolean;
+    sizeMode?: FontSizeMode;
     offsetX26?: number; // 26.6 translation in X (1px = 64)
     offsetY26?: number; // 26.6 translation in Y (1px = 64)
   }
@@ -215,6 +226,7 @@ function rasterizeText(
   options?: {
     pixelMode?: PixelMode;
     padding?: number;
+    sizeMode?: FontSizeMode;
   }
 ): Bitmap | null
 ```

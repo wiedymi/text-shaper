@@ -128,6 +128,7 @@ function runFtDump(
 		hinting?: boolean;
 		renderMode?: "normal" | "mono";
 		target?: "normal" | "light" | "mono";
+		sizeMode?: "em" | "real";
 	},
 ) {
 	const flags: string[] = [];
@@ -135,6 +136,7 @@ function runFtDump(
 	if (options?.target === "light") flags.push("light");
 	if (options?.target === "mono") flags.push("mono");
 	if (options?.renderMode === "mono") flags.push("mono");
+	if (options?.sizeMode === "real") flags.push("real");
 
 	const args = [fontPath, String(fontSize), glyphIds.join(",")];
 	if (flags.length > 0) args.push(flags.join(","));
@@ -443,6 +445,109 @@ testFn(
 			}
 		}
 	}
+	},
+);
+
+testFn(
+	"real-dim raster metrics match FreeType (unhinted)",
+	{ timeout: testTimeout },
+	async () => {
+		const fontPaths = getFontList();
+		if (fontPaths.length === 0) {
+			console.warn("hinting parity: no candidate fonts found");
+			return;
+		}
+		if (!ftdumpBin) {
+			console.warn("hinting parity: ftdump binary not available");
+			return;
+		}
+
+		const sizes = getSizes().slice(0, 1);
+		const padding = Number.parseInt(
+			process.env.HINTING_PARITY_PADDING ?? "0",
+			10,
+		);
+		const tolerance = Number.parseInt(
+			process.env.HINTING_PARITY_TOLERANCE ?? "1",
+			10,
+		);
+		const glyphCount = Number.parseInt(
+			process.env.HINTING_PARITY_GLYPHS_REAL ?? "6",
+			10,
+		);
+
+		for (const fontPath of fontPaths) {
+			if (shouldSkipFtDumpFont(fontPath)) continue;
+			let font: Font;
+			try {
+				font = await Font.fromFile(fontPath);
+			} catch {
+				continue;
+			}
+			if (font.isColorFont) continue;
+			if (font.isCFF && font.isVariable) continue;
+
+			const glyphIds = pickGlyphs(font, glyphCount);
+			if (glyphIds.length === 0) continue;
+
+			for (const fontSize of sizes) {
+				let ft: ReturnType<typeof runFtDump>;
+				try {
+					ft = runFtDump(ftdumpBin, fontPath, fontSize, glyphIds, {
+						hinting: false,
+						target: "normal",
+						sizeMode: "real",
+					});
+				} catch (err) {
+					if (debug) {
+						console.warn(
+							`ftdump failed font=${fontPath} size=${fontSize}: ${String(err)}`,
+						);
+					}
+					continue;
+				}
+				const ftMap = new Map(ft.map((entry) => [entry.gid, entry]));
+
+				for (const gid of glyphIds) {
+					const ftEntry = ftMap.get(gid);
+					if (!ftEntry) continue;
+					if (ftEntry.width === 0 || ftEntry.rows === 0) continue;
+
+					const ours = rasterizeGlyph(font, gid, fontSize, {
+						hinting: false,
+						padding,
+						pixelMode: PixelMode.Gray,
+						sizeMode: "height",
+					});
+					expect(ours).not.toBeNull();
+					if (!ours) continue;
+
+					const widthDelta = Math.abs(ours.bitmap.width - ftEntry.width);
+					const heightDelta = Math.abs(ours.bitmap.rows - ftEntry.rows);
+					const leftDelta = Math.abs(ours.bearingX - ftEntry.left);
+					const topDelta = Math.abs(ours.bearingY - ftEntry.top);
+					if (
+						debug &&
+						(widthDelta > tolerance ||
+							heightDelta > tolerance ||
+							leftDelta > tolerance ||
+							topDelta > tolerance)
+					) {
+						console.warn(
+							`real-dim mismatch size=${fontSize} font=${fontPath} gid=${gid} ` +
+								`ours=${ours.bitmap.width}x${ours.bitmap.rows} ` +
+								`b=${ours.bearingX},${ours.bearingY} ` +
+								`ft=${ftEntry.width}x${ftEntry.rows} ` +
+								`b=${ftEntry.left},${ftEntry.top}`,
+						);
+					}
+					expect(widthDelta).toBeLessThanOrEqual(tolerance);
+					expect(heightDelta).toBeLessThanOrEqual(tolerance);
+					expect(leftDelta).toBeLessThanOrEqual(tolerance);
+					expect(topDelta).toBeLessThanOrEqual(tolerance);
+				}
+			}
+		}
 	},
 );
 

@@ -27,10 +27,13 @@ import {
 	createBitmap,
 	FillRule,
 	PixelMode,
+	type GlyphRasterizeOptions,
 	type RasterizedGlyph,
 	type RasterizeOptions,
+	type TextRasterizeOptions,
 } from "./types.ts";
 import { transformBitmap2D, transformBitmap3D } from "./bitmap-utils.ts";
+import { resolveFontScale, resolveFontSize } from "./size.ts";
 
 /** Cached hinting engines per font */
 const hintingEngineCache = new WeakMap<Font, HintingEngine>();
@@ -333,9 +336,11 @@ function getCachedHintedGlyph(
 	font: Font,
 	glyphId: GlyphId,
 	ppem: number,
+	pointSize: number,
 	depth: number = 0,
 ): HintedGlyph | null {
-	const key = `${glyphId}:${ppem}:${engine.ctx.lightMode ? "light" : "full"}`;
+	const pointKey = Math.round(pointSize * 64);
+	const key = `${glyphId}:${ppem}:${pointKey}:${engine.ctx.lightMode ? "light" : "full"}`;
 	let cache = hintedGlyphCache.get(font);
 	if (!cache) {
 		cache = new Map();
@@ -351,7 +356,7 @@ function getCachedHintedGlyph(
 		return null;
 	}
 
-	const error = setSize(engine, ppem, ppem);
+	const error = setSize(engine, ppem, pointSize);
 	if (error) {
 		cache.set(key, null);
 		return null;
@@ -613,32 +618,31 @@ export function rasterizeGlyph(
 	font: Font,
 	glyphId: GlyphId,
 	fontSize: number,
-	options?: {
-		pixelMode?: PixelMode;
-		padding?: number;
-		/** Use TrueType hinting if available */
-		hinting?: boolean;
-	},
+	options?: GlyphRasterizeOptions,
 ): RasterizedGlyph | null {
 	const padding = options?.padding ?? 0;
 	const pixelMode = options?.pixelMode ?? PixelMode.Gray;
 	const useHinting = options?.hinting ?? false;
+	const sizeMode = options?.sizeMode;
+	const effectiveSize = resolveFontSize(font, fontSize, sizeMode);
 
 	// Try hinted rendering if requested
 	if (useHinting && font.hasHinting) {
+		const pointSize = sizeMode === "height" ? fontSize : effectiveSize;
 		const result = rasterizeHintedGlyph(
 			font,
 			glyphId,
-			fontSize,
+			effectiveSize,
 			padding,
 			pixelMode,
+			pointSize,
 		);
 		if (result) return result;
 	}
 
 	// Fall back to unhinted rendering
 	if (font.isTrueType) {
-		const scale26 = (fontSize * 64) / font.unitsPerEm;
+		const scale26 = (effectiveSize * 64) / font.unitsPerEm;
 		const points26 = buildGlyphPoints26(font, glyphId, scale26, 0, {
 			roundCompositeOffsets: false,
 		});
@@ -651,7 +655,7 @@ export function rasterizeGlyph(
 	const path = getGlyphPath(font, glyphId);
 	if (!path) return null;
 
-	const scale = fontSize / font.unitsPerEm;
+	const scale = effectiveSize / font.unitsPerEm;
 
 	// Get bounds
 	const bounds = getPathBounds(path, scale, true, true);
@@ -702,11 +706,7 @@ export function rasterizeGlyphWithTransform(
 	glyphId: GlyphId,
 	fontSize: number,
 	matrix: Matrix2D | Matrix3x3,
-	options?: {
-		pixelMode?: PixelMode;
-		padding?: number;
-		/** Use TrueType hinting if available */
-		hinting?: boolean;
+	options?: GlyphRasterizeOptions & {
 		/** Translation offset in 26.6 units (applied after matrix) */
 		offsetX26?: number;
 		/** Translation offset in 26.6 units (applied after matrix) */
@@ -747,6 +747,7 @@ function rasterizeHintedGlyph(
 	fontSize: number,
 	padding: number,
 	pixelMode: PixelMode,
+	pointSize: number = fontSize,
 ): RasterizedGlyph | null {
 	const engine = getHintingEngine(font);
 	if (!engine) return null;
@@ -755,7 +756,7 @@ function rasterizeHintedGlyph(
 	engine.ctx.lightMode = pixelMode === PixelMode.Gray;
 
 	// Get cached hinted glyph (includes outline computation and hinting)
-	const hinted = getCachedHintedGlyph(engine, font, glyphId, ppem);
+	const hinted = getCachedHintedGlyph(engine, font, glyphId, ppem, pointSize);
 	if (!hinted) return null;
 	let hintedForRaster = hinted;
 	if (pixelMode === PixelMode.Gray) {
@@ -970,15 +971,12 @@ export function rasterizeText(
 	font: Font,
 	text: string,
 	fontSize: number,
-	options?: {
-		pixelMode?: PixelMode;
-		padding?: number;
-	},
+	options?: TextRasterizeOptions,
 ): Bitmap | null {
 	// This would integrate with the shaper
 	// For now, simple glyph-by-glyph rendering
 
-	const scale = fontSize / font.unitsPerEm;
+	const scale = resolveFontScale(font, fontSize, options?.sizeMode);
 	const padding = options?.padding ?? 0;
 	const pixelMode = options?.pixelMode ?? PixelMode.Gray;
 

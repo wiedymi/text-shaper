@@ -21,6 +21,38 @@ export enum PixelMode {
 }
 
 /**
+ * Font size interpretation mode
+ * - "em": fontSize is treated as em size (CSS-like)
+ * - "height": fontSize is treated as ascender-descender-lineGap height
+ */
+export type FontSizeMode = "em" | "height";
+
+/**
+ * Options for rasterizing a glyph from a font
+ */
+export interface GlyphRasterizeOptions {
+	/** Pixel mode */
+	pixelMode?: PixelMode;
+	/** Padding in pixels around glyph */
+	padding?: number;
+	/** Use TrueType hinting if available */
+	hinting?: boolean;
+	/** Interpret fontSize as em or full height */
+	sizeMode?: FontSizeMode;
+}
+
+/**
+ * Options for rasterizing text from a font
+ */
+export interface TextRasterizeOptions {
+	/** Pixel mode */
+	pixelMode?: PixelMode;
+	/** Padding in pixels around glyphs */
+	padding?: number;
+	/** Interpret fontSize as em or full height */
+	sizeMode?: FontSizeMode;
+}
+/**
  * Fill rule for outline rendering
  */
 export enum FillRule {
@@ -165,6 +197,8 @@ export interface GlyphAtlas {
 export interface AtlasOptions {
 	/** Font size in pixels */
 	fontSize: number;
+	/** Interpret fontSize as em or full height */
+	sizeMode?: FontSizeMode;
 	/** Padding between glyphs */
 	padding?: number;
 	/** Maximum atlas width */
@@ -183,6 +217,8 @@ export interface AtlasOptions {
 export interface MsdfAtlasOptions {
 	/** Font size in pixels (size of each glyph cell in the atlas) */
 	fontSize: number;
+	/** Interpret fontSize as em or full height */
+	sizeMode?: FontSizeMode;
 	/** Padding between glyphs */
 	padding?: number;
 	/** Maximum atlas width */

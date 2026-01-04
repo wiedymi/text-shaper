@@ -15,6 +15,7 @@ import {
 	type GlyphMetrics,
 	PixelMode,
 } from "./types.ts";
+import { resolveFontScale } from "./size.ts";
 
 /**
  * Shelf packing node
@@ -35,6 +36,7 @@ export function buildAtlas(
 ): GlyphAtlas {
 	const {
 		fontSize,
+		sizeMode,
 		padding = 1,
 		maxWidth = 2048,
 		maxHeight = 2048,
@@ -50,13 +52,14 @@ export function buildAtlas(
 		advance: number;
 	}> = [];
 
-	const scale = fontSize / font.unitsPerEm;
+	const scale = resolveFontScale(font, fontSize, sizeMode);
 
 	for (let i = 0; i < glyphIds.length; i++) {
 		const glyphId = glyphIds[i]!;
 		const result = rasterizeGlyph(font, glyphId, fontSize, {
 			padding: 0,
 			pixelMode,
+			sizeMode,
 		});
 		if (!result) continue;
 
