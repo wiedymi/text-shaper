@@ -172,33 +172,49 @@ export class GrayRaster {
 		let x = this.x;
 		let incr: number;
 		let first: number;
+		let p: number;
+		const absDy = abs(dy);
 
 		if (dy > 0) {
 			first = ONE_PIXEL;
 			incr = 1;
+			p = (ONE_PIXEL - fy1) * dx;
 		} else {
 			first = 0;
 			incr = -1;
+			p = fy1 * dx;
 		}
 
-		// First partial scanline
-		let delta = first - fy1;
-		const xDelta = this.mulDiv(dx, delta, abs(dy));
-		let x2 = x + xDelta;
+		// First partial scanline - use FT_DIV_MOD style for accuracy
+		let delta = Math.trunc(p / absDy);
+		let mod = p % absDy;
+		if (mod < 0) {
+			delta--;
+			mod += absDy;
+		}
 
+		let x2 = x + delta;
 		this.renderScanline(ey1, x, fy1, x2, first);
 		x = x2;
 		ey1 += incr;
 
 		this.cells.setCurrentCell(x, ey1 << PIXEL_BITS);
 
-		// Full scanlines
+		// Full scanlines - use modular arithmetic to accumulate remainder
 		if (ey1 !== ey2) {
-			const xLift = this.mulDiv(dx, ONE_PIXEL, abs(dy));
-			delta = first + first - ONE_PIXEL;
+			p = ONE_PIXEL * dx;
+			const lift = Math.trunc(p / absDy);
+			const rem = p % absDy;
 
 			while (ey1 !== ey2) {
-				x2 = x + xLift;
+				delta = lift;
+				mod += rem;
+				if (mod >= absDy) {
+					mod -= absDy;
+					delta++;
+				}
+
+				x2 = x + delta;
 				this.renderScanline(ey1, x, ONE_PIXEL - first, x2, first);
 				x = x2;
 				ey1 += incr;
@@ -207,7 +223,6 @@ export class GrayRaster {
 		}
 
 		// Last partial scanline
-		delta = fy2 - ONE_PIXEL + first;
 		this.renderScanline(ey1, x, ONE_PIXEL - first, toX, fy2);
 	}
 
@@ -244,6 +259,7 @@ export class GrayRaster {
 		// Multiple cells
 		const dx = x2 - x1;
 		const dy = y2 - y1;
+		const absDx = abs(dx);
 
 		let first: number;
 		let incr: number;
@@ -259,8 +275,13 @@ export class GrayRaster {
 			p = fx1 * dy; // Distance from fx1 to left edge
 		}
 
-		// First cell
-		let delta = this.mulDiv(p, 1, abs(dx));
+		// First cell - use FT_DIV_MOD style for accuracy
+		let delta = Math.trunc(p / absDx);
+		let mod = p % absDx;
+		if (mod < 0) {
+			delta--;
+			mod += absDx;
+		}
 		this.cells.setCurrentCell(x1, ey << PIXEL_BITS);
 		this.cells.addArea(delta * (fx1 + first), delta);
 
@@ -268,12 +289,19 @@ export class GrayRaster {
 		let ex = ex1 + incr;
 		this.cells.setCurrentCell(ex << PIXEL_BITS, ey << PIXEL_BITS);
 
-		// Middle cells (full width)
+		// Middle cells (full width) - use modular arithmetic
 		if (ex !== ex2) {
-			const yLift = this.mulDiv(dy, ONE_PIXEL, abs(dx));
+			p = ONE_PIXEL * dy;
+			const lift = Math.trunc(p / absDx);
+			const rem = p % absDx;
 
 			while (ex !== ex2) {
-				delta = yLift;
+				delta = lift;
+				mod += rem;
+				if (mod >= absDx) {
+					mod -= absDx;
+					delta++;
+				}
 				this.cells.addArea(delta * ONE_PIXEL, delta);
 				y += delta;
 				ex += incr;
@@ -306,7 +334,7 @@ export class GrayRaster {
 
 	/**
 	 * Recursive quadratic subdivision with flatness test
-	 * Uses FreeType-style flatness: check if control point is within threshold of chord
+	 * Uses FreeType's exact flatness metric: |P0 + P2 - 2*P1| (second derivative)
 	 */
 	private subdivConic(
 		x1: number,
@@ -317,7 +345,7 @@ export class GrayRaster {
 		y3: number,
 		level: number,
 	): void {
-		// Max recursion depth (like cubics)
+		// Max recursion depth
 		if (level > 16) {
 			this.renderLine(x3, y3);
 			this.x = x3;
@@ -325,19 +353,13 @@ export class GrayRaster {
 			return;
 		}
 
-		// Flatness test: distance from control point to chord (p1 -> p3)
-		const dx = x3 - x1;
-		const dy = y3 - y1;
-		// d = |(cx-x1)*dy - (cy-y1)*dx| / sqrt(dx²+dy²)
-		// We compare d² against threshold² to avoid sqrt
-		const d = abs((cx - x1) * dy - (cy - y1) * dx);
+		// FreeType flatness test: |P0 + P2 - 2*P1| <= ONE_PIXEL/4
+		// This measures the second derivative (how curved the quadratic is)
+		let dx = abs(x1 + x3 - 2 * cx);
+		let dy = abs(y1 + y3 - 2 * cy);
+		if (dx < dy) dx = dy;
 
-		// Size-aware threshold: scale with chord length to reduce subdivisions at small sizes
-		// At small sizes, curves are tiny and over-subdivision wastes time
-		// Minimum threshold is ONE_PIXEL/4, scales up with chord length
-		const chordLen = abs(dx) + abs(dy);
-		const threshold = Math.max(ONE_PIXEL >> 2, chordLen >> 4);
-		if (d <= threshold * chordLen) {
+		if (dx <= ONE_PIXEL >> 2) {
 			// Flat enough - render as line
 			this.renderLine(x3, y3);
 			this.x = x3;
@@ -392,38 +414,39 @@ export class GrayRaster {
 			return;
 		}
 
-		// De Casteljau midpoints
-		const x12 = (x1 + cx1) >> 1;
-		const y12 = (y1 + cy1) >> 1;
-		const x23 = (cx1 + cx2) >> 1;
-		const y23 = (cy1 + cy2) >> 1;
-		const x34 = (cx2 + x4) >> 1;
-		const y34 = (cy2 + y4) >> 1;
-		const x123 = (x12 + x23) >> 1;
-		const y123 = (y12 + y23) >> 1;
-		const x234 = (x23 + x34) >> 1;
-		const y234 = (y23 + y34) >> 1;
-		const x1234 = (x123 + x234) >> 1;
-		const y1234 = (y123 + y234) >> 1;
+		// FreeType flatness test: check if control points are close to
+		// chord trisection points. Uses ONE_PIXEL/2 threshold.
+		// |2*P3 - 3*P2 + P0| and |P3 - 3*P1 + 2*P0| for each axis
+		if (
+			abs(2 * x4 - 3 * cx2 + x1) > ONE_PIXEL >> 1 ||
+			abs(2 * y4 - 3 * cy2 + y1) > ONE_PIXEL >> 1 ||
+			abs(x4 - 3 * cx1 + 2 * x1) > ONE_PIXEL >> 1 ||
+			abs(y4 - 3 * cy1 + 2 * y1) > ONE_PIXEL >> 1
+		) {
+			// Need to subdivide
+			// De Casteljau midpoints
+			const x12 = (x1 + cx1) >> 1;
+			const y12 = (y1 + cy1) >> 1;
+			const x23 = (cx1 + cx2) >> 1;
+			const y23 = (cy1 + cy2) >> 1;
+			const x34 = (cx2 + x4) >> 1;
+			const y34 = (cy2 + y4) >> 1;
+			const x123 = (x12 + x23) >> 1;
+			const y123 = (y12 + y23) >> 1;
+			const x234 = (x23 + x34) >> 1;
+			const y234 = (y23 + y34) >> 1;
+			const x1234 = (x123 + x234) >> 1;
+			const y1234 = (y123 + y234) >> 1;
 
-		// Flatness test with size-aware threshold
-		const dx = x4 - x1;
-		const dy = y4 - y1;
-		const d1 = abs((cx1 - x4) * dy - (cy1 - y4) * dx);
-		const d2 = abs((cx2 - x4) * dy - (cy2 - y4) * dx);
-
-		// Size-aware threshold: scale with chord length to reduce subdivisions at small sizes
-		const chordLen = abs(dx) + abs(dy);
-		const threshold = Math.max(ONE_PIXEL >> 2, chordLen >> 4);
-		if (d1 + d2 <= threshold * chordLen) {
-			this.renderLine(x4, y4);
-			this.x = x4;
-			this.y = y4;
+			this.subdivCubic(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
+			this.subdivCubic(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
 			return;
 		}
 
-		this.subdivCubic(x1, y1, x12, y12, x123, y123, x1234, y1234, level + 1);
-		this.subdivCubic(x1234, y1234, x234, y234, x34, y34, x4, y4, level + 1);
+		// Flat enough - render as line
+		this.renderLine(x4, y4);
+		this.x = x4;
+		this.y = y4;
 	}
 
 	/**
