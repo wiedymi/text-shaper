@@ -480,38 +480,67 @@ function decomposeHintedGlyph(
 	offsetY: number,
 ): void {
 	const { xCoords, yCoords, flags, contourEnds } = hinted;
-	let contourIdx = 0,
-		contourStart = 0;
+
+	let contourIdx = 0;
+	let contourStart = 0;
 
 	for (let i = 0; i < xCoords.length; i++) {
-		const isEnd = i === contourEnds[contourIdx];
+		const contourEnd = contourEnds[contourIdx]!;
+		const isEnd = i === contourEnd;
+
 		// Convert 26.6 to rasterizer format (shift left 2 for 26.8)
-		const x = ((xCoords[i] << 2) | 0) + (offsetX << 8);
-		const y = ((-yCoords[i] << 2) | 0) + (offsetY << 8); // Flip Y
-		const onCurve = (flags[i] & 1) !== 0;
+		const x = ((xCoords[i]! << 2) | 0) + (offsetX << 8);
+		const y = ((-yCoords[i]! << 2) | 0) + (offsetY << 8); // Flip Y
+		const onCurve = (flags[i]! & 1) !== 0;
 
 		if (i === contourStart) {
 			raster.moveTo(x, y);
 		} else if (onCurve) {
 			raster.lineTo(x, y);
 		} else {
+			// Off-curve point: draw conic to next point or implicit midpoint
 			const nextIdx = isEnd ? contourStart : i + 1;
-			const nx = ((xCoords[nextIdx] << 2) | 0) + (offsetX << 8);
-			const ny = ((-yCoords[nextIdx] << 2) | 0) + (offsetY << 8);
-			const nextOn = (flags[nextIdx] & 1) !== 0;
+			const nx = ((xCoords[nextIdx]! << 2) | 0) + (offsetX << 8);
+			const ny = ((-yCoords[nextIdx]! << 2) | 0) + (offsetY << 8);
+			const nextOn = (flags[nextIdx]! & 1) !== 0;
 
 			if (nextOn) {
 				raster.conicTo(x, y, nx, ny);
-				if (!isEnd) i++;
+				// Skip next point since we used it as conic destination
+				// But check if we're skipping over contour end
+				if (!isEnd) {
+					i++;
+					// After skipping, check if we landed on contour end
+					if (i === contourEnd) {
+						// Close contour back to start
+						const sx = ((xCoords[contourStart]! << 2) | 0) + (offsetX << 8);
+						const sy =
+							((-yCoords[contourStart]! << 2) | 0) + (offsetY << 8);
+						raster.lineTo(sx, sy);
+						contourIdx++;
+						contourStart = i + 1;
+					}
+				}
 			} else {
+				// Two consecutive off-curve points: draw to implicit midpoint
 				raster.conicTo(x, y, (x + nx) >> 1, (y + ny) >> 1);
 			}
 		}
 
-		if (isEnd) {
-			const sx = ((xCoords[contourStart] << 2) | 0) + (offsetX << 8);
-			const sy = ((-yCoords[contourStart] << 2) | 0) + (offsetY << 8);
-			if (onCurve && i !== contourStart) raster.lineTo(sx, sy);
+		// Close contour if this is the end (and we didn't already close above)
+		if (isEnd && i === contourEnd) {
+			const sx = ((xCoords[contourStart]! << 2) | 0) + (offsetX << 8);
+			const sy = ((-yCoords[contourStart]! << 2) | 0) + (offsetY << 8);
+			// Only draw closing line if we didn't just draw to start via conic
+			if (onCurve && i !== contourStart) {
+				raster.lineTo(sx, sy);
+			} else if (!onCurve) {
+				// Last point is off-curve, need to close with curve to start
+				const startOn = (flags[contourStart]! & 1) !== 0;
+				if (startOn) {
+					// Already handled in conic branch above when isEnd is true
+				}
+			}
 			contourIdx++;
 			contourStart = i + 1;
 		}

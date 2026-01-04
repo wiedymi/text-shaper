@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
 
 		FT_GlyphSlot slot = face->glyph;
 		printf(
-			"{\"gid\":%u,\"width\":%u,\"rows\":%u,\"left\":%d,\"top\":%d,\"advanceX\":%ld}",
+			"{\"gid\":%u,\"width\":%u,\"rows\":%u,\"left\":%d,\"top\":%d,\"advanceX\":%ld",
 			gid,
 			slot->bitmap.width,
 			slot->bitmap.rows,
@@ -132,6 +132,16 @@ int main(int argc, char **argv) {
 			slot->bitmap_top,
 			(long)(slot->advance.x >> 6)
 		);
+		if (flag_includes(flags, "pixels") && slot->bitmap.buffer) {
+			printf(",\"pixels\":[");
+			unsigned int total = slot->bitmap.width * slot->bitmap.rows;
+			for (unsigned int p = 0; p < total; p++) {
+				if (p > 0) printf(",");
+				printf("%u", slot->bitmap.buffer[p]);
+			}
+			printf("]");
+		}
+		printf("}");
 	}
 	printf("]\n");
 

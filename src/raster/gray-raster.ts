@@ -247,17 +247,20 @@ export class GrayRaster {
 
 		let first: number;
 		let incr: number;
+		let p: number; // x distance to cell boundary * dy (FreeType formula)
 
 		if (dx > 0) {
 			first = ONE_PIXEL;
 			incr = 1;
+			p = (ONE_PIXEL - fx1) * dy; // Distance from fx1 to right edge
 		} else {
 			first = 0;
 			incr = -1;
+			p = fx1 * dy; // Distance from fx1 to left edge
 		}
 
 		// First cell
-		let delta = this.mulDiv(dy, first - fx1, abs(dx));
+		let delta = this.mulDiv(p, 1, abs(dx));
 		this.cells.setCurrentCell(x1, ey << PIXEL_BITS);
 		this.cells.addArea(delta * (fx1 + first), delta);
 
@@ -466,8 +469,12 @@ export class GrayRaster {
 				const cell = pool[cellIndex];
 
 				// Fill span from previous x to current cell
+				// FreeType: coverage = area >> (PIXEL_BITS * 2 + 1 - 8) = >> 9
 				if (cell.x > x && cover !== 0) {
-					const gray = this.applyFillRule(cover, fillRule);
+					const gray = this.applyFillRule(
+						cover >> (PIXEL_BITS + 1),
+						fillRule,
+					);
 					if (gray > 0) {
 						// Inline Math.max/min with ternary
 						const start = x < 0 ? 0 : x;
@@ -479,23 +486,25 @@ export class GrayRaster {
 				// Compute anti-aliased coverage for this edge cell
 				// FreeType: cover += cell->cover * (ONE_PIXEL * 2)
 				//           area = cover - cell->area
-				// The area is SUBTRACTED from scaled cover, not added
-				const scaledCover = cover * (ONE_PIXEL * 2);
-				const area = scaledCover - cell.area;
+				// IMPORTANT: Update cover BEFORE calculating area (FreeType order)
+				cover += cell.cover * (ONE_PIXEL * 2);
+				const area = cover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 
 				if (gray > 0 && cell.x >= 0 && cell.x < bitmapWidth) {
 					this.setPixel(bitmap, row, cell.x, gray);
 				}
 
-				cover += cell.cover;
 				x = cell.x + 1;
 				cellIndex = cell.next;
 			}
 
 			// Fill remaining span
 			if (x < bitmapWidth && cover !== 0) {
-				const gray = this.applyFillRule(cover, fillRule);
+				const gray = this.applyFillRule(
+					cover >> (PIXEL_BITS + 1),
+					fillRule,
+				);
 				if (gray > 0) {
 					this.fillSpan(bitmap, row, x, bitmapWidth, gray);
 				}
@@ -614,7 +623,10 @@ export class GrayRaster {
 				const cell = pool[cellIndex];
 				// If we have cover, emit span
 				if (cover !== 0 && cell.x > spanStart + 1) {
-					const gray = this.applyFillRule(cover, fillRule);
+					const gray = this.applyFillRule(
+						cover >> (PIXEL_BITS + 1),
+						fillRule,
+					);
 					if (gray > 0) {
 						spans.push({
 							x: spanStart + 1,
@@ -624,15 +636,14 @@ export class GrayRaster {
 					}
 				}
 
-				// Edge cell - area is SUBTRACTED from scaled cover
-				const scaledCover = cover * (ONE_PIXEL * 2);
-				const area = scaledCover - cell.area;
+				// Edge cell - update cover BEFORE calculating area (FreeType order)
+				cover += cell.cover * (ONE_PIXEL * 2);
+				const area = cover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 				if (gray > 0) {
 					spans.push({ x: cell.x, len: 1, coverage: gray });
 				}
 
-				cover += cell.cover;
 				spanStart = cell.x;
 				cellIndex = cell.next;
 			}
@@ -677,7 +688,10 @@ export class GrayRaster {
 				const cell = pool[cellIndex];
 				// Fill span from previous x to current cell
 				if (cover !== 0 && cell.x > x) {
-					const gray = this.applyFillRule(cover, fillRule);
+					const gray = this.applyFillRule(
+						cover >> (PIXEL_BITS + 1),
+						fillRule,
+					);
 					if (gray > 0) {
 						spanBuffer.push({ x, len: cell.x - x, coverage: gray });
 						if (spanBuffer.length >= MAX_GRAY_SPANS) {
@@ -690,9 +704,9 @@ export class GrayRaster {
 					}
 				}
 
-				// Edge cell - area is SUBTRACTED from scaled cover
-				const scaledCover = cover * (ONE_PIXEL * 2);
-				const area = scaledCover - cell.area;
+				// Edge cell - update cover BEFORE calculating area (FreeType order)
+				cover += cell.cover * (ONE_PIXEL * 2);
+				const area = cover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 				if (gray > 0 && cell.x >= minX && cell.x < maxX) {
 					spanBuffer.push({ x: cell.x, len: 1, coverage: gray });
@@ -701,14 +715,16 @@ export class GrayRaster {
 					}
 				}
 
-				cover += cell.cover;
 				x = cell.x + 1;
 				cellIndex = cell.next;
 			}
 
 			// Fill remaining span
 			if (cover !== 0 && x < maxX) {
-				const gray = this.applyFillRule(cover, fillRule);
+				const gray = this.applyFillRule(
+					cover >> (PIXEL_BITS + 1),
+					fillRule,
+				);
 				if (gray > 0) {
 					spanBuffer.push({
 						x,
@@ -927,14 +943,17 @@ export class GrayRaster {
 				const cell = pool[cellIndex];
 				// Skip cells outside X clip
 				if (cell.x < minX) {
-					cover += cell.cover;
+					cover += cell.cover * (ONE_PIXEL * 2);
 					cellIndex = cell.next;
 					continue;
 				}
 				if (cell.x >= maxX) {
 					// Fill remaining clipped span
 					if (cover !== 0 && x < maxX) {
-						const gray = this.applyFillRule(cover, fillRule);
+						const gray = this.applyFillRule(
+							cover >> (PIXEL_BITS + 1),
+							fillRule,
+						);
 						if (gray > 0) {
 							this.fillSpan(
 								bitmap,
@@ -950,7 +969,10 @@ export class GrayRaster {
 
 				// Fill span from previous x to current cell
 				if (cell.x > x && cover !== 0) {
-					const gray = this.applyFillRule(cover, fillRule);
+					const gray = this.applyFillRule(
+						cover >> (PIXEL_BITS + 1),
+						fillRule,
+					);
 					if (gray > 0) {
 						const start = Math.max(0, x);
 						const end = Math.min(bitmap.width, cell.x);
@@ -958,23 +980,25 @@ export class GrayRaster {
 					}
 				}
 
-				// Edge cell anti-aliasing - area is SUBTRACTED from scaled cover
-				const scaledCover = cover * (ONE_PIXEL * 2);
-				const area = scaledCover - cell.area;
+				// Edge cell - update cover BEFORE calculating area (FreeType order)
+				cover += cell.cover * (ONE_PIXEL * 2);
+				const area = cover - cell.area;
 				const gray = this.applyFillRule(area >> (PIXEL_BITS + 1), fillRule);
 
 				if (gray > 0 && cell.x >= 0 && cell.x < bitmap.width) {
 					this.setPixel(bitmap, row, cell.x, gray);
 				}
 
-				cover += cell.cover;
 				x = cell.x + 1;
 				cellIndex = cell.next;
 			}
 
 			// Fill remaining span within X clip
 			if (x < maxX && x < bitmap.width && cover !== 0) {
-				const gray = this.applyFillRule(cover, fillRule);
+				const gray = this.applyFillRule(
+					cover >> (PIXEL_BITS + 1),
+					fillRule,
+				);
 				if (gray > 0) {
 					this.fillSpan(bitmap, row, x, Math.min(bitmap.width, maxX), gray);
 				}
