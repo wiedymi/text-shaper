@@ -17,6 +17,7 @@ import {
 } from "../hinting/programs.ts";
 import { scaleFUnits } from "../hinting/scale.ts";
 import { type GlyphPath, getGlyphPath } from "../render/path.ts";
+import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
 import type { GlyphId } from "../types.ts";
 import { PoolOverflowError } from "./cell.ts";
 import { GrayRaster } from "./gray-raster.ts";
@@ -29,6 +30,7 @@ import {
 	type RasterizedGlyph,
 	type RasterizeOptions,
 } from "./types.ts";
+import { transformBitmap2D, transformBitmap3D } from "./bitmap-utils.ts";
 
 /** Cached hinting engines per font */
 const hintingEngineCache = new WeakMap<Font, HintingEngine>();
@@ -690,6 +692,52 @@ export function rasterizeGlyph(
 		bearingX: bounds.minX - padding,
 		bearingY: -(bounds.minY - padding),
 	};
+}
+
+/**
+ * Rasterize a glyph and apply a bitmap transform (2D or 3D)
+ */
+export function rasterizeGlyphWithTransform(
+	font: Font,
+	glyphId: GlyphId,
+	fontSize: number,
+	matrix: Matrix2D | Matrix3x3,
+	options?: {
+		pixelMode?: PixelMode;
+		padding?: number;
+		/** Use TrueType hinting if available */
+		hinting?: boolean;
+		/** Translation offset in 26.6 units (applied after matrix) */
+		offsetX26?: number;
+		/** Translation offset in 26.6 units (applied after matrix) */
+		offsetY26?: number;
+	},
+): RasterizedGlyph | null {
+	const raster = rasterizeGlyph(font, glyphId, fontSize, options);
+	if (!raster) return null;
+
+	const transformOptions = {
+		bearingX: raster.bearingX,
+		bearingY: raster.bearingY,
+		offsetX26: options?.offsetX26,
+		offsetY26: options?.offsetY26,
+	};
+
+	if (Array.isArray(matrix[0])) {
+		const result = transformBitmap3D(
+			raster.bitmap,
+			matrix as Matrix3x3,
+			transformOptions,
+		);
+		return result;
+	}
+
+	const result = transformBitmap2D(
+		raster.bitmap,
+		matrix as Matrix2D,
+		transformOptions,
+	);
+	return result;
 }
 
 /** Rasterize a glyph with TrueType hinting */

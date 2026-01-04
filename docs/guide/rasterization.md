@@ -32,6 +32,20 @@ if (result) {
 }
 ```
 
+Rasterize a glyph and apply a raster-only transform:
+
+```typescript
+import { rasterizeGlyphWithTransform } from "text-shaper";
+
+const transformed = rasterizeGlyphWithTransform(
+  font,
+  glyphId,
+  48,
+  [1, 0, 0, 1, 0.3, -0.4], // Matrix2D
+  { offsetX26: 12, offsetY26: -8 }
+);
+```
+
 ## Pixel Modes
 
 TextShaper supports multiple pixel formats:

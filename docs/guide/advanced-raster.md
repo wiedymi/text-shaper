@@ -168,6 +168,29 @@ if (result) {
 
 Emboldening spreads pixel coverage by taking the maximum value in a neighborhood. Use small values (1-2) for subtle effects.
 
+### Bitmap Transforms (Raster-Only)
+
+```typescript
+import { rasterizeGlyph, transformBitmap2D, shearBitmapX } from "text-shaper";
+
+const result = rasterizeGlyph(font, glyphId, 48);
+if (result) {
+  // 2D transform with subpixel translation
+  const transformed = transformBitmap2D(result.bitmap, [1, 0, 0, 1, 0.3, -0.4], {
+    bearingX: result.bearingX,
+    bearingY: result.bearingY,
+    offsetX26: 12,
+    offsetY26: -8,
+  });
+
+  // Synthetic italic without paths
+  const italic = shearBitmapX(result.bitmap, 0.2, {
+    bearingX: result.bearingX,
+    bearingY: result.bearingY,
+  });
+}
+```
+
 ### Bitmap Format Conversion
 
 ```typescript

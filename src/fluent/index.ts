@@ -22,7 +22,11 @@ import {
 	msdfAtlasToRGB,
 	msdfAtlasToRGBA,
 } from "../raster/msdf.ts";
-import { rasterizeGlyph, rasterizeText } from "../raster/rasterize.ts";
+import {
+	rasterizeGlyph,
+	rasterizeGlyphWithTransform,
+	rasterizeText,
+} from "../raster/rasterize.ts";
 import type {
 	AtlasOptions,
 	Bitmap,
@@ -174,6 +178,7 @@ export {
 	convert,
 	copy,
 	embolden,
+	emboldenGlyph,
 	// Path effects
 	emboldenPath,
 	// Fast blur
@@ -201,6 +206,10 @@ export {
 	// Path transform operators
 	scale,
 	shear,
+	shearBitmapX,
+	shearBitmapY,
+	shearGlyphX,
+	shearGlyphY,
 	shift,
 	strokeAsymmetric,
 	strokeAsymmetricCombined,
@@ -210,6 +219,10 @@ export {
 	// Output operators
 	toRGBA,
 	toSVG,
+	transformBitmap2D,
+	transformBitmap3D,
+	transformGlyph2D,
+	transformGlyph3D,
 	translate,
 } from "./pipe.ts";
 
@@ -236,7 +249,7 @@ export {
 
 // === Direct Glyph Rasterization ===
 
-export { rasterizeGlyph, rasterizeText };
+export { rasterizeGlyph, rasterizeGlyphWithTransform, rasterizeText };
 
 // === Shaped Text Rendering ===
 

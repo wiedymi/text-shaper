@@ -11,13 +11,20 @@ import {
 	convertBitmap,
 	copyBitmap,
 	emboldenBitmap,
+	emboldenBitmapWithBearing,
+	expandRasterMetrics,
 	maxBitmaps,
+	measureRasterGlyph,
 	mulBitmaps,
 	padBitmap,
 	resizeBitmap,
 	resizeBitmapBilinear,
+	shearBitmapX,
+	shearBitmapY,
 	shiftBitmap,
 	subBitmaps,
+	transformBitmap2D,
+	transformBitmap3D,
 } from "../raster/bitmap-utils.ts";
 import { boxBlur, gaussianBlur } from "../raster/blur.ts";
 import {
@@ -33,6 +40,7 @@ import {
 	PixelMode,
 	type RasterizedGlyph,
 } from "../raster/types.ts";
+import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
 
 /**
  * BitmapBuilder provides a fluent interface for bitmap manipulations
@@ -163,6 +171,87 @@ export class BitmapBuilder {
 	}
 
 	/**
+	 * Embolden bitmap and update bearing to avoid clipping
+	 */
+	emboldenWithBearing(
+		xStrength: number,
+		yStrength?: number,
+	): BitmapBuilder {
+		const result = emboldenBitmapWithBearing(
+			this._bitmap,
+			this._bearingX,
+			this._bearingY,
+			xStrength,
+			yStrength ?? xStrength,
+		);
+		return new BitmapBuilder(result.bitmap, result.bearingX, result.bearingY);
+	}
+
+	/**
+	 * Apply 2D affine transform to bitmap (bearing-aware)
+	 */
+	transform2D(
+		matrix: Matrix2D,
+		options?: { offsetX26?: number; offsetY26?: number },
+	): BitmapBuilder {
+		const result = transformBitmap2D(this._bitmap, matrix, {
+			bearingX: this._bearingX,
+			bearingY: this._bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+		return new BitmapBuilder(result.bitmap, result.bearingX, result.bearingY);
+	}
+
+	/**
+	 * Apply 3D perspective transform to bitmap (bearing-aware)
+	 */
+	transform3D(
+		matrix: Matrix3x3,
+		options?: { offsetX26?: number; offsetY26?: number },
+	): BitmapBuilder {
+		const result = transformBitmap3D(this._bitmap, matrix, {
+			bearingX: this._bearingX,
+			bearingY: this._bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+		return new BitmapBuilder(result.bitmap, result.bearingX, result.bearingY);
+	}
+
+	/**
+	 * Shear bitmap horizontally (synthetic italic)
+	 */
+	shearX(
+		amount: number,
+		options?: { offsetX26?: number; offsetY26?: number },
+	): BitmapBuilder {
+		const result = shearBitmapX(this._bitmap, amount, {
+			bearingX: this._bearingX,
+			bearingY: this._bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+		return new BitmapBuilder(result.bitmap, result.bearingX, result.bearingY);
+	}
+
+	/**
+	 * Shear bitmap vertically
+	 */
+	shearY(
+		amount: number,
+		options?: { offsetX26?: number; offsetY26?: number },
+	): BitmapBuilder {
+		const result = shearBitmapY(this._bitmap, amount, {
+			bearingX: this._bearingX,
+			bearingY: this._bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+		return new BitmapBuilder(result.bitmap, result.bearingX, result.bearingY);
+	}
+
+	/**
 	 * Shift bitmap position
 	 */
 	shift(dx: number, dy: number): BitmapBuilder {
@@ -203,6 +292,61 @@ export class BitmapBuilder {
 		const b = bottom ?? leftOrAll;
 		const padded = padBitmap(this._bitmap, l, t, r, b);
 		return new BitmapBuilder(padded, this._bearingX - l, this._bearingY + t);
+	}
+
+	// === Metrics ===
+
+	/**
+	 * Measure ascent/descent from bitmap coverage
+	 */
+	measure(): { ascent: number; descent: number } {
+		return measureRasterGlyph(this._bitmap, this._bearingX, this._bearingY);
+	}
+
+	/**
+	 * Get raster metrics for this bitmap (includes ascent/descent)
+	 */
+	metrics(): {
+		width: number;
+		height: number;
+		bearingX: number;
+		bearingY: number;
+		ascent: number;
+		descent: number;
+	} {
+		const { ascent, descent } = this.measure();
+		return {
+			width: this._bitmap.width,
+			height: this._bitmap.rows,
+			bearingX: this._bearingX,
+			bearingY: this._bearingY,
+			ascent,
+			descent,
+		};
+	}
+
+	/**
+	 * Expand raster metrics for blur/border/shadow padding
+	 */
+	expandMetrics(options: {
+		blur?: number;
+		be?: number;
+		border?: number;
+		shadowX?: number;
+		shadowY?: number;
+	}): {
+		width: number;
+		height: number;
+		bearingX: number;
+		bearingY: number;
+		ascent: number;
+		descent: number;
+		padLeft: number;
+		padRight: number;
+		padTop: number;
+		padBottom: number;
+	} {
+		return expandRasterMetrics(this.metrics(), options);
 	}
 
 	// === Compositing ===

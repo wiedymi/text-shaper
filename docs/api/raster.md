@@ -108,6 +108,42 @@ interface RasterizeOptions {
 }
 ```
 
+### BitmapTransformOptions
+
+```typescript
+interface BitmapTransformOptions {
+  bearingX?: number;
+  bearingY?: number;
+  offsetX26?: number; // 26.6 translation in X (1px = 64)
+  offsetY26?: number; // 26.6 translation in Y (1px = 64)
+}
+```
+
+### RasterMetrics
+
+```typescript
+interface RasterMetrics {
+  width: number;
+  height: number;
+  bearingX: number;
+  bearingY: number;
+  ascent: number;
+  descent: number;
+}
+```
+
+### RasterEffectOptions
+
+```typescript
+interface RasterEffectOptions {
+  blur?: number;
+  be?: number;
+  border?: number;
+  shadowX?: number;
+  shadowY?: number;
+}
+```
+
 ### OutlineError
 
 ```typescript
@@ -143,6 +179,26 @@ function rasterizeGlyph(
     pixelMode?: PixelMode;
     padding?: number;
     hinting?: boolean;
+  }
+): RasterizedGlyph | null
+```
+
+### rasterizeGlyphWithTransform
+
+Rasterize a glyph and apply a bitmap transform (2D or 3D).
+
+```typescript
+function rasterizeGlyphWithTransform(
+  font: Font,
+  glyphId: GlyphId,
+  fontSize: number,
+  matrix: Matrix2D | Matrix3x3,
+  options?: {
+    pixelMode?: PixelMode;
+    padding?: number;
+    hinting?: boolean;
+    offsetX26?: number; // 26.6 translation in X (1px = 64)
+    offsetY26?: number; // 26.6 translation in Y (1px = 64)
   }
 ): RasterizedGlyph | null
 ```
@@ -483,6 +539,100 @@ function emboldenBitmap(
 ```
 
 Spreads coverage in horizontal and vertical directions to make text appear bolder. Works with all pixel modes (Mono, Gray, LCD).
+
+### emboldenBitmapWithBearing
+
+Embolden bitmap and update bearings to avoid clipping.
+
+```typescript
+function emboldenBitmapWithBearing(
+  bitmap: Bitmap,
+  bearingX: number,
+  bearingY: number,
+  xStrength: number,
+  yStrength: number
+): { bitmap: Bitmap; bearingX: number; bearingY: number }
+```
+
+### transformBitmap2D
+
+Transform a bitmap with a 2D affine matrix (bearing-aware, bilinear resampling).
+
+```typescript
+function transformBitmap2D(
+  bitmap: Bitmap,
+  matrix: Matrix2D,
+  options?: {
+    bearingX?: number;
+    bearingY?: number;
+    offsetX26?: number; // 26.6 translation in X
+    offsetY26?: number; // 26.6 translation in Y
+  }
+): { bitmap: Bitmap; bearingX: number; bearingY: number }
+```
+
+### transformBitmap3D
+
+Transform a bitmap with a 3x3 perspective matrix (bearing-aware, bilinear resampling).
+
+```typescript
+function transformBitmap3D(
+  bitmap: Bitmap,
+  matrix: Matrix3x3,
+  options?: {
+    bearingX?: number;
+    bearingY?: number;
+    offsetX26?: number;
+    offsetY26?: number;
+  }
+): { bitmap: Bitmap; bearingX: number; bearingY: number }
+```
+
+### shearBitmapX / shearBitmapY
+
+Shear a bitmap horizontally or vertically (synthetic italic without paths).
+
+```typescript
+function shearBitmapX(
+  bitmap: Bitmap,
+  amount: number,
+  options?: BitmapTransformOptions
+): { bitmap: Bitmap; bearingX: number; bearingY: number }
+
+function shearBitmapY(
+  bitmap: Bitmap,
+  amount: number,
+  options?: BitmapTransformOptions
+): { bitmap: Bitmap; bearingX: number; bearingY: number }
+```
+
+### measureRasterGlyph
+
+Measure ascent/descent from a rasterized bitmap.
+
+```typescript
+function measureRasterGlyph(
+  bitmap: Bitmap,
+  bearingX: number,
+  bearingY: number
+): { ascent: number; descent: number }
+```
+
+### expandRasterMetrics
+
+Expand raster metrics to account for blur, border, and shadow.
+
+```typescript
+function expandRasterMetrics(
+  metrics: RasterMetrics,
+  options: RasterEffectOptions
+): RasterMetrics & {
+  padLeft: number;
+  padRight: number;
+  padTop: number;
+  padBottom: number;
+}
+```
 
 ### convertBitmap
 
@@ -933,6 +1083,19 @@ function subBitmaps(
 
 Result: `dst = clamp(dst - src, 0, 255)`. Used for outline effects.
 
+### subtractBitmap
+
+Alias for `subBitmaps`.
+
+```typescript
+function subtractBitmap(
+  dst: Bitmap,
+  src: Bitmap,
+  srcX?: number,
+  srcY?: number
+): void
+```
+
 ### compositeBitmaps
 
 Porter-Duff "over" compositing.
@@ -1016,10 +1179,30 @@ Creates a new bitmap large enough to contain both dst and src at the specified p
 
 ### fixOutline
 
-Clean up outline artifacts from subtractive operations.
+Remove glyph interior from an outline bitmap.
 
 ```typescript
-function fixOutline(bitmap: Bitmap): void
+function fixOutline(
+  outlineBitmap: Bitmap,
+  glyphBitmap: Bitmap,
+  glyphX?: number,
+  glyphY?: number,
+  threshold?: number
+): void
 ```
 
-Removes isolated bright pixels that can appear after subtracting inner from outer stroke bitmaps.
+Result: `outline = outline - glyph` for coverage above `threshold`. Useful for outline-only rendering.
+
+### fixOutlineBitmap
+
+Alias for `fixOutline`.
+
+```typescript
+function fixOutlineBitmap(
+  outlineBitmap: Bitmap,
+  glyphBitmap: Bitmap,
+  glyphX?: number,
+  glyphY?: number,
+  threshold?: number
+): void
+```

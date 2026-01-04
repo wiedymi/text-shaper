@@ -15,10 +15,15 @@ import {
 	convertBitmap,
 	copyBitmap,
 	emboldenBitmap as emboldenBitmapFn,
+	emboldenBitmapWithBearing,
 	padBitmap,
 	resizeBitmapBilinear as resizeBitmapBilinearFn,
 	resizeBitmap as resizeBitmapFn,
+	shearBitmapX as shearBitmapXFn,
+	shearBitmapY as shearBitmapYFn,
 	shiftBitmap,
+	transformBitmap2D as transformBitmap2DFn,
+	transformBitmap3D as transformBitmap3DFn,
 } from "../raster/bitmap-utils.ts";
 import { boxBlur as boxBlurFn, gaussianBlur } from "../raster/blur.ts";
 import {
@@ -46,7 +51,12 @@ import {
 	emboldenPath as emboldenPathFn,
 	obliquePath as obliquePathFn,
 } from "../raster/synth.ts";
-import type { Bitmap, PixelMode, RasterizeOptions } from "../raster/types.ts";
+import type {
+	Bitmap,
+	PixelMode,
+	RasterizeOptions,
+	RasterizedGlyph,
+} from "../raster/types.ts";
 import { FillRule, PixelMode as PM } from "../raster/types.ts";
 import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
 import {
@@ -427,6 +437,151 @@ export function embolden(
 ): (bitmap: Bitmap) => Bitmap {
 	return (bitmap) =>
 		emboldenBitmapFn(bitmap, xStrength, yStrength ?? xStrength);
+}
+
+/**
+ * Embolden bitmap and expand bearings (for rasterized glyphs)
+ */
+export function emboldenGlyph(
+	xStrength: number,
+	yStrength?: number,
+): (glyph: RasterizedGlyph) => RasterizedGlyph {
+	return (glyph) =>
+		emboldenBitmapWithBearing(
+			glyph.bitmap,
+			glyph.bearingX,
+			glyph.bearingY,
+			xStrength,
+			yStrength ?? xStrength,
+		);
+}
+
+/**
+ * Transform bitmap with 2D matrix (origin at top-left)
+ */
+export function transformBitmap2D(
+	matrix: Matrix2D,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (bitmap: Bitmap) => Bitmap {
+	return (bitmap) =>
+		transformBitmap2DFn(bitmap, matrix, {
+			bearingX: 0,
+			bearingY: 0,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		}).bitmap;
+}
+
+/**
+ * Transform bitmap with 3D matrix (origin at top-left)
+ */
+export function transformBitmap3D(
+	matrix: Matrix3x3,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (bitmap: Bitmap) => Bitmap {
+	return (bitmap) =>
+		transformBitmap3DFn(bitmap, matrix, {
+			bearingX: 0,
+			bearingY: 0,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		}).bitmap;
+}
+
+/**
+ * Transform rasterized glyph with 2D matrix (bearing-aware)
+ */
+export function transformGlyph2D(
+	matrix: Matrix2D,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (glyph: RasterizedGlyph) => RasterizedGlyph {
+	return (glyph) =>
+		transformBitmap2DFn(glyph.bitmap, matrix, {
+			bearingX: glyph.bearingX,
+			bearingY: glyph.bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+}
+
+/**
+ * Transform rasterized glyph with 3D matrix (bearing-aware)
+ */
+export function transformGlyph3D(
+	matrix: Matrix3x3,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (glyph: RasterizedGlyph) => RasterizedGlyph {
+	return (glyph) =>
+		transformBitmap3DFn(glyph.bitmap, matrix, {
+			bearingX: glyph.bearingX,
+			bearingY: glyph.bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+}
+
+/**
+ * Shear bitmap horizontally (origin at top-left)
+ */
+export function shearBitmapX(
+	amount: number,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (bitmap: Bitmap) => Bitmap {
+	return (bitmap) =>
+		shearBitmapXFn(bitmap, amount, {
+			bearingX: 0,
+			bearingY: 0,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		}).bitmap;
+}
+
+/**
+ * Shear bitmap vertically (origin at top-left)
+ */
+export function shearBitmapY(
+	amount: number,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (bitmap: Bitmap) => Bitmap {
+	return (bitmap) =>
+		shearBitmapYFn(bitmap, amount, {
+			bearingX: 0,
+			bearingY: 0,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		}).bitmap;
+}
+
+/**
+ * Shear rasterized glyph horizontally (bearing-aware)
+ */
+export function shearGlyphX(
+	amount: number,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (glyph: RasterizedGlyph) => RasterizedGlyph {
+	return (glyph) =>
+		shearBitmapXFn(glyph.bitmap, amount, {
+			bearingX: glyph.bearingX,
+			bearingY: glyph.bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
+}
+
+/**
+ * Shear rasterized glyph vertically (bearing-aware)
+ */
+export function shearGlyphY(
+	amount: number,
+	options?: { offsetX26?: number; offsetY26?: number },
+): (glyph: RasterizedGlyph) => RasterizedGlyph {
+	return (glyph) =>
+		shearBitmapYFn(glyph.bitmap, amount, {
+			bearingX: glyph.bearingX,
+			bearingY: glyph.bearingY,
+			offsetX26: options?.offsetX26,
+			offsetY26: options?.offsetY26,
+		});
 }
 
 /**

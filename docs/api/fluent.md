@@ -748,6 +748,39 @@ Embolden (dilate) bitmap.
 embolden(xStrength: number, yStrength?: number): BitmapBuilder
 ```
 
+#### emboldenWithBearing()
+
+Embolden bitmap and update bearing to avoid clipping.
+
+```typescript
+emboldenWithBearing(xStrength: number, yStrength?: number): BitmapBuilder
+```
+
+#### transform2D()
+
+Apply 2D affine transform to bitmap (bearing-aware).
+
+```typescript
+transform2D(matrix: Matrix2D, options?: { offsetX26?: number; offsetY26?: number }): BitmapBuilder
+```
+
+#### transform3D()
+
+Apply 3D perspective transform to bitmap (bearing-aware).
+
+```typescript
+transform3D(matrix: Matrix3x3, options?: { offsetX26?: number; offsetY26?: number }): BitmapBuilder
+```
+
+#### shearX() / shearY()
+
+Shear bitmap horizontally or vertically (bearing-aware).
+
+```typescript
+shearX(amount: number, options?: { offsetX26?: number; offsetY26?: number }): BitmapBuilder
+shearY(amount: number, options?: { offsetX26?: number; offsetY26?: number }): BitmapBuilder
+```
+
 #### shift()
 
 Shift bitmap position.
@@ -779,6 +812,37 @@ Pad bitmap with empty space.
 ```typescript
 pad(left: number, top: number, right: number, bottom: number): BitmapBuilder
 pad(all: number): BitmapBuilder
+```
+
+### Metrics
+
+#### measure()
+
+Measure ascent/descent from bitmap coverage.
+
+```typescript
+measure(): { ascent: number; descent: number }
+```
+
+#### metrics()
+
+Get raster metrics (width/height/bearing/ascent/descent).
+
+```typescript
+metrics(): RasterMetrics
+```
+
+#### expandMetrics()
+
+Expand metrics for blur/border/shadow padding.
+
+```typescript
+expandMetrics(options: RasterEffectOptions): RasterMetrics & {
+  padLeft: number;
+  padRight: number;
+  padTop: number;
+  padBottom: number;
+}
 ```
 
 ### Compositing
@@ -959,11 +1023,25 @@ $cascadeBlur(radiusX: number, radiusY?: number): (bitmap: Bitmap) => Bitmap
 $adaptiveBlur(radiusX: number, radiusY?: number): (bitmap: Bitmap) => Bitmap
 $fastBlur(radius: number): (bitmap: Bitmap) => Bitmap
 $embolden(xStrength: number, yStrength?: number): (bitmap: Bitmap) => Bitmap
+$transformBitmap2D(matrix: Matrix2D, options?: { offsetX26?: number; offsetY26?: number }): (bitmap: Bitmap) => Bitmap
+$transformBitmap3D(matrix: Matrix3x3, options?: { offsetX26?: number; offsetY26?: number }): (bitmap: Bitmap) => Bitmap
+$shearBitmapX(amount: number, options?: { offsetX26?: number; offsetY26?: number }): (bitmap: Bitmap) => Bitmap
+$shearBitmapY(amount: number, options?: { offsetX26?: number; offsetY26?: number }): (bitmap: Bitmap) => Bitmap
 $shift(dx: number, dy: number): (bitmap: Bitmap) => Bitmap
 $resize(width: number, height: number): (bitmap: Bitmap) => Bitmap
 $resizeBilinear(width: number, height: number): (bitmap: Bitmap) => Bitmap
 $pad(left: number, top: number, right: number, bottom: number): (bitmap: Bitmap) => Bitmap
 $convert(targetMode: PixelMode): (bitmap: Bitmap) => Bitmap
+```
+
+#### Rasterized Glyph Operators
+
+```typescript
+$emboldenGlyph(xStrength: number, yStrength?: number): (glyph: RasterizedGlyph) => RasterizedGlyph
+$transformGlyph2D(matrix: Matrix2D, options?: { offsetX26?: number; offsetY26?: number }): (glyph: RasterizedGlyph) => RasterizedGlyph
+$transformGlyph3D(matrix: Matrix3x3, options?: { offsetX26?: number; offsetY26?: number }): (glyph: RasterizedGlyph) => RasterizedGlyph
+$shearGlyphX(amount: number, options?: { offsetX26?: number; offsetY26?: number }): (glyph: RasterizedGlyph) => RasterizedGlyph
+$shearGlyphY(amount: number, options?: { offsetX26?: number; offsetY26?: number }): (glyph: RasterizedGlyph) => RasterizedGlyph
 ```
 
 #### Output Operators

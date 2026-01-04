@@ -81,6 +81,7 @@ export {
 	convert as $convert,
 	copy as $copy,
 	embolden as $embolden,
+	emboldenGlyph as $emboldenGlyph,
 	// Path effects
 	emboldenPath as $emboldenPath,
 	fastBlur as $fastBlur,
@@ -109,6 +110,10 @@ export {
 	// Path transforms
 	scale as $scale,
 	shear as $shear,
+	shearBitmapX as $shearBitmapX,
+	shearBitmapY as $shearBitmapY,
+	shearGlyphX as $shearGlyphX,
+	shearGlyphY as $shearGlyphY,
 	shift as $shift,
 	strokeAsymmetric as $strokeAsymmetric,
 	strokeAsymmetricCombined as $strokeAsymmetricCombined,
@@ -117,6 +122,10 @@ export {
 	// Output
 	toRGBA as $toRGBA,
 	toSVG as $toSVG,
+	transformBitmap2D as $transformBitmap2D,
+	transformBitmap3D as $transformBitmap3D,
+	transformGlyph2D as $transformGlyph2D,
+	transformGlyph3D as $transformGlyph3D,
 	translate as $translate,
 } from "./fluent/index.ts";
 // Fluent API - Types
@@ -619,15 +628,24 @@ export {
 	convertBitmap,
 	copyBitmap,
 	emboldenBitmap,
+	emboldenBitmapWithBearing,
+	expandRasterMetrics,
 	expandToFit,
+	fixOutlineBitmap,
 	fixOutline,
 	maxBitmaps,
 	mulBitmaps,
 	padBitmap,
 	resizeBitmap,
 	resizeBitmapBilinear,
+	shearBitmapX,
+	shearBitmapY,
 	shiftBitmap,
+	subtractBitmap,
 	subBitmaps,
+	transformBitmap2D,
+	transformBitmap3D,
+	measureRasterGlyph,
 } from "./raster/bitmap-utils.ts";
 // Blur filters
 export {
@@ -683,6 +701,7 @@ export {
 	bitmapToGray,
 	bitmapToRGBA,
 	rasterizeGlyph,
+	rasterizeGlyphWithTransform,
 	rasterizePath,
 	rasterizeText,
 } from "./raster/rasterize.ts";
@@ -707,6 +726,11 @@ export type {
 	RasterizeOptions,
 	Span,
 } from "./raster/types.ts";
+export type {
+	BitmapTransformOptions,
+	RasterEffectOptions,
+	RasterMetrics,
+} from "./raster/bitmap-utils.ts";
 export {
 	clearBitmap,
 	createBitmap,

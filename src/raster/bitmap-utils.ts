@@ -3,6 +3,35 @@
  */
 
 import { type Bitmap, createBitmap, PixelMode } from "./types.ts";
+import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
+
+export interface BitmapTransformOptions {
+	/** Glyph bearing X (left edge from origin) */
+	bearingX?: number;
+	/** Glyph bearing Y (top edge from origin) */
+	bearingY?: number;
+	/** Optional translation in 26.6 units (applied after matrix) */
+	offsetX26?: number;
+	/** Optional translation in 26.6 units (applied after matrix) */
+	offsetY26?: number;
+}
+
+export interface RasterMetrics {
+	width: number;
+	height: number;
+	bearingX: number;
+	bearingY: number;
+	ascent: number;
+	descent: number;
+}
+
+export interface RasterEffectOptions {
+	blur?: number;
+	be?: number;
+	border?: number;
+	shadowX?: number;
+	shadowY?: number;
+}
 
 /**
  * Embolden a bitmap by dilating pixel values
@@ -860,4 +889,536 @@ export function expandToFit(
 	}
 
 	return { expanded, dstOffsetX, dstOffsetY, srcOffsetX, srcOffsetY };
+}
+
+function getRowOffset(bitmap: Bitmap, y: number): number {
+	const pitch = bitmap.pitch;
+	const absPitch = Math.abs(pitch);
+	const origin = pitch < 0 ? (bitmap.rows - 1) * absPitch : 0;
+	return origin + y * pitch;
+}
+
+function getPixelChannel(
+	bitmap: Bitmap,
+	x: number,
+	y: number,
+	channel: number,
+): number {
+	if (x < 0 || y < 0 || x >= bitmap.width || y >= bitmap.rows) return 0;
+	const row = getRowOffset(bitmap, y);
+	switch (bitmap.pixelMode) {
+		case PixelMode.Gray:
+			return bitmap.buffer[row + x] ?? 0;
+		case PixelMode.Mono: {
+			const byteIdx = row + (x >> 3);
+			const bitIdx = 7 - (x & 7);
+			const bit = ((bitmap.buffer[byteIdx] ?? 0) >> bitIdx) & 1;
+			return bit ? 255 : 0;
+		}
+		case PixelMode.LCD:
+		case PixelMode.LCD_V: {
+			const idx = row + x * 3 + channel;
+			return bitmap.buffer[idx] ?? 0;
+		}
+		case PixelMode.RGBA: {
+			const idx = row + x * 4 + channel;
+			return bitmap.buffer[idx] ?? 0;
+		}
+	}
+}
+
+function sampleBilinear(
+	bitmap: Bitmap,
+	x: number,
+	y: number,
+	channels: number,
+	out: number[],
+): void {
+	const x0 = Math.floor(x);
+	const y0 = Math.floor(y);
+	const x1 = x0 + 1;
+	const y1 = y0 + 1;
+
+	const wx = x - x0;
+	const wy = y - y0;
+	const w00 = (1 - wx) * (1 - wy);
+	const w10 = wx * (1 - wy);
+	const w01 = (1 - wx) * wy;
+	const w11 = wx * wy;
+
+	for (let c = 0; c < channels; c++) {
+		const p00 = getPixelChannel(bitmap, x0, y0, c);
+		const p10 = getPixelChannel(bitmap, x1, y0, c);
+		const p01 = getPixelChannel(bitmap, x0, y1, c);
+		const p11 = getPixelChannel(bitmap, x1, y1, c);
+		const value = p00 * w00 + p10 * w10 + p01 * w01 + p11 * w11;
+		out[c] = Math.min(255, Math.max(0, Math.round(value)));
+	}
+}
+
+function invert2D(
+	matrix: Matrix2D,
+): { inv: Matrix2D; det: number } | null {
+	const [a, b, c, d, e, f] = matrix;
+	const det = a * d - b * c;
+	if (det === 0) return null;
+	const invA = d / det;
+	const invB = -b / det;
+	const invC = -c / det;
+	const invD = a / det;
+	const invE = (c * f - d * e) / det;
+	const invF = (b * e - a * f) / det;
+	return { inv: [invA, invB, invC, invD, invE, invF], det };
+}
+
+function invert3x3(matrix: Matrix3x3): Matrix3x3 | null {
+	const a = matrix[0][0];
+	const b = matrix[0][1];
+	const c = matrix[0][2];
+	const d = matrix[1][0];
+	const e = matrix[1][1];
+	const f = matrix[1][2];
+	const g = matrix[2][0];
+	const h = matrix[2][1];
+	const i = matrix[2][2];
+
+	const a00 = e * i - f * h;
+	const a01 = c * h - b * i;
+	const a02 = b * f - c * e;
+	const a10 = f * g - d * i;
+	const a11 = a * i - c * g;
+	const a12 = c * d - a * f;
+	const a20 = d * h - e * g;
+	const a21 = b * g - a * h;
+	const a22 = a * e - b * d;
+
+	const det = a * a00 + b * a10 + c * a20;
+	if (det === 0) return null;
+	const invDet = 1 / det;
+
+	return [
+		[a00 * invDet, a01 * invDet, a02 * invDet],
+		[a10 * invDet, a11 * invDet, a12 * invDet],
+		[a20 * invDet, a21 * invDet, a22 * invDet],
+	];
+}
+
+function transformPoint3x3Safe(
+	x: number,
+	y: number,
+	matrix: Matrix3x3,
+): { x: number; y: number } {
+	const w = matrix[2][0] * x + matrix[2][1] * y + matrix[2][2];
+	const minW = 1e-6;
+	const safeW = Math.abs(w) < minW ? (w < 0 ? -minW : minW) : w;
+	return {
+		x: (matrix[0][0] * x + matrix[0][1] * y + matrix[0][2]) / safeW,
+		y: (matrix[1][0] * x + matrix[1][1] * y + matrix[1][2]) / safeW,
+	};
+}
+
+/**
+ * Subtract src from dst (alias for subBitmaps)
+ */
+export function subtractBitmap(
+	dst: Bitmap,
+	src: Bitmap,
+	srcX: number = 0,
+	srcY: number = 0,
+): void {
+	subBitmaps(dst, src, srcX, srcY);
+}
+
+/**
+ * Fix outline bitmap by removing glyph interior (alias for fixOutline)
+ */
+export function fixOutlineBitmap(
+	outlineBitmap: Bitmap,
+	glyphBitmap: Bitmap,
+	glyphX: number = 0,
+	glyphY: number = 0,
+	threshold: number = 128,
+): void {
+	fixOutline(outlineBitmap, glyphBitmap, glyphX, glyphY, threshold);
+}
+
+/**
+ * Measure rasterized glyph ascent/descent from bitmap coverage
+ */
+export function measureRasterGlyph(
+	bitmap: Bitmap,
+	bearingX: number,
+	bearingY: number,
+): { ascent: number; descent: number } {
+	void bearingX;
+	let topRow = Infinity;
+	let bottomRow = -Infinity;
+
+	for (let y = 0; y < bitmap.rows; y++) {
+		for (let x = 0; x < bitmap.width; x++) {
+			let covered = false;
+			switch (bitmap.pixelMode) {
+				case PixelMode.Gray: {
+					const row = getRowOffset(bitmap, y);
+					covered = (bitmap.buffer[row + x] ?? 0) > 0;
+					break;
+				}
+				case PixelMode.Mono: {
+					const row = getRowOffset(bitmap, y);
+					const byteIdx = row + (x >> 3);
+					const bitIdx = 7 - (x & 7);
+					const bit = ((bitmap.buffer[byteIdx] ?? 0) >> bitIdx) & 1;
+					covered = bit === 1;
+					break;
+				}
+				case PixelMode.LCD:
+				case PixelMode.LCD_V: {
+					const row = getRowOffset(bitmap, y);
+					const idx = row + x * 3;
+					covered =
+						(bitmap.buffer[idx] ?? 0) > 0 ||
+						(bitmap.buffer[idx + 1] ?? 0) > 0 ||
+						(bitmap.buffer[idx + 2] ?? 0) > 0;
+					break;
+				}
+				case PixelMode.RGBA: {
+					const row = getRowOffset(bitmap, y);
+					const idx = row + x * 4;
+					covered = (bitmap.buffer[idx + 3] ?? 0) > 0;
+					break;
+				}
+			}
+
+			if (covered) {
+				topRow = Math.min(topRow, y);
+				bottomRow = Math.max(bottomRow, y);
+			}
+		}
+	}
+
+	if (!Number.isFinite(topRow) || !Number.isFinite(bottomRow)) {
+		return { ascent: 0, descent: 0 };
+	}
+
+	const ascent = bearingY - topRow;
+	const descent = bottomRow + 1 - bearingY;
+	return { ascent, descent };
+}
+
+/**
+ * Expand raster metrics to account for blur/border/shadow padding
+ */
+export function expandRasterMetrics(
+	metrics: RasterMetrics,
+	options: RasterEffectOptions,
+): RasterMetrics & {
+	padLeft: number;
+	padRight: number;
+	padTop: number;
+	padBottom: number;
+} {
+	const blur = options.blur ?? 0;
+	const be = options.be ?? 0;
+	const border = options.border ?? 0;
+	const shadowX = options.shadowX ?? 0;
+	const shadowY = options.shadowY ?? 0;
+
+	const basePad = Math.ceil(blur + be + border);
+	const padLeft = basePad + Math.max(0, -shadowX);
+	const padRight = basePad + Math.max(0, shadowX);
+	const padTop = basePad + Math.max(0, -shadowY);
+	const padBottom = basePad + Math.max(0, shadowY);
+
+	return {
+		width: metrics.width + padLeft + padRight,
+		height: metrics.height + padTop + padBottom,
+		bearingX: metrics.bearingX - padLeft,
+		bearingY: metrics.bearingY + padTop,
+		ascent: metrics.ascent + padTop,
+		descent: metrics.descent + padBottom,
+		padLeft,
+		padRight,
+		padTop,
+		padBottom,
+	};
+}
+
+/**
+ * Embolden bitmap and adjust bearing by padding to avoid clipping
+ */
+export function emboldenBitmapWithBearing(
+	bitmap: Bitmap,
+	bearingX: number,
+	bearingY: number,
+	xStrength: number,
+	yStrength: number,
+): { bitmap: Bitmap; bearingX: number; bearingY: number } {
+	const padX = Math.max(0, Math.ceil(xStrength));
+	const padY = Math.max(0, Math.ceil(yStrength));
+	const padded = padBitmap(bitmap, padX, padY, padX, padY);
+	const emboldened = emboldenBitmap(padded, xStrength, yStrength);
+	return {
+		bitmap: emboldened,
+		bearingX: bearingX - padX,
+		bearingY: bearingY + padY,
+	};
+}
+
+/**
+ * Transform bitmap using 2D affine matrix with bilinear resampling
+ */
+export function transformBitmap2D(
+	bitmap: Bitmap,
+	matrix: Matrix2D,
+	options: BitmapTransformOptions = {},
+): { bitmap: Bitmap; bearingX: number; bearingY: number } {
+	const bearingX = options.bearingX ?? 0;
+	const bearingY = options.bearingY ?? 0;
+	const offsetX = (options.offsetX26 ?? 0) / 64;
+	const offsetY = (options.offsetY26 ?? 0) / 64;
+	const [a, b, c, d, e, f] = matrix;
+	const adjusted: Matrix2D = [a, b, c, d, e + offsetX, f + offsetY];
+
+	const left = bearingX;
+	const top = bearingY;
+	const right = left + bitmap.width;
+	const bottom = top - bitmap.rows;
+
+	const corners = [
+		{
+			x: adjusted[0] * left + adjusted[2] * top + adjusted[4],
+			y: adjusted[1] * left + adjusted[3] * top + adjusted[5],
+		},
+		{
+			x: adjusted[0] * right + adjusted[2] * top + adjusted[4],
+			y: adjusted[1] * right + adjusted[3] * top + adjusted[5],
+		},
+		{
+			x: adjusted[0] * left + adjusted[2] * bottom + adjusted[4],
+			y: adjusted[1] * left + adjusted[3] * bottom + adjusted[5],
+		},
+		{
+			x: adjusted[0] * right + adjusted[2] * bottom + adjusted[4],
+			y: adjusted[1] * right + adjusted[3] * bottom + adjusted[5],
+		},
+	];
+
+	let minX = Infinity;
+	let maxX = -Infinity;
+	let minY = Infinity;
+	let maxY = -Infinity;
+	for (const p of corners) {
+		minX = Math.min(minX, p.x);
+		maxX = Math.max(maxX, p.x);
+		minY = Math.min(minY, p.y);
+		maxY = Math.max(maxY, p.y);
+	}
+
+	if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+		return {
+			bitmap: createBitmap(1, 1, bitmap.pixelMode),
+			bearingX: 0,
+			bearingY: 0,
+		};
+	}
+
+	const outMinX = Math.floor(minX);
+	const outMaxX = Math.ceil(maxX);
+	const outMinY = Math.floor(minY);
+	const outMaxY = Math.ceil(maxY);
+
+	const outWidth = Math.max(1, outMaxX - outMinX);
+	const outHeight = Math.max(1, outMaxY - outMinY);
+
+	const result = createBitmap(outWidth, outHeight, bitmap.pixelMode);
+	const inverse = invert2D(adjusted);
+	if (!inverse) {
+		return { bitmap: result, bearingX: outMinX, bearingY: outMaxY };
+	}
+	const inv = inverse.inv;
+
+	const channels =
+		bitmap.pixelMode === PixelMode.LCD || bitmap.pixelMode === PixelMode.LCD_V
+			? 3
+			: bitmap.pixelMode === PixelMode.RGBA
+				? 4
+				: 1;
+	const sampleBuffer = new Array<number>(channels).fill(0);
+
+	for (let y = 0; y < outHeight; y++) {
+		for (let x = 0; x < outWidth; x++) {
+			const gx = outMinX + x + 0.5;
+			const gy = outMaxY - y - 0.5;
+
+			const sxg = inv[0] * gx + inv[2] * gy + inv[4];
+			const syg = inv[1] * gx + inv[3] * gy + inv[5];
+
+			const sx = sxg - bearingX - 0.5;
+			const sy = bearingY - syg - 0.5;
+
+			sampleBilinear(bitmap, sx, sy, channels, sampleBuffer);
+
+			if (bitmap.pixelMode === PixelMode.Mono) {
+				const val = sampleBuffer[0] ?? 0;
+				if (val >= 128) {
+					const byteIdx = y * result.pitch + (x >> 3);
+					const bitIdx = 7 - (x & 7);
+					result.buffer[byteIdx] |= 1 << bitIdx;
+				}
+			} else if (bitmap.pixelMode === PixelMode.Gray) {
+				result.buffer[y * result.pitch + x] = sampleBuffer[0] ?? 0;
+			} else if (
+				bitmap.pixelMode === PixelMode.LCD ||
+				bitmap.pixelMode === PixelMode.LCD_V
+			) {
+				const idx = y * result.pitch + x * 3;
+				result.buffer[idx] = sampleBuffer[0] ?? 0;
+				result.buffer[idx + 1] = sampleBuffer[1] ?? 0;
+				result.buffer[idx + 2] = sampleBuffer[2] ?? 0;
+			} else if (bitmap.pixelMode === PixelMode.RGBA) {
+				const idx = y * result.pitch + x * 4;
+				result.buffer[idx] = sampleBuffer[0] ?? 0;
+				result.buffer[idx + 1] = sampleBuffer[1] ?? 0;
+				result.buffer[idx + 2] = sampleBuffer[2] ?? 0;
+				result.buffer[idx + 3] = sampleBuffer[3] ?? 0;
+			}
+		}
+	}
+
+	return { bitmap: result, bearingX: outMinX, bearingY: outMaxY };
+}
+
+/**
+ * Transform bitmap using 3x3 matrix with perspective and bilinear resampling
+ */
+export function transformBitmap3D(
+	bitmap: Bitmap,
+	matrix: Matrix3x3,
+	options: BitmapTransformOptions = {},
+): { bitmap: Bitmap; bearingX: number; bearingY: number } {
+	const bearingX = options.bearingX ?? 0;
+	const bearingY = options.bearingY ?? 0;
+	const offsetX = (options.offsetX26 ?? 0) / 64;
+	const offsetY = (options.offsetY26 ?? 0) / 64;
+
+	const adjusted: Matrix3x3 = [
+		[matrix[0][0], matrix[0][1], matrix[0][2] + offsetX],
+		[matrix[1][0], matrix[1][1], matrix[1][2] + offsetY],
+		[matrix[2][0], matrix[2][1], matrix[2][2]],
+	];
+
+	const left = bearingX;
+	const top = bearingY;
+	const right = left + bitmap.width;
+	const bottom = top - bitmap.rows;
+
+	const corners = [
+		transformPoint3x3Safe(left, top, adjusted),
+		transformPoint3x3Safe(right, top, adjusted),
+		transformPoint3x3Safe(left, bottom, adjusted),
+		transformPoint3x3Safe(right, bottom, adjusted),
+	];
+
+	let minX = Infinity;
+	let maxX = -Infinity;
+	let minY = Infinity;
+	let maxY = -Infinity;
+	for (const p of corners) {
+		minX = Math.min(minX, p.x);
+		maxX = Math.max(maxX, p.x);
+		minY = Math.min(minY, p.y);
+		maxY = Math.max(maxY, p.y);
+	}
+
+	if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+		return {
+			bitmap: createBitmap(1, 1, bitmap.pixelMode),
+			bearingX: 0,
+			bearingY: 0,
+		};
+	}
+
+	const outMinX = Math.floor(minX);
+	const outMaxX = Math.ceil(maxX);
+	const outMinY = Math.floor(minY);
+	const outMaxY = Math.ceil(maxY);
+
+	const outWidth = Math.max(1, outMaxX - outMinX);
+	const outHeight = Math.max(1, outMaxY - outMinY);
+	const result = createBitmap(outWidth, outHeight, bitmap.pixelMode);
+
+	const inverse = invert3x3(adjusted);
+	if (!inverse) {
+		return { bitmap: result, bearingX: outMinX, bearingY: outMaxY };
+	}
+
+	const channels =
+		bitmap.pixelMode === PixelMode.LCD || bitmap.pixelMode === PixelMode.LCD_V
+			? 3
+			: bitmap.pixelMode === PixelMode.RGBA
+				? 4
+				: 1;
+	const sampleBuffer = new Array<number>(channels).fill(0);
+
+	for (let y = 0; y < outHeight; y++) {
+		for (let x = 0; x < outWidth; x++) {
+			const gx = outMinX + x + 0.5;
+			const gy = outMaxY - y - 0.5;
+
+			const src = transformPoint3x3Safe(gx, gy, inverse);
+			const sx = src.x - bearingX - 0.5;
+			const sy = bearingY - src.y - 0.5;
+
+			sampleBilinear(bitmap, sx, sy, channels, sampleBuffer);
+
+			if (bitmap.pixelMode === PixelMode.Mono) {
+				const val = sampleBuffer[0] ?? 0;
+				if (val >= 128) {
+					const byteIdx = y * result.pitch + (x >> 3);
+					const bitIdx = 7 - (x & 7);
+					result.buffer[byteIdx] |= 1 << bitIdx;
+				}
+			} else if (bitmap.pixelMode === PixelMode.Gray) {
+				result.buffer[y * result.pitch + x] = sampleBuffer[0] ?? 0;
+			} else if (
+				bitmap.pixelMode === PixelMode.LCD ||
+				bitmap.pixelMode === PixelMode.LCD_V
+			) {
+				const idx = y * result.pitch + x * 3;
+				result.buffer[idx] = sampleBuffer[0] ?? 0;
+				result.buffer[idx + 1] = sampleBuffer[1] ?? 0;
+				result.buffer[idx + 2] = sampleBuffer[2] ?? 0;
+			} else if (bitmap.pixelMode === PixelMode.RGBA) {
+				const idx = y * result.pitch + x * 4;
+				result.buffer[idx] = sampleBuffer[0] ?? 0;
+				result.buffer[idx + 1] = sampleBuffer[1] ?? 0;
+				result.buffer[idx + 2] = sampleBuffer[2] ?? 0;
+				result.buffer[idx + 3] = sampleBuffer[3] ?? 0;
+			}
+		}
+	}
+
+	return { bitmap: result, bearingX: outMinX, bearingY: outMaxY };
+}
+
+/**
+ * Shear bitmap horizontally (synthetic italic)
+ */
+export function shearBitmapX(
+	bitmap: Bitmap,
+	amount: number,
+	options: BitmapTransformOptions = {},
+): { bitmap: Bitmap; bearingX: number; bearingY: number } {
+	return transformBitmap2D(bitmap, [1, 0, amount, 1, 0, 0], options);
+}
+
+/**
+ * Shear bitmap vertically
+ */
+export function shearBitmapY(
+	bitmap: Bitmap,
+	amount: number,
+	options: BitmapTransformOptions = {},
+): { bitmap: Bitmap; bearingX: number; bearingY: number } {
+	return transformBitmap2D(bitmap, [1, amount, 0, 1, 0, 0], options);
 }
