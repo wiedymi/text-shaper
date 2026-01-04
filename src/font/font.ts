@@ -628,6 +628,27 @@ export class Font {
 		return this.hhea.lineGap;
 	}
 
+	/** Line height (ascender - descender + lineGap for TrueType, ascender - descender for CFF) */
+	get height(): number {
+		const baseHeight = this.ascender - this.descender;
+		return this.isCFF ? baseHeight : baseHeight + this.lineGap;
+	}
+
+	/**
+	 * Get scale factor for converting font units to pixels
+	 * @param sizePx Target size in pixels
+	 * @param mode Sizing mode: "em" (default) or "height"
+	 * @returns Scale factor to multiply font units by
+	 */
+	scaleForSize(sizePx: number, mode?: "em" | "height"): number {
+		if (mode === "height") {
+			const h = this.height;
+			if (!Number.isFinite(h) || h <= 0) return sizePx / this.unitsPerEm;
+			return sizePx / h;
+		}
+		return sizePx / this.unitsPerEm;
+	}
+
 	/** Is this a TrueType font (vs CFF)? */
 	get isTrueType(): boolean {
 		return isTrueType(this.directory);
