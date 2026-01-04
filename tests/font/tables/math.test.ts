@@ -18,10 +18,8 @@ import {
 	type GlyphAssembly,
 } from "../../../src/font/tables/math.ts";
 
-const STIX_TWO_MATH_PATH =
-	"/Users/uyakauleu/vivy/experiments/typeshaper/tests/fonts/STIXTwoMath-Regular.otf";
-const XITS_MATH_PATH =
-	"/Users/uyakauleu/vivy/experiments/typeshaper/tests/fonts/XITSMath-Regular.otf";
+const STIX_TWO_MATH_PATH = "tests/fonts/STIXTwoMath-Regular.otf";
+const XITS_MATH_PATH = "tests/fonts/XITSMath-Regular.otf";
 
 const HAS_MATH_FONTS =
 	existsSync(STIX_TWO_MATH_PATH) && existsSync(XITS_MATH_PATH);
