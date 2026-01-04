@@ -1,6 +1,7 @@
 import type { GlyphId, TableRecord, Tag } from "../types.ts";
 import { Tags, tagToString } from "../types.ts";
 import { Reader } from "./binary/reader.ts";
+import { isTtc, type TtcHeader, parseTtcHeader } from "./ttc.ts";
 import { woff2ToSfnt } from "./woff2.ts";
 
 // WOFF/WOFF2 magic numbers
@@ -79,7 +80,12 @@ import { type MathTable, parseMath } from "./tables/math.ts";
 import { type MaxpTable, parseMaxp } from "./tables/maxp.ts";
 import { type MorxTable, parseMorx } from "./tables/morx.ts";
 import { type MvarTable, parseMvar } from "./tables/mvar.ts";
-import { type NameTable, parseName } from "./tables/name.ts";
+import {
+	getNameById,
+	NameId,
+	type NameTable,
+	parseName,
+} from "./tables/name.ts";
 import { type Os2Table, parseOs2 } from "./tables/os2.ts";
 import { type PostTable, parsePost } from "./tables/post.ts";
 import { parseSbix, type SbixTable } from "./tables/sbix.ts";
@@ -100,6 +106,77 @@ import { parseVvar, type VvarTable } from "./tables/vvar.ts";
 export interface FontLoadOptions {
 	/** Tables to parse eagerly (default: lazy) */
 	eagerTables?: Tag[];
+	/** TTC collection index (default: 0 when loading a TTC) */
+	collectionIndex?: number;
+}
+
+export interface CollectionFaceName {
+	index: number;
+	fullName?: string;
+	family?: string;
+	subfamily?: string;
+	postScriptName?: string;
+}
+
+export class FontCollection {
+	private readonly buffer: ArrayBuffer;
+	private readonly header: TtcHeader;
+	private readonly loadFace: (index: number, options?: FontLoadOptions) => Font;
+	private namesCache: CollectionFaceName[] | null = null;
+
+	constructor(
+		buffer: ArrayBuffer,
+		header: TtcHeader,
+		loadFace: (index: number, options?: FontLoadOptions) => Font,
+	) {
+		this.buffer = buffer;
+		this.header = header;
+		this.loadFace = loadFace;
+	}
+
+	get count(): number {
+		return this.header.numFonts;
+	}
+
+	get(index: number, options?: FontLoadOptions): Font {
+		return this.loadFace(index, options);
+	}
+
+	names(): CollectionFaceName[] {
+		if (this.namesCache) return this.namesCache;
+
+		const names: CollectionFaceName[] = [];
+		const reader = new Reader(this.buffer);
+
+		for (let i = 0; i < this.header.numFonts; i++) {
+			const offset = this.header.offsets[i] ?? 0;
+			const entry: CollectionFaceName = { index: i };
+
+			if (offset >= 0 && offset < this.buffer.byteLength) {
+				try {
+					const directory = parseFontDirectory(new Reader(this.buffer, offset));
+					const record = directory.tables.get(Tags.name);
+					if (record) {
+						const nameReader = reader.slice(record.offset, record.length);
+						const table = parseName(nameReader);
+						entry.fullName = getNameById(table, NameId.FullName) ?? undefined;
+						entry.family = getNameById(table, NameId.FontFamily) ?? undefined;
+						entry.subfamily =
+							getNameById(table, NameId.FontSubfamily) ?? undefined;
+						entry.postScriptName =
+							getNameById(table, NameId.PostScriptName) ?? undefined;
+					}
+				} catch {
+					// Ignore invalid subfont entries.
+				}
+			}
+
+			names.push(entry);
+		}
+
+		this.namesCache = names;
+		return names;
+	}
 }
 
 /**
@@ -155,12 +232,16 @@ export class Font {
 	private _cvt: CvtTable | null | undefined = undefined;
 	private _gasp: GaspTable | null | undefined = undefined;
 
-	private constructor(buffer: ArrayBuffer, _options: FontLoadOptions = {}) {
-		this.reader = new Reader(buffer);
-		this.directory = parseFontDirectory(this.reader);
+	private constructor(
+		reader: Reader,
+		directory: FontDirectory,
+		_options: FontLoadOptions = {},
+	) {
+		this.reader = reader;
+		this.directory = directory;
 	}
 
-	/** Load font from ArrayBuffer (sync - does not support WOFF2) */
+	/** Load font from ArrayBuffer (sync - WOFF2 requires async loading) */
 	static load(buffer: ArrayBuffer, options?: FontLoadOptions): Font {
 		if (isWoff2(buffer)) {
 			throw new Error(
@@ -172,7 +253,7 @@ export class Font {
 				"WOFF format is not supported. Please use TTF, OTF, or WOFF2.",
 			);
 		}
-		return new Font(buffer, options);
+		return Font.loadFromBuffer(buffer, options);
 	}
 
 	/** Load font from ArrayBuffer with WOFF2 support (async) */
@@ -187,7 +268,7 @@ export class Font {
 				"WOFF format is not supported. Please use TTF, OTF, or WOFF2.",
 			);
 		}
-		return new Font(buffer, options);
+		return Font.loadFromBuffer(buffer, options);
 	}
 
 	/** Load font from URL (works in browser and Bun, supports WOFF2) */
@@ -210,6 +291,52 @@ export class Font {
 		const file = Bun.file(path);
 		const buffer = await file.arrayBuffer();
 		return Font.loadAsync(buffer, options);
+	}
+
+	/** Create a TTC collection helper if buffer is a TrueType Collection */
+	static collection(buffer: ArrayBuffer): FontCollection | null {
+		if (!isTtc(buffer)) return null;
+		const header = parseTtcHeader(buffer);
+		return new FontCollection(buffer, header, (index, options) =>
+			Font.loadFromTtc(buffer, options, header, index),
+		);
+	}
+
+	private static loadFromBuffer(
+		buffer: ArrayBuffer,
+		options?: FontLoadOptions,
+	): Font {
+		if (isTtc(buffer)) {
+			return Font.loadFromTtc(buffer, options);
+		}
+		const reader = new Reader(buffer);
+		const directory = parseFontDirectory(reader);
+		return new Font(reader, directory, options);
+	}
+
+	private static loadFromTtc(
+		buffer: ArrayBuffer,
+		options?: FontLoadOptions,
+		header?: TtcHeader,
+		indexOverride?: number,
+	): Font {
+		const ttcHeader = header ?? parseTtcHeader(buffer);
+		const index = indexOverride ?? options?.collectionIndex ?? 0;
+		if (!Number.isInteger(index) || index < 0) {
+			throw new Error(`Invalid TTC collection index: ${index}`);
+		}
+		if (index >= ttcHeader.numFonts) {
+			throw new Error(
+				`TTC collection index out of range: ${index} (count ${ttcHeader.numFonts})`,
+			);
+		}
+		const offset = ttcHeader.offsets[index] ?? 0;
+		if (!Number.isFinite(offset) || offset < 0 || offset >= buffer.byteLength) {
+			throw new Error(`Invalid TTC font offset: ${offset}`);
+		}
+		const reader = new Reader(buffer);
+		const directory = parseFontDirectory(new Reader(buffer, offset));
+		return new Font(reader, directory, options);
 	}
 
 	// Table accessors

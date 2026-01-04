@@ -140,7 +140,12 @@ export type {
 export { Reader } from "./font/binary/reader.ts";
 export { createFace, Face } from "./font/face.ts";
 // Font parsing
-export { Font, type FontLoadOptions } from "./font/font.ts";
+export {
+	Font,
+	FontCollection,
+	type CollectionFaceName,
+	type FontLoadOptions,
+} from "./font/font.ts";
 export type { AvarTable, AxisSegmentMap } from "./font/tables/avar.ts";
 export { applyAvar, applyAvarMapping } from "./font/tables/avar.ts";
 // BASE table (baseline alignment)

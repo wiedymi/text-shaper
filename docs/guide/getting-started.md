@@ -69,6 +69,16 @@ const buffer = await fetch("font.ttf").then(r => r.arrayBuffer());
 const font = Font.load(buffer);
 ```
 
+### From TTC (TrueType Collection)
+
+```typescript
+const buffer = await fetch("fonts.ttc").then(r => r.arrayBuffer());
+const collection = Font.collection(buffer);
+if (collection) {
+  const font = collection.get(0);
+}
+```
+
 ## Understanding the Output
 
 The `shape()` function returns a `GlyphBuffer` with two parallel arrays:

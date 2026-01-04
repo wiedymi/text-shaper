@@ -92,6 +92,21 @@ for (const text of texts) {
 }
 ```
 
+### TTC Collections
+
+```typescript
+import { Font } from "text-shaper";
+
+const buffer = await fetch("fonts.ttc").then(r => r.arrayBuffer());
+const collection = Font.collection(buffer);
+
+if (collection) {
+  console.log(collection.count);
+  const names = collection.names();
+  const font = collection.get(0);
+}
+```
+
 ### With Features
 
 ```typescript

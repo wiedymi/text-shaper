@@ -15,6 +15,8 @@ const buffer = await fetch("font.ttf").then(r => r.arrayBuffer());
 const font = Font.load(buffer);
 ```
 
+For TrueType Collections (`.ttc`), pass `collectionIndex` to select a subfont.
+
 #### `Font.fromURL(url: string, options?: FontLoadOptions): Promise<Font>`
 
 Load a font from a URL (works in browser and Bun).
@@ -31,12 +33,45 @@ Load a font from a file path (Bun only).
 const font = await Font.fromFile("./fonts/font.ttf");
 ```
 
+#### `Font.collection(buffer: ArrayBuffer): FontCollection | null`
+
+Create a TTC collection helper if the buffer is a TrueType Collection.
+
+```typescript
+const buffer = await fetch("fonts.ttc").then(r => r.arrayBuffer());
+const collection = Font.collection(buffer);
+if (collection) {
+  const names = collection.names();
+  const font = collection.get(0);
+}
+```
+
 ### FontLoadOptions
 
 ```typescript
 interface FontLoadOptions {
   /** Tables to parse eagerly (default: lazy) */
   eagerTables?: Tag[];
+  /** TTC collection index (default: 0 when loading a TTC) */
+  collectionIndex?: number;
+}
+```
+
+### FontCollection
+
+```typescript
+interface CollectionFaceName {
+  index: number;
+  fullName?: string;
+  family?: string;
+  subfamily?: string;
+  postScriptName?: string;
+}
+
+class FontCollection {
+  count: number;
+  get(index: number, options?: FontLoadOptions): Font;
+  names(): CollectionFaceName[];
 }
 ```
 
