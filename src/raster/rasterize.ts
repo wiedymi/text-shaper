@@ -618,7 +618,7 @@ export function rasterizeGlyph(
 		hinting?: boolean;
 	},
 ): RasterizedGlyph | null {
-	const padding = options?.padding ?? 1;
+	const padding = options?.padding ?? 0;
 	const pixelMode = options?.pixelMode ?? PixelMode.Gray;
 	const useHinting = options?.hinting ?? false;
 
@@ -929,7 +929,7 @@ export function rasterizeText(
 	// For now, simple glyph-by-glyph rendering
 
 	const scale = fontSize / font.unitsPerEm;
-	const padding = options?.padding ?? 2;
+	const padding = options?.padding ?? 0;
 	const pixelMode = options?.pixelMode ?? PixelMode.Gray;
 
 	// Get glyphs for text

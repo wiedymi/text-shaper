@@ -203,8 +203,13 @@ export class GrayRaster {
 		// Full scanlines - use modular arithmetic to accumulate remainder
 		if (ey1 !== ey2) {
 			p = ONE_PIXEL * dx;
-			const lift = Math.trunc(p / absDy);
-			const rem = p % absDy;
+			let lift = Math.trunc(p / absDy);
+			let rem = p % absDy;
+			// FT_DIV_MOD: ensure non-negative remainder (floored division)
+			if (rem < 0) {
+				lift--;
+				rem += absDy;
+			}
 
 			while (ey1 !== ey2) {
 				delta = lift;
@@ -292,8 +297,13 @@ export class GrayRaster {
 		// Middle cells (full width) - use modular arithmetic
 		if (ex !== ex2) {
 			p = ONE_PIXEL * dy;
-			const lift = Math.trunc(p / absDx);
-			const rem = p % absDx;
+			let lift = Math.trunc(p / absDx);
+			let rem = p % absDx;
+			// FT_DIV_MOD: ensure non-negative remainder (floored division)
+			if (rem < 0) {
+				lift--;
+				rem += absDx;
+			}
 
 			while (ex !== ex2) {
 				delta = lift;
