@@ -186,14 +186,13 @@ export class CellBuffer {
 			return;
 		}
 
-		// Check clipping (use both band bounds and clip bounds for Y)
+		// Check clipping (always enforce clip bounds; band bounds only when set)
 		if (
-			py < this.bandMinY ||
-			py >= this.bandMaxY ||
 			py < this.clipMinY ||
 			py >= this.clipMaxY ||
 			px < this.clipMinX ||
-			px >= this.clipMaxX
+			px >= this.clipMaxX ||
+			(this.bandSet && (py < this.bandMinY || py >= this.bandMaxY))
 		) {
 			this.currentCellIndex = this.nullCellIndex;
 			this.currentX = px;

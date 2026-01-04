@@ -80,6 +80,28 @@ test("GrayRaster renders a square", () => {
 	}
 });
 
+test("GrayRaster expands beyond 256px without banding", () => {
+	const raster = new GrayRaster();
+	const bitmap = createBitmap(20, 400, PixelMode.Gray);
+
+	raster.setClip(0, 0, 20, 400);
+	raster.reset();
+
+	// Draw a tall rectangle that extends well past 256px
+	const scale = ONE_PIXEL;
+	raster.moveTo(2 * scale, 10 * scale);
+	raster.lineTo(18 * scale, 10 * scale);
+	raster.lineTo(18 * scale, 390 * scale);
+	raster.lineTo(2 * scale, 390 * scale);
+	raster.lineTo(2 * scale, 10 * scale);
+
+	raster.sweep(bitmap);
+
+	// Ensure a pixel near the bottom is filled
+	const sample = bitmap.buffer[350 * bitmap.pitch + 5] ?? 0;
+	expect(sample).toBeGreaterThan(0);
+});
+
 test("Load font and rasterize a glyph", async () => {
 	const file = Bun.file(FONT_PATH);
 	if (!(await file.exists())) {
