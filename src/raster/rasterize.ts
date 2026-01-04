@@ -841,6 +841,7 @@ function rasterizeHintedGlyph(
 	// Reuse shared rasterizer
 	const raster = getSharedRaster();
 	raster.setClip(0, 0, width, height);
+	raster.setBandBounds(0, height);
 	raster.reset();
 
 	const offsetX = -bMinX + padding;
@@ -916,6 +917,7 @@ function rasterizeTrueTypePoints26(
 	const tempBitmap = createBitmapShared(width, height, pixelMode);
 	const raster = getSharedRaster();
 	raster.setClip(0, 0, width, height);
+	raster.setBandBounds(0, height);
 	raster.reset();
 
 	const offsetX = -bMinX + padding;
@@ -1016,6 +1018,7 @@ export function rasterizeText(
 	const bitmap = createBitmap(width, height, pixelMode);
 	const raster = getSharedRaster();
 	raster.setClip(0, 0, width, height);
+	raster.setBandBounds(0, height);
 
 	// Render each glyph
 	let x = padding;
