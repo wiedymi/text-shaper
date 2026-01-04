@@ -117,16 +117,8 @@ export function movePoint(
 	}
 
 	// Scale distance by freedom/projection relationship
-	let dx = mulDiv(distance, fv.x, dot);
-	let dy = mulDiv(distance, fv.y, dot);
-
-	if (ctx.lightMode && (pv.x !== 0 || fv.x !== 0)) {
-		// Light hinting: allow vertical movement only.
-		const vDot = dotFix14Vectors(0, fv.y, 0, pv.y);
-		if (vDot === 0) return;
-		dx = 0;
-		dy = mulDiv(distance, fv.y, vDot);
-	}
+	const dx = mulDiv(distance, fv.x, dot);
+	const dy = mulDiv(distance, fv.y, dot);
 
 	const tracePoints = env?.HINT_TRACE_POINTS;
 	if (tracePoints) {
@@ -199,12 +191,6 @@ export function touchPoint(
 ): void {
 	// Set touch flag based on freedom vector direction
 	const fv = ctx.GS.freeVector;
-	if (ctx.lightMode) {
-		if (fv.y !== 0) {
-			zone.tags[pointIndex] |= TouchFlag.Y;
-		}
-		return;
-	}
 	if (fv.y !== 0) {
 		zone.tags[pointIndex] |= TouchFlag.Y;
 	}
