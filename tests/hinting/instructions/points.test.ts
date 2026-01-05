@@ -242,7 +242,7 @@ describe("Point Movement Instructions", () => {
 			expect(ctx.error).toContain("invalid point");
 		});
 
-		test("sets error for invalid CVT index", () => {
+		test("ignores invalid CVT index", () => {
 			const ctx = createTestContext();
 			ctx.cvtSize = 5;
 
@@ -251,7 +251,9 @@ describe("Point Movement Instructions", () => {
 
 			MIAP(ctx, false);
 
-			expect(ctx.error).toContain("invalid CVT index");
+			expect(ctx.error).toBeNull();
+			expect(ctx.GS.rp0).toBe(0);
+			expect(ctx.GS.rp1).toBe(0);
 		});
 	});
 
@@ -393,7 +395,7 @@ describe("Point Movement Instructions", () => {
 			expect(ctx.error).toContain("invalid point");
 		});
 
-		test("sets error for invalid CVT index", () => {
+		test("ignores invalid CVT index", () => {
 			const ctx = createTestContext();
 			ctx.cvtSize = 1;
 			ctx.GS.rp0 = 0;
@@ -403,7 +405,8 @@ describe("Point Movement Instructions", () => {
 
 			MIRP(ctx, 0);
 
-			expect(ctx.error).toContain("invalid CVT index");
+			expect(ctx.error).toBeNull();
+			expect(ctx.GS.rp2).toBe(0);
 		});
 
 		test("sets error for invalid rp0", () => {

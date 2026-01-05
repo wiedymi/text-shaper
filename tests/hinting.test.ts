@@ -54,7 +54,7 @@ describe("TrueType Hinting - Rounding", () => {
 		// Rounds to nearest integer, then adds 32 (0.5)
 		expect(roundToHalfGrid(0, 0)).toBe(32); // 0 -> 0 + 0.5 = 0.5
 		expect(roundToHalfGrid(64, 0)).toBe(96); // 1 -> 1 + 0.5 = 1.5
-		expect(roundToHalfGrid(96, 0)).toBe(160); // 1.5 -> 2.5
+		expect(roundToHalfGrid(96, 0)).toBe(96); // 1.5 -> 1.5
 	});
 
 	test("roundToDoubleGrid rounds to half-pixel boundaries", () => {

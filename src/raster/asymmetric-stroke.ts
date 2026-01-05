@@ -220,6 +220,27 @@ function pathToContours(
 	return contours;
 }
 
+function contourSignedArea(points: Point[]): number {
+	if (points.length < 3) return 0;
+	let end = points.length;
+	const first = points[0];
+	const last = points[end - 1];
+	if (first && last) {
+		const dx = last.x - first.x;
+		const dy = last.y - first.y;
+		if (dx * dx + dy * dy < 1) end -= 1;
+	}
+	if (end < 3) return 0;
+	let area = 0;
+	for (let i = 0; i < end; i++) {
+		const p0 = points[i];
+		const p1 = points[(i + 1) % end];
+		if (!p0 || !p1) continue;
+		area += p0.x * p1.y - p1.x * p0.y;
+	}
+	return area;
+}
+
 /**
  * Add a round join between two segments
  */
@@ -337,6 +358,18 @@ function strokeClosedContour(
 		return { outer: [], inner: [] };
 	}
 
+	// Determine contour orientation (positive = CCW)
+	let area = 0;
+	for (let i = 0; i < effectiveN; i++) {
+		const p0 = points[i];
+		const p1 = points[(i + 1) % effectiveN];
+		if (!p0 || !p1) continue;
+		area += p0.x * p1.y - p1.x * p0.y;
+	}
+	// computeAsymmetricOffset() returns the left normal. For CCW contours the
+	// interior is on the left, so we must flip to get outward normals.
+	const normalFlip = area > 0 ? -1 : 1;
+
 	// Compute normals for each segment
 	const normals: Normal[] = [];
 	for (let i = 0; i < effectiveN; i++) {
@@ -351,9 +384,17 @@ function strokeClosedContour(
 		if (len < 1e-10) {
 			normals.push({ x: 0, y: 0, len: 0 });
 		} else {
-			normals.push(
-				computeAsymmetricOffset(dx / len, dy / len, xBorder, yBorder),
+			const nrm = computeAsymmetricOffset(
+				dx / len,
+				dy / len,
+				xBorder,
+				yBorder,
 			);
+			if (normalFlip < 0) {
+				nrm.x = -nrm.x;
+				nrm.y = -nrm.y;
+			}
+			normals.push(nrm);
 		}
 	}
 
@@ -570,6 +611,10 @@ export function strokeAsymmetric(
 			lineJoin,
 			miterLimit,
 		);
+		const area = contourSignedArea(contour.points);
+		// For CCW contours (outer shapes), reverse inner to create a ring.
+		// For CW contours (holes), keep inner orientation to preserve both sides.
+		if (area > 0) inner.reverse();
 
 		outerCommands.push(...pointsToPath(outer, true));
 		innerCommands.push(...pointsToPath(inner, true));

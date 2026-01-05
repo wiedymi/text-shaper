@@ -758,7 +758,7 @@ export class Font {
 	/** Line height (ascender - descender + lineGap for TrueType, ascender - descender for CFF) */
 	get height(): number {
 		const baseHeight = this.ascender - this.descender;
-		return this.isCFF ? baseHeight : baseHeight + this.lineGap;
+		return baseHeight;
 	}
 
 	/**

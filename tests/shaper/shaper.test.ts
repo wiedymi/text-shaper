@@ -923,6 +923,86 @@ describe("GPOS and GSUB features with real fonts", () => {
 		});
 	});
 
+	describe("script-specific default features", () => {
+		test("enables Arabic positional forms by default", async () => {
+			const arabicFont = await Font.fromFile(
+				"tests/fixtures/NotoNaskhArabic[wght].ttf",
+			);
+			const defaultResult = shape(
+				arabicFont,
+				new UnicodeBuffer().addStr("\u0628\u0628"),
+				{ script: "arab" },
+			);
+			const noFormsResult = shape(
+				arabicFont,
+				new UnicodeBuffer().addStr("\u0628\u0628"),
+				{
+					script: "arab",
+					features: [
+						feature("isol", false),
+						feature("init", false),
+						feature("medi", false),
+						feature("fina", false),
+					],
+				},
+			);
+
+			expect(defaultResult.glyphIds()).not.toEqual(noFormsResult.glyphIds());
+		});
+
+		test("enables Mongolian positional forms by default", async () => {
+			const mongolianFont = await Font.fromFile(
+				"tests/fixtures/NotoSansMongolian-Regular.ttf",
+			);
+			const defaultResult = shape(
+				mongolianFont,
+				new UnicodeBuffer().addStr("\u1820\u1820"),
+				{ script: "mong" },
+			);
+			const noFormsResult = shape(
+				mongolianFont,
+				new UnicodeBuffer().addStr("\u1820\u1820"),
+				{
+					script: "mong",
+					features: [
+						feature("isol", false),
+						feature("init", false),
+						feature("medi", false),
+						feature("fina", false),
+					],
+				},
+			);
+
+			expect(defaultResult.glyphIds()).not.toEqual(noFormsResult.glyphIds());
+		});
+
+		test("enables Syriac positional forms by default", async () => {
+			const syriacFont = await Font.fromFile(
+				"tests/fixtures/NotoSansSyriac-Regular.ttf",
+			);
+			const defaultResult = shape(
+				syriacFont,
+				new UnicodeBuffer().addStr("\u0712\u0712"),
+				{ script: "syrc" },
+			);
+			const noFormsResult = shape(
+				syriacFont,
+				new UnicodeBuffer().addStr("\u0712\u0712"),
+				{
+					script: "syrc",
+					features: [
+						feature("isol", false),
+						feature("init", false),
+						feature("medi", false),
+						feature("fina", false),
+					],
+				},
+			);
+
+			expect(defaultResult.glyphIds()).not.toEqual(noFormsResult.glyphIds());
+		});
+	});
+
 	describe("complex feature interactions", () => {
 		test("combines ligatures and kerning", () => {
 			const buffer = new UnicodeBuffer().addStr("official");

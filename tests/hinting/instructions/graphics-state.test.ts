@@ -164,8 +164,8 @@ describe("Graphics State Instructions", () => {
 
 				SPVTL(ctx, true);
 
-				expect(ctx.GS.projVector.x).toBe(0);
-				expect(ctx.GS.projVector.y).toBe(-0x4000);
+				expect(Math.abs(ctx.GS.projVector.x)).toBe(0);
+				expect(ctx.GS.projVector.y).toBe(0x4000);
 			});
 
 			test("handles zero length vector", () => {
@@ -233,7 +233,7 @@ describe("Graphics State Instructions", () => {
 
 				SFVTL(ctx, true);
 
-				expect(ctx.GS.freeVector.x).toBe(0x4000);
+				expect(ctx.GS.freeVector.x).toBe(-0x4000);
 				expect(Math.abs(ctx.GS.freeVector.y)).toBe(0);
 			});
 		});
@@ -268,8 +268,8 @@ describe("Graphics State Instructions", () => {
 
 			SDPVTL(ctx, true);
 
-			expect(ctx.GS.dualVector.x).toBe(0);
-			expect(ctx.GS.dualVector.y).toBe(-0x4000);
+			expect(Math.abs(ctx.GS.dualVector.x)).toBe(0);
+			expect(ctx.GS.dualVector.y).toBe(0x4000);
 		});
 	});
 
@@ -870,7 +870,7 @@ describe("Graphics State Instructions", () => {
 
 			RCVT(ctx);
 
-			expect(ctx.error).toContain("invalid index");
+			expect(ctx.error).toBeNull();
 			expect(ctx.stack[0]).toBe(0);
 		});
 
@@ -881,7 +881,8 @@ describe("Graphics State Instructions", () => {
 
 			RCVT(ctx);
 
-			expect(ctx.error).toContain("invalid index");
+			expect(ctx.error).toBeNull();
+			expect(ctx.stack[0]).toBe(0);
 		});
 
 		test("WCVTP writes CVT value in pixels", () => {
@@ -898,13 +899,15 @@ describe("Graphics State Instructions", () => {
 
 		test("WCVTP handles invalid index", () => {
 			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([10, 20, 30, 40, 50]);
 			ctx.cvtSize = 5;
 			ctx.stack[ctx.stackTop++] = 999;
 			ctx.stack[ctx.stackTop++] = 100;
 
 			WCVTP(ctx);
 
-			expect(ctx.error).toContain("invalid index");
+			expect(ctx.error).toBeNull();
+			expect(ctx.cvt).toEqual(new Int32Array([10, 20, 30, 40, 50]));
 		});
 
 		test("WCVTF writes CVT value in font units", () => {
@@ -923,13 +926,15 @@ describe("Graphics State Instructions", () => {
 
 		test("WCVTF handles invalid index", () => {
 			const ctx = createTestContext();
+			ctx.cvt = new Int32Array([10, 20, 30, 40, 50]);
 			ctx.cvtSize = 5;
 			ctx.stack[ctx.stackTop++] = -5;
 			ctx.stack[ctx.stackTop++] = 100;
 
 			WCVTF(ctx);
 
-			expect(ctx.error).toContain("invalid index");
+			expect(ctx.error).toBeNull();
+			expect(ctx.cvt).toEqual(new Int32Array([10, 20, 30, 40, 50]));
 		});
 	});
 

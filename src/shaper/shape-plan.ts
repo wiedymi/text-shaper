@@ -10,6 +10,12 @@ import {
 	findScript,
 	getFeature,
 } from "../layout/structures/layout-common.ts";
+import { getArabicFeatures } from "./complex/arabic.ts";
+import { getEthiopicFeatures, usesEthiopic } from "./complex/ethiopic.ts";
+import { getGeorgianFeatures, usesGeorgian } from "./complex/georgian.ts";
+import { getMongolianFeatures, usesMongolian } from "./complex/mongolian.ts";
+import { getSyriacFeatures, usesSyriac } from "./complex/syriac.ts";
+import { getTibetanFeatures, usesTibetan } from "./complex/tibetan.ts";
 import type { Tag, uint16 } from "../types.ts";
 import { tag, tagToString } from "../types.ts";
 
@@ -50,7 +56,7 @@ export interface ShapePlan {
 	gposLookupMap: Map<number, LookupEntry<AnyGposLookup>>;
 }
 
-/** Default GSUB features (always enabled) */
+/** Baseline GSUB features (always enabled) */
 const DEFAULT_GSUB_FEATURES = [
 	"ccmp", // Glyph composition/decomposition
 	"locl", // Localized forms
@@ -66,6 +72,46 @@ const DEFAULT_GPOS_FEATURES = [
 	"mark", // Mark positioning
 	"mkmk", // Mark-to-mark positioning
 ];
+
+/** Script-specific default GSUB features */
+function getDefaultGsubFeatures(script: string): string[] {
+	const features = new Set<string>(DEFAULT_GSUB_FEATURES);
+	const scriptTag = script.padEnd(4, " ");
+	const scriptLower = scriptTag.toLowerCase();
+
+	if (usesSyriac(scriptTag)) {
+		for (const feature of getSyriacFeatures()) {
+			features.add(feature);
+		}
+	} else if (
+		scriptLower === "arab" ||
+		scriptLower === "mand" ||
+		scriptLower === "nko " ||
+		scriptLower === "nkoo"
+	) {
+		for (const feature of getArabicFeatures()) {
+			features.add(feature);
+		}
+	} else if (usesMongolian(scriptTag)) {
+		for (const feature of getMongolianFeatures()) {
+			features.add(feature);
+		}
+	} else if (usesTibetan(scriptTag)) {
+		for (const feature of getTibetanFeatures()) {
+			features.add(feature);
+		}
+	} else if (usesEthiopic(scriptTag)) {
+		for (const feature of getEthiopicFeatures()) {
+			features.add(feature);
+		}
+	} else if (usesGeorgian(scriptTag)) {
+		for (const feature of getGeorgianFeatures()) {
+			features.add(feature);
+		}
+	}
+
+	return [...features];
+}
 
 /** Generate cache key for shape plan */
 function getCacheKey(
@@ -180,8 +226,9 @@ function createShapePlanInternal(
 	const enabledFeatures = new Set<Tag>();
 
 	// Add default features
-	for (let i = 0; i < DEFAULT_GSUB_FEATURES.length; i++) {
-		enabledFeatures.add(tag(DEFAULT_GSUB_FEATURES[i]!));
+	const gsubDefaults = getDefaultGsubFeatures(script);
+	for (let i = 0; i < gsubDefaults.length; i++) {
+		enabledFeatures.add(tag(gsubDefaults[i]!));
 	}
 	for (let i = 0; i < DEFAULT_GPOS_FEATURES.length; i++) {
 		enabledFeatures.add(tag(DEFAULT_GPOS_FEATURES[i]!));

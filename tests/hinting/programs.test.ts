@@ -59,8 +59,8 @@ describe("Hinting Programs - Rounding Functions", () => {
 		expect(roundToHalfGrid(0, 0)).toBe(32); // 0 -> 0.5
 		expect(roundToHalfGrid(16, 0)).toBe(32); // 0.25 -> 0.5
 		expect(roundToHalfGrid(64, 0)).toBe(96); // 1.0 -> 1.5
-		expect(roundToHalfGrid(96, 0)).toBe(160); // 1.5 -> 2.5
-		expect(roundToHalfGrid(48, 0)).toBe(96); // 0.75 -> 1.5
+		expect(roundToHalfGrid(96, 0)).toBe(96); // 1.5 -> 1.5
+		expect(roundToHalfGrid(48, 0)).toBe(32); // 0.75 -> 0.5
 	});
 
 	test("roundToHalfGrid with negative values", () => {

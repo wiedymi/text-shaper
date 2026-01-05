@@ -514,6 +514,24 @@ export function getFeatureForAction(action: JoiningAction): string | null {
 }
 
 /**
+ * Get default Arabic features in order
+ */
+export function getArabicFeatures(): string[] {
+	return [
+		"ccmp", // Character composition/decomposition
+		"locl", // Localized forms
+		"isol", // Isolated forms
+		"init", // Initial forms
+		"medi", // Medial forms
+		"fina", // Final forms
+		"rlig", // Required ligatures
+		"rclt", // Required contextual alternates
+		"calt", // Contextual alternates
+		"liga", // Standard ligatures
+	];
+}
+
+/**
  * Set the feature mask for each glyph based on joining analysis
  * Inlined for performance - avoids intermediate array allocation
  */

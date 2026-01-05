@@ -34,6 +34,10 @@ describe("Control Flow Instructions", () => {
 		return ctx;
 	}
 
+	function getActiveFDef(ctx: ExecContext, id: number) {
+		return ctx.FDefs.find((def) => def && def.active && def.id === id);
+	}
+
 	describe("IF/ELSE/EIF", () => {
 		test("IF executes true branch", () => {
 			const ctx = createTestContext();
@@ -391,10 +395,11 @@ describe("Control Flow Instructions", () => {
 
 			FDEF(ctx);
 
-			expect(ctx.FDefs[5]!.active).toBe(true);
-			expect(ctx.FDefs[5]!.start).toBe(1);
-			expect(ctx.FDefs[5]!.end).toBe(4);
-			expect(ctx.FDefs[5]!.range).toBe(CodeRange.Font);
+			const def = getActiveFDef(ctx, 5);
+			expect(def).toBeDefined();
+			expect(def!.start).toBe(1);
+			expect(def!.end).toBe(4);
+			expect(def!.range).toBe(CodeRange.Font);
 			expect(ctx.IP).toBe(4);
 		});
 
@@ -409,7 +414,7 @@ describe("Control Flow Instructions", () => {
 
 			FDEF(ctx);
 
-			expect(ctx.FDefs[3]!.active).toBe(true);
+			expect(getActiveFDef(ctx, 3)).toBeDefined();
 			expect(ctx.IP).toBe(6);
 		});
 
@@ -424,7 +429,7 @@ describe("Control Flow Instructions", () => {
 
 			FDEF(ctx);
 
-			expect(ctx.FDefs[4]!.active).toBe(true);
+			expect(getActiveFDef(ctx, 4)).toBeDefined();
 			expect(ctx.IP).toBe(6);
 		});
 
@@ -439,7 +444,7 @@ describe("Control Flow Instructions", () => {
 
 			FDEF(ctx);
 
-			expect(ctx.FDefs[5]!.active).toBe(true);
+			expect(getActiveFDef(ctx, 5)).toBeDefined();
 			expect(ctx.IP).toBe(6);
 		});
 
@@ -454,7 +459,7 @@ describe("Control Flow Instructions", () => {
 
 			FDEF(ctx);
 
-			expect(ctx.FDefs[6]!.active).toBe(true);
+			expect(getActiveFDef(ctx, 6)).toBeDefined();
 			expect(ctx.IP).toBe(5);
 		});
 
@@ -463,7 +468,7 @@ describe("Control Flow Instructions", () => {
 			ctx.code = new Uint8Array([0x2c, 0x2d]);
 			ctx.codeSize = 2;
 			ctx.IP = 1;
-			ctx.stack[ctx.stackTop++] = 999;
+			ctx.stack[ctx.stackTop++] = 0x10000;
 
 			FDEF(ctx);
 
@@ -506,12 +511,14 @@ describe("Control Flow Instructions", () => {
 
 		test("FDEF errors when no slot for function", () => {
 			const ctx = createTestContext();
-			ctx.stack[ctx.stackTop++] = 0;
-			ctx.FDefs[0] = null as any;
+			for (const def of ctx.FDefs) {
+				if (def) def.active = true;
+			}
+			ctx.stack[ctx.stackTop++] = 999;
 
 			FDEF(ctx);
 
-			expect(ctx.error).toContain("no slot for function");
+			expect(ctx.error).toContain("too many function definitions");
 		});
 
 		test("CALL calls function", () => {
@@ -557,7 +564,7 @@ describe("Control Flow Instructions", () => {
 
 		test("CALL errors on invalid function number", () => {
 			const ctx = createTestContext();
-			ctx.stack[ctx.stackTop++] = 999;
+			ctx.stack[ctx.stackTop++] = 0x10000;
 
 			CALL(ctx);
 
@@ -729,7 +736,7 @@ describe("Control Flow Instructions", () => {
 		test("LOOPCALL errors on invalid function", () => {
 			const ctx = createTestContext();
 			ctx.stack[ctx.stackTop++] = 1;
-			ctx.stack[ctx.stackTop++] = 999;
+			ctx.stack[ctx.stackTop++] = 0x10000;
 
 			LOOPCALL(ctx);
 

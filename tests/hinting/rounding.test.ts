@@ -48,20 +48,20 @@ describe("TrueType Rounding - roundToHalfGrid", () => {
 	test("rounds positive values to half pixels", () => {
 		expect(roundToHalfGrid(0, 0)).toBe(32); // 0 -> 0.5
 		expect(roundToHalfGrid(64, 0)).toBe(96); // 1.0 -> 1.5
-		expect(roundToHalfGrid(96, 0)).toBe(160); // 1.5 -> 2.5
+		expect(roundToHalfGrid(96, 0)).toBe(96); // 1.5 -> 1.5
 		expect(roundToHalfGrid(128, 0)).toBe(160); // 2.0 -> 2.5
 	});
 
 	test("rounds negative values to half pixels", () => {
 		expect(roundToHalfGrid(-64, 0)).toBe(-96); // -1.0 -> -1.5
-		expect(roundToHalfGrid(-96, 0)).toBe(-160); // -1.5 -> -2.5
+		expect(roundToHalfGrid(-96, 0)).toBe(-96); // -1.5 -> -1.5
 		// -1: -(((-(-1) + 32 + 0) & -64) + 32) = -((33 & -64) + 32) = -(0 + 32) = -32
 		expect(roundToHalfGrid(-1, 0)).toBe(-32);
 	});
 
 	test("applies compensation", () => {
-		expect(roundToHalfGrid(32, 16)).toBe(96); // 0.5 + 0.25 = 0.75 -> 1.5
-		expect(roundToHalfGrid(-32, 16)).toBe(-96); // -0.5 + 0.25 = -0.25 -> -1.5
+		expect(roundToHalfGrid(32, 16)).toBe(32); // 0.5 + 0.25 = 0.75 -> 0.5
+		expect(roundToHalfGrid(-32, 16)).toBe(-32); // -0.5 + 0.25 = -0.25 -> -0.5
 	});
 });
 

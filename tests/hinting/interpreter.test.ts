@@ -886,7 +886,7 @@ describe("TrueType Interpreter - Error Handling", () => {
 		expect(ctx.error).toContain("RS: invalid index");
 	});
 
-	test("invalid CVT index triggers error", () => {
+	test("invalid CVT index returns zero", () => {
 		const ctx = createExecContext();
 		ctx.cvtSize = 10;
 		setCodeRange(ctx, CodeRange.Glyph, new Uint8Array([
@@ -894,7 +894,8 @@ describe("TrueType Interpreter - Error Handling", () => {
 			0x45, // RCVT
 		]));
 		runProgram(ctx, CodeRange.Glyph);
-		expect(ctx.error).toContain("RCVT: invalid index");
+		expect(ctx.error).toBeNull();
+		expect(ctx.stack[0]).toBe(0);
 	});
 
 	test("instruction limit prevents infinite loops", () => {

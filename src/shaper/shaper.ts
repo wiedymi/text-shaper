@@ -100,6 +100,7 @@ import {
 	type ShapeFeature,
 	type ShapePlan,
 } from "./shape-plan.ts";
+import { tag } from "../types.ts";
 
 /**
  * Options for controlling text shaping behavior.
@@ -363,6 +364,17 @@ export function shapeInto(
 	const language = options.language ?? buffer.language ?? null;
 	const direction = options.direction ?? "ltr";
 	const features = options.features ?? [];
+	let kernEnabled = true;
+	if (features.length) {
+		const kernTag = tag("kern");
+		for (let i = 0; i < features.length; i++) {
+			const feat = features[i]!;
+			if (feat.tag === kernTag) {
+				kernEnabled = feat.enabled;
+				break;
+			}
+		}
+	}
 
 	// Get axis coordinates from face for feature variations
 	const axisCoords =
@@ -405,7 +417,9 @@ export function shapeInto(
 		applyGpos(font, glyphBuffer, plan);
 	} else {
 		// Fallback kerning using kern table
-		applyFallbackKerning(font, glyphBuffer.infos, glyphBuffer.positions);
+		if (kernEnabled) {
+			applyFallbackKerning(font, glyphBuffer.infos, glyphBuffer.positions);
+		}
 		// Fallback mark positioning using combining classes
 		applyFallbackMarkPositioning(
 			font,
