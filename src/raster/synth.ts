@@ -7,6 +7,7 @@
  */
 
 import type { GlyphPath, PathCommand } from "../render/path.ts";
+import { strokeAsymmetric } from "./asymmetric-stroke.ts";
 
 function computeBounds(commands: PathCommand[]): {
 	xMin: number;
@@ -257,6 +258,22 @@ export function emboldenPath(path: GlyphPath, strength: number): GlyphPath {
 	if (strength === 0) {
 		// Just return a copy with slightly processed structure
 		return { ...path, commands: [...path.commands] };
+	}
+
+	if (strength > 0) {
+		// Approximate FT_Outline_Embolden by offsetting contours outward.
+		// Outer contours expand; holes shrink.
+		const { outer } = strokeAsymmetric(path, {
+			xBorder: strength,
+			yBorder: strength,
+			eps: 0.25,
+			lineJoin: "round",
+		});
+		return {
+			commands: outer.commands,
+			bounds: outer.bounds ?? computeBounds(outer.commands),
+			flags: path.flags,
+		};
 	}
 
 	// Extract contours from path

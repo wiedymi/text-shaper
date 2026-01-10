@@ -335,6 +335,7 @@ function strokeClosedContour(
 	yBorder: number,
 	lineJoin: "miter" | "round" | "bevel",
 	miterLimit: number,
+	outwardIsLeft: boolean,
 ): { outer: Point[]; inner: Point[] } {
 	const n = points.length;
 	if (n < 3) {
@@ -358,17 +359,9 @@ function strokeClosedContour(
 		return { outer: [], inner: [] };
 	}
 
-	// Determine contour orientation (positive = CCW)
-	let area = 0;
-	for (let i = 0; i < effectiveN; i++) {
-		const p0 = points[i];
-		const p1 = points[(i + 1) % effectiveN];
-		if (!p0 || !p1) continue;
-		area += p0.x * p1.y - p1.x * p0.y;
-	}
-	// computeAsymmetricOffset() returns the left normal. For CCW contours the
-	// interior is on the left, so we must flip to get outward normals.
-	const normalFlip = area > 0 ? -1 : 1;
+	// computeAsymmetricOffset() returns the left normal.
+	// Flip when we want right-side (outward) normals.
+	const normalFlip = outwardIsLeft ? 1 : -1;
 
 	// Compute normals for each segment
 	const normals: Normal[] = [];
@@ -594,6 +587,21 @@ export function strokeAsymmetric(
 	const outerCommands: PathCommand[] = [];
 	const innerCommands: PathCommand[] = [];
 
+	const areas: number[] = [];
+	let outerSign = 1;
+	let maxAbs = 0;
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		const area = contourSignedArea(contour.points);
+		areas[i] = area;
+		const abs = Math.abs(area);
+		if (abs > maxAbs) {
+			maxAbs = abs;
+			outerSign = area >= 0 ? 1 : -1;
+		}
+	}
+	if (maxAbs === 0) outerSign = 1;
+
 	for (let i = 0; i < contours.length; i++) {
 		const contour = contours[i]!;
 		if (!contour.closed) {
@@ -604,17 +612,24 @@ export function strokeAsymmetric(
 			contour.closed = true;
 		}
 
+		const area = areas[i] ?? 0;
+		const contourSign = area >= 0 ? 1 : -1;
+		const interiorIsLeft = contourSign > 0;
+		const isOuter = contourSign === outerSign;
+		// Outward relative to fill: outer contours go outside the fill,
+		// hole contours go toward the hole interior.
+		const outwardIsLeft = isOuter ? !interiorIsLeft : interiorIsLeft;
+
 		const { outer, inner } = strokeClosedContour(
 			contour.points,
 			xBorder,
 			yBorder,
 			lineJoin,
 			miterLimit,
+			outwardIsLeft,
 		);
-		const area = contourSignedArea(contour.points);
-		// For CCW contours (outer shapes), reverse inner to create a ring.
-		// For CW contours (holes), keep inner orientation to preserve both sides.
-		if (area > 0) inner.reverse();
+		// Ensure opposite winding to form a proper ring when combined.
+		inner.reverse();
 
 		outerCommands.push(...pointsToPath(outer, true));
 		innerCommands.push(...pointsToPath(inner, true));
