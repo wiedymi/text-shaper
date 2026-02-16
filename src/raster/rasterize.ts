@@ -753,7 +753,9 @@ function rasterizeHintedGlyph(
 	if (!engine) return null;
 
 	const ppem = Math.round(fontSize);
-	engine.ctx.lightMode = pixelMode === PixelMode.Gray;
+	const isLCD =
+		pixelMode === PixelMode.LCD || pixelMode === PixelMode.LCD_V;
+	engine.ctx.lightMode = isLCD;
 	engine.ctx.renderMode =
 		pixelMode === PixelMode.Mono
 			? "mono"
