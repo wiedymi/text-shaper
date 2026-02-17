@@ -629,6 +629,182 @@ testFn(
 );
 
 testFn(
+	"explicit hint target light matches FreeType light for Arial X",
+	{ timeout: testTimeout },
+	async () => {
+		if (!ftdumpBin) {
+			console.warn("hinting parity: ftdump binary not available");
+			return;
+		}
+
+		const preferredArial =
+			process.env.HINTING_PARITY_ARIAL_PATH ??
+			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
+				? "/Users/uyakauleu/Downloads/aria.ttf"
+				: "/System/Library/Fonts/Supplemental/Arial.ttf");
+		const arialPath = preferredArial;
+		if (!existsSync(arialPath)) {
+			console.warn("hinting parity: Arial.ttf not available");
+			return;
+		}
+
+		const font = await Font.fromFile(arialPath);
+		if (!font.hasHinting) return;
+
+		const gid = font.glyphId("X".codePointAt(0)!);
+		if (!gid) return;
+
+		const fontSize = 72;
+		const ft = runFtDump(ftdumpBin, arialPath, fontSize, [gid], {
+			target: "light",
+			pixels: true,
+		});
+		const ftEntry = ft[0];
+		if (!ftEntry || !ftEntry.pixels) return;
+
+		const ours = rasterizeGlyph(font, gid, fontSize, {
+			hinting: true,
+			padding: 0,
+			pixelMode: PixelMode.Gray,
+			hintTarget: "light",
+		});
+		expect(ours).not.toBeNull();
+		if (!ours) return;
+
+		expect(ours.bitmap.width).toBe(ftEntry.width);
+		expect(ours.bitmap.rows).toBe(ftEntry.rows);
+
+		const oursBuf = ours.bitmap.buffer;
+		const ftBuf = ftEntry.pixels;
+		const total = ours.bitmap.width * ours.bitmap.rows;
+		const tol = Number.parseInt(
+			process.env.HINTING_PARITY_PIXEL_TOLERANCE ?? "8",
+			10,
+		);
+		const maxRatio = Number.parseFloat(
+			process.env.HINTING_PARITY_PIXEL_MAX_RATIO ?? "0.02",
+		);
+
+		let diffCount = 0;
+		let maxDiff = 0;
+		for (let i = 0; i < total; i++) {
+			const d = Math.abs((oursBuf[i] ?? 0) - (ftBuf[i] ?? 0));
+			if (d > tol) diffCount++;
+			if (d > maxDiff) maxDiff = d;
+		}
+
+		const ratio = total > 0 ? diffCount / total : 0;
+		if (debug && ratio > maxRatio) {
+			console.warn(
+				`Arial X explicit light pixel diff ratio=${ratio.toFixed(4)} maxDiff=${maxDiff}`,
+			);
+		}
+		expect(ratio).toBeLessThanOrEqual(maxRatio);
+	},
+);
+
+testFn(
+	"hint target light and normal diverge for Arial X",
+	{ timeout: testTimeout },
+	async () => {
+		const preferredArial =
+			process.env.HINTING_PARITY_ARIAL_PATH ??
+			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
+				? "/Users/uyakauleu/Downloads/aria.ttf"
+				: "/System/Library/Fonts/Supplemental/Arial.ttf");
+		const arialPath = preferredArial;
+		if (!existsSync(arialPath)) {
+			console.warn("hinting parity: Arial.ttf not available");
+			return;
+		}
+
+		const font = await Font.fromFile(arialPath);
+		if (!font.hasHinting) return;
+
+		const gid = font.glyphId("X".codePointAt(0)!);
+		if (!gid) return;
+
+		const fontSize = 72;
+		const light = rasterizeGlyph(font, gid, fontSize, {
+			hinting: true,
+			padding: 0,
+			pixelMode: PixelMode.Gray,
+			hintTarget: "light",
+		});
+		const normal = rasterizeGlyph(font, gid, fontSize, {
+			hinting: true,
+			padding: 0,
+			pixelMode: PixelMode.Gray,
+			hintTarget: "normal",
+		});
+		expect(light).not.toBeNull();
+		expect(normal).not.toBeNull();
+		if (!light || !normal) return;
+
+		let differs =
+			light.bitmap.width !== normal.bitmap.width ||
+			light.bitmap.rows !== normal.bitmap.rows ||
+			light.bearingX !== normal.bearingX ||
+			light.bearingY !== normal.bearingY;
+		if (!differs && light.bitmap.buffer.length === normal.bitmap.buffer.length) {
+			for (let i = 0; i < light.bitmap.buffer.length; i++) {
+				if (light.bitmap.buffer[i] !== normal.bitmap.buffer[i]) {
+					differs = true;
+					break;
+				}
+			}
+		}
+
+		expect(differs).toBe(true);
+	},
+);
+
+testFn(
+	"hint target auto preserves default Gray behavior",
+	{ timeout: testTimeout },
+	async () => {
+		const preferredArial =
+			process.env.HINTING_PARITY_ARIAL_PATH ??
+			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
+				? "/Users/uyakauleu/Downloads/aria.ttf"
+				: "/System/Library/Fonts/Supplemental/Arial.ttf");
+		const arialPath = preferredArial;
+		if (!existsSync(arialPath)) {
+			console.warn("hinting parity: Arial.ttf not available");
+			return;
+		}
+
+		const font = await Font.fromFile(arialPath);
+		if (!font.hasHinting) return;
+
+		const gid = font.glyphId("X".codePointAt(0)!);
+		if (!gid) return;
+
+		const fontSize = 72;
+		const baseline = rasterizeGlyph(font, gid, fontSize, {
+			hinting: true,
+			padding: 0,
+			pixelMode: PixelMode.Gray,
+		});
+		const auto = rasterizeGlyph(font, gid, fontSize, {
+			hinting: true,
+			padding: 0,
+			pixelMode: PixelMode.Gray,
+			hintTarget: "auto",
+		});
+		expect(baseline).not.toBeNull();
+		expect(auto).not.toBeNull();
+		if (!baseline || !auto) return;
+
+		expect(auto.bitmap.width).toBe(baseline.bitmap.width);
+		expect(auto.bitmap.rows).toBe(baseline.bitmap.rows);
+		expect(auto.bearingX).toBe(baseline.bearingX);
+		expect(auto.bearingY).toBe(baseline.bearingY);
+		expect(auto.bitmap.buffer).toEqual(baseline.bitmap.buffer);
+	},
+);
+
+testFn(
 	"hinted raster metrics match FreeType for composite glyphs",
 	{ timeout: testTimeout },
 	async () => {

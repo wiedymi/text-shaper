@@ -28,6 +28,14 @@ export enum PixelMode {
 export type FontSizeMode = "em" | "height";
 
 /**
+ * Hinting target mode for TrueType interpreter behavior
+ * - "auto": keep current behavior based on pixel mode
+ * - "light": force light/subpixel-style hinting behavior
+ * - "normal": force normal/full hinting behavior
+ */
+export type HintTarget = "auto" | "light" | "normal";
+
+/**
  * Options for rasterizing a glyph from a font
  */
 export interface GlyphRasterizeOptions {
@@ -37,6 +45,8 @@ export interface GlyphRasterizeOptions {
 	padding?: number;
 	/** Use TrueType hinting if available */
 	hinting?: boolean;
+	/** Hinting target mode (default: "auto") */
+	hintTarget?: HintTarget;
 	/** Interpret fontSize as em or full height */
 	sizeMode?: FontSizeMode;
 }
@@ -209,6 +219,8 @@ export interface AtlasOptions {
 	pixelMode?: PixelMode;
 	/** Enable hinting */
 	hinting?: boolean;
+	/** Hinting target mode (default: "auto") */
+	hintTarget?: HintTarget;
 }
 
 /**

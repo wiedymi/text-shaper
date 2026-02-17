@@ -25,6 +25,7 @@ import {
 	type Bitmap,
 	createBitmap,
 	FillRule,
+	type HintTarget,
 	PixelMode,
 	type GlyphRasterizeOptions,
 	type RasterizedGlyph,
@@ -44,6 +45,15 @@ let sharedRaster: GrayRaster | null = null;
 function getSharedRaster(): GrayRaster {
 	if (!sharedRaster) sharedRaster = new GrayRaster();
 	return sharedRaster;
+}
+
+function resolveHintLightMode(
+	hintTarget: HintTarget,
+	pixelMode: PixelMode,
+): boolean {
+	if (hintTarget === "light") return true;
+	if (hintTarget === "normal") return false;
+	return pixelMode === PixelMode.Gray;
 }
 
 /** Shared bitmap buffer for reuse */
@@ -623,6 +633,7 @@ export function rasterizeGlyph(
 	const padding = options?.padding ?? 0;
 	const pixelMode = options?.pixelMode ?? PixelMode.Gray;
 	const useHinting = options?.hinting ?? false;
+	const hintTarget = options?.hintTarget ?? "auto";
 	const sizeMode = options?.sizeMode;
 	const effectiveSize = resolveFontSize(font, fontSize, sizeMode);
 
@@ -636,6 +647,7 @@ export function rasterizeGlyph(
 			padding,
 			pixelMode,
 			pointSize,
+			hintTarget,
 		);
 		if (result) return result;
 	}
@@ -748,12 +760,13 @@ function rasterizeHintedGlyph(
 	padding: number,
 	pixelMode: PixelMode,
 	pointSize: number = fontSize,
+	hintTarget: HintTarget = "auto",
 ): RasterizedGlyph | null {
 	const engine = getHintingEngine(font);
 	if (!engine) return null;
 
 	const ppem = Math.round(fontSize);
-	engine.ctx.lightMode = pixelMode === PixelMode.Gray;
+	engine.ctx.lightMode = resolveHintLightMode(hintTarget, pixelMode);
 	engine.ctx.renderMode =
 		pixelMode === PixelMode.Mono
 			? "mono"

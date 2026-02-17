@@ -41,6 +41,7 @@ export function buildAtlas(
 		maxWidth = 2048,
 		maxHeight = 2048,
 		pixelMode = PixelMode.Gray,
+		hintTarget = "auto",
 	} = options;
 
 	// First pass: rasterize all glyphs and collect sizes
@@ -59,6 +60,7 @@ export function buildAtlas(
 		const result = rasterizeGlyph(font, glyphId, fontSize, {
 			padding: 0,
 			pixelMode,
+			hintTarget,
 			sizeMode,
 		});
 		if (!result) continue;
