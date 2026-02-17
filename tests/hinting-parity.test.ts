@@ -20,6 +20,7 @@ const SYSTEM_FONT_DIRS = [
 	"/Library/Fonts/Supplemental",
 	"/Users/uyakauleu/Library/Fonts",
 ];
+const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
 
 const fontExts = new Set([".ttf", ".otf", ".ttc", ".woff2"]);
 
@@ -563,12 +564,7 @@ testFn(
 			return;
 		}
 
-		const preferredArial =
-			process.env.HINTING_PARITY_ARIAL_PATH ??
-			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
-				? "/Users/uyakauleu/Downloads/aria.ttf"
-				: "/System/Library/Fonts/Supplemental/Arial.ttf");
-		const arialPath = preferredArial;
+		const arialPath = ARIAL_PATH;
 		if (!existsSync(arialPath)) {
 			console.warn("hinting parity: Arial.ttf not available");
 			return;
@@ -637,12 +633,7 @@ testFn(
 			return;
 		}
 
-		const preferredArial =
-			process.env.HINTING_PARITY_ARIAL_PATH ??
-			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
-				? "/Users/uyakauleu/Downloads/aria.ttf"
-				: "/System/Library/Fonts/Supplemental/Arial.ttf");
-		const arialPath = preferredArial;
+		const arialPath = ARIAL_PATH;
 		if (!existsSync(arialPath)) {
 			console.warn("hinting parity: Arial.ttf not available");
 			return;
@@ -707,12 +698,7 @@ testFn(
 	"hint target light and normal diverge for Arial X",
 	{ timeout: testTimeout },
 	async () => {
-		const preferredArial =
-			process.env.HINTING_PARITY_ARIAL_PATH ??
-			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
-				? "/Users/uyakauleu/Downloads/aria.ttf"
-				: "/System/Library/Fonts/Supplemental/Arial.ttf");
-		const arialPath = preferredArial;
+		const arialPath = ARIAL_PATH;
 		if (!existsSync(arialPath)) {
 			console.warn("hinting parity: Arial.ttf not available");
 			return;
@@ -763,12 +749,7 @@ testFn(
 	"hint target auto preserves default Gray behavior",
 	{ timeout: testTimeout },
 	async () => {
-		const preferredArial =
-			process.env.HINTING_PARITY_ARIAL_PATH ??
-			(existsSync("/Users/uyakauleu/Downloads/aria.ttf")
-				? "/Users/uyakauleu/Downloads/aria.ttf"
-				: "/System/Library/Fonts/Supplemental/Arial.ttf");
-		const arialPath = preferredArial;
+		const arialPath = ARIAL_PATH;
 		if (!existsSync(arialPath)) {
 			console.warn("hinting parity: Arial.ttf not available");
 			return;
