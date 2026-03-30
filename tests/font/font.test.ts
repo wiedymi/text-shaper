@@ -574,6 +574,34 @@ describe("Font edge cases", () => {
 			const contours = font.getGlyphContoursWithVariation(glyphA, [0, 0]);
 			expect(contours).not.toBeNull();
 		});
+
+		test("getGlyphContoursWithVariation uses current axis coordinate values", async () => {
+			const variableFont = await Font.fromFile("docs/public/fonts/Inter-Variable.ttf");
+			const glyphA = variableFont.glyphId(0x41);
+			const coords = [0, 0];
+			const baseContours = variableFont.getGlyphContoursWithVariation(glyphA, coords);
+			coords[0] = 1;
+			const variedContours = variableFont.getGlyphContoursWithVariation(glyphA, coords);
+
+			expect(baseContours).not.toBeNull();
+			expect(variedContours).not.toBeNull();
+
+			let changed = false;
+			for (let i = 0; i < baseContours!.length && !changed; i++) {
+				const baseContour = baseContours![i]!;
+				const variedContour = variedContours![i]!;
+				for (let j = 0; j < baseContour.length; j++) {
+					const basePoint = baseContour[j]!;
+					const variedPoint = variedContour[j]!;
+					if (basePoint.x !== variedPoint.x || basePoint.y !== variedPoint.y) {
+						changed = true;
+						break;
+					}
+				}
+			}
+
+			expect(changed).toBe(true);
+		});
 	});
 
 	describe("head table edge cases", () => {

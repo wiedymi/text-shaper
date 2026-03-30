@@ -102,6 +102,18 @@ export function parseGlyf(reader: Reader): GlyfTable {
 	return { reader };
 }
 
+const glyphCache = new WeakMap<GlyfTable, Map<GlyphId, Glyph>>();
+const GLYPH_CACHE_SIZE = 512;
+
+function getGlyphCache(glyf: GlyfTable): Map<GlyphId, Glyph> {
+	let cache = glyphCache.get(glyf);
+	if (!cache) {
+		cache = new Map();
+		glyphCache.set(glyf, cache);
+	}
+	return cache;
+}
+
 /**
  * Parse a single glyph from the glyf table
  */
@@ -110,13 +122,29 @@ export function parseGlyph(
 	loca: LocaTable,
 	glyphId: GlyphId,
 ): Glyph {
+	const cache = getGlyphCache(glyf);
+	const cached = cache.get(glyphId);
+	if (cached !== undefined) return cached;
+
 	const location = getGlyphLocation(loca, glyphId);
 	if (!location) {
-		return { type: "empty" };
+		const emptyGlyph: EmptyGlyph = { type: "empty" };
+		if (cache.size >= GLYPH_CACHE_SIZE) {
+			const firstKey = cache.keys().next().value;
+			if (firstKey !== undefined) cache.delete(firstKey);
+		}
+		cache.set(glyphId, emptyGlyph);
+		return emptyGlyph;
 	}
 
 	const reader = glyf.reader.slice(location.offset, location.length);
-	return parseGlyphData(reader);
+	const glyph = parseGlyphData(reader);
+	if (cache.size >= GLYPH_CACHE_SIZE) {
+		const firstKey = cache.keys().next().value;
+		if (firstKey !== undefined) cache.delete(firstKey);
+	}
+	cache.set(glyphId, glyph);
+	return glyph;
 }
 
 function parseGlyphData(reader: Reader): Glyph {
@@ -497,12 +525,44 @@ export function flattenCompositeGlyph(
 /** LRU cache for composite glyph contours (per glyf table) */
 const compositeCache = new WeakMap<GlyfTable, Map<GlyphId, Contour[]>>();
 const COMPOSITE_CACHE_SIZE = 256;
+const variationContourCache = new WeakMap<
+	GlyfTable,
+	Map<string, Map<GlyphId, Contour[]>>
+>();
+const VARIATION_CONTOUR_CACHE_SIZE = 256;
+
+function getAxisCoordsCacheKey(axisCoords: number[]): string {
+	let key = "";
+	for (let i = 0; i < axisCoords.length; i++) {
+		if (i > 0) key += ",";
+		key += axisCoords[i];
+	}
+	return key;
+}
 
 function getCompositeCache(glyf: GlyfTable): Map<GlyphId, Contour[]> {
 	let cache = compositeCache.get(glyf);
 	if (!cache) {
 		cache = new Map();
 		compositeCache.set(glyf, cache);
+	}
+	return cache;
+}
+
+function getVariationContourCache(
+	glyf: GlyfTable,
+	axisCoords: number[],
+): Map<GlyphId, Contour[]> {
+	let byKey = variationContourCache.get(glyf);
+	if (!byKey) {
+		byKey = new Map();
+		variationContourCache.set(glyf, byKey);
+	}
+	const key = getAxisCoordsCacheKey(axisCoords);
+	let cache = byKey.get(key);
+	if (!cache) {
+		cache = new Map();
+		byKey.set(key, cache);
 	}
 	return cache;
 }
@@ -733,6 +793,12 @@ export function getGlyphContoursWithVariation(
 	glyphId: GlyphId,
 	axisCoords?: number[],
 ): Contour[] {
+	if (axisCoords && axisCoords.length > 0) {
+		const cache = getVariationContourCache(glyf, axisCoords);
+		const cached = cache.get(glyphId);
+		if (cached !== undefined) return cached;
+	}
+
 	const glyph = parseGlyph(glyf, loca, glyphId);
 
 	if (glyph.type === "empty") {
@@ -765,6 +831,15 @@ export function getGlyphContoursWithVariation(
 
 		const deltas = getGlyphDeltas(gvar, glyphId, numPoints, axisCoords);
 		contours = applyVariationDeltas(contours, deltas);
+	}
+
+	if (axisCoords && axisCoords.length > 0) {
+		const cache = getVariationContourCache(glyf, axisCoords);
+		if (cache.size >= VARIATION_CONTOUR_CACHE_SIZE) {
+			const firstKey = cache.keys().next().value;
+			if (firstKey !== undefined) cache.delete(firstKey);
+		}
+		cache.set(glyphId, contours);
 	}
 
 	return contours;

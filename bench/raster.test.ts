@@ -1,6 +1,12 @@
 import { describe, test, beforeAll, expect } from "bun:test"
 import { measure, printComparison, loadFontBuffer, type BenchResult } from "./utils"
-import { Font, rasterizeGlyph, PixelMode } from "../src"
+import {
+	Face,
+	Font,
+	PixelMode,
+	rasterizeGlyph,
+	rasterizeGlyphWithVariation,
+} from "../src"
 import freetype, { RenderMode, type FontFace } from "freetype2"
 
 const FONTS_DIR = "reference/rustybuzz/benches/fonts"
@@ -12,6 +18,8 @@ describe("Rasterization Benchmark", () => {
 	let notoSans: Font
 	let notoSansArabic: Font
 	let variableFont: Font
+	let defaultVariableFace: Face
+	let boldVariableFace: Face
 
 	// FreeType faces
 	let ftNotoSans: FontFace
@@ -34,6 +42,8 @@ describe("Rasterization Benchmark", () => {
 		notoSans = Font.load(await loadFontBuffer(`${FONTS_DIR}/NotoSans-Regular.ttf`))
 		notoSansArabic = Font.load(await loadFontBuffer(`${FONTS_DIR}/NotoSansArabic-Regular.ttf`))
 		variableFont = Font.load(await loadFontBuffer(`${FONTS_DIR}/NotoSans-VariableFont.ttf`))
+		defaultVariableFace = new Face(variableFont, { wght: 400 })
+		boldVariableFace = new Face(variableFont, { wght: 900 })
 
 		// Load fonts with FreeType
 		ftNotoSans = freetype.NewFace(`${FONTS_DIR}/NotoSans-Regular.ttf`)
@@ -353,6 +363,81 @@ describe("Rasterization Benchmark", () => {
 			)
 
 			printComparison("Rasterization - Variable Font (24px, 5 glyphs)", results, "freetype2")
+			expect(results.length).toBe(2)
+		})
+	})
+
+	describe("Variable Font Variations", () => {
+		test("24px variable raster path: default instance vs bold instance", () => {
+			const fontSize = 24
+			const results: BenchResult[] = []
+
+			results.push(
+				measure("default instance", () => {
+					for (const glyphId of LATIN_GLYPHS) {
+						rasterizeGlyphWithVariation(
+							variableFont,
+							glyphId,
+							fontSize,
+							defaultVariableFace.normalizedCoords,
+						)
+					}
+				}, RASTER_OPTS),
+			)
+
+			results.push(
+				measure("bold variation", () => {
+					for (const glyphId of LATIN_GLYPHS) {
+						rasterizeGlyphWithVariation(
+							variableFont,
+							glyphId,
+							fontSize,
+							boldVariableFace.normalizedCoords,
+						)
+					}
+				}, RASTER_OPTS),
+			)
+
+			printComparison(
+				"Rasterization - Variable Font Variations (24px, 5 glyphs)",
+				results,
+				"default instance",
+			)
+			expect(results.length).toBe(2)
+		})
+
+		test("24px default fast path vs variation path", () => {
+			const fontSize = 24
+			const results: BenchResult[] = []
+
+			results.push(
+				measure("rasterizeGlyph", () => {
+					for (const glyphId of LATIN_GLYPHS) {
+						rasterizeGlyph(variableFont, glyphId, fontSize, {
+							pixelMode: PixelMode.Gray,
+						})
+					}
+				}, RASTER_OPTS),
+			)
+
+			results.push(
+				measure("variation path", () => {
+					for (const glyphId of LATIN_GLYPHS) {
+						rasterizeGlyphWithVariation(
+							variableFont,
+							glyphId,
+							fontSize,
+							defaultVariableFace.normalizedCoords,
+						)
+					}
+				}, RASTER_OPTS),
+			)
+
+			printComparison(
+				"Rasterization - Variable Default Instance Fast Path vs Variation Path (24px, 5 glyphs)",
+				results,
+				"rasterizeGlyph",
+			)
 			expect(results.length).toBe(2)
 		})
 	})

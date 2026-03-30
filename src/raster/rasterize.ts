@@ -4,6 +4,7 @@
 
 import type { Font } from "../font/font.ts";
 import { CompositeFlag } from "../font/tables/glyf.ts";
+import { getAdvanceWidthDelta, getLsbDelta } from "../font/tables/hvar.ts";
 import {
 	createHintingEngine,
 	type GlyphOutline,
@@ -20,7 +21,12 @@ import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
 import type { GlyphId } from "../types.ts";
 import { PoolOverflowError } from "./cell.ts";
 import { GrayRaster } from "./gray-raster.ts";
-import { decomposePath, getPathBounds } from "./outline-decompose.ts";
+import {
+	decomposeContours,
+	decomposePath,
+	getContourBounds,
+	getPathBounds,
+} from "./outline-decompose.ts";
 import {
 	type Bitmap,
 	createBitmap,
@@ -489,6 +495,54 @@ function glyphToOutline(
 	};
 }
 
+function glyphToOutlineWithVariation(
+	font: Font,
+	glyphId: GlyphId,
+	axisCoords: number[],
+): GlyphOutline | null {
+	const glyph = font.getGlyph(glyphId);
+	if (!glyph || glyph.type === "empty") return null;
+
+	const contours = font.getGlyphContoursWithVariation(glyphId, axisCoords);
+	if (!contours || contours.length === 0) return null;
+
+	const xCoords: number[] = [];
+	const yCoords: number[] = [];
+	const flags: number[] = [];
+	const contourEnds: number[] = [];
+
+	let advanceWidth = font.advanceWidth(glyphId);
+	let lsb = font.leftSideBearing(glyphId);
+	if (axisCoords.length > 0 && font.hvar) {
+		advanceWidth += getAdvanceWidthDelta(font.hvar, glyphId, axisCoords);
+		lsb += getLsbDelta(font.hvar, glyphId, axisCoords);
+	}
+
+	let pointIndex = 0;
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			const point = contour[j]!;
+			xCoords.push(point.x);
+			yCoords.push(point.y);
+			flags.push(point.onCurve ? 1 : 0);
+			pointIndex++;
+		}
+		contourEnds.push(pointIndex - 1);
+	}
+
+	return {
+		xCoords,
+		yCoords,
+		flags: new Uint8Array(flags),
+		contourEnds,
+		instructions: glyph.instructions,
+		lsb,
+		advanceWidth,
+		isComposite: glyph.type === "composite",
+	};
+}
+
 /** Decompose hinted glyph to rasterizer */
 function decomposeHintedGlyph(
 	raster: GrayRaster,
@@ -710,6 +764,98 @@ export function rasterizeGlyph(
 	};
 }
 
+export function rasterizeGlyphWithVariation(
+	font: Font,
+	glyphId: GlyphId,
+	fontSize: number,
+	axisCoords: number[],
+	options?: GlyphRasterizeOptions,
+): RasterizedGlyph | null {
+	const useHinting = options?.hinting ?? false;
+	const hintTarget = options?.hintTarget ?? "auto";
+	let hasVariation = false;
+	for (let i = 0; i < axisCoords.length; i++) {
+		if (axisCoords[i] !== 0) {
+			hasVariation = true;
+			break;
+		}
+	}
+	if (!hasVariation) {
+		return rasterizeGlyph(font, glyphId, fontSize, options);
+	}
+
+	const padding = options?.padding ?? 0;
+	const pixelMode = options?.pixelMode ?? PixelMode.Gray;
+	const sizeMode = options?.sizeMode;
+	const effectiveSize = resolveFontSize(font, fontSize, sizeMode);
+
+	if (useHinting && font.hasHinting) {
+		const pointSize = sizeMode === "height" ? fontSize : effectiveSize;
+		const result = rasterizeHintedGlyphWithVariation(
+			font,
+			glyphId,
+			effectiveSize,
+			padding,
+			pixelMode,
+			axisCoords,
+			pointSize,
+			hintTarget,
+		);
+		if (result) return result;
+	}
+
+	const contours = font.getGlyphContoursWithVariation(glyphId, axisCoords);
+	if (!contours || contours.length === 0) return null;
+
+	const scale = effectiveSize / font.unitsPerEm;
+	const bounds = getContourBounds(contours, scale, true, true);
+	if (!bounds) {
+		return {
+			bitmap: createBitmap(1, 1, pixelMode),
+			bearingX: 0,
+			bearingY: 0,
+		};
+	}
+
+	const width = bounds.maxX - bounds.minX + padding * 2;
+	const height = bounds.maxY - bounds.minY + padding * 2;
+	if (width <= 0 || height <= 0) {
+		return {
+			bitmap: createBitmap(1, 1, pixelMode),
+			bearingX: 0,
+			bearingY: 0,
+		};
+	}
+
+	const bitmap = createBitmap(width, height, pixelMode);
+	const raster = getSharedRaster();
+	raster.setClip(0, 0, width, height);
+	const offsetX = -bounds.minX + padding;
+	const offsetY = -bounds.minY + padding;
+
+	if (height > BAND_PROCESSING_THRESHOLD) {
+		const decomposeFn = () =>
+			decomposeContours(raster, contours, scale, offsetX, offsetY, true);
+		raster.renderWithBands(
+			bitmap,
+			decomposeFn,
+			{ minY: 0, maxY: height },
+			FillRule.NonZero,
+		);
+	} else {
+		raster.setBandBounds(0, height);
+		raster.reset();
+		decomposeContours(raster, contours, scale, offsetX, offsetY, true);
+		raster.sweep(bitmap, FillRule.NonZero);
+	}
+
+	return {
+		bitmap,
+		bearingX: bounds.minX - padding,
+		bearingY: -(bounds.minY - padding),
+	};
+}
+
 /**
  * Rasterize a glyph and apply a bitmap transform (2D or 3D)
  */
@@ -866,6 +1012,106 @@ function rasterizeHintedGlyph(
 	}
 
 	// Copy to owned buffer (shared buffer will be reused on next call)
+	const bitmap = createBitmap(width, height, pixelMode);
+	bitmap.buffer.set(tempBitmap.buffer);
+
+	return {
+		bitmap,
+		bearingX: bMinX - padding,
+		bearingY: bMaxY + padding,
+	};
+}
+
+function rasterizeHintedGlyphWithVariation(
+	font: Font,
+	glyphId: GlyphId,
+	fontSize: number,
+	padding: number,
+	pixelMode: PixelMode,
+	axisCoords: number[],
+	pointSize: number = fontSize,
+	hintTarget: HintTarget = "auto",
+): RasterizedGlyph | null {
+	const engine = getHintingEngine(font);
+	if (!engine) return null;
+
+	const ppem = Math.round(fontSize);
+	engine.ctx.lightMode = resolveHintLightMode(hintTarget, pixelMode);
+	engine.ctx.renderMode =
+		pixelMode === PixelMode.Mono
+			? "mono"
+			: pixelMode === PixelMode.LCD
+				? "lcd"
+				: pixelMode === PixelMode.LCD_V
+					? "lcd_v"
+					: "gray";
+	engine.ctx.grayscale =
+		engine.ctx.renderMode !== "mono" && !engine.ctx.lightMode;
+
+	const error = setSize(engine, ppem, pointSize);
+	if (error) return null;
+
+	const outline = glyphToOutlineWithVariation(font, glyphId, axisCoords);
+	if (!outline) return null;
+
+	const hinted = hintGlyph(engine, outline);
+	if (hinted.error || hinted.xCoords.length === 0) return null;
+
+	const xCoords = hinted.xCoords;
+	const yCoords = hinted.yCoords;
+	let minX26 = xCoords[0];
+	let minY26 = yCoords[0];
+	let maxX26 = xCoords[0];
+	let maxY26 = yCoords[0];
+	for (let i = 1; i < xCoords.length; i++) {
+		const x = xCoords[i];
+		const y = yCoords[i];
+		if (x < minX26) minX26 = x;
+		if (x > maxX26) maxX26 = x;
+		if (y < minY26) minY26 = y;
+		if (y > maxY26) maxY26 = y;
+	}
+	if (!Number.isFinite(minX26)) {
+		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
+	}
+
+	const bMinX = Math.floor(minX26 / 64);
+	const bMinY = Math.floor(minY26 / 64);
+	const bMaxX = Math.floor((maxX26 + 63) / 64);
+	const bMaxY = Math.floor((maxY26 + 63) / 64);
+	const width = bMaxX - bMinX + padding * 2;
+	const height = bMaxY - bMinY + padding * 2;
+	if (width <= 0 || height <= 0) {
+		return { bitmap: createBitmap(1, 1, pixelMode), bearingX: 0, bearingY: 0 };
+	}
+
+	const tempBitmap = createBitmapShared(width, height, pixelMode);
+	const raster = getSharedRaster();
+	raster.setClip(0, 0, width, height);
+	raster.setBandBounds(0, height);
+	raster.reset();
+
+	const offsetX = -bMinX + padding;
+	const offsetY = bMaxY + padding;
+	const decomposeFn = () => decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
+
+	try {
+		decomposeFn();
+		raster.sweep(tempBitmap, FillRule.NonZero);
+	} catch (e) {
+		if (e instanceof PoolOverflowError) {
+			raster.reset();
+			raster.renderWithBands(
+				tempBitmap,
+				decomposeFn,
+				{ minY: 0, maxY: height, minX: 0, maxX: width },
+				FillRule.NonZero,
+			);
+		} else {
+			throw e;
+		}
+	}
+
 	const bitmap = createBitmap(width, height, pixelMode);
 	bitmap.buffer.set(tempBitmap.buffer);
 

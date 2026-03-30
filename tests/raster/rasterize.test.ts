@@ -1,9 +1,15 @@
 import { describe, expect, test, beforeAll } from "bun:test";
+import { Face } from "../../src/font/face.ts";
 import { Font } from "../../src/font/font.ts";
-import { getGlyphPath } from "../../src/render/path.ts";
+import {
+	getGlyphPath,
+	getGlyphPathWithVariation,
+} from "../../src/render/path.ts";
+import { getPathBounds } from "../../src/raster/outline-decompose.ts";
 import {
 	rasterizePath,
 	rasterizeGlyph,
+	rasterizeGlyphWithVariation,
 	rasterizeText,
 	bitmapToRGBA,
 	bitmapToGray,
@@ -17,13 +23,49 @@ import {
 import { GrayRaster } from "../../src/raster/gray-raster.ts";
 
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
+const INTER_VAR_PATH = "docs/public/fonts/Inter-Variable.ttf";
+const NOTO_VAR_PATH = "reference/rustybuzz/benches/fonts/NotoSans-VariableFont.ttf";
 
 describe("raster/rasterize", () => {
 	let font: Font;
+	let variableFont: Font;
+	let notoVariableFont: Font;
 
 	beforeAll(async () => {
 		font = await Font.fromFile(ARIAL_PATH);
+		variableFont = await Font.fromFile(INTER_VAR_PATH);
+		notoVariableFont = await Font.fromFile(NOTO_VAR_PATH);
 	});
+
+	function rasterizeVariationPathReference(
+		font: Font,
+		glyphId: number,
+		fontSize: number,
+		axisCoords: number[],
+	) {
+		const path = getGlyphPathWithVariation(font, glyphId, axisCoords);
+		if (!path) return null;
+		const scale = fontSize / font.unitsPerEm;
+		const bounds = getPathBounds(path, scale, true, true);
+		if (!bounds) return null;
+		const width = bounds.maxX - bounds.minX;
+		const height = bounds.maxY - bounds.minY;
+		if (width <= 0 || height <= 0) return null;
+		const bitmap = rasterizePath(path, {
+			width,
+			height,
+			scale,
+			offsetX: -bounds.minX,
+			offsetY: -bounds.minY,
+			pixelMode: PixelMode.Gray,
+			flipY: true,
+		});
+		return {
+			bitmap,
+			bearingX: bounds.minX,
+			bearingY: -bounds.minY,
+		};
+	}
 
 	describe("rasterizePath", () => {
 		test("rasterizes simple rectangle path", () => {
@@ -235,6 +277,115 @@ describe("raster/rasterize", () => {
 				}
 			}
 			expect(allZero).toBe(true);
+		});
+	});
+
+	describe("rasterizeGlyphWithVariation", () => {
+		test("matches rasterizeGlyph for default normalized coords", () => {
+			const glyphId = 36;
+			const face = new Face(variableFont, { wght: 400 });
+			const direct = rasterizeGlyph(variableFont, glyphId, 48, {
+				pixelMode: PixelMode.Gray,
+			});
+			const varied = rasterizeGlyphWithVariation(
+				variableFont,
+				glyphId,
+				48,
+				face.normalizedCoords,
+				{ pixelMode: PixelMode.Gray },
+			);
+
+			expect(direct).not.toBeNull();
+			expect(varied).not.toBeNull();
+			expect(varied!.bitmap.width).toBe(direct!.bitmap.width);
+			expect(varied!.bitmap.rows).toBe(direct!.bitmap.rows);
+			expect(varied!.bearingX).toBe(direct!.bearingX);
+			expect(varied!.bearingY).toBe(direct!.bearingY);
+			expect(Array.from(varied!.bitmap.buffer)).toEqual(
+				Array.from(direct!.bitmap.buffer),
+			);
+		});
+
+		test("matches path-based variation raster reference", () => {
+			const glyphId = 36;
+			const face = new Face(variableFont, { wght: 900 });
+			const direct = rasterizeGlyphWithVariation(
+				variableFont,
+				glyphId,
+				48,
+				face.normalizedCoords,
+				{ pixelMode: PixelMode.Gray },
+			);
+			const reference = rasterizeVariationPathReference(
+				variableFont,
+				glyphId,
+				48,
+				face.normalizedCoords,
+			);
+
+			expect(direct).not.toBeNull();
+			expect(reference).not.toBeNull();
+			expect(direct!.bitmap.width).toBe(reference!.bitmap.width);
+			expect(direct!.bitmap.rows).toBe(reference!.bitmap.rows);
+			expect(direct!.bearingX).toBe(reference!.bearingX);
+			expect(direct!.bearingY).toBe(reference!.bearingY);
+			expect(Array.from(direct!.bitmap.buffer)).toEqual(
+				Array.from(reference!.bitmap.buffer),
+			);
+		});
+
+		test("changes output for non-default variation coords", () => {
+			const glyphId = 36;
+			const base = new Face(variableFont, { wght: 400 });
+			const bold = new Face(variableFont, { wght: 900 });
+			const baseRaster = rasterizeGlyphWithVariation(
+				variableFont,
+				glyphId,
+				48,
+				base.normalizedCoords,
+			);
+			const boldRaster = rasterizeGlyphWithVariation(
+				variableFont,
+				glyphId,
+				48,
+				bold.normalizedCoords,
+			);
+
+			expect(baseRaster).not.toBeNull();
+			expect(boldRaster).not.toBeNull();
+			expect(
+				boldRaster!.bitmap.width !== baseRaster!.bitmap.width ||
+					boldRaster!.bitmap.rows !== baseRaster!.bitmap.rows ||
+					!boldRaster!.bitmap.buffer.every(
+						(value, index) => value === baseRaster!.bitmap.buffer[index],
+					),
+			).toBe(true);
+		});
+
+		test("honors hinting for non-default variation coords", () => {
+			const face = new Face(notoVariableFont, { wght: 900 });
+			const unhinted = rasterizeGlyphWithVariation(
+				notoVariableFont,
+				36,
+				8,
+				face.normalizedCoords,
+				{ hinting: false },
+			);
+			const hinted = rasterizeGlyphWithVariation(
+				notoVariableFont,
+				36,
+				8,
+				face.normalizedCoords,
+				{ hinting: true },
+			);
+
+			expect(unhinted).not.toBeNull();
+			expect(hinted).not.toBeNull();
+			expect(
+				hinted!.bitmap.buffer.every(
+					(value, index) => value === unhinted!.bitmap.buffer[index],
+				),
+			).toBe(false);
 		});
 	});
 

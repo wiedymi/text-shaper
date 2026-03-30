@@ -3,6 +3,10 @@
  */
 
 import {
+	type Contour,
+	type GlyphPoint,
+} from "../font/tables/glyf.ts";
+import {
 	type GlyphPath,
 	OutlineFlags,
 	type PathCommand,
@@ -255,6 +259,336 @@ export function decomposePath(
 	if (inContour) {
 		raster.lineTo(startX, startY);
 	}
+}
+
+function movePoint(
+	raster: GrayRaster,
+	point: GlyphPoint,
+	scaleX: number,
+	scaleY: number,
+	offX: number,
+	offY: number,
+): [number, number] {
+	const x = Math.round(point.x * scaleX + offX);
+	const y = Math.round(point.y * scaleY + offY);
+	raster.moveTo(x, y);
+	return [x, y];
+}
+
+function linePoint(
+	raster: GrayRaster,
+	point: GlyphPoint,
+	scaleX: number,
+	scaleY: number,
+	offX: number,
+	offY: number,
+): [number, number] {
+	const x = Math.round(point.x * scaleX + offX);
+	const y = Math.round(point.y * scaleY + offY);
+	raster.lineTo(x, y);
+	return [x, y];
+}
+
+function conicPoint(
+	raster: GrayRaster,
+	control: GlyphPoint,
+	endX: number,
+	endY: number,
+	scaleX: number,
+	scaleY: number,
+	offX: number,
+	offY: number,
+): [number, number] {
+	const cx = Math.round(control.x * scaleX + offX);
+	const cy = Math.round(control.y * scaleY + offY);
+	const x = Math.round(endX * scaleX + offX);
+	const y = Math.round(endY * scaleY + offY);
+	raster.conicTo(cx, cy, x, y);
+	return [x, y];
+}
+
+function cubicPoint(
+	raster: GrayRaster,
+	cp1: GlyphPoint,
+	cp2: GlyphPoint,
+	end: GlyphPoint,
+	scaleX: number,
+	scaleY: number,
+	offX: number,
+	offY: number,
+): [number, number] {
+	const cx1 = Math.round(cp1.x * scaleX + offX);
+	const cy1 = Math.round(cp1.y * scaleY + offY);
+	const cx2 = Math.round(cp2.x * scaleX + offX);
+	const cy2 = Math.round(cp2.y * scaleY + offY);
+	const x = Math.round(end.x * scaleX + offX);
+	const y = Math.round(end.y * scaleY + offY);
+	raster.cubicTo(cx1, cy1, cx2, cy2, x, y);
+	return [x, y];
+}
+
+function decomposeQuadraticContour(
+	raster: GrayRaster,
+	contour: Contour,
+	scaleX: number,
+	scaleY: number,
+	offX: number,
+	offY: number,
+): void {
+	let startIndex = 0;
+	for (let i = 0; i < contour.length; i++) {
+		const point = contour[i]!;
+		if (point.onCurve) {
+			startIndex = i;
+			break;
+		}
+	}
+
+	const n = contour.length;
+	let startPoint: GlyphPoint;
+	let allOffCurve = true;
+	for (let i = 0; i < n; i++) {
+		if (contour[i]!.onCurve) {
+			allOffCurve = false;
+			break;
+		}
+	}
+
+	if (allOffCurve) {
+		const first = contour[0]!;
+		const last = contour[n - 1]!;
+		startPoint = {
+			x: (first.x + last.x) * 0.5,
+			y: (first.y + last.y) * 0.5,
+			onCurve: true,
+		};
+		startIndex = 0;
+	} else {
+		startPoint = contour[startIndex]!;
+	}
+
+	let startX: number;
+	let startY: number;
+	[startX, startY] = movePoint(raster, startPoint, scaleX, scaleY, offX, offY);
+
+	let currentX = startX;
+	let currentY = startY;
+	let i = allOffCurve ? 0 : startIndex + 1;
+	if (i >= n) i = 0;
+	let iterations = 0;
+
+	while (iterations < n) {
+		const point = contour[i]!;
+		if (point.onCurve) {
+			[currentX, currentY] = linePoint(raster, point, scaleX, scaleY, offX, offY);
+		} else {
+			const nextIndex = i + 1 < n ? i + 1 : 0;
+			const nextPoint = contour[nextIndex]!;
+			if (nextPoint.onCurve) {
+				[currentX, currentY] = conicPoint(
+					raster,
+					point,
+					nextPoint.x,
+					nextPoint.y,
+					scaleX,
+					scaleY,
+					offX,
+					offY,
+				);
+				i = nextIndex;
+				iterations++;
+			} else {
+				[currentX, currentY] = conicPoint(
+					raster,
+					point,
+					(point.x + nextPoint.x) * 0.5,
+					(point.y + nextPoint.y) * 0.5,
+					scaleX,
+					scaleY,
+					offX,
+					offY,
+				);
+			}
+		}
+
+		i++;
+		if (i >= n) i = 0;
+		iterations++;
+
+		if (currentX === startX && currentY === startY) break;
+	}
+
+	raster.lineTo(startX, startY);
+}
+
+function decomposeCubicContour(
+	raster: GrayRaster,
+	contour: Contour,
+	scaleX: number,
+	scaleY: number,
+	offX: number,
+	offY: number,
+): void {
+	const first = contour[0]!;
+	const [startX, startY] = movePoint(raster, first, scaleX, scaleY, offX, offY);
+	let currentX = startX;
+	let currentY = startY;
+	let i = 1;
+
+	while (i < contour.length) {
+		const point = contour[i]!;
+		if (point.onCurve) {
+			[currentX, currentY] = linePoint(raster, point, scaleX, scaleY, offX, offY);
+			i++;
+			continue;
+		}
+		if (point.cubic) {
+			const cp2 = contour[i + 1];
+			const end = contour[i + 2];
+			if (!cp2 || !end) {
+				i++;
+				continue;
+			}
+			[currentX, currentY] = cubicPoint(
+				raster,
+				point,
+				cp2,
+				end,
+				scaleX,
+				scaleY,
+				offX,
+				offY,
+			);
+			i += 3;
+			continue;
+		}
+		const next = contour[i + 1];
+		if (!next) break;
+		if (next.onCurve) {
+			[currentX, currentY] = conicPoint(
+				raster,
+				point,
+				next.x,
+				next.y,
+				scaleX,
+				scaleY,
+				offX,
+				offY,
+			);
+			i += 2;
+		} else {
+			[currentX, currentY] = conicPoint(
+				raster,
+				point,
+				(point.x + next.x) * 0.5,
+				(point.y + next.y) * 0.5,
+				scaleX,
+				scaleY,
+				offX,
+				offY,
+			);
+			i++;
+		}
+	}
+
+	if (currentX !== startX || currentY !== startY) {
+		raster.lineTo(startX, startY);
+	}
+}
+
+export function decomposeContours(
+	raster: GrayRaster,
+	contours: Contour[],
+	scale: number,
+	offsetX: number = 0,
+	offsetY: number = 0,
+	flipY: boolean = true,
+): void {
+	const scaleX = scale * ONE_PIXEL;
+	const scaleY = (flipY ? -scale : scale) * ONE_PIXEL;
+	const offX = offsetX * ONE_PIXEL;
+	const offY = offsetY * ONE_PIXEL;
+
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		if (contour.length === 0) continue;
+		if (contour[0]!.cubic) {
+			decomposeCubicContour(raster, contour, scaleX, scaleY, offX, offY);
+		} else {
+			decomposeQuadraticContour(raster, contour, scaleX, scaleY, offX, offY);
+		}
+	}
+}
+
+export function getContourBounds(
+	contours: Contour[],
+	scale: number,
+	flipY: boolean = true,
+	roundToGrid: boolean = false,
+): { minX: number; minY: number; maxX: number; maxY: number } | null {
+	let minX = Infinity;
+	let minY = Infinity;
+	let maxX = -Infinity;
+	let maxY = -Infinity;
+
+	if (roundToGrid) {
+		const scale26Fix = Math.round(scale * 64 * 0x10000);
+		for (let i = 0; i < contours.length; i++) {
+			const contour = contours[i]!;
+			for (let j = 0; j < contour.length; j++) {
+				const point = contour[j]!;
+				const x = mulFix(point.x, scale26Fix);
+				const y = mulFix(point.y, scale26Fix);
+				if (x < minX) minX = x;
+				if (x > maxX) maxX = x;
+				if (y < minY) minY = y;
+				if (y > maxY) maxY = y;
+			}
+		}
+		if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
+		if (flipY) {
+			const flippedMinY = -maxY;
+			const flippedMaxY = -minY;
+			return {
+				minX: Math.floor(minX / 64),
+				minY: Math.floor(flippedMinY / 64),
+				maxX: Math.floor((maxX + 63) / 64),
+				maxY: Math.floor((flippedMaxY + 63) / 64),
+			};
+		}
+		return {
+			minX: Math.floor(minX / 64),
+			minY: Math.floor(minY / 64),
+			maxX: Math.floor((maxX + 63) / 64),
+			maxY: Math.floor((maxY + 63) / 64),
+		};
+	}
+
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			const point = contour[j]!;
+			if (point.x < minX) minX = point.x;
+			if (point.x > maxX) maxX = point.x;
+			if (point.y < minY) minY = point.y;
+			if (point.y > maxY) maxY = point.y;
+		}
+	}
+	if (!Number.isFinite(minX) || !Number.isFinite(minY)) return null;
+	if (flipY) {
+		return {
+			minX: Math.floor(minX * scale),
+			minY: Math.floor(-maxY * scale),
+			maxX: Math.ceil(maxX * scale),
+			maxY: Math.ceil(-minY * scale),
+		};
+	}
+	return {
+		minX: Math.floor(minX * scale),
+		minY: Math.floor(minY * scale),
+		maxX: Math.ceil(maxX * scale),
+		maxY: Math.ceil(maxY * scale),
+	};
 }
 
 /**

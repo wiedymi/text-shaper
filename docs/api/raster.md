@@ -193,6 +193,25 @@ function rasterizeGlyph(
 ): RasterizedGlyph | null
 ```
 
+### rasterizeGlyphWithVariation
+
+Rasterize a single glyph with normalized variation coordinates applied.
+
+```typescript
+function rasterizeGlyphWithVariation(
+  font: Font,
+  glyphId: GlyphId,
+  fontSize: number,
+  axisCoords: number[],
+  options?: {
+    pixelMode?: PixelMode;
+    padding?: number;
+    hinting?: boolean;
+    sizeMode?: FontSizeMode;
+  }
+): RasterizedGlyph | null
+```
+
 ### rasterizeGlyphWithTransform
 
 Rasterize a glyph and apply a bitmap transform (2D or 3D).

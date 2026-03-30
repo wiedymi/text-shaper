@@ -706,6 +706,7 @@ export {
 	bitmapToGray,
 	bitmapToRGBA,
 	rasterizeGlyph,
+	rasterizeGlyphWithVariation,
 	rasterizeGlyphWithTransform,
 	rasterizePath,
 	rasterizeText,
