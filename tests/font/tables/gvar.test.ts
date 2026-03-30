@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeAll } from "bun:test";
 import { Font } from "../../../src/font/font.ts";
+import { Face } from "../../../src/font/face.ts";
 import {
 	parseGvar,
 	calculateTupleScalar,
@@ -13,6 +14,7 @@ import { Reader } from "../../../src/font/binary/reader.ts";
 const SFNS_PATH = "/System/Library/Fonts/SFNS.ttf";
 const SF_COMPACT_PATH = "/System/Library/Fonts/SFCompact.ttf";
 const NEW_YORK_PATH = "/System/Library/Fonts/NewYork.ttf";
+const INTER_VAR_PATH = "docs/public/fonts/Inter-Variable.ttf";
 
 describe("gvar table - SFNS", () => {
 	let font: Font;
@@ -696,6 +698,28 @@ function createMockGvarWithPackedPoints(packedPointsData: Uint8Array): any {
 }
 
 describe("comprehensive real font data tests", () => {
+	test("parses repo variable font and applies outline deltas", async () => {
+		const font = await Font.fromFile(INTER_VAR_PATH);
+		expect(font.gvar).not.toBeNull();
+
+		const glyphId = font.glyphIdForChar("A");
+		const baseFace = new Face(font, { wght: 400 });
+		const variedFace = new Face(font, { wght: 900 });
+		const baseContours = font.getGlyphContoursWithVariation(
+			glyphId,
+			baseFace.normalizedCoords,
+		);
+		const variedContours = font.getGlyphContoursWithVariation(
+			glyphId,
+			variedFace.normalizedCoords,
+		);
+
+		expect(baseContours).not.toBeNull();
+		expect(variedContours).not.toBeNull();
+		expect(JSON.stringify(variedContours)).not.toBe(JSON.stringify(baseContours));
+	});
+
+
 	test("test all variations with non-zero scalars", async () => {
 		const font = await Font.fromFile(NEW_YORK_PATH);
 		const gvar = font.gvar;

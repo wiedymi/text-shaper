@@ -234,9 +234,20 @@ describe("applyAvarMapping", () => {
 		const singleMap: AxisSegmentMap = {
 			axisValueMaps: [{ fromCoordinate: 0.0, toCoordinate: 0.5 }],
 		};
-		expect(applyAvarMapping(singleMap, 0.0)).toBeCloseTo(0.5, 5);
-		expect(applyAvarMapping(singleMap, -1.0)).toBeCloseTo(0.5, 5);
-		expect(applyAvarMapping(singleMap, 1.0)).toBeCloseTo(0.5, 5);
+		expect(applyAvarMapping(singleMap, 0.0)).toBeCloseTo(0.0, 5);
+		expect(applyAvarMapping(singleMap, -1.0)).toBeCloseTo(-1.0, 5);
+		expect(applyAvarMapping(singleMap, 1.0)).toBeCloseTo(1.0, 5);
+	});
+
+	test("ignores malformed maps that do not preserve extrema", () => {
+		const malformedMap: AxisSegmentMap = {
+			axisValueMaps: [
+				{ fromCoordinate: -1.0, toCoordinate: -1.0 },
+				{ fromCoordinate: 0.25, toCoordinate: 0.5 },
+				{ fromCoordinate: 1.0, toCoordinate: 1.0 },
+			],
+		};
+		expect(applyAvarMapping(malformedMap, 0.25)).toBeCloseTo(0.25, 5);
 	});
 
 	test("linear mapping (identity)", () => {
@@ -278,6 +289,39 @@ describe("applyAvarMapping", () => {
 				expect(result).toBeLessThanOrEqual(1.0);
 			}
 		}
+	});
+});
+
+describe("parseAvar regressions", () => {
+	test("reads axisCount before segment maps", () => {
+		const buffer = new Uint8Array(32);
+		const view = new DataView(buffer.buffer);
+
+		view.setUint16(0, 1);
+		view.setUint16(2, 0);
+		view.setUint16(4, 0);
+		view.setUint16(6, 2);
+
+		let offset = 8;
+		view.setUint16(offset, 3);
+		offset += 2;
+		for (const [from, to] of [
+			[-1, -1],
+			[0, 0],
+			[1, 1],
+		] as const) {
+			view.setInt16(offset, from * 16384);
+			view.setInt16(offset + 2, to * 16384);
+			offset += 4;
+		}
+
+		view.setUint16(offset, 0);
+
+		const avar = parseAvar(new Reader(buffer.buffer), 2);
+		expect(avar.axisSegmentMaps.length).toBe(2);
+		expect(avar.axisSegmentMaps[0]?.axisValueMaps[1]?.fromCoordinate).toBe(0);
+		expect(avar.axisSegmentMaps[0]?.axisValueMaps[1]?.toCoordinate).toBe(0);
+		expect(avar.axisSegmentMaps[1]?.axisValueMaps).toEqual([]);
 	});
 });
 
@@ -422,7 +466,7 @@ describe("edge cases", () => {
 			],
 		};
 		const result = applyAvarMapping(segmentMap, 0.5);
-		expect(result).toBeCloseTo(0.4, 5);
+		expect(result).toBeCloseTo(0.5, 5);
 	});
 
 	test("applyAvarMapping at exact segment boundary", () => {
@@ -433,7 +477,7 @@ describe("edge cases", () => {
 				{ fromCoordinate: 1.0, toCoordinate: 1.0 },
 			],
 		};
-		expect(applyAvarMapping(segmentMap, 0.0)).toBeCloseTo(0.2, 5);
+		expect(applyAvarMapping(segmentMap, 0.0)).toBeCloseTo(0.0, 5);
 	});
 
 	test("applyAvar with no segment maps", () => {

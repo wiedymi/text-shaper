@@ -492,7 +492,25 @@ export class Font {
 	get gvar(): GvarTable | null {
 		if (this._gvar === undefined) {
 			const reader = this.getTableReader(Tags.gvar);
-			this._gvar = reader ? parseGvar(reader, this.numGlyphs) : null;
+			const pointCountCache: Array<number | undefined> = [];
+			this._gvar = reader
+				? parseGvar(reader, this.numGlyphs, (glyphId) => {
+						const cached = pointCountCache[glyphId];
+						if (cached !== undefined) return cached;
+						if (!this.glyf || !this.loca) return 0;
+						const glyph = parseGlyph(this.glyf, this.loca, glyphId);
+						let pointCount = 0;
+						if (glyph.type === "simple") {
+							for (let i = 0; i < glyph.contours.length; i++) {
+								pointCount += glyph.contours[i]?.length ?? 0;
+							}
+						} else if (glyph.type === "composite") {
+							pointCount = glyph.components.length;
+						}
+						pointCountCache[glyphId] = pointCount;
+						return pointCount;
+					})
+				: null;
 		}
 		return this._gvar;
 	}

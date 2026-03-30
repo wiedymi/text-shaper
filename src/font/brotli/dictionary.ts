@@ -1,9 +1,8 @@
 /**
- * Brotli static dictionary
- * Based on brotli.js reference implementation (Apache 2.0 License)
- *
- * The dictionary is loaded lazily to avoid bloating the initial bundle.
+ * Brotli static dictionary.
  */
+
+import { DICTIONARY_DATA } from "./dictionary-data.ts";
 
 // Offsets into the dictionary by word length (4-24)
 export const DICTIONARY_OFFSETS_BY_LENGTH = new Uint32Array([
@@ -21,9 +20,8 @@ export const DICTIONARY_SIZE_BITS_BY_LENGTH = new Uint8Array([
 export const MIN_DICTIONARY_WORD_LENGTH = 4;
 export const MAX_DICTIONARY_WORD_LENGTH = 24;
 
-// The Brotli dictionary is ~122KB of static data
-// For WOFF2 fonts, dictionary references are relatively rare in font data
-// since fonts are mostly binary glyph data, not text.
-// We initialize an empty dictionary - if dictionary references are needed,
-// the full dictionary can be loaded separately.
-export const DICTIONARY = new Uint8Array(122784);
+if (DICTIONARY_DATA.length !== 122784) {
+	throw new Error("Failed to load Brotli static dictionary");
+}
+
+export const DICTIONARY = DICTIONARY_DATA;

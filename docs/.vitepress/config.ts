@@ -16,8 +16,7 @@ export default defineConfig({
       }
     },
     optimizeDeps: {
-      force: true,
-      include: ['text-shaper']
+      exclude: ['text-shaper']
     },
     plugins: [
       llmstxt({

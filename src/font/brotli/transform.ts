@@ -1,6 +1,5 @@
 /**
- * Dictionary word transformations for Brotli decompression
- * Based on brotli.js reference implementation (Apache 2.0 License)
+ * Dictionary word transformations for Brotli decompression.
  */
 
 const IDENTITY = 0;

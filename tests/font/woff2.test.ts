@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { woff2ToSfnt } from "../../src/font/woff2.ts";
 import { Font } from "../../src/font/font.ts";
+import { getGlyphPath } from "../../src/render/path.ts";
 
 const WOFF2_FONT_PATH =
-	"/Users/uyakauleu/vivy/experiments/typeshaper/node_modules/vitepress/dist/client/theme-default/fonts/inter-roman-latin.woff2";
+	"docs/public/fonts/Inter-Variable.woff2";
+const TTF_FONT_PATH = "docs/public/fonts/Inter-Variable.ttf";
 
 function isMissingFile(e: any): boolean {
 	return (
@@ -67,6 +69,36 @@ describe("WOFF2 decoder", () => {
 			}
 		});
 
+		test("uses the pure TypeScript Brotli path when DecompressionStream is unavailable", async () => {
+			try {
+				const originalDecompressionStream = globalThis.DecompressionStream;
+				// Force the fallback path so the in-tree decoder is exercised in CI and locally.
+				(globalThis as typeof globalThis & { DecompressionStream?: typeof DecompressionStream })
+					.DecompressionStream = undefined;
+				try {
+					const file = Bun.file(WOFF2_FONT_PATH);
+					const buffer = await file.arrayBuffer();
+					const sfnt = await woff2ToSfnt(buffer);
+
+					const font = Font.load(sfnt);
+					expect(font).toBeInstanceOf(Font);
+					expect(font.numGlyphs).toBeGreaterThan(0);
+				} finally {
+					(
+						globalThis as typeof globalThis & {
+							DecompressionStream?: typeof DecompressionStream;
+						}
+					).DecompressionStream = originalDecompressionStream;
+				}
+			} catch (e: any) {
+				if (isMissingFile(e)) {
+					expect(true).toBe(true);
+				} else {
+					throw e;
+				}
+			}
+		});
+
 		test("throws on missing required tables", async () => {
 			const data = createInvalidWoff2MissingTables();
 			await expect(woff2ToSfnt(data)).rejects.toThrow();
@@ -81,6 +113,28 @@ describe("WOFF2 decoder", () => {
 				const view = new DataView(sfnt);
 				const flavor = view.getUint32(0, false);
 				expect([0x00010000, 0x4f54544f]).toContain(flavor);
+			} catch (e: any) {
+				if (isMissingFile(e)) {
+					expect(true).toBe(true);
+				} else {
+					throw e;
+				}
+			}
+		});
+
+		test("reconstructs glyph bounds identically to the source TTF", async () => {
+			try {
+				const woffBuffer = await Bun.file(WOFF2_FONT_PATH).arrayBuffer();
+				const sfnt = await woff2ToSfnt(woffBuffer);
+				const woffFont = Font.load(sfnt);
+				const ttfFont = await Font.fromFile(TTF_FONT_PATH);
+
+				const glyphId = ttfFont.glyphId("A".codePointAt(0)!);
+				const ttfPath = getGlyphPath(ttfFont, glyphId);
+				const woffPath = getGlyphPath(woffFont, glyphId);
+
+				expect(woffPath?.bounds).toEqual(ttfPath?.bounds);
+				expect(woffPath?.commands).toEqual(ttfPath?.commands);
 			} catch (e: any) {
 				if (isMissingFile(e)) {
 					expect(true).toBe(true);

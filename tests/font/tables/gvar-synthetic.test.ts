@@ -42,8 +42,7 @@ function createGvarBuffer(options: {
 
 		const tuplesBuffer: number[] = [];
 		const serialDataBuffer: number[] = [];
-
-		let hasSharedPoints = false;
+		const tuplePayloads: number[][] = [];
 
 		for (const tuple of glyphSpec.tuples) {
 			let tupleIndex = 0;
@@ -51,8 +50,63 @@ function createGvarBuffer(options: {
 			if (tuple.intermediateRegion) tupleIndex |= 0x4000;
 			if (tuple.privatePoints) tupleIndex |= 0x2000;
 
-			tuplesBuffer.push((tuple.xDeltas?.length ?? 0) >> 8);
-			tuplesBuffer.push((tuple.xDeltas?.length ?? 0) & 0xff);
+			const payload: number[] = [];
+			if (tuple.privatePoints && tuple.pointNumbers) {
+				const count = tuple.pointNumbers.length;
+				if (count <= 127) {
+					payload.push(count);
+				} else {
+					payload.push(0x80 | (count >> 8));
+					payload.push(count & 0xff);
+				}
+
+				let prevPoint = 0;
+				for (const point of tuple.pointNumbers) {
+					const delta = point - prevPoint;
+					prevPoint = point;
+					if (delta < 256) {
+						payload.push(0x00);
+						payload.push(delta);
+					} else {
+						payload.push(0x80);
+						payload.push(delta >> 8);
+						payload.push(delta & 0xff);
+					}
+				}
+			}
+
+			if (tuple.xDeltas) {
+				for (const delta of tuple.xDeltas) {
+					if (delta === 0) {
+						payload.push(0x80);
+					} else if (delta >= -128 && delta <= 127) {
+						payload.push(0x00);
+						payload.push(delta & 0xff);
+					} else {
+						payload.push(0x40);
+						payload.push((delta >> 8) & 0xff);
+						payload.push(delta & 0xff);
+					}
+				}
+			}
+
+			if (tuple.yDeltas) {
+				for (const delta of tuple.yDeltas) {
+					if (delta === 0) {
+						payload.push(0x80);
+					} else if (delta >= -128 && delta <= 127) {
+						payload.push(0x00);
+						payload.push(delta & 0xff);
+					} else {
+						payload.push(0x40);
+						payload.push((delta >> 8) & 0xff);
+						payload.push(delta & 0xff);
+					}
+				}
+			}
+
+			tuplesBuffer.push((payload.length >> 8) & 0xff);
+			tuplesBuffer.push(payload.length & 0xff);
 			tuplesBuffer.push(tupleIndex >> 8);
 			tuplesBuffer.push(tupleIndex & 0xff);
 
@@ -80,61 +134,14 @@ function createGvarBuffer(options: {
 					}
 				}
 			}
+
+			tuplePayloads.push(payload);
 		}
 
-		for (const tuple of glyphSpec.tuples) {
-			if (tuple.privatePoints && tuple.pointNumbers) {
-				const count = tuple.pointNumbers.length;
-				if (count <= 127) {
-					serialDataBuffer.push(count);
-				} else {
-					serialDataBuffer.push(0x80 | (count >> 8));
-					serialDataBuffer.push(count & 0xff);
-				}
-
-				let prevPoint = 0;
-				for (const point of tuple.pointNumbers) {
-					const delta = point - prevPoint;
-					prevPoint = point;
-					if (delta < 256) {
-						serialDataBuffer.push(0x00);
-						serialDataBuffer.push(delta);
-					} else {
-						serialDataBuffer.push(0x80);
-						serialDataBuffer.push(delta >> 8);
-						serialDataBuffer.push(delta & 0xff);
-					}
-				}
-			}
-
-			if (tuple.xDeltas) {
-				for (const delta of tuple.xDeltas) {
-					if (delta === 0) {
-						serialDataBuffer.push(0x80);
-					} else if (delta >= -128 && delta <= 127) {
-						serialDataBuffer.push(0x00);
-						serialDataBuffer.push(delta & 0xff);
-					} else {
-						serialDataBuffer.push(0x40);
-						serialDataBuffer.push((delta >> 8) & 0xff);
-						serialDataBuffer.push(delta & 0xff);
-					}
-				}
-			}
-
-			if (tuple.yDeltas) {
-				for (const delta of tuple.yDeltas) {
-					if (delta === 0) {
-						serialDataBuffer.push(0x80);
-					} else if (delta >= -128 && delta <= 127) {
-						serialDataBuffer.push(0x00);
-						serialDataBuffer.push(delta & 0xff);
-					} else {
-						serialDataBuffer.push(0x40);
-						serialDataBuffer.push((delta >> 8) & 0xff);
-						serialDataBuffer.push(delta & 0xff);
-					}
-				}
+		for (let i = 0; i < tuplePayloads.length; i++) {
+			const payload = tuplePayloads[i]!;
+			for (let j = 0; j < payload.length; j++) {
+				serialDataBuffer.push(payload[j]!);
 			}
 		}
 

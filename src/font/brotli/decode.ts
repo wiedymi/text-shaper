@@ -1,7 +1,5 @@
 /**
- * Pure TypeScript Brotli Decompressor
- * Based on the brotli.js reference implementation (MIT License)
- * https://github.com/devongovett/brotli.js
+ * Pure TypeScript Brotli decompressor.
  */
 
 import { CONTEXT_LOOKUP, CONTEXT_LOOKUP_OFFSETS } from "./context.ts";
@@ -130,7 +128,9 @@ interface HuffmanCode {
 // Bit reader class
 class BitReader {
 	private buf: Uint8Array;
+	private bufPtr = 0;
 	private pos = 0;
+	private inputPos = 0;
 	private val = 0;
 	private bitPos = 0;
 	private bitEndPos = 0;
@@ -138,40 +138,12 @@ class BitReader {
 
 	constructor(private data: Uint8Array) {
 		this.buf = new Uint8Array(8224); // 2 * 4096 + 32
-		this.fillBuffer();
+		this.readMoreInput();
 		// Pre-fetch initial bits
 		for (let i = 0; i < 4; i++) {
 			this.val |= this.buf[this.pos] << (8 * i);
 			this.pos++;
 		}
-	}
-
-	private fillBuffer(): void {
-		if (this.bitEndPos > 256) return;
-		if (this.eos) {
-			if (this.bitPos > this.bitEndPos) {
-				throw new Error("Unexpected end of input");
-			}
-			return;
-		}
-
-		const remaining = this.data.length - this.pos;
-		const toRead = Math.min(4096, remaining);
-
-		if (toRead > 0) {
-			this.buf.set(this.data.subarray(this.pos, this.pos + toRead), 0);
-			this.pos = 0;
-		}
-
-		if (toRead < 4096) {
-			this.eos = true;
-			// Pad with zeros
-			for (let i = 0; i < 32; i++) {
-				this.buf[toRead + i] = 0;
-			}
-		}
-
-		this.bitEndPos += toRead << 3;
 	}
 
 	readMoreInput(): void {
@@ -183,28 +155,31 @@ class BitReader {
 			return;
 		}
 
-		const dst = this.pos & 4095;
-		const bytesRemaining = Math.min(
-			4096,
-			this.data.length - (this.pos & ~4095),
-		);
+		const dst = this.bufPtr;
+		const bytesRead = Math.min(4096, this.data.length - this.inputPos);
 
-		if (bytesRemaining > 0) {
-			const srcStart = this.pos & ~4095;
-			this.buf.set(
-				this.data.subarray(srcStart, srcStart + bytesRemaining),
-				dst === 0 ? 0 : 4096,
-			);
+		if (bytesRead > 0) {
+			this.buf.set(this.data.subarray(this.inputPos, this.inputPos + bytesRead), dst);
+			this.inputPos += bytesRead;
 		}
 
-		if (bytesRemaining < 4096) {
+		if (bytesRead < 4096) {
 			this.eos = true;
 			for (let i = 0; i < 32; i++) {
-				this.buf[dst + bytesRemaining + i] = 0;
+				this.buf[dst + bytesRead + i] = 0;
 			}
 		}
 
-		this.bitEndPos += bytesRemaining << 3;
+		if (dst === 0) {
+			for (let i = 0; i < 32; i++) {
+				this.buf[8192 + i] = this.buf[i]!;
+			}
+			this.bufPtr = 4096;
+		} else {
+			this.bufPtr = 0;
+		}
+
+		this.bitEndPos += bytesRead << 3;
 	}
 
 	fillBitWindow(): void {
@@ -572,11 +547,30 @@ function readHuffmanCode(
 		codeLengths[symbols[0]] = 1;
 
 		switch (numSymbols) {
+			case 3:
+				if (
+					symbols[0] === symbols[1] ||
+					symbols[0] === symbols[2] ||
+					symbols[1] === symbols[2]
+				) {
+					throw new Error("Invalid symbols");
+				}
+				break;
 			case 2:
 				if (symbols[0] === symbols[1]) throw new Error("Invalid symbols");
 				codeLengths[symbols[1]] = 1;
 				break;
 			case 4:
+				if (
+					symbols[0] === symbols[1] ||
+					symbols[0] === symbols[2] ||
+					symbols[0] === symbols[3] ||
+					symbols[1] === symbols[2] ||
+					symbols[1] === symbols[3] ||
+					symbols[2] === symbols[3]
+				) {
+					throw new Error("Invalid symbols");
+				}
 				if (br.readBits(1)) {
 					codeLengths[symbols[2]] = 3;
 					codeLengths[symbols[3]] = 3;
@@ -635,13 +629,17 @@ function readHuffmanCode(
 		);
 	}
 
-	return buildHuffmanTable(
+	const tableSize = buildHuffmanTable(
 		tables,
 		tableOffset,
 		HUFFMAN_TABLE_BITS,
 		codeLengths,
 		alphabetSize,
 	);
+	if (tableSize === 0) {
+		throw new Error("Invalid Huffman table");
+	}
+	return tableSize;
 }
 
 // Huffman tree group
@@ -787,7 +785,14 @@ export function decompress(data: Uint8Array): Uint8Array {
 	let prevByte1 = 0;
 	let prevByte2 = 0;
 
-	const output: number[] = [];
+	const outputChunks: Uint8Array[] = [];
+	let outputLength = 0;
+
+	const flushOutput = (length: number): void => {
+		if (length <= 0) return;
+		outputChunks.push(ringBuffer.slice(0, length));
+		outputLength += length;
+	};
 
 	while (true) {
 		br.readMoreInput();
@@ -817,7 +822,7 @@ export function decompress(data: Uint8Array): Uint8Array {
 				const byte = br.readBits(8);
 				ringBuffer[pos & ringBufferMask] = byte;
 				if ((pos & ringBufferMask) === ringBufferMask) {
-					output.push(...ringBuffer.slice(0, ringBufferSize));
+					flushOutput(ringBufferSize);
 				}
 				pos++;
 			}
@@ -925,9 +930,10 @@ export function decompress(data: Uint8Array): Uint8Array {
 			blockLength[1]--;
 
 			const cmdCode = readSymbol(hgroup[1].codes, htreeCommand, br);
-			const rangeIdx = cmdCode >> 6;
+			let rangeIdx = cmdCode >> 6;
 			let distanceCode: number;
 			if (rangeIdx >= 2) {
+				rangeIdx -= 2;
 				distanceCode = -1;
 			} else {
 				distanceCode = 0;
@@ -986,7 +992,7 @@ export function decompress(data: Uint8Array): Uint8Array {
 				);
 				ringBuffer[pos & ringBufferMask] = prevByte1;
 				if ((pos & ringBufferMask) === ringBufferMask) {
-					output.push(...ringBuffer.slice(0, ringBufferSize));
+					flushOutput(ringBufferSize);
 				}
 				pos++;
 			}
@@ -1083,32 +1089,38 @@ export function decompress(data: Uint8Array): Uint8Array {
 						pos += len;
 						metaBlockRemaining -= len;
 						if (copyDst >= ringBufferSize) {
-							output.push(...ringBuffer.slice(0, ringBufferSize));
+							flushOutput(ringBufferSize);
 							for (let i = 0; i < copyDst - ringBufferSize; i++) {
 								ringBuffer[i] = ringBuffer[ringBufferSize + i];
 							}
 						}
+						} else {
+							throw new Error(
+								`Invalid backward reference: pos=${pos} distance=${distance} copyLength=${copyLength} metaBlockRemaining=${metaBlockRemaining} transformIdx=${transformIdx}`,
+							);
+						}
 					} else {
-						throw new Error("Invalid backward reference");
+						throw new Error(
+							`Invalid backward reference: pos=${pos} distance=${distance} copyLength=${copyLength} metaBlockRemaining=${metaBlockRemaining}`,
+						);
 					}
 				} else {
-					throw new Error("Invalid backward reference");
-				}
-			} else {
 				if (distanceCode > 0) {
 					distRb[distRbIdx & 3] = distance;
 					distRbIdx++;
 				}
 
-				if (copyLength > metaBlockRemaining) {
-					throw new Error("Invalid backward reference");
-				}
+					if (copyLength > metaBlockRemaining) {
+						throw new Error(
+							`Invalid backward reference: pos=${pos} distance=${distance} copyLength=${copyLength} metaBlockRemaining=${metaBlockRemaining}`,
+						);
+					}
 
 				for (let j = 0; j < copyLength; j++) {
 					ringBuffer[pos & ringBufferMask] =
 						ringBuffer[(pos - distance) & ringBufferMask];
 					if ((pos & ringBufferMask) === ringBufferMask) {
-						output.push(...ringBuffer.slice(0, ringBufferSize));
+						flushOutput(ringBufferSize);
 					}
 					pos++;
 					metaBlockRemaining--;
@@ -1123,9 +1135,15 @@ export function decompress(data: Uint8Array): Uint8Array {
 	}
 
 	// Flush remaining data
-	output.push(...ringBuffer.slice(0, pos & ringBufferMask));
+	flushOutput(pos & ringBufferMask);
 
-	return new Uint8Array(output);
+	const output = new Uint8Array(outputLength);
+	let offset = 0;
+	for (const chunk of outputChunks) {
+		output.set(chunk, offset);
+		offset += chunk.length;
+	}
+	return output;
 }
 
 // Export internal functions for testing

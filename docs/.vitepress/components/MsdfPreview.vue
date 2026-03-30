@@ -65,8 +65,8 @@ async function renderMsdfPreview() {
     const scaledMaxY = bounds.yMax * scale
 
     const padding = spread.value
-    const width = Math.ceil(scaledMaxX - scaledMinX) + padding * 2
-    const height = Math.ceil(scaledMaxY - scaledMinY) + padding * 2
+    const width = Math.max(1, Math.ceil(scaledMaxX - scaledMinX) + padding * 2)
+    const height = Math.max(1, Math.ceil(scaledMaxY - scaledMinY) + padding * 2)
 
     if (width <= 0 || height <= 0) {
       error.value = 'Invalid glyph dimensions'

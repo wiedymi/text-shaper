@@ -4,6 +4,7 @@ import { Face, createFace } from "../../src/font/face.ts";
 import { tag } from "../../src/types.ts";
 
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
+const INTER_VAR_PATH = "docs/public/fonts/Inter-Variable.ttf";
 
 describe("Face", () => {
 	let font: Font;
@@ -450,5 +451,15 @@ describe("Face", () => {
 			const axes2 = face.axes;
 			expect(axes1.length).toBe(axes2.length);
 		});
+	});
+});
+
+describe("Face variable regressions", () => {
+	test("keeps pinned default axes at zero after avar mapping", async () => {
+		const font = await Font.fromFile(INTER_VAR_PATH);
+		const face = new Face(font, { wght: 700 });
+
+		expect(face.normalizedCoords[0]).toBe(0);
+		expect(face.normalizedCoords[1]).toBeGreaterThan(0);
 	});
 });

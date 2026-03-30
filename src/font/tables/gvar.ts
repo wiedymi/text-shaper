@@ -1,5 +1,5 @@
 import type { GlyphId, int16, uint16 } from "../../types.ts";
-import type { Reader } from "../binary/reader.ts";
+import { Reader } from "../binary/reader.ts";
 
 /**
  * Glyph Variations table (gvar)
@@ -55,7 +55,11 @@ const TUPLE_INDEX_MASK = 0x0fff;
  * @param _numGlyphs - Number of glyphs (currently unused)
  * @returns Parsed gvar table with per-glyph variation data
  */
-export function parseGvar(reader: Reader, _numGlyphs: number): GvarTable {
+export function parseGvar(
+	reader: Reader,
+	_numGlyphs: number,
+	getGlyphPointCount?: (glyphId: GlyphId) => number,
+): GvarTable {
 	const majorVersion = reader.uint16();
 	const minorVersion = reader.uint16();
 	const axisCount = reader.uint16();
@@ -112,6 +116,8 @@ export function parseGvar(reader: Reader, _numGlyphs: number): GvarTable {
 			dataEnd - dataStart,
 			axisCount,
 			sharedTuples,
+			g,
+			getGlyphPointCount,
 		);
 		glyphVariationData.push(variationData);
 	}
@@ -131,6 +137,8 @@ function parseGlyphVariationData(
 	dataLength: number,
 	axisCount: number,
 	sharedTuples: number[][],
+	glyphId: GlyphId,
+	getGlyphPointCount?: (glyphId: GlyphId) => number,
 ): GlyphVariationData {
 	if (dataLength === 0) {
 		return { tupleVariationHeaders: [] };
@@ -204,31 +212,31 @@ function parseGlyphVariationData(
 	for (let i = 0; i < headerData.length; i++) {
 		const hd = headerData[i]!;
 		const hasPrivatePoints = (hd.tupleIndex & PRIVATE_POINT_NUMBERS) !== 0;
+		const tupleReader = dataReader.slice(dataReader.offset, hd.variationDataSize);
+		dataReader.skip(hd.variationDataSize);
 
 		let pointNumbers: number[] | null;
 		if (hasPrivatePoints) {
-			pointNumbers = parsePackedPoints(dataReader);
+			pointNumbers = parsePackedPoints(tupleReader);
 		} else {
 			pointNumbers = sharedPoints;
 		}
 
-		// Calculate number of points to read deltas for
-		const numPoints = pointNumbers ? pointNumbers.length : 0;
+		let serializedData = tupleReader.uint8Array(tupleReader.remaining);
+		let numPoints: number | null = null;
+		if (pointNumbers === null) {
+			const glyphPointCount = getGlyphPointCount?.(glyphId) ?? 0;
+			if (glyphPointCount > 0) {
+				numPoints = glyphPointCount + 4;
+			}
+		} else {
+			numPoints = pointNumbers.length;
+		}
 
-		// Parse x deltas then y deltas
-		const xDeltas =
-			numPoints > 0 ? parsePackedDeltas(dataReader, numPoints) : [];
-		const yDeltas =
-			numPoints > 0 ? parsePackedDeltas(dataReader, numPoints) : [];
-
-		const deltas: PointDelta[] = [];
-		for (let p = 0; p < xDeltas.length; p++) {
-			const xDelta = xDeltas[p];
-			const yDelta = yDeltas[p];
-			deltas.push({
-				x: xDelta ?? 0,
-				y: yDelta ?? 0,
-			});
+		let deltas: PointDelta[] = [];
+		if (numPoints !== null) {
+			deltas = decodeTupleDeltas(serializedData, numPoints);
+			serializedData = new Uint8Array(0);
 		}
 
 		headers.push({
@@ -237,7 +245,7 @@ function parseGlyphVariationData(
 			peakTuple: hd.peakTuple,
 			intermediateStartTuple: hd.intermediateStartTuple,
 			intermediateEndTuple: hd.intermediateEndTuple,
-			serializedData: new Uint8Array(0),
+			serializedData,
 			pointNumbers,
 			deltas,
 		});
@@ -249,7 +257,7 @@ function parseGlyphVariationData(
 /**
  * Parse packed point numbers
  */
-function parsePackedPoints(reader: Reader): number[] {
+function parsePackedPoints(reader: Reader): number[] | null {
 	const count = reader.uint8();
 	const totalPoints =
 		count === 0
@@ -259,7 +267,7 @@ function parsePackedPoints(reader: Reader): number[] {
 				: count;
 
 	if (totalPoints === 0) {
-		return []; // All points
+		return null;
 	}
 
 	const points: number[] = [];
@@ -412,4 +420,29 @@ export function getGlyphDelta(
 	}
 
 	return { x: Math.round(totalX), y: Math.round(totalY) };
+}
+
+function decodeTupleDeltas(
+	serializedData: Uint8Array,
+	numPoints: number,
+): PointDelta[] {
+	const deltaReader = new Reader(
+		new DataView(
+			serializedData.buffer,
+			serializedData.byteOffset,
+			serializedData.byteLength,
+		),
+	);
+	const xDeltas = numPoints > 0 ? parsePackedDeltas(deltaReader, numPoints) : [];
+	const yDeltas = numPoints > 0 ? parsePackedDeltas(deltaReader, numPoints) : [];
+	const deltas = new Array<PointDelta>(numPoints);
+
+	for (let i = 0; i < numPoints; i++) {
+		deltas[i] = {
+			x: xDeltas[i] ?? 0,
+			y: yDeltas[i] ?? 0,
+		};
+	}
+
+	return deltas;
 }

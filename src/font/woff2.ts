@@ -397,6 +397,13 @@ function reconstructGlyfLoca(
 		offset + instructionStreamSize,
 	);
 
+	const bboxBitmapLength = (((numGlyphs + 31) >>> 5) << 2) >>> 0;
+	const bboxBitmap = bboxStream.subarray(
+		0,
+		Math.min(bboxBitmapLength, bboxStream.length),
+	);
+	const bboxData = bboxStream.subarray(bboxBitmap.length);
+
 	// Stream indices
 	const nContourIdx = { value: 0 };
 	const nPointsIdx = { value: 0 };
@@ -414,6 +421,10 @@ function reconstructGlyfLoca(
 	for (let g = 0; g < numGlyphs; g++) {
 		const nContours = readInt16BE(nContourStream, nContourIdx.value);
 		nContourIdx.value += 2;
+		const hasBbox =
+			g < numGlyphs &&
+			g >>> 3 < bboxBitmap.length &&
+			(bboxBitmap[g >>> 3]! & (0x80 >> (g & 7))) !== 0;
 
 		if (nContours === 0) {
 			// Empty glyph
@@ -432,11 +443,11 @@ function reconstructGlyfLoca(
 				flagIdx,
 				glyphStream,
 				glyphIdx,
-				bboxStream,
+				bboxData,
 				bboxIdx,
 				instructionStream,
 				instructionIdx,
-				optionFlags,
+				hasBbox,
 			);
 			glyphParts.push(glyphData);
 			totalGlyfSize += pad4(glyphData.length);
@@ -446,11 +457,11 @@ function reconstructGlyfLoca(
 			const glyphData = reconstructCompositeGlyph(
 				compositeStream,
 				compositeIdx,
-				bboxStream,
+				bboxData,
 				bboxIdx,
 				instructionStream,
 				instructionIdx,
-				optionFlags,
+				hasBbox,
 			);
 			glyphParts.push(glyphData);
 			totalGlyfSize += pad4(glyphData.length);
@@ -495,7 +506,7 @@ function reconstructSimpleGlyph(
 	bboxIdx: { value: number },
 	instructionStream: Uint8Array,
 	instructionIdx: { value: number },
-	optionFlags: number,
+	hasBbox: boolean,
 ): Uint8Array {
 	// Read endpoints
 	const endPtsOfContours: number[] = [];
@@ -517,9 +528,7 @@ function reconstructSimpleGlyph(
 
 	// Read/compute bbox
 	let xMin: number, yMin: number, xMax: number, yMax: number;
-	const bboxBitmap = (optionFlags & 1) === 0; // bit 0 clear = explicit bboxes stored
-
-	if (bboxBitmap && bboxIdx.value + 8 <= bboxStream.length) {
+	if (hasBbox && bboxIdx.value + 8 <= bboxStream.length) {
 		xMin = readInt16BE(bboxStream, bboxIdx.value);
 		bboxIdx.value += 2;
 		yMin = readInt16BE(bboxStream, bboxIdx.value);
@@ -658,11 +667,14 @@ function reconstructCompositeGlyph(
 	bboxIdx: { value: number },
 	instructionStream: Uint8Array,
 	instructionIdx: { value: number },
-	_optionFlags: number,
+	hasBbox: boolean,
 ): Uint8Array {
 	const parts: number[] = [];
 
 	// Read bbox
+	if (!hasBbox || bboxIdx.value + 8 > bboxStream.length) {
+		throw new Error("Composite glyph missing explicit bbox");
+	}
 	const xMin = readInt16BE(bboxStream, bboxIdx.value);
 	bboxIdx.value += 2;
 	const yMin = readInt16BE(bboxStream, bboxIdx.value);

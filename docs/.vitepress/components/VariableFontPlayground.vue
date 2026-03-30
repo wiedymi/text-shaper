@@ -55,7 +55,7 @@ async function updateFace() {
   }
 
   try {
-    const { Face, shape, UnicodeBuffer, shapedTextToSVG, glyphBufferToShapedGlyphs } = await import('text-shaper')
+    const { Face, shape, UnicodeBuffer, shapedTextToSVGWithVariation, glyphBufferToShapedGlyphs } = await import('text-shaper')
 
     // Create face with current axis values
     face.value = new Face(props.font, axisValues.value)
@@ -65,7 +65,12 @@ async function updateFace() {
     const buffer = new UnicodeBuffer().addStr(text.value)
     const result = shape(face.value, buffer)
     const glyphs = glyphBufferToShapedGlyphs(result)
-    svgOutput.value = shapedTextToSVG(props.font, glyphs, { fontSize: fontSize.value })
+    svgOutput.value = shapedTextToSVGWithVariation(
+      props.font,
+      glyphs,
+      face.value.normalizedCoords,
+      { fontSize: fontSize.value }
+    )
   } catch (e) {
     console.error('Error updating face:', e)
   }

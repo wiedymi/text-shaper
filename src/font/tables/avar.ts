@@ -33,10 +33,11 @@ export function parseAvar(reader: Reader, axisCount: number): AvarTable {
 	const majorVersion = reader.uint16();
 	const minorVersion = reader.uint16();
 	reader.skip(2); // reserved
+	const tableAxisCount = reader.uint16();
 
 	const axisSegmentMaps: AxisSegmentMap[] = [];
-
-	for (let i = 0; i < axisCount; i++) {
+	const mapCount = Math.min(axisCount, tableAxisCount);
+	for (let i = 0; i < mapCount; i++) {
 		const positionMapCount = reader.uint16();
 		const axisValueMaps: AxisValueMap[] = [];
 
@@ -67,11 +68,35 @@ export function applyAvarMapping(
 	const maps = segmentMap.axisValueMaps;
 
 	if (maps.length === 0) return coord;
+	if (maps.length < 3) return coord;
+
+	const validMaps: AxisValueMap[] = [];
+	for (let i = 0; i < maps.length; i++) {
+		const map = maps[i]!;
+		const prev = validMaps[validMaps.length - 1];
+		if (
+			!prev ||
+			(map.fromCoordinate > prev.fromCoordinate &&
+				map.toCoordinate >= prev.toCoordinate)
+		) {
+			validMaps.push(map);
+		}
+	}
+
+	const hasRequiredExtrema =
+		validMaps.some(
+			(map) => map.fromCoordinate === -1 && map.toCoordinate === -1,
+		) &&
+		validMaps.some((map) => map.fromCoordinate === 0 && map.toCoordinate === 0) &&
+		validMaps.some((map) => map.fromCoordinate === 1 && map.toCoordinate === 1);
+	if (!hasRequiredExtrema) {
+		return coord;
+	}
 
 	// Find the segment containing coord
-	for (let i = 0; i < maps.length - 1; i++) {
-		const map1 = maps[i];
-		const map2 = maps[i + 1];
+	for (let i = 0; i < validMaps.length - 1; i++) {
+		const map1 = validMaps[i];
+		const map2 = validMaps[i + 1];
 		if (!map1 || !map2) continue;
 
 		if (coord >= map1.fromCoordinate && coord <= map2.fromCoordinate) {
@@ -84,8 +109,8 @@ export function applyAvarMapping(
 	}
 
 	// Clamp to range
-	const firstMap = maps[0];
-	const lastMap = maps[maps.length - 1];
+	const firstMap = validMaps[0];
+	const lastMap = validMaps[validMaps.length - 1];
 	if (firstMap && coord <= firstMap.fromCoordinate) {
 		return firstMap.toCoordinate;
 	}

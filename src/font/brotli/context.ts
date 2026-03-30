@@ -1,6 +1,5 @@
 /**
- * Context lookup tables for Brotli decompression
- * Based on brotli.js reference implementation (Apache 2.0 License)
+ * Context lookup tables for Brotli decompression.
  */
 
 // Context lookup table combining all context modes
