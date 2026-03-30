@@ -389,6 +389,10 @@ export function getGlyphDelta(
 	for (let i = 0; i < glyphData.tupleVariationHeaders.length; i++) {
 		const header = glyphData.tupleVariationHeaders[i]!;
 		if (!header.peakTuple) continue;
+		const deltas = getTupleDeltas(
+			header,
+			header.pointNumbers === null ? pointIndex + 1 : header.pointNumbers.length,
+		);
 
 		const scalar = calculateTupleScalar(
 			header.peakTuple,
@@ -404,14 +408,14 @@ export function getGlyphDelta(
 			const pointIdx = header.pointNumbers.indexOf(pointIndex);
 			if (pointIdx < 0) continue;
 
-			const delta = header.deltas[pointIdx];
+			const delta = deltas[pointIdx];
 			if (delta) {
 				totalX += delta.x * scalar;
 				totalY += delta.y * scalar;
 			}
 		} else {
 			// All points
-			const delta = header.deltas[pointIndex];
+			const delta = deltas[pointIndex];
 			if (delta) {
 				totalX += delta.x * scalar;
 				totalY += delta.y * scalar;
@@ -420,6 +424,19 @@ export function getGlyphDelta(
 	}
 
 	return { x: Math.round(totalX), y: Math.round(totalY) };
+}
+
+export function getTupleDeltas(
+	header: TupleVariationHeader,
+	numPoints: number,
+): PointDelta[] {
+	if (header.deltas.length > 0 || header.serializedData.length === 0) {
+		return header.deltas;
+	}
+
+	header.deltas = decodeTupleDeltas(header.serializedData, numPoints);
+	header.serializedData = new Uint8Array(0);
+	return header.deltas;
 }
 
 function decodeTupleDeltas(

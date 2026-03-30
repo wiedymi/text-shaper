@@ -312,6 +312,27 @@ describe("calculateRegionScalar", () => {
 		const scalar = calculateRegionScalar(region, coords);
 		expect(scalar).toBeCloseTo(0.5, 5);
 	});
+
+	test("ignores zero-peak axes in a region", () => {
+		const region: VariationRegion = {
+			regionAxes: [
+				{ startCoord: -1.0, peakCoord: -1.0, endCoord: 0.0 },
+				{ startCoord: 0.0, peakCoord: 0.0, endCoord: 0.0 },
+			],
+		};
+		const coords = [-1.0, 0.7400146493316242];
+		const scalar = calculateRegionScalar(region, coords);
+		expect(scalar).toBeCloseTo(1.0, 5);
+	});
+
+	test("ignores sign-crossing axes with non-zero peaks", () => {
+		const region: VariationRegion = {
+			regionAxes: [{ startCoord: -1.0, peakCoord: 0.5, endCoord: 1.0 }],
+		};
+		const coords = [0.2];
+		const scalar = calculateRegionScalar(region, coords);
+		expect(scalar).toBeCloseTo(1.0, 5);
+	});
 });
 
 describe("getAdvanceWidthDelta - SFNS", () => {

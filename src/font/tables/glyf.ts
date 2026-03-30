@@ -1,7 +1,7 @@
 import type { GlyphId, int16, uint8, uint16 } from "../../types.ts";
 import type { Reader } from "../binary/reader.ts";
 import type { GvarTable, PointDelta } from "./gvar.ts";
-import { calculateTupleScalar } from "./gvar.ts";
+import { calculateTupleScalar, getTupleDeltas } from "./gvar.ts";
 import type { LocaTable } from "./loca.ts";
 import { getGlyphLocation } from "./loca.ts";
 
@@ -716,6 +716,10 @@ export function getGlyphDeltas(
 	for (let i = 0; i < glyphData.tupleVariationHeaders.length; i++) {
 		const header = glyphData.tupleVariationHeaders[i]!;
 		if (!header.peakTuple) continue;
+		const headerDeltas = getTupleDeltas(
+			header,
+			header.pointNumbers === null ? numPoints : header.pointNumbers.length,
+		);
 
 		const scalar = calculateTupleScalar(
 			header.peakTuple,
@@ -731,7 +735,7 @@ export function getGlyphDeltas(
 				? interpolateSparseTupleDeltas(
 					contours,
 					header.pointNumbers,
-					header.deltas,
+					headerDeltas,
 					scalar,
 					numPoints,
 				)
@@ -750,7 +754,7 @@ export function getGlyphDeltas(
 				for (let j = 0; j < header.pointNumbers.length; j++) {
 					const pointIndex = header.pointNumbers[j]!;
 					const delta = deltas[pointIndex];
-					const headerDelta = header.deltas[j];
+					const headerDelta = headerDeltas[j];
 					if (pointIndex < numPoints && delta && headerDelta) {
 						delta.x += headerDelta.x * scalar;
 						delta.y += headerDelta.y * scalar;
@@ -759,9 +763,9 @@ export function getGlyphDeltas(
 			}
 		} else {
 			// All points
-			for (let j = 0; j < Math.min(header.deltas.length, numPoints); j++) {
+			for (let j = 0; j < Math.min(headerDeltas.length, numPoints); j++) {
 				const delta = deltas[j];
-				const headerDelta = header.deltas[j];
+				const headerDelta = headerDeltas[j];
 				if (delta && headerDelta) {
 					delta.x += headerDelta.x * scalar;
 					delta.y += headerDelta.y * scalar;

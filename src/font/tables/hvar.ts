@@ -213,26 +213,37 @@ export function calculateRegionScalar(
 		const coord = coords[i];
 		if (axis === undefined || coord === undefined) continue;
 
-		// Outside the region
+		// Ignore invalid regions.
+		if (axis.startCoord > axis.peakCoord || axis.peakCoord > axis.endCoord) {
+			continue;
+		}
+
+		// Ignore axes that explicitly cross zero with a non-zero peak.
+		if (
+			axis.startCoord < 0 &&
+			axis.endCoord > 0 &&
+			axis.peakCoord !== 0
+		) {
+			continue;
+		}
+
+		// A zero peak means this axis does not participate in the region.
+		if (axis.peakCoord === 0) {
+			continue;
+		}
+
+		// Outside the region.
 		if (coord < axis.startCoord || coord > axis.endCoord) {
 			return 0;
 		}
 
-		// At peak
 		if (coord === axis.peakCoord) {
 			continue;
 		}
 
-		// Interpolate
 		if (coord < axis.peakCoord) {
-			if (axis.peakCoord === axis.startCoord) {
-				continue;
-			}
 			scalar *= (coord - axis.startCoord) / (axis.peakCoord - axis.startCoord);
 		} else {
-			if (axis.peakCoord === axis.endCoord) {
-				continue;
-			}
 			scalar *= (axis.endCoord - coord) / (axis.endCoord - axis.peakCoord);
 		}
 	}

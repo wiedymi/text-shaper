@@ -8,6 +8,7 @@ function createGvarBuffer(options: {
 	use32BitOffsets?: boolean;
 	sharedTuples?: number[][];
 	glyphs?: Array<{
+		sharedPointNumbers?: number[];
 		tuples: Array<{
 			embedPeak?: boolean;
 			intermediateRegion?: boolean;
@@ -43,6 +44,34 @@ function createGvarBuffer(options: {
 		const tuplesBuffer: number[] = [];
 		const serialDataBuffer: number[] = [];
 		const tuplePayloads: number[][] = [];
+		const hasSharedPointNumbers = !!(
+			glyphSpec.sharedPointNumbers && glyphSpec.sharedPointNumbers.length > 0
+		);
+
+		if (hasSharedPointNumbers) {
+			const pointNumbers = glyphSpec.sharedPointNumbers!;
+			const count = pointNumbers.length;
+			if (count <= 127) {
+				serialDataBuffer.push(count);
+			} else {
+				serialDataBuffer.push(0x80 | (count >> 8));
+				serialDataBuffer.push(count & 0xff);
+			}
+
+			let prevPoint = 0;
+			for (const point of pointNumbers) {
+				const delta = point - prevPoint;
+				prevPoint = point;
+				if (delta < 256) {
+					serialDataBuffer.push(0x00);
+					serialDataBuffer.push(delta);
+				} else {
+					serialDataBuffer.push(0x80);
+					serialDataBuffer.push(delta >> 8);
+					serialDataBuffer.push(delta & 0xff);
+				}
+			}
+		}
 
 		for (const tuple of glyphSpec.tuples) {
 			let tupleIndex = 0;
@@ -150,8 +179,11 @@ function createGvarBuffer(options: {
 		);
 		const dataOffset = 4 + tuplesBuffer.length;
 
-		glyphData[0] = (tupleCount >> 8) & 0xff;
-		glyphData[1] = tupleCount & 0xff;
+		const tupleVariationCount = hasSharedPointNumbers
+			? tupleCount | 0x8000
+			: tupleCount;
+		glyphData[0] = (tupleVariationCount >> 8) & 0xff;
+		glyphData[1] = tupleVariationCount & 0xff;
 		glyphData[2] = (dataOffset >> 8) & 0xff;
 		glyphData[3] = dataOffset & 0xff;
 
@@ -380,6 +412,42 @@ describe("gvar synthetic binary tests", () => {
 
 		expect(gvar.glyphVariationData[0]?.tupleVariationHeaders).toEqual([]);
 		expect(gvar.glyphVariationData[1]?.tupleVariationHeaders.length).toBe(1);
+	});
+
+	test("treats empty private point list as all points", () => {
+		const buffer = createGvarBuffer({
+			axisCount: 1,
+			glyphCount: 1,
+			glyphs: [
+				{
+					sharedPointNumbers: [1, 3],
+					tuples: [
+						{
+							embedPeak: true,
+							peakTuple: [1.0],
+							privatePoints: true,
+							pointNumbers: [],
+							xDeltas: [0, -28, 0, 61, 0, 0],
+							yDeltas: [0, 0, 0, 0, 0, 0],
+						},
+					],
+				},
+			],
+		});
+
+		const reader = new Reader(buffer.buffer as ArrayBuffer);
+		const gvar = parseGvar(reader, 1, () => 2);
+
+		const header = gvar.glyphVariationData[0]?.tupleVariationHeaders[0];
+		expect(header?.pointNumbers).toBeNull();
+		expect(header?.deltas).toEqual([
+			{ x: 0, y: 0 },
+			{ x: -28, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 61, y: 0 },
+			{ x: 0, y: 0 },
+			{ x: 0, y: 0 },
+		]);
 	});
 });
 
