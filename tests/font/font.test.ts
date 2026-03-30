@@ -1,4 +1,5 @@
 import { describe, expect, test, beforeAll } from "bun:test";
+import { Face } from "../../src/font/face.ts";
 import { Font } from "../../src/font/font.ts";
 import { Tags, tag } from "../../src/types.ts";
 
@@ -6,6 +7,7 @@ import { Tags, tag } from "../../src/types.ts";
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
 const TIMES_PATH = "/System/Library/Fonts/Supplemental/Times New Roman.ttf";
 const HELVETICA_PATH = "/System/Library/Fonts/Helvetica.ttc";
+const INTER_VAR_PATH = "docs/public/fonts/Inter-Variable.ttf";
 
 describe("Font", () => {
 	let font: Font;
@@ -197,6 +199,76 @@ describe("Font", () => {
 			// Glyph 0 (notdef) or space might have no contours
 			const bounds = font.getGlyphBounds(font.glyphId(0x20)); // space
 			// Space typically has no outlines
+		});
+
+		test("composite variable glyph keeps sane component geometry", async () => {
+			const inter = await Font.fromFile(INTER_VAR_PATH);
+			const glyphId = inter.glyphIdForChar("i");
+			const face = new Face(inter, { wght: 900, opsz: 14 });
+			const contours = inter.getGlyphContoursWithVariation(
+				glyphId,
+				face.normalizedCoords,
+			);
+
+			expect(contours).not.toBeNull();
+			expect(contours).toHaveLength(2);
+
+			if (!contours || contours.length !== 2) return;
+
+			const boxes = contours.map((contour) => {
+				let xMin = Infinity;
+				let yMin = Infinity;
+				let xMax = -Infinity;
+				let yMax = -Infinity;
+				for (let i = 0; i < contour.length; i++) {
+					const point = contour[i]!;
+					if (point.x < xMin) xMin = point.x;
+					if (point.y < yMin) yMin = point.y;
+					if (point.x > xMax) xMax = point.x;
+					if (point.y > yMax) yMax = point.y;
+				}
+				return { xMin, yMin, xMax, yMax };
+			});
+
+			const stem = boxes[0]!;
+			const dot = boxes[1]!;
+
+			expect(stem.xMax).toBeGreaterThan(stem.xMin);
+			expect(stem.yMax).toBeGreaterThan(stem.yMin);
+			expect(dot.xMax).toBeGreaterThan(dot.xMin);
+			expect(dot.yMax).toBeGreaterThan(dot.yMin);
+			expect(dot.yMin).toBeGreaterThan(stem.yMax);
+			expect(dot.xMin).toBeLessThanOrEqual(stem.xMax);
+			expect(dot.xMax).toBeGreaterThanOrEqual(stem.xMin);
+		});
+
+		test("sparse gvar interpolation matches expected Inter dot outline", async () => {
+			const inter = await Font.fromFile(INTER_VAR_PATH);
+			const face = new Face(inter, { wght: 900, opsz: 14 });
+			const contours = inter.getGlyphContoursWithVariation(
+				2705,
+				face.normalizedCoords,
+			);
+
+			expect(contours).not.toBeNull();
+			expect(contours).toHaveLength(1);
+
+			if (!contours || contours.length !== 1) return;
+
+			expect(contours[0]).toEqual([
+				{ x: 334, y: 1232, onCurve: true },
+				{ x: 252, y: 1232, onCurve: false },
+				{ x: 136, y: 1340, onCurve: false },
+				{ x: 136, y: 1416, onCurve: true },
+				{ x: 136, y: 1493, onCurve: false },
+				{ x: 252, y: 1600, onCurve: false },
+				{ x: 334, y: 1600, onCurve: true },
+				{ x: 416, y: 1600, onCurve: false },
+				{ x: 532, y: 1493, onCurve: false },
+				{ x: 532, y: 1416, onCurve: true },
+				{ x: 532, y: 1340, onCurve: false },
+				{ x: 416, y: 1232, onCurve: false },
+			]);
 		});
 	});
 

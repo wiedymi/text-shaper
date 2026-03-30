@@ -862,7 +862,22 @@ export function getGlyphPathWithVariation(
 		commands.push(...contourToPath(contour));
 	}
 
-	const bounds = font.getGlyphBounds(glyphId);
+	let xMin = Infinity;
+	let yMin = Infinity;
+	let xMax = -Infinity;
+	let yMax = -Infinity;
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		for (let j = 0; j < contour.length; j++) {
+			const point = contour[j]!;
+			if (point.x < xMin) xMin = point.x;
+			if (point.y < yMin) yMin = point.y;
+			if (point.x > xMax) xMax = point.x;
+			if (point.y > yMax) yMax = point.y;
+		}
+	}
+	const bounds =
+		xMin === Infinity ? null : { xMin, yMin, xMax, yMax };
 
 	return { commands, bounds };
 }

@@ -429,6 +429,8 @@ function appendComponentContours(
 	parentPoints: GlyphPoint[],
 	component: GlyphComponent,
 	componentContours: Contour[],
+	extraDx: number = 0,
+	extraDy: number = 0,
 ): void {
 	const [a, b, c, d] = component.transform;
 	const hasXY = (component.flags & CompositeFlag.ArgsAreXYValues) !== 0;
@@ -469,6 +471,9 @@ function appendComponentContours(
 			dy = parentPoint.y - compY;
 		}
 	}
+
+	dx += extraDx;
+	dy += extraDy;
 
 	for (let i = 0; i < componentContours.length; i++) {
 		const contour = componentContours[i]!;
@@ -696,6 +701,7 @@ export function getGlyphDeltas(
 	glyphId: GlyphId,
 	numPoints: number,
 	axisCoords: number[],
+	contours?: Contour[],
 ): PointDelta[] {
 	const glyphData = gvar.glyphVariationData[glyphId];
 	if (!glyphData) {
@@ -721,14 +727,34 @@ export function getGlyphDeltas(
 		if (scalar === 0) continue;
 
 		if (header.pointNumbers !== null) {
-			// Sparse point deltas
-			for (let j = 0; j < header.pointNumbers.length; j++) {
-				const pointIndex = header.pointNumbers[j]!;
-				const delta = deltas[pointIndex];
-				const headerDelta = header.deltas[j];
-				if (pointIndex < numPoints && delta && headerDelta) {
-					delta.x += headerDelta.x * scalar;
-					delta.y += headerDelta.y * scalar;
+			const tupleDeltas = contours
+				? interpolateSparseTupleDeltas(
+					contours,
+					header.pointNumbers,
+					header.deltas,
+					scalar,
+					numPoints,
+				)
+				: null;
+
+			if (tupleDeltas) {
+				for (let j = 0; j < numPoints; j++) {
+					const delta = deltas[j];
+					const tupleDelta = tupleDeltas[j];
+					if (delta && tupleDelta) {
+						delta.x += tupleDelta.x;
+						delta.y += tupleDelta.y;
+					}
+				}
+			} else {
+				for (let j = 0; j < header.pointNumbers.length; j++) {
+					const pointIndex = header.pointNumbers[j]!;
+					const delta = deltas[pointIndex];
+					const headerDelta = header.deltas[j];
+					if (pointIndex < numPoints && delta && headerDelta) {
+						delta.x += headerDelta.x * scalar;
+						delta.y += headerDelta.y * scalar;
+					}
 				}
 			}
 		} else {
@@ -752,6 +778,197 @@ export function getGlyphDeltas(
 	}
 
 	return deltas;
+}
+
+function shiftInterpolatedPoints(
+	start: number,
+	end: number,
+	ref: number,
+	orgPoints: GlyphPoint[],
+	outPoints: GlyphPoint[],
+): void {
+	const deltaX = outPoints[ref]!.x - orgPoints[ref]!.x;
+	const deltaY = outPoints[ref]!.y - orgPoints[ref]!.y;
+	if (deltaX === 0 && deltaY === 0) return;
+
+	for (let i = start; i <= end; i++) {
+		if (i === ref) continue;
+		outPoints[i]!.x += deltaX;
+		outPoints[i]!.y += deltaY;
+	}
+}
+
+function interpolatePointRange(
+	start: number,
+	end: number,
+	ref1: number,
+	ref2: number,
+	orgPoints: GlyphPoint[],
+	outPoints: GlyphPoint[],
+): void {
+	if (start > end) return;
+
+	for (let axis = 0; axis < 2; axis++) {
+		const isX = axis === 0;
+		let leftRef = ref1;
+		let rightRef = ref2;
+		let in1 = isX ? orgPoints[leftRef]!.x : orgPoints[leftRef]!.y;
+		let in2 = isX ? orgPoints[rightRef]!.x : orgPoints[rightRef]!.y;
+
+		if (in1 > in2) {
+			const swapRef = leftRef;
+			leftRef = rightRef;
+			rightRef = swapRef;
+			const swapIn = in1;
+			in1 = in2;
+			in2 = swapIn;
+		}
+
+		const out1 = isX ? outPoints[leftRef]!.x : outPoints[leftRef]!.y;
+		const out2 = isX ? outPoints[rightRef]!.x : outPoints[rightRef]!.y;
+
+		if (in1 === in2 && out1 !== out2) {
+			continue;
+		}
+
+		const scale = in1 === in2 ? 0 : (out2 - out1) / (in2 - in1);
+		const delta1 = out1 - in1;
+		const delta2 = out2 - in2;
+
+		for (let i = start; i <= end; i++) {
+			const original = isX ? orgPoints[i]!.x : orgPoints[i]!.y;
+			let value: number;
+
+			if (original <= in1) {
+				value = original + delta1;
+			} else if (original >= in2) {
+				value = original + delta2;
+			} else if (in1 === in2) {
+				value = out1;
+			} else {
+				value = out1 + (original - in1) * scale;
+			}
+
+			if (isX) {
+				outPoints[i]!.x = value;
+			} else {
+				outPoints[i]!.y = value;
+			}
+		}
+	}
+}
+
+function interpolateSparseTupleDeltas(
+	contours: Contour[],
+	pointNumbers: number[],
+	tupleDeltas: PointDelta[],
+	scalar: number,
+	numPoints: number,
+): PointDelta[] {
+	const orgPoints = flattenContoursPoints(contours);
+	const pointCount = orgPoints.length;
+	const result = new Array<PointDelta>(numPoints);
+	const outPoints = new Array<GlyphPoint>(pointCount);
+	const hasDelta = new Array<number>(pointCount);
+
+	for (let i = 0; i < numPoints; i++) {
+		result[i] = { x: 0, y: 0 };
+	}
+
+	for (let i = 0; i < pointCount; i++) {
+		const point = orgPoints[i]!;
+		outPoints[i] = { x: point.x, y: point.y, onCurve: point.onCurve };
+		hasDelta[i] = 0;
+	}
+
+	for (let i = 0; i < pointNumbers.length; i++) {
+		const pointIndex = pointNumbers[i]!;
+		const tupleDelta = tupleDeltas[i];
+		if (!tupleDelta || pointIndex >= numPoints) continue;
+		if (pointIndex >= pointCount) {
+			result[pointIndex] = {
+				x: tupleDelta.x * scalar,
+				y: tupleDelta.y * scalar,
+			};
+			continue;
+		}
+		hasDelta[pointIndex] = 1;
+		outPoints[pointIndex]!.x += tupleDelta.x * scalar;
+		outPoints[pointIndex]!.y += tupleDelta.y * scalar;
+	}
+
+	let contourStart = 0;
+	for (let i = 0; i < contours.length; i++) {
+		const contour = contours[i]!;
+		const contourEnd = contourStart + contour.length - 1;
+		let firstDelta = -1;
+
+		for (let j = contourStart; j <= contourEnd; j++) {
+			if (hasDelta[j]) {
+				firstDelta = j;
+				break;
+			}
+		}
+
+		if (firstDelta < 0) {
+			contourStart = contourEnd + 1;
+			continue;
+		}
+
+		let currentDelta = firstDelta;
+		for (let j = firstDelta + 1; j <= contourEnd; j++) {
+			if (!hasDelta[j]) continue;
+			interpolatePointRange(
+				currentDelta + 1,
+				j - 1,
+				currentDelta,
+				j,
+				orgPoints,
+				outPoints,
+			);
+			currentDelta = j;
+		}
+
+		if (currentDelta === firstDelta) {
+			shiftInterpolatedPoints(
+				contourStart,
+				contourEnd,
+				currentDelta,
+				orgPoints,
+				outPoints,
+			);
+		} else {
+			interpolatePointRange(
+				currentDelta + 1,
+				contourEnd,
+				currentDelta,
+				firstDelta,
+				orgPoints,
+				outPoints,
+			);
+			if (firstDelta > contourStart) {
+				interpolatePointRange(
+					contourStart,
+					firstDelta - 1,
+					currentDelta,
+					firstDelta,
+					orgPoints,
+					outPoints,
+				);
+			}
+		}
+
+		contourStart = contourEnd + 1;
+	}
+
+	for (let i = 0; i < pointCount; i++) {
+		result[i] = {
+			x: outPoints[i]!.x - orgPoints[i]!.x,
+			y: outPoints[i]!.y - orgPoints[i]!.y,
+		};
+	}
+
+	return result;
 }
 
 /**
@@ -813,13 +1030,14 @@ export function getGlyphContoursWithVariation(
 			glyf,
 			loca,
 			gvar,
+			glyphId,
 			glyph,
 			axisCoords,
 		);
 	}
 
 	// Apply variation if we have gvar and axis coordinates
-	if (gvar && axisCoords && axisCoords.length > 0) {
+	if (glyph.type === "simple" && gvar && axisCoords && axisCoords.length > 0) {
 		// Count total points
 		let numPoints = 0;
 		for (let i = 0; i < contours.length; i++) {
@@ -829,7 +1047,13 @@ export function getGlyphContoursWithVariation(
 		// Add phantom points (4)
 		numPoints += 4;
 
-		const deltas = getGlyphDeltas(gvar, glyphId, numPoints, axisCoords);
+		const deltas = getGlyphDeltas(
+			gvar,
+			glyphId,
+			numPoints,
+			axisCoords,
+			contours,
+		);
 		contours = applyVariationDeltas(contours, deltas);
 	}
 
@@ -852,6 +1076,7 @@ function flattenCompositeGlyphWithVariation(
 	glyf: GlyfTable,
 	loca: LocaTable,
 	gvar: GvarTable | null,
+	glyphId: GlyphId,
 	glyph: CompositeGlyph,
 	axisCoords?: number[],
 	depth: number = 0,
@@ -862,6 +1087,16 @@ function flattenCompositeGlyphWithVariation(
 
 	const result: Contour[] = [];
 	const parentPoints: GlyphPoint[] = [];
+	let componentDeltas: PointDelta[] | null = null;
+
+	if (gvar && axisCoords && axisCoords.length > 0) {
+		componentDeltas = getGlyphDeltas(
+			gvar,
+			glyphId,
+			glyph.components.length + 4,
+			axisCoords,
+		);
+	}
 
 	for (let i = 0; i < glyph.components.length; i++) {
 		const component = glyph.components[i]!;
@@ -885,6 +1120,7 @@ function flattenCompositeGlyphWithVariation(
 					component.glyphId,
 					numPoints,
 					axisCoords,
+					componentContours,
 				);
 				componentContours = applyVariationDeltas(componentContours, deltas);
 			}
@@ -893,6 +1129,7 @@ function flattenCompositeGlyphWithVariation(
 				glyf,
 				loca,
 				gvar,
+				component.glyphId,
 				componentGlyph,
 				axisCoords,
 				depth + 1,
@@ -901,7 +1138,15 @@ function flattenCompositeGlyphWithVariation(
 			continue;
 		}
 
-		appendComponentContours(result, parentPoints, component, componentContours);
+		const componentDelta = componentDeltas?.[i];
+		appendComponentContours(
+			result,
+			parentPoints,
+			component,
+			componentContours,
+			componentDelta?.x ?? 0,
+			componentDelta?.y ?? 0,
+		);
 	}
 
 	return result;
