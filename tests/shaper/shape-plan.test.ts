@@ -121,6 +121,75 @@ describe("shape plan", () => {
 			expect(plan.script).toBe(tag("zzzz"));
 			expect(plan.direction).toBe("ltr");
 		});
+
+		test("includes nested lookup indices in the GSUB lookup map", () => {
+			const fakeFont = {
+				gsub: {
+					scriptList: {
+						scripts: [
+							{
+								scriptTag: tag("latn"),
+								script: {
+									defaultLangSys: {
+										requiredFeatureIndex: 0xffff,
+										featureIndices: [0],
+									},
+									langSysRecords: [],
+								},
+							},
+						],
+					},
+					featureList: {
+						features: [
+							{
+								featureTag: tag("calt"),
+								feature: {
+									featureParamsOffset: 0,
+									lookupListIndices: [0],
+								},
+							},
+						],
+					},
+					lookups: [
+						{
+							type: 6,
+							flag: 0,
+							digest: { mayHave: () => true, mayIntersect: () => true },
+							subtables: [
+								{
+									format: 1,
+									coverage: { get: () => 0 },
+									chainRuleSets: [
+										[
+											{
+												backtrackSequence: [],
+												inputSequence: [],
+												lookaheadSequence: [],
+												lookupRecords: [
+													{ sequenceIndex: 0, lookupListIndex: 1 },
+												],
+											},
+										],
+									],
+								},
+							],
+						},
+						{
+							type: 1,
+							flag: 0,
+							digest: { mayHave: () => true, mayIntersect: () => true },
+							subtables: [],
+						},
+					],
+				},
+				gpos: null,
+			} as unknown as Font;
+
+			const plan = createShapePlan(fakeFont, "latn", null, "ltr");
+
+			expect(plan.gsubLookups.map((entry) => entry.index)).toEqual([0]);
+			expect(plan.gsubLookupMap.get(1)?.index).toBe(1);
+		});
 	});
 
 	describe("getOrCreateShapePlan caching", () => {
@@ -355,16 +424,17 @@ describe("shape plan", () => {
 		test("builds lookup index maps correctly", () => {
 			const plan = createShapePlan(font, "latn", null, "ltr");
 
-			// Verify gsubLookupMap has same entries as gsubLookups
+			// Top-level selected lookups must still be addressable through the full map.
 			for (const entry of plan.gsubLookups) {
 				expect(plan.gsubLookupMap.has(entry.index)).toBe(true);
-				expect(plan.gsubLookupMap.get(entry.index)).toBe(entry);
+				expect(plan.gsubLookupMap.get(entry.index)?.index).toBe(entry.index);
+				expect(plan.gsubLookupMap.get(entry.index)?.lookup).toBe(entry.lookup);
 			}
 
-			// Verify gposLookupMap has same entries as gposLookups
 			for (const entry of plan.gposLookups) {
 				expect(plan.gposLookupMap.has(entry.index)).toBe(true);
-				expect(plan.gposLookupMap.get(entry.index)).toBe(entry);
+				expect(plan.gposLookupMap.get(entry.index)?.index).toBe(entry.index);
+				expect(plan.gposLookupMap.get(entry.index)?.lookup).toBe(entry.lookup);
 			}
 		});
 

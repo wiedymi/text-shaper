@@ -56,6 +56,19 @@ export interface ShapePlan {
 	gposLookupMap: Map<number, LookupEntry<AnyGposLookup>>;
 }
 
+function buildLookupMap<T>(lookups: T[] | undefined): Map<number, LookupEntry<T>> {
+	const lookupMap = new Map<number, LookupEntry<T>>();
+	if (!lookups) return lookupMap;
+
+	for (let i = 0; i < lookups.length; i++) {
+		const lookup = lookups[i];
+		if (!lookup) continue;
+		lookupMap.set(i, { index: i, lookup });
+	}
+
+	return lookupMap;
+}
+
 /** Baseline GSUB features (always enabled) */
 const DEFAULT_GSUB_FEATURES = [
 	"ccmp", // Glyph composition/decomposition
@@ -262,18 +275,10 @@ function createShapePlanInternal(
 		axisCoords,
 	) as LookupEntry<AnyGposLookup>[];
 
-	// Build lookup index maps for O(1) nested lookup access
-	const gsubLookupMap = new Map<number, LookupEntry<AnyGsubLookup>>();
-	for (let i = 0; i < gsubLookups.length; i++) {
-		const entry = gsubLookups[i]!;
-		gsubLookupMap.set(entry.index, entry);
-	}
-
-	const gposLookupMap = new Map<number, LookupEntry<AnyGposLookup>>();
-	for (let i = 0; i < gposLookups.length; i++) {
-		const entry = gposLookups[i]!;
-		gposLookupMap.set(entry.index, entry);
-	}
+	// Nested contextual lookups reference the global lookup list, not just the
+	// top-level feature-selected subset collected above.
+	const gsubLookupMap = buildLookupMap(font.gsub?.lookups);
+	const gposLookupMap = buildLookupMap(font.gpos?.lookups);
 
 	return {
 		script: scriptTag,

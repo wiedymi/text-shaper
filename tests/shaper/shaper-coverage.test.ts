@@ -16,6 +16,7 @@ import { LookupFlag } from "../../src/layout/structures/layout-common.ts";
 import { GlyphClass } from "../../src/types.ts";
 
 const {
+	applyGsub,
 	applyGsubLookup,
 	applyGposLookup,
 	applyAlternateSubstLookup,
@@ -591,6 +592,45 @@ describe("Shaper coverage tests", () => {
 	});
 
 	describe("applyGsubLookup dispatcher", () => {
+		test("applyGsub refreshes digest after same-length substitution", () => {
+			const buffer = createBuffer([10]);
+			const chainedPlan = {
+				gsubLookups: [
+					{
+						lookup: {
+							type: GsubLookupType.Single as const,
+							flag: 0,
+							digest: createDigest([10]),
+							subtables: [
+								{
+									format: 2 as const,
+									coverage: createCoverage([10]),
+									substituteGlyphIds: [20],
+								},
+							],
+						},
+					},
+					{
+						lookup: {
+							type: GsubLookupType.Single as const,
+							flag: 0,
+							digest: createDigest([20]),
+							subtables: [
+								{
+									format: 2 as const,
+									coverage: createCoverage([20]),
+									substituteGlyphIds: [30],
+								},
+							],
+						},
+					},
+				],
+			} as ShapePlan;
+
+			applyGsub(mongolianFont, buffer, chainedPlan);
+			expect(buffer.infos[0]!.glyphId).toBe(30);
+		});
+
 		test("calls applyAlternateSubstLookup for type 3", () => {
 			const buffer = createBuffer([10, 20, 30]);
 			const lookup = {

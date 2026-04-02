@@ -603,7 +603,8 @@ function applyGsub(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 	const lookups = plan.gsubLookups;
 
 	// Build buffer digest for fast lookup skipping
-	// Note: We rebuild after each lookup that modifies glyphs
+	// Same-length substitutions still change which later lookups can match,
+	// so the digest must track glyph-id changes, not just buffer length changes.
 	let bufferDigest = new SetDigest();
 	const infos = buffer.infos;
 	for (let i = 0; i < buffer.length; i++) {
@@ -615,15 +616,13 @@ function applyGsub(font: Font, buffer: GlyphBuffer, plan: ShapePlan): void {
 		// Skip entire lookup if no glyph in buffer could match
 		if (!bufferDigest.mayIntersect(entry.lookup.digest)) continue;
 
-		const prevLength = buffer.length;
 		applyGsubLookup(font, buffer, entry.lookup, plan);
 
-		// Rebuild digest if buffer was modified (length change indicates substitution)
-		if (buffer.length !== prevLength) {
-			bufferDigest = new SetDigest();
-			for (let j = 0; j < buffer.length; j++) {
-				bufferDigest.add(infos[j]!.glyphId);
-			}
+		// Rebuild after every lookup so staged same-length substitutions
+		// can unlock later digest-filtered lookups in the same shaping pass.
+		bufferDigest = new SetDigest();
+		for (let j = 0; j < buffer.length; j++) {
+			bufferDigest.add(infos[j]!.glyphId);
 		}
 	}
 	// Compact buffer after all GSUB lookups to remove marked-deleted glyphs
@@ -2991,6 +2990,7 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 
 // Export internal functions for testing coverage
 export const __testing = {
+	applyGsub,
 	applyGsubLookup,
 	applyGposLookup,
 	applySingleSubstLookup,
