@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { Dirent, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -31,9 +31,9 @@ function shouldSkipFtDumpFont(fontPath: string): boolean {
 function collectFonts(dirs: string[]): string[] {
 	const fonts: string[] = [];
 	function walk(dir: string): void {
-		let entries: ReturnType<typeof readdirSync>;
+		let entries: Dirent<string>[];
 		try {
-			entries = readdirSync(dir, { withFileTypes: true });
+			entries = readdirSync(dir, { withFileTypes: true, encoding: "utf8" });
 		} catch {
 			return;
 		}
@@ -228,7 +228,6 @@ function glyphHasInstructions(
 
 testFn(
 	"hinted raster metrics match FreeType across sizes",
-	{ timeout: testTimeout },
 	async () => {
 	const fontPaths = getFontList();
 	if (fontPaths.length === 0) {
@@ -344,11 +343,11 @@ testFn(
 		}
 	}
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"unhinted raster metrics match FreeType",
-	{ timeout: testTimeout },
 	async () => {
 	const fontPaths = getFontList();
 	if (fontPaths.length === 0) {
@@ -450,11 +449,11 @@ testFn(
 		}
 	}
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"real-dim raster metrics match FreeType (unhinted)",
-	{ timeout: testTimeout },
 	async () => {
 		const fontPaths = getFontList();
 		if (fontPaths.length === 0) {
@@ -553,11 +552,11 @@ testFn(
 			}
 		}
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"light hinting pixels match FreeType for Arial X",
-	{ timeout: testTimeout },
 	async () => {
 		if (!ftdumpBin) {
 			console.warn("hinting parity: ftdump binary not available");
@@ -622,11 +621,11 @@ testFn(
 		}
 		expect(ratio).toBeLessThanOrEqual(maxRatio);
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"explicit hint target light matches FreeType light for Arial X",
-	{ timeout: testTimeout },
 	async () => {
 		if (!ftdumpBin) {
 			console.warn("hinting parity: ftdump binary not available");
@@ -692,11 +691,11 @@ testFn(
 		}
 		expect(ratio).toBeLessThanOrEqual(maxRatio);
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"hint target light and normal diverge for Arial X",
-	{ timeout: testTimeout },
 	async () => {
 		const arialPath = ARIAL_PATH;
 		if (!existsSync(arialPath)) {
@@ -743,11 +742,11 @@ testFn(
 
 		expect(differs).toBe(true);
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"hint target auto preserves default Gray behavior",
-	{ timeout: testTimeout },
 	async () => {
 		const arialPath = ARIAL_PATH;
 		if (!existsSync(arialPath)) {
@@ -783,11 +782,11 @@ testFn(
 		expect(auto.bearingY).toBe(baseline.bearingY);
 		expect(auto.bitmap.buffer).toEqual(baseline.bitmap.buffer);
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"hinted raster metrics match FreeType for composite glyphs",
-	{ timeout: testTimeout },
 	async () => {
 	const fontPaths = getFontList();
 	if (fontPaths.length === 0) {
@@ -887,11 +886,11 @@ testFn(
 		}
 	}
 	},
+	{ timeout: testTimeout },
 );
 
 testFn(
 	"Geneva hinted metrics match FreeType (strict)",
-	{ timeout: testTimeout },
 	async () => {
 	if (!ftdumpBin) {
 		console.warn("hinting parity: ftdump binary not available");
@@ -969,4 +968,5 @@ testFn(
 		expect(topDelta).toBeLessThanOrEqual(tolerance);
 	}
 	},
+	{ timeout: testTimeout },
 );

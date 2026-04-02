@@ -73,8 +73,7 @@ describe("WOFF2 decoder", () => {
 			try {
 				const originalDecompressionStream = globalThis.DecompressionStream;
 				// Force the fallback path so the in-tree decoder is exercised in CI and locally.
-				(globalThis as typeof globalThis & { DecompressionStream?: typeof DecompressionStream })
-					.DecompressionStream = undefined;
+				Reflect.set(globalThis, "DecompressionStream", undefined);
 				try {
 					const file = Bun.file(WOFF2_FONT_PATH);
 					const buffer = await file.arrayBuffer();
@@ -84,11 +83,11 @@ describe("WOFF2 decoder", () => {
 					expect(font).toBeInstanceOf(Font);
 					expect(font.numGlyphs).toBeGreaterThan(0);
 				} finally {
-					(
-						globalThis as typeof globalThis & {
-							DecompressionStream?: typeof DecompressionStream;
-						}
-					).DecompressionStream = originalDecompressionStream;
+					Reflect.set(
+						globalThis,
+						"DecompressionStream",
+						originalDecompressionStream,
+					);
 				}
 			} catch (e: any) {
 				if (isMissingFile(e)) {
