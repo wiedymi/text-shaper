@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, test, beforeAll } from "bun:test";
 import { Face } from "../../src/font/face.ts";
 import { Font } from "../../src/font/font.ts";
@@ -3552,4 +3553,103 @@ describe("raster/rasterize", () => {
 			expect(bitmap.buffer.length).toBe(bitmap.width * bitmap.rows * 4);
 		});
 	});
+});
+
+describe("truetype decomposition contour closure", () => {
+	// Amiri has hundreds of contours whose first point is off-curve; the old
+	// decomposition left such contours open when the last point was also
+	// off-curve, leaking winding across entire scanlines (horizontal seams
+	// on Nerd Font icons like U+F017)
+	const AMIRI_PATH = "reference/rustybuzz/benches/fonts/Amiri-Regular.ttf";
+	const amiriTest = existsSync(AMIRI_PATH) ? test : test.skip;
+
+	amiriTest(
+		"every contour returns to its start point",
+		async () => {
+			const amiri = await Font.fromFile(AMIRI_PATH);
+
+			const affected: number[] = [];
+			for (let gid = 0; gid < amiri.numGlyphs; gid++) {
+				const contours = amiri.getGlyphContours(gid);
+				if (!contours) continue;
+				for (const contour of contours) {
+					if (contour.length > 0 && !contour[0]!.onCurve) {
+						affected.push(gid);
+						break;
+					}
+				}
+			}
+			expect(affected.length).toBeGreaterThan(0);
+
+			const commands: number[][] = [];
+			const origMove = GrayRaster.prototype.moveTo;
+			const origLine = GrayRaster.prototype.lineTo;
+			const origConic = GrayRaster.prototype.conicTo;
+			GrayRaster.prototype.moveTo = function (x: number, y: number) {
+				commands.push([0, x, y]);
+				return origMove.call(this, x, y);
+			};
+			GrayRaster.prototype.lineTo = function (x: number, y: number) {
+				commands.push([1, x, y]);
+				return origLine.call(this, x, y);
+			};
+			GrayRaster.prototype.conicTo = function (
+				cx: number,
+				cy: number,
+				x: number,
+				y: number,
+			) {
+				commands.push([2, x, y]);
+				return origConic.call(this, cx, cy, x, y);
+			};
+
+			try {
+				for (const hinting of [false, true]) {
+					for (const gid of affected) {
+						commands.length = 0;
+						rasterizeGlyph(amiri, gid, 48, { hinting });
+
+						let startX = 0;
+						let startY = 0;
+						let curX = 0;
+						let curY = 0;
+						let started = false;
+						for (const cmd of commands) {
+							if (cmd[0] === 0) {
+								if (started) {
+									expect([gid, hinting, curX, curY]).toEqual([
+										gid,
+										hinting,
+										startX,
+										startY,
+									]);
+								}
+								startX = cmd[1]!;
+								startY = cmd[2]!;
+								curX = startX;
+								curY = startY;
+								started = true;
+							} else {
+								curX = cmd[1]!;
+								curY = cmd[2]!;
+							}
+						}
+						if (started) {
+							expect([gid, hinting, curX, curY]).toEqual([
+								gid,
+								hinting,
+								startX,
+								startY,
+							]);
+						}
+					}
+				}
+			} finally {
+				GrayRaster.prototype.moveTo = origMove;
+				GrayRaster.prototype.lineTo = origLine;
+				GrayRaster.prototype.conicTo = origConic;
+			}
+		},
+		{ timeout: 30000 },
+	);
 });

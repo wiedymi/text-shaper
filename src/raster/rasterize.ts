@@ -16,9 +16,10 @@ import {
 	setSize,
 } from "../hinting/programs.ts";
 import { scaleFUnits } from "../hinting/scale.ts";
-import { type GlyphPath, getGlyphPath } from "../render/path.ts";
 import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
+import { type GlyphPath, getGlyphPath } from "../render/path.ts";
 import type { GlyphId } from "../types.ts";
+import { transformBitmap2D, transformBitmap3D } from "./bitmap-utils.ts";
 import { PoolOverflowError } from "./cell.ts";
 import { GrayRaster } from "./gray-raster.ts";
 import {
@@ -27,19 +28,18 @@ import {
 	getContourBounds,
 	getPathBounds,
 } from "./outline-decompose.ts";
+import { resolveFontScale, resolveFontSize } from "./size.ts";
 import {
 	type Bitmap,
 	createBitmap,
 	FillRule,
+	type GlyphRasterizeOptions,
 	type HintTarget,
 	PixelMode,
-	type GlyphRasterizeOptions,
 	type RasterizedGlyph,
 	type RasterizeOptions,
 	type TextRasterizeOptions,
 } from "./types.ts";
-import { transformBitmap2D, transformBitmap3D } from "./bitmap-utils.ts";
-import { resolveFontScale, resolveFontSize } from "./size.ts";
 
 /** Cached hinting engines per font */
 const hintingEngineCache = new WeakMap<Font, HintingEngine>();
@@ -208,7 +208,7 @@ function buildGlyphPoints26(
 
 			if (
 				roundCompositeOffsets &&
-				(component.flags & CompositeFlag.RoundXYToGrid)
+				component.flags & CompositeFlag.RoundXYToGrid
 			) {
 				dx26 = roundOffsetToGrid(dx26);
 				dy26 = roundOffsetToGrid(dy26);
@@ -311,8 +311,10 @@ function hintCompositeGlyph(
 				compIndex < hinted.xCoords.length
 			) {
 				const parentPoint = parentPoints[parentIndex]!;
-				const compX = a * hinted.xCoords[compIndex]! + c * hinted.yCoords[compIndex]!;
-				const compY = b * hinted.xCoords[compIndex]! + d * hinted.yCoords[compIndex]!;
+				const compX =
+					a * hinted.xCoords[compIndex]! + c * hinted.yCoords[compIndex]!;
+				const compY =
+					b * hinted.xCoords[compIndex]! + d * hinted.yCoords[compIndex]!;
 				dx26 = Math.round(parentPoint.x - compX);
 				dy26 = Math.round(parentPoint.y - compY);
 			}
@@ -378,7 +380,13 @@ function getCachedHintedGlyph(
 	}
 
 	if (glyph.type === "composite" && glyph.instructions.length === 0) {
-		const compositeHinted = hintCompositeGlyph(engine, font, glyph, ppem, depth);
+		const compositeHinted = hintCompositeGlyph(
+			engine,
+			font,
+			glyph,
+			ppem,
+			depth,
+		);
 		if (compositeHinted && compositeHinted.xCoords.length > 0) {
 			cache.set(key, compositeHinted);
 			return compositeHinted;
@@ -464,9 +472,7 @@ function glyphToOutline(
 		}
 	} else {
 		const contours =
-			glyph.type === "simple"
-				? glyph.contours
-				: font.getGlyphContours(glyphId);
+			glyph.type === "simple" ? glyph.contours : font.getGlyphContours(glyphId);
 		if (!contours || contours.length === 0) return null;
 
 		let pointIndex = 0;
@@ -543,7 +549,13 @@ function glyphToOutlineWithVariation(
 	};
 }
 
-/** Decompose hinted glyph to rasterizer */
+/**
+ * Decompose hinted glyph to rasterizer.
+ * Mirrors FT_Outline_Decompose: a contour starting with an off-curve point
+ * begins at the last point (if on-curve) or at the first/last midpoint
+ * (both off-curve), and every contour closes back to its start point so
+ * no winding leaks across scanlines.
+ */
 function decomposeHintedGlyph(
 	raster: GrayRaster,
 	hinted: HintedGlyph,
@@ -551,70 +563,85 @@ function decomposeHintedGlyph(
 	offsetY: number,
 ): void {
 	const { xCoords, yCoords, flags, contourEnds } = hinted;
+	const offX = offsetX << 8;
+	const offY = offsetY << 8;
 
-	let contourIdx = 0;
-	let contourStart = 0;
+	let first = 0;
+	for (let c = 0; c < contourEnds.length; c++) {
+		const last = contourEnds[c]!;
+		if (last < first) {
+			first = last + 1;
+			continue;
+		}
 
-	for (let i = 0; i < xCoords.length; i++) {
-		const contourEnd = contourEnds[contourIdx]!;
-		const isEnd = i === contourEnd;
+		// Convert 26.6 to rasterizer format (shift left 2 for 26.8), flip Y
+		let start = first;
+		let limit = last;
+		let startX: number;
+		let startY: number;
 
-		// Convert 26.6 to rasterizer format (shift left 2 for 26.8)
-		const x = ((xCoords[i]! << 2) | 0) + (offsetX << 8);
-		const y = ((-yCoords[i]! << 2) | 0) + (offsetY << 8); // Flip Y
-		const onCurve = (flags[i]! & 1) !== 0;
-
-		if (i === contourStart) {
-			raster.moveTo(x, y);
-		} else if (onCurve) {
-			raster.lineTo(x, y);
+		if ((flags[first]! & 1) !== 0) {
+			startX = ((xCoords[first]! << 2) | 0) + offX;
+			startY = ((-yCoords[first]! << 2) | 0) + offY;
+			start = first + 1;
+		} else if ((flags[last]! & 1) !== 0) {
+			// First point is off-curve: start at the on-curve last point,
+			// which is consumed as the start instead of walked
+			startX = ((xCoords[last]! << 2) | 0) + offX;
+			startY = ((-yCoords[last]! << 2) | 0) + offY;
+			limit = last - 1;
 		} else {
-			// Off-curve point: draw conic to next point or implicit midpoint
-			const nextIdx = isEnd ? contourStart : i + 1;
-			const nx = ((xCoords[nextIdx]! << 2) | 0) + (offsetX << 8);
-			const ny = ((-yCoords[nextIdx]! << 2) | 0) + (offsetY << 8);
-			const nextOn = (flags[nextIdx]! & 1) !== 0;
-
-			if (nextOn) {
-				raster.conicTo(x, y, nx, ny);
-				// Skip next point since we used it as conic destination
-				// But check if we're skipping over contour end
-				if (!isEnd) {
-					i++;
-					// After skipping, check if we landed on contour end
-					if (i === contourEnd) {
-						// Close contour back to start
-						const sx = ((xCoords[contourStart]! << 2) | 0) + (offsetX << 8);
-						const sy =
-							((-yCoords[contourStart]! << 2) | 0) + (offsetY << 8);
-						raster.lineTo(sx, sy);
-						contourIdx++;
-						contourStart = i + 1;
-					}
-				}
-			} else {
-				// Two consecutive off-curve points: draw to implicit midpoint
-				raster.conicTo(x, y, (x + nx) >> 1, (y + ny) >> 1);
-			}
+			// First and last both off-curve: start at their midpoint
+			startX = (((xCoords[first]! + xCoords[last]!) << 1) | 0) + offX;
+			startY = (((-yCoords[first]! - yCoords[last]!) << 1) | 0) + offY;
 		}
 
-		// Close contour if this is the end (and we didn't already close above)
-		if (isEnd && i === contourEnd) {
-			const sx = ((xCoords[contourStart]! << 2) | 0) + (offsetX << 8);
-			const sy = ((-yCoords[contourStart]! << 2) | 0) + (offsetY << 8);
-			// Only draw closing line if we didn't just draw to start via conic
-			if (onCurve && i !== contourStart) {
-				raster.lineTo(sx, sy);
-			} else if (!onCurve) {
-				// Last point is off-curve, need to close with curve to start
-				const startOn = (flags[contourStart]! & 1) !== 0;
-				if (startOn) {
-					// Already handled in conic branch above when isEnd is true
-				}
+		raster.moveTo(startX, startY);
+
+		let closed = false;
+		let i = start;
+		while (i <= limit) {
+			if ((flags[i]! & 1) !== 0) {
+				raster.lineTo(
+					((xCoords[i]! << 2) | 0) + offX,
+					((-yCoords[i]! << 2) | 0) + offY,
+				);
+				i++;
+				continue;
 			}
-			contourIdx++;
-			contourStart = i + 1;
+
+			// Off-curve conic control: consume following points until an
+			// on-curve endpoint; past the contour end, close back to start
+			let cx = ((xCoords[i]! << 2) | 0) + offX;
+			let cy = ((-yCoords[i]! << 2) | 0) + offY;
+			i++;
+			for (;;) {
+				if (i > limit) {
+					raster.conicTo(cx, cy, startX, startY);
+					closed = true;
+					break;
+				}
+				const onCurve = (flags[i]! & 1) !== 0;
+				const nx = ((xCoords[i]! << 2) | 0) + offX;
+				const ny = ((-yCoords[i]! << 2) | 0) + offY;
+				i++;
+				if (onCurve) {
+					raster.conicTo(cx, cy, nx, ny);
+					break;
+				}
+				// Two consecutive off-curve points: split at implicit midpoint
+				raster.conicTo(cx, cy, (cx + nx) >> 1, (cy + ny) >> 1);
+				cx = nx;
+				cy = ny;
+			}
+			if (closed) break;
 		}
+
+		if (!closed) {
+			raster.lineTo(startX, startY);
+		}
+
+		first = last + 1;
 	}
 }
 
@@ -955,7 +982,11 @@ function rasterizeHintedGlyph(
 		const scale = fontSize / font.unitsPerEm;
 		const unhintedWidth = (glyphBounds.xMax - glyphBounds.xMin) * scale;
 		const unhintedHeight = (glyphBounds.yMax - glyphBounds.yMin) * scale;
-		const maxWidth = Math.max(unhintedWidth * 8, fontSize * 8, unhintedWidth + 64);
+		const maxWidth = Math.max(
+			unhintedWidth * 8,
+			fontSize * 8,
+			unhintedWidth + 64,
+		);
 		const maxHeight = Math.max(
 			unhintedHeight * 8,
 			fontSize * 8,
@@ -1093,7 +1124,8 @@ function rasterizeHintedGlyphWithVariation(
 
 	const offsetX = -bMinX + padding;
 	const offsetY = bMaxY + padding;
-	const decomposeFn = () => decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
+	const decomposeFn = () =>
+		decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
 
 	try {
 		decomposeFn();
@@ -1174,7 +1206,8 @@ function rasterizeTrueTypePoints26(
 		error: null,
 	};
 
-	const decomposeFn = () => decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
+	const decomposeFn = () =>
+		decomposeHintedGlyph(raster, hinted, offsetX, offsetY);
 	try {
 		decomposeFn();
 		raster.sweep(tempBitmap, FillRule.NonZero);
