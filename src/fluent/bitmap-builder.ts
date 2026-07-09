@@ -73,6 +73,19 @@ export class BitmapBuilder {
 	}
 
 	/**
+	 * Create from existing bitmap with bearing info WITHOUT copying.
+	 * The builder takes ownership: the caller must not use or mutate the
+	 * bitmap afterwards.
+	 */
+	static adoptBitmapWithBearing(
+		bitmap: Bitmap,
+		bearingX: number,
+		bearingY: number,
+	): BitmapBuilder {
+		return new BitmapBuilder(bitmap, bearingX, bearingY);
+	}
+
+	/**
 	 * Create from rasterized glyph result
 	 */
 	static fromRasterizedGlyph(glyph: RasterizedGlyph): BitmapBuilder {
@@ -81,6 +94,16 @@ export class BitmapBuilder {
 			glyph.bearingX,
 			glyph.bearingY,
 		);
+	}
+
+	/**
+	 * Create from rasterized glyph WITHOUT copying the bitmap.
+	 * The builder takes ownership: the caller must not use or mutate the
+	 * glyph's bitmap afterwards. Zero-copy counterpart of fromRasterizedGlyph
+	 * for hot paths.
+	 */
+	static adoptRasterizedGlyph(glyph: RasterizedGlyph): BitmapBuilder {
+		return new BitmapBuilder(glyph.bitmap, glyph.bearingX, glyph.bearingY);
 	}
 
 	/**
@@ -173,10 +196,7 @@ export class BitmapBuilder {
 	/**
 	 * Embolden bitmap and update bearing to avoid clipping
 	 */
-	emboldenWithBearing(
-		xStrength: number,
-		yStrength?: number,
-	): BitmapBuilder {
+	emboldenWithBearing(xStrength: number, yStrength?: number): BitmapBuilder {
 		const result = emboldenBitmapWithBearing(
 			this._bitmap,
 			this._bearingX,
@@ -475,6 +495,19 @@ export class BitmapBuilder {
 	toRasterizedGlyph(): RasterizedGlyph {
 		return {
 			bitmap: copyBitmap(this._bitmap),
+			bearingX: this._bearingX,
+			bearingY: this._bearingY,
+		};
+	}
+
+	/**
+	 * Get bitmap with bearing info WITHOUT copying. Transfers ownership of
+	 * the internal bitmap to the caller: the builder must not be used
+	 * afterwards. Zero-copy counterpart of toRasterizedGlyph for hot paths.
+	 */
+	intoRasterizedGlyph(): RasterizedGlyph {
+		return {
+			bitmap: this._bitmap,
 			bearingX: this._bearingX,
 			bearingY: this._bearingY,
 		};

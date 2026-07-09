@@ -1,6 +1,7 @@
 // Core types
 
 // AAT state machine
+// biome-ignore assist/source/organizeImports: keep the public export barrel grouped by subsystem.
 export {
 	processContextual,
 	processInsertion,
@@ -520,7 +521,10 @@ export {
 } from "./layout/structures/class-def.ts";
 // Layout structures
 export { Coverage } from "./layout/structures/coverage.ts";
-export { parseCoverage, parseCoverageAt } from "./layout/structures/coverage.ts";
+export {
+	parseCoverage,
+	parseCoverageAt,
+} from "./layout/structures/coverage.ts";
 // Device tables
 export type {
 	DeviceOrVariationIndex,
@@ -568,7 +572,10 @@ export {
 	parseScriptList,
 } from "./layout/structures/layout-common.ts";
 // Set digest for fast glyph coverage checking
-export { createLookupDigest, SetDigest } from "./layout/structures/set-digest.ts";
+export {
+	createLookupDigest,
+	SetDigest,
+} from "./layout/structures/set-digest.ts";
 // Asymmetric stroke (independent x/y border widths)
 export {
 	type AsymmetricStrokeOptions,
@@ -710,7 +717,17 @@ export {
 	rasterizeGlyphWithTransform,
 	rasterizePath,
 	rasterizeText,
+	getFillProfile,
+	resetFillProfile,
+	setFillProfiling,
 } from "./raster/rasterize.ts";
+// Optional WASM(+SIMD) fill scan-conversion fast path (bit-exact, auto-fallback)
+export {
+	ensureFillWasmReady,
+	fillWasmStatus,
+	isFillWasmEnabled,
+	setFillWasmEnabled,
+} from "./raster/fill-wasm/index.ts";
 // SDF rendering
 export { renderSdf, type SdfOptions } from "./raster/sdf.ts";
 // Stroker

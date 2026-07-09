@@ -186,8 +186,12 @@ function addJoin(
 
 			for (let i = 1; i <= numSegments; i++) {
 				const t = i / numSegments;
-				const currentAngle =
-					Math.atan2(prevPerp.y, prevPerp.x) + angle * t * sign;
+				// The offset point sits at atan2(perp)+pi for sign=-1 (radius is
+				// negated), so the arc sweep itself must NOT flip with sign or
+				// the outer-loop arc lands on the antipode of the next edge's
+				// offset and the following edge starts a full border-width
+				// inside the glyph.
+				const currentAngle = Math.atan2(prevPerp.y, prevPerp.x) + angle * t;
 				const px = point.x + Math.cos(currentAngle) * radius * sign;
 				const py = point.y + Math.sin(currentAngle) * radius * sign;
 				commands.push({ type: "L", x: px, y: py });
@@ -507,6 +511,20 @@ function extractContours(
 			}
 			case "Z":
 				if (currentContour.length > 0) {
+					// Drop an explicit closing point equal to the start: it
+					// produces a zero-length edge whose direction normalizes
+					// to {0,0} and leaves an unoffset seam notch when stroked.
+					const first = currentContour[0];
+					const last = currentContour[currentContour.length - 1];
+					if (
+						currentContour.length > 1 &&
+						first &&
+						last &&
+						last.x === first.x &&
+						last.y === first.y
+					) {
+						currentContour.pop();
+					}
 					contours.push({ points: currentContour, closed: true });
 					currentContour = [];
 				}

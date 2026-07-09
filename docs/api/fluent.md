@@ -638,6 +638,16 @@ Create from bitmap with bearing info (used for glyph positioning).
 static fromBitmapWithBearing(bitmap: Bitmap, bearingX: number, bearingY: number): BitmapBuilder
 ```
 
+#### BitmapBuilder.adoptBitmapWithBearing()
+
+Create from bitmap with bearing info without copying the bitmap.
+
+```typescript
+static adoptBitmapWithBearing(bitmap: Bitmap, bearingX: number, bearingY: number): BitmapBuilder
+```
+
+This is a zero-copy hot-path helper. The builder takes ownership of the bitmap, so callers should not mutate or reuse that bitmap after adoption.
+
 #### BitmapBuilder.fromRasterizedGlyph()
 
 Create from a rasterized glyph result.
@@ -645,6 +655,16 @@ Create from a rasterized glyph result.
 ```typescript
 static fromRasterizedGlyph(glyph: RasterizedGlyph): BitmapBuilder
 ```
+
+#### BitmapBuilder.adoptRasterizedGlyph()
+
+Create from a rasterized glyph without copying the glyph bitmap.
+
+```typescript
+static adoptRasterizedGlyph(glyph: RasterizedGlyph): BitmapBuilder
+```
+
+This is the zero-copy counterpart of `fromRasterizedGlyph()`. The builder takes ownership of `glyph.bitmap`.
 
 **Example:**
 ```typescript
@@ -936,6 +956,16 @@ Get bitmap with bearing info.
 ```typescript
 toRasterizedGlyph(): { bitmap: Bitmap; bearingX: number; bearingY: number }
 ```
+
+#### intoRasterizedGlyph()
+
+Get bitmap with bearing info without copying.
+
+```typescript
+intoRasterizedGlyph(): { bitmap: Bitmap; bearingX: number; bearingY: number }
+```
+
+This transfers ownership of the builder's internal bitmap to the caller. Do not continue using the builder after calling this method.
 
 #### clone()
 

@@ -21,6 +21,11 @@ import { type GlyphPath, getGlyphPath } from "../render/path.ts";
 import type { GlyphId } from "../types.ts";
 import { transformBitmap2D, transformBitmap3D } from "./bitmap-utils.ts";
 import { PoolOverflowError } from "./cell.ts";
+import {
+	ensureFillWasmReady,
+	fillGlyphGrayWasm,
+	isFillWasmEnabled,
+} from "./fill-wasm/index.ts";
 import { GrayRaster } from "./gray-raster.ts";
 import {
 	decomposeContours,
@@ -46,6 +51,31 @@ const hintingEngineCache = new WeakMap<Font, HintingEngine>();
 
 /** Shared GrayRaster instance for reuse (avoids 2KB allocation per glyph) */
 let sharedRaster: GrayRaster | null = null;
+
+/** One-time init of the optional WASM fill fast path (idempotent, self-verifies). */
+let fillWasmInitDone = false;
+function initFillWasm(): void {
+	if (fillWasmInitDone) return;
+	fillWasmInitDone = true;
+	ensureFillWasmReady();
+}
+
+// --- optional fill profiler (dev/bench only; default off, one branch when off).
+// Accumulates wall time + call count for the single-band gray fill (subdivision
+// + wasm/scalar sweep) so callers can report "fill ms/frame".
+let fillProfileOn = false;
+let fillProfileMs = 0;
+let fillProfileCount = 0;
+export function setFillProfiling(on: boolean): void {
+	fillProfileOn = on;
+}
+export function resetFillProfile(): void {
+	fillProfileMs = 0;
+	fillProfileCount = 0;
+}
+export function getFillProfile(): { ms: number; count: number } {
+	return { ms: fillProfileMs, count: fillProfileCount };
+}
 
 /** Get or create shared rasterizer */
 function getSharedRaster(): GrayRaster {
@@ -667,10 +697,41 @@ export function rasterizePath(
 		pixelMode = PixelMode.Gray,
 		fillRule = FillRule.NonZero,
 		flipY = true,
+		out,
 	} = options;
 
-	// Create bitmap (non-shared since this is a public API and callers keep references)
-	const bitmap = createBitmap(width, height, pixelMode);
+	// Create bitmap (non-shared since this is a public API and callers keep
+	// references). A caller-owned zeroed `out` buffer of the exact size is
+	// reused when supplied, letting hot paths pool transient raster buffers.
+	let bitmap: Bitmap;
+	if (out !== undefined) {
+		const bytesPerPixel =
+			pixelMode === PixelMode.RGBA
+				? 4
+				: pixelMode === PixelMode.LCD || pixelMode === PixelMode.LCD_V
+					? 3
+					: pixelMode === PixelMode.Mono
+						? 0.125
+						: 1;
+		const pitch =
+			pixelMode === PixelMode.Mono
+				? Math.ceil(width / 8)
+				: Math.ceil(width * bytesPerPixel);
+		if (out.length === pitch * height) {
+			bitmap = {
+				width,
+				rows: height,
+				pitch,
+				buffer: out,
+				pixelMode,
+				numGrays: pixelMode === PixelMode.Mono ? 2 : 256,
+			};
+		} else {
+			bitmap = createBitmap(width, height, pixelMode);
+		}
+	} else {
+		bitmap = createBitmap(width, height, pixelMode);
+	}
 
 	// Reuse shared rasterizer
 	const raster = getSharedRaster();
@@ -687,11 +748,44 @@ export function rasterizePath(
 			fillRule,
 		);
 	} else {
-		// Small glyph - render in single pass with full height band
+		// Small glyph - render in single pass with full height band.
+		// Optional WASM fast path for the common gray, top-down fill: record the
+		// post-flatten polyline (bezier subdivision still runs in JS), then run the
+		// self-verified wasm kernel. Any decline falls back to the scalar sweep.
+		const profile = fillProfileOn;
+		const tp = profile ? performance.now() : 0;
+		if (pixelMode === PixelMode.Gray && bitmap.pitch === width) {
+			initFillWasm();
+			if (isFillWasmEnabled()) {
+				raster.beginRecord();
+				decomposePath(raster, path, scale, offsetX, offsetY, flipY);
+				raster.endRecord();
+				if (
+					fillGlyphGrayWasm(
+						raster.getCmd(),
+						raster.getCmdCount(),
+						width,
+						height,
+						fillRule,
+						bitmap.buffer,
+					)
+				) {
+					if (profile) {
+						fillProfileMs += performance.now() - tp;
+						fillProfileCount++;
+					}
+					return bitmap;
+				}
+			}
+		}
 		raster.setBandBounds(0, height);
 		raster.reset();
 		decomposePath(raster, path, scale, offsetX, offsetY, flipY);
 		raster.sweep(bitmap, fillRule);
+		if (profile) {
+			fillProfileMs += performance.now() - tp;
+			fillProfileCount++;
+		}
 	}
 
 	return bitmap;

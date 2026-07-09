@@ -298,54 +298,89 @@ export function scaleOutlinePow2(
  * Apply 2D affine transformation to outline
  */
 export function transformOutline2D(path: GlyphPath, m: Matrix2D): GlyphPath {
-	const commands = path.commands.map((cmd): PathCommand => {
+	// Hot path (rasterization of transformed glyphs re-runs this every frame):
+	// tight index loop, matrix in locals, no intermediate point objects.
+	const src = path.commands;
+	const n = src.length;
+	const commands: PathCommand[] = new Array(n);
+	const m0 = m[0];
+	const m1 = m[1];
+	const m2 = m[2];
+	const m3 = m[3];
+	const m4 = m[4];
+	const m5 = m[5];
+	for (let i = 0; i < n; i++) {
+		const cmd = src[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L": {
-				const p = transformPoint2D(cmd.x, cmd.y, m);
-				return { type: cmd.type, x: p.x, y: p.y };
+				const x = cmd.x;
+				const y = cmd.y;
+				commands[i] = {
+					type: cmd.type,
+					x: m0 * x + m2 * y + m4,
+					y: m1 * x + m3 * y + m5,
+				};
+				break;
 			}
 			case "Q": {
-				const p1 = transformPoint2D(cmd.x1, cmd.y1, m);
-				const p = transformPoint2D(cmd.x, cmd.y, m);
-				return { type: "Q", x1: p1.x, y1: p1.y, x: p.x, y: p.y };
+				const x1 = cmd.x1;
+				const y1 = cmd.y1;
+				const x = cmd.x;
+				const y = cmd.y;
+				commands[i] = {
+					type: "Q",
+					x1: m0 * x1 + m2 * y1 + m4,
+					y1: m1 * x1 + m3 * y1 + m5,
+					x: m0 * x + m2 * y + m4,
+					y: m1 * x + m3 * y + m5,
+				};
+				break;
 			}
 			case "C": {
-				const cp1 = transformPoint2D(cmd.x1, cmd.y1, m);
-				const cp2 = transformPoint2D(cmd.x2, cmd.y2, m);
-				const p = transformPoint2D(cmd.x, cmd.y, m);
-				return {
+				const x1 = cmd.x1;
+				const y1 = cmd.y1;
+				const x2 = cmd.x2;
+				const y2 = cmd.y2;
+				const x = cmd.x;
+				const y = cmd.y;
+				commands[i] = {
 					type: "C",
-					x1: cp1.x,
-					y1: cp1.y,
-					x2: cp2.x,
-					y2: cp2.y,
-					x: p.x,
-					y: p.y,
+					x1: m0 * x1 + m2 * y1 + m4,
+					y1: m1 * x1 + m3 * y1 + m5,
+					x2: m0 * x2 + m2 * y2 + m4,
+					y2: m1 * x2 + m3 * y2 + m5,
+					x: m0 * x + m2 * y + m4,
+					y: m1 * x + m3 * y + m5,
 				};
+				break;
 			}
 			case "Z":
-				return { type: "Z" };
+				commands[i] = { type: "Z" };
+				break;
 			default:
-				return cmd;
+				commands[i] = cmd;
+				break;
 		}
-	});
+	}
 
 	// Compute new bounds by transforming corners
 	let bounds: BoundingBox | null = null;
 	if (path.bounds) {
 		const b = path.bounds;
-		const corners = [
-			transformPoint2D(b.xMin, b.yMin, m),
-			transformPoint2D(b.xMax, b.yMin, m),
-			transformPoint2D(b.xMin, b.yMax, m),
-			transformPoint2D(b.xMax, b.yMax, m),
-		];
+		const x00 = m0 * b.xMin + m2 * b.yMin + m4;
+		const y00 = m1 * b.xMin + m3 * b.yMin + m5;
+		const x10 = m0 * b.xMax + m2 * b.yMin + m4;
+		const y10 = m1 * b.xMax + m3 * b.yMin + m5;
+		const x01 = m0 * b.xMin + m2 * b.yMax + m4;
+		const y01 = m1 * b.xMin + m3 * b.yMax + m5;
+		const x11 = m0 * b.xMax + m2 * b.yMax + m4;
+		const y11 = m1 * b.xMax + m3 * b.yMax + m5;
 		bounds = {
-			xMin: Math.min(...corners.map((c) => c.x)),
-			yMin: Math.min(...corners.map((c) => c.y)),
-			xMax: Math.max(...corners.map((c) => c.x)),
-			yMax: Math.max(...corners.map((c) => c.y)),
+			xMin: Math.min(x00, x10, x01, x11),
+			yMin: Math.min(y00, y10, y01, y11),
+			xMax: Math.max(x00, x10, x01, x11),
+			yMax: Math.max(y00, y10, y01, y11),
 		};
 	}
 
@@ -357,41 +392,91 @@ export function transformOutline2D(path: GlyphPath, m: Matrix2D): GlyphPath {
  * Uses homogeneous coordinates for perspective projection
  */
 export function transformOutline3D(path: GlyphPath, m: Matrix3x3): GlyphPath {
-	const commands = path.commands.map((cmd): PathCommand => {
+	// Hot path for animated/rotated glyphs (perspective re-applied per frame):
+	// tight index loop, matrix rows in locals, no intermediate point objects.
+	// Per-point math is identical to transformPoint3x3 (incl. the w clamp).
+	const src = path.commands;
+	const n = src.length;
+	const commands: PathCommand[] = new Array(n);
+	const m00 = m[0][0];
+	const m01 = m[0][1];
+	const m02 = m[0][2];
+	const m10 = m[1][0];
+	const m11 = m[1][1];
+	const m12 = m[1][2];
+	const m20 = m[2][0];
+	const m21 = m[2][1];
+	const m22 = m[2][2];
+	const minW = 0.01;
+	for (let i = 0; i < n; i++) {
+		const cmd = src[i]!;
 		switch (cmd.type) {
 			case "M":
 			case "L": {
-				const p = transformPoint3x3(cmd.x, cmd.y, m);
-				return { type: cmd.type, x: p.x, y: p.y };
+				const x = cmd.x;
+				const y = cmd.y;
+				let w = m20 * x + m21 * y + m22;
+				if (w < minW) w = minW;
+				commands[i] = {
+					type: cmd.type,
+					x: (m00 * x + m01 * y + m02) / w,
+					y: (m10 * x + m11 * y + m12) / w,
+				};
+				break;
 			}
 			case "Q": {
 				// For perspective transforms, we need to subdivide curves
 				// because Bézier curves don't preserve under perspective
 				// For now, transform control points (approximation)
-				const p1 = transformPoint3x3(cmd.x1, cmd.y1, m);
-				const p = transformPoint3x3(cmd.x, cmd.y, m);
-				return { type: "Q", x1: p1.x, y1: p1.y, x: p.x, y: p.y };
+				const x1 = cmd.x1;
+				const y1 = cmd.y1;
+				const x = cmd.x;
+				const y = cmd.y;
+				let w1 = m20 * x1 + m21 * y1 + m22;
+				if (w1 < minW) w1 = minW;
+				let w = m20 * x + m21 * y + m22;
+				if (w < minW) w = minW;
+				commands[i] = {
+					type: "Q",
+					x1: (m00 * x1 + m01 * y1 + m02) / w1,
+					y1: (m10 * x1 + m11 * y1 + m12) / w1,
+					x: (m00 * x + m01 * y + m02) / w,
+					y: (m10 * x + m11 * y + m12) / w,
+				};
+				break;
 			}
 			case "C": {
-				const p1 = transformPoint3x3(cmd.x1, cmd.y1, m);
-				const p2 = transformPoint3x3(cmd.x2, cmd.y2, m);
-				const p = transformPoint3x3(cmd.x, cmd.y, m);
-				return {
+				const x1 = cmd.x1;
+				const y1 = cmd.y1;
+				const x2 = cmd.x2;
+				const y2 = cmd.y2;
+				const x = cmd.x;
+				const y = cmd.y;
+				let w1 = m20 * x1 + m21 * y1 + m22;
+				if (w1 < minW) w1 = minW;
+				let w2 = m20 * x2 + m21 * y2 + m22;
+				if (w2 < minW) w2 = minW;
+				let w = m20 * x + m21 * y + m22;
+				if (w < minW) w = minW;
+				commands[i] = {
 					type: "C",
-					x1: p1.x,
-					y1: p1.y,
-					x2: p2.x,
-					y2: p2.y,
-					x: p.x,
-					y: p.y,
+					x1: (m00 * x1 + m01 * y1 + m02) / w1,
+					y1: (m10 * x1 + m11 * y1 + m12) / w1,
+					x2: (m00 * x2 + m01 * y2 + m02) / w2,
+					y2: (m10 * x2 + m11 * y2 + m12) / w2,
+					x: (m00 * x + m01 * y + m02) / w,
+					y: (m10 * x + m11 * y + m12) / w,
 				};
+				break;
 			}
 			case "Z":
-				return { type: "Z" };
+				commands[i] = { type: "Z" };
+				break;
 			default:
-				return cmd;
+				commands[i] = cmd;
+				break;
 		}
-	});
+	}
 
 	// Compute new bounds
 	let bounds: BoundingBox | null = null;
@@ -404,10 +489,30 @@ export function transformOutline3D(path: GlyphPath, m: Matrix3x3): GlyphPath {
 			transformPoint3x3(b.xMax, b.yMax, m),
 		];
 		bounds = {
-			xMin: Math.min(...corners.map((c) => c.x)),
-			yMin: Math.min(...corners.map((c) => c.y)),
-			xMax: Math.max(...corners.map((c) => c.x)),
-			yMax: Math.max(...corners.map((c) => c.y)),
+			xMin: Math.min(
+				corners[0]!.x,
+				corners[1]!.x,
+				corners[2]!.x,
+				corners[3]!.x,
+			),
+			yMin: Math.min(
+				corners[0]!.y,
+				corners[1]!.y,
+				corners[2]!.y,
+				corners[3]!.y,
+			),
+			xMax: Math.max(
+				corners[0]!.x,
+				corners[1]!.x,
+				corners[2]!.x,
+				corners[3]!.x,
+			),
+			yMax: Math.max(
+				corners[0]!.y,
+				corners[1]!.y,
+				corners[2]!.y,
+				corners[3]!.y,
+			),
 		};
 	}
 

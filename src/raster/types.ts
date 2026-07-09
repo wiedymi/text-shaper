@@ -153,6 +153,15 @@ export interface RasterizeOptions {
 	fillRule?: FillRule;
 	/** Flip Y axis (font coords are Y-up, bitmap is Y-down) */
 	flipY?: boolean;
+	/**
+	 * Optional caller-owned output buffer. When provided and its length equals
+	 * the computed pitch*height for this rasterization, the returned bitmap
+	 * reuses it instead of allocating a fresh buffer (hot-path pooling). The
+	 * caller MUST pass a zeroed buffer: the rasterizer writes coverage sparsely
+	 * and leaves uncovered pixels untouched. Ignored (a fresh buffer is
+	 * allocated) if the length does not match.
+	 */
+	out?: Uint8Array;
 }
 
 /**

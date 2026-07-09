@@ -1,6 +1,6 @@
 {
   "name": "text-shaper",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "repository": {
     "type": "git",
     "url": "https://github.com/wiedymi/text-shaper.git"
@@ -62,7 +62,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check --write --unsafe --max-diagnostics 99999",
     "check": "bun run typecheck && bun run lint",
-    "prepublishOnly": "bun run build:prod && bun run build:dts",
+    "prepublishOnly": "rm -rf dist && bun run build:prod && bun run build:dts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"

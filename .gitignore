@@ -5,6 +5,7 @@ node_modules
 out
 dist
 *.tgz
+src/raster/fill-wasm/fill.wasm
 
 # code coverage
 coverage

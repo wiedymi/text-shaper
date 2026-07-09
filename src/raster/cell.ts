@@ -5,15 +5,34 @@
  * Each cell tracks coverage and area for anti-aliased rendering.
  *
  * Uses pool-based allocation with overflow detection for bounded memory.
+ *
+ * Storage layout: cells live in a single interleaved Int32Array with a
+ * stride of 4 (x, area, cover, next). This keeps the hot decompose/sweep
+ * accesses monomorphic and packs each cell's four fields into one contiguous
+ * 16-byte block (good cache locality for the linked-list walk), while matching
+ * FreeType's 32-bit `int` cell semantics and avoiding per-cell object
+ * allocation. The `Cell` object interface is kept only for the cold
+ * compatibility accessors (getCellsForRow / iterateCells / iterateRowCells)
+ * which materialize objects on demand.
  */
 
-import { PIXEL_BITS, truncPixel } from "./fixed-point.ts";
+import { PIXEL_BITS } from "./fixed-point.ts";
 
 /** Default pool size - larger than FreeType's 2048 to handle big glyphs */
 const DEFAULT_POOL_SIZE = 16384;
 
 /** Sentinel X value for null cell */
 const CELL_MAX_X = 0x7fffffff;
+
+/** Interleaved cell field stride and offsets */
+const CELL_STRIDE = 4;
+const OFF_X = 0;
+const OFF_AREA = 1;
+const OFF_COVER = 2;
+const OFF_NEXT = 3;
+
+/** Field stride for interleaved cell storage (x, area, cover, next). */
+export const CELL_FIELD_STRIDE = CELL_STRIDE;
 
 /**
  * Pool overflow error - thrown when cell pool is exhausted
@@ -26,7 +45,9 @@ export class PoolOverflowError extends Error {
 }
 
 /**
- * A cell accumulates coverage information for one pixel
+ * A cell accumulates coverage information for one pixel.
+ * Materialized on demand by the compatibility accessors; the hot path uses
+ * the interleaved cell array directly.
  */
 export interface Cell {
 	/** X coordinate in pixels */
@@ -44,14 +65,17 @@ export interface Cell {
  * Matches FreeType's approach for bounded memory usage.
  */
 export class CellBuffer {
-	/** Fixed-size cell pool */
-	private pool: Cell[];
-	/** Pool size */
+	/** Interleaved cell fields: [x, area, cover, next] per cell */
+	private cells: Int32Array;
+
+	/** Pool size (cell count) */
 	private poolSize: number;
 	/** Next free cell index */
 	private freeIndex: number;
-	/** Per-scanline linked list heads (index into pool, -1 for empty) */
-	private ycells: number[];
+	/** Per-scanline linked list heads (index into pool, nullCellIndex = empty) */
+	private ycells: Int32Array;
+	/** Number of active rows in ycells for the current band */
+	private bandHeight: number = 0;
 
 	/** Band bounds (Y range for current render pass) */
 	private bandMinY: number = 0;
@@ -84,17 +108,14 @@ export class CellBuffer {
 		this.poolSize = poolSize;
 		this.nullCellIndex = poolSize - 1;
 
-		// Pre-allocate pool
-		this.pool = new Array(poolSize);
-		for (let i = 0; i < poolSize; i++) {
-			this.pool[i] = { x: 0, area: 0, cover: 0, next: -1 };
-		}
+		// Pre-allocate interleaved cell array
+		this.cells = new Int32Array(poolSize * CELL_STRIDE);
 
 		// Initialize null cell (sentinel)
-		this.pool[this.nullCellIndex].x = CELL_MAX_X;
-		this.pool[this.nullCellIndex].next = -1;
+		this.cells[this.nullCellIndex * CELL_STRIDE + OFF_X] = CELL_MAX_X;
+		this.cells[this.nullCellIndex * CELL_STRIDE + OFF_NEXT] = -1;
 
-		this.ycells = [];
+		this.ycells = new Int32Array(0);
 		this.freeIndex = 0;
 
 		// Default band bounds (large range for backward compatibility)
@@ -113,26 +134,21 @@ export class CellBuffer {
 	}
 
 	/**
-	 * Set band bounds for current render pass
+	 * Set band bounds for current render pass.
+	 * Grows ycells if needed and clears the active rows to the null sentinel so
+	 * the buffer is usable even if the caller does not immediately reset().
 	 */
 	setBandBounds(minY: number, maxY: number): void {
 		this.bandMinY = minY;
 		this.bandMaxY = maxY;
 		this.bandSet = true;
 
-		// Resize ycells array for band height
 		const height = maxY - minY;
+		this.bandHeight = height > 0 ? height : 0;
 		if (this.ycells.length < height) {
-			this.ycells = new Array(height);
+			this.ycells = new Int32Array(height);
 		}
-
-		// Initialize all rows to null cell
-		for (let i = 0; i < height; i++) {
-			this.ycells[i] = this.nullCellIndex;
-		}
-
-		// Calculate how many cells we need for ycells pointers
-		// Reserve space at start of pool for ycells (like FreeType)
+		this.ycells.fill(this.nullCellIndex, 0, this.bandHeight);
 		this.freeIndex = 0;
 	}
 
@@ -144,20 +160,21 @@ export class CellBuffer {
 		this.freeIndex = 0;
 
 		// Reset null cell
-		this.pool[this.nullCellIndex].x = CELL_MAX_X;
-		this.pool[this.nullCellIndex].area = 0;
-		this.pool[this.nullCellIndex].cover = 0;
-		this.pool[this.nullCellIndex].next = -1;
+		const nullBase = this.nullCellIndex * CELL_STRIDE;
+		this.cells[nullBase + OFF_X] = CELL_MAX_X;
+		this.cells[nullBase + OFF_AREA] = 0;
+		this.cells[nullBase + OFF_COVER] = 0;
+		this.cells[nullBase + OFF_NEXT] = -1;
 
-		// Reset ycells to null (only if band was set; otherwise leave for dynamic expansion)
+		// Reset ycells to null. In band mode clear only the active rows;
+		// otherwise fall back to dynamic expansion mode.
 		if (this.bandSet) {
-			for (let i = 0; i < this.ycells.length; i++) {
-				this.ycells[i] = this.nullCellIndex;
-			}
+			this.ycells.fill(this.nullCellIndex, 0, this.bandHeight);
 		} else {
 			// Clear ycells for dynamic mode - will be initialized on first use
-			this.ycells = [];
-			// Use very large bounds to avoid clipping before ensureYCellsCapacity is called
+			this.ycells = new Int32Array(0);
+			this.bandHeight = 0;
+			// Use very large bounds to avoid clipping before ensureYCellsCapacity
 			this.bandMinY = -100000;
 			this.bandMaxY = 100000;
 		}
@@ -170,13 +187,23 @@ export class CellBuffer {
 	}
 
 	/**
-	 * Set current position (in subpixel coordinates)
+	 * Set current position (in subpixel coordinates).
+	 * Cold entry (tests, moveTo); the rasterizer hot path calls
+	 * setCurrentCellPixel directly to skip the shift round-trip.
 	 * @throws PoolOverflowError if pool is exhausted
 	 */
 	setCurrentCell(x: number, y: number): void {
-		const px = truncPixel(x);
-		const py = truncPixel(y);
+		this.setCurrentCellPixel(x >> PIXEL_BITS, y >> PIXEL_BITS);
+	}
 
+	/**
+	 * Find-or-create the current cell at already-truncated pixel coordinates.
+	 * Hot-path entry that avoids the subpixel<->pixel shift round-trip the
+	 * rasterizer would otherwise pay at every call site. Full body is inlined
+	 * here (rather than delegating) so the hot path takes no extra call hop.
+	 * @throws PoolOverflowError if pool is exhausted
+	 */
+	setCurrentCellPixel(px: number, py: number): void {
 		// Check if we're already at this cell
 		if (
 			this.currentCellIndex >= 0 &&
@@ -186,13 +213,15 @@ export class CellBuffer {
 			return;
 		}
 
-		// Check clipping (always enforce clip bounds; band bounds only when set)
+		// Clip check. The band-Y bound is intentionally NOT tested here: it is
+		// exactly equivalent to the rowIndex range check below (invariant
+		// bandHeight === bandMaxY - bandMinY), so testing it twice is wasted
+		// work on every call.
 		if (
 			py < this.clipMinY ||
 			py >= this.clipMaxY ||
 			px < this.clipMinX ||
-			px >= this.clipMaxX ||
-			(this.bandSet && (py < this.bandMinY || py >= this.bandMaxY))
+			px >= this.clipMaxX
 		) {
 			this.currentCellIndex = this.nullCellIndex;
 			this.currentX = px;
@@ -200,69 +229,64 @@ export class CellBuffer {
 			return;
 		}
 
-		// Get or create cell for this position
 		this.currentX = px;
 		this.currentY = py;
-		this.currentCellIndex = this.findOrCreateCell(px, py);
 
-		// Update bounds
-		this.minY = Math.min(this.minY, py);
-		this.maxY = Math.max(this.maxY, py);
-		this.minX = Math.min(this.minX, px);
-		this.maxX = Math.max(this.maxX, px);
-	}
-
-	/**
-	 * Find or create a cell at the given pixel position
-	 * @throws PoolOverflowError if pool is exhausted
-	 */
-	private findOrCreateCell(x: number, y: number): number {
-		// Auto-expand band if needed (for backward compatibility when setBandBounds not called)
+		// --- find-or-create cell for (px, py) ---
 		if (!this.bandSet) {
-			this.ensureYCellsCapacity(y);
+			this.ensureYCellsCapacity(py);
 		}
 
-		const rowIndex = y - this.bandMinY;
-		if (rowIndex < 0 || rowIndex >= this.ycells.length) {
-			return this.nullCellIndex;
+		const rowIndex = py - this.bandMinY;
+		if (rowIndex < 0 || rowIndex >= this.bandHeight) {
+			this.currentCellIndex = this.nullCellIndex;
+			return;
 		}
 
-		// Walk linked list for this row
+		const nullIndex = this.nullCellIndex;
+		const cells = this.cells;
+
 		let prevIndex = -1;
-		let cellIndex = this.ycells[rowIndex];
-
-		while (cellIndex !== this.nullCellIndex) {
-			const cell = this.pool[cellIndex];
-			if (cell.x === x) {
-				return cellIndex; // Found existing cell
+		let cellIndex = this.ycells[rowIndex]!;
+		while (cellIndex !== nullIndex) {
+			const cx = cells[cellIndex * CELL_STRIDE + OFF_X]!;
+			if (cx === px) {
+				// Existing cell: (px, py) is already inside [minX,maxX]x[minY,maxY]
+				// because the bounds were recorded when this cell was created,
+				// so no bounds update is needed here.
+				this.currentCellIndex = cellIndex;
+				return;
 			}
-			if (cell.x > x) {
-				break; // Insert before this cell
-			}
+			if (cx > px) break;
 			prevIndex = cellIndex;
-			cellIndex = cell.next;
+			cellIndex = cells[cellIndex * CELL_STRIDE + OFF_NEXT]!;
 		}
 
 		// Check pool overflow - throw to trigger band bisection
-		if (this.freeIndex >= this.nullCellIndex) {
+		if (this.freeIndex >= nullIndex) {
 			throw new PoolOverflowError();
 		}
 
 		const newIndex = this.freeIndex++;
-		const newCell = this.pool[newIndex];
-		newCell.x = x;
-		newCell.area = 0;
-		newCell.cover = 0;
-		newCell.next = cellIndex;
+		const newBase = newIndex * CELL_STRIDE;
+		cells[newBase + OFF_X] = px;
+		cells[newBase + OFF_AREA] = 0;
+		cells[newBase + OFF_COVER] = 0;
+		cells[newBase + OFF_NEXT] = cellIndex;
 
-		// Link into list
 		if (prevIndex === -1) {
 			this.ycells[rowIndex] = newIndex;
 		} else {
-			this.pool[prevIndex].next = newIndex;
+			cells[prevIndex * CELL_STRIDE + OFF_NEXT] = newIndex;
 		}
 
-		return newIndex;
+		this.currentCellIndex = newIndex;
+
+		// Update bounds
+		if (py < this.minY) this.minY = py;
+		if (py > this.maxY) this.maxY = py;
+		if (px < this.minX) this.minX = px;
+		if (px > this.maxX) this.maxX = px;
 	}
 
 	/**
@@ -276,38 +300,31 @@ export class CellBuffer {
 			this.bandMinY = Math.min(y, 0);
 			this.bandMaxY = Math.max(y + 1, 256);
 			const height = this.bandMaxY - this.bandMinY;
-			this.ycells = new Array(height);
-			for (let i = 0; i < height; i++) {
-				this.ycells[i] = this.nullCellIndex;
-			}
+			this.ycells = new Int32Array(height);
+			this.ycells.fill(this.nullCellIndex);
+			this.bandHeight = height;
 			return;
 		}
 
 		// Expand if needed
 		if (y < this.bandMinY) {
 			const expand = this.bandMinY - y;
-			const newYcells = new Array(this.ycells.length + expand);
-			for (let i = 0; i < expand; i++) {
-				newYcells[i] = this.nullCellIndex;
-			}
-			for (let i = 0; i < this.ycells.length; i++) {
-				newYcells[expand + i] = this.ycells[i];
-			}
+			const newYcells = new Int32Array(this.ycells.length + expand);
+			newYcells.fill(this.nullCellIndex, 0, expand);
+			newYcells.set(this.ycells, expand);
 			this.ycells = newYcells;
 			this.bandMinY = y;
+			this.bandHeight = newYcells.length;
 		} else if (y >= this.bandMaxY) {
 			const newMaxY = y + 1;
 			const oldLen = this.ycells.length;
 			const newLen = newMaxY - this.bandMinY;
 			if (newLen > oldLen) {
-				const newYcells = new Array(newLen);
-				for (let i = 0; i < oldLen; i++) {
-					newYcells[i] = this.ycells[i];
-				}
-				for (let i = oldLen; i < newLen; i++) {
-					newYcells[i] = this.nullCellIndex;
-				}
+				const newYcells = new Int32Array(newLen);
+				newYcells.set(this.ycells, 0);
+				newYcells.fill(this.nullCellIndex, oldLen, newLen);
 				this.ycells = newYcells;
+				this.bandHeight = newLen;
 			}
 			this.bandMaxY = newMaxY;
 		}
@@ -318,9 +335,9 @@ export class CellBuffer {
 	 */
 	addArea(area: number, cover: number): void {
 		if (this.currentCellIndex >= 0) {
-			const cell = this.pool[this.currentCellIndex];
-			cell.area += area;
-			cell.cover += cover;
+			const base = this.currentCellIndex * CELL_STRIDE;
+			this.cells[base + OFF_AREA] += area;
+			this.cells[base + OFF_COVER] += cover;
 		}
 	}
 
@@ -329,7 +346,7 @@ export class CellBuffer {
 	 */
 	getArea(): number {
 		if (this.currentCellIndex >= 0) {
-			return this.pool[this.currentCellIndex]?.area;
+			return this.cells[this.currentCellIndex * CELL_STRIDE + OFF_AREA]!;
 		}
 		return 0;
 	}
@@ -339,9 +356,22 @@ export class CellBuffer {
 	 */
 	getCover(): number {
 		if (this.currentCellIndex >= 0) {
-			return this.pool[this.currentCellIndex]?.cover;
+			return this.cells[this.currentCellIndex * CELL_STRIDE + OFF_COVER]!;
 		}
 		return 0;
+	}
+
+	/**
+	 * Materialize a Cell object for a pool index (compatibility accessor).
+	 */
+	private makeCell(index: number): Cell {
+		const base = index * CELL_STRIDE;
+		return {
+			x: this.cells[base + OFF_X]!,
+			area: this.cells[base + OFF_AREA]!,
+			cover: this.cells[base + OFF_COVER]!,
+			next: this.cells[base + OFF_NEXT]!,
+		};
 	}
 
 	/**
@@ -354,10 +384,10 @@ export class CellBuffer {
 		}
 
 		const cells: Cell[] = [];
-		let cellIndex = this.ycells[rowIndex];
+		let cellIndex = this.ycells[rowIndex]!;
 		while (cellIndex !== this.nullCellIndex) {
-			cells.push(this.pool[cellIndex]);
-			cellIndex = this.pool[cellIndex].next;
+			cells.push(this.makeCell(cellIndex));
+			cellIndex = this.cells[cellIndex * CELL_STRIDE + OFF_NEXT]!;
 		}
 		return cells;
 	}
@@ -368,13 +398,13 @@ export class CellBuffer {
 	*iterateCells(): Generator<{ y: number; cells: Cell[] }> {
 		for (let i = 0; i < this.ycells.length; i++) {
 			const y = this.bandMinY + i;
-			let cellIndex = this.ycells[i];
+			let cellIndex = this.ycells[i]!;
 			if (cellIndex === this.nullCellIndex) continue;
 
 			const cells: Cell[] = [];
 			while (cellIndex !== this.nullCellIndex) {
-				cells.push(this.pool[cellIndex]);
-				cellIndex = this.pool[cellIndex].next;
+				cells.push(this.makeCell(cellIndex));
+				cellIndex = this.cells[cellIndex * CELL_STRIDE + OFF_NEXT]!;
 			}
 			if (cells.length > 0) {
 				yield { y, cells };
@@ -384,11 +414,11 @@ export class CellBuffer {
 
 	/**
 	 * Iterate scanlines directly without allocating cell arrays
-	 * Returns first cell index for each row, caller walks linked list via pool
+	 * Returns first cell index for each row, caller walks linked list via cells
 	 */
 	*iterateScanlines(): Generator<{ y: number; firstCellIndex: number }> {
 		for (let i = 0; i < this.ycells.length; i++) {
-			const cellIndex = this.ycells[i];
+			const cellIndex = this.ycells[i]!;
 			if (cellIndex !== this.nullCellIndex) {
 				yield { y: this.bandMinY + i, firstCellIndex: cellIndex };
 			}
@@ -396,10 +426,24 @@ export class CellBuffer {
 	}
 
 	/**
-	 * Get the cell pool for direct access during sweep
+	 * Get the interleaved cell array for direct access during sweep.
+	 * Layout per cell index i: [i*4+0]=x, [i*4+1]=area, [i*4+2]=cover, [i*4+3]=next
+	 */
+	getCells(): Int32Array {
+		return this.cells;
+	}
+
+	/**
+	 * Compatibility accessor: materialize the whole pool as Cell objects.
+	 * Cold path (kept for tests / external inspection); the hot path uses
+	 * getCells() and the interleaved layout directly.
 	 */
 	getPool(): Cell[] {
-		return this.pool;
+		const out: Cell[] = new Array(this.poolSize);
+		for (let i = 0; i < this.poolSize; i++) {
+			out[i] = this.makeCell(i);
+		}
+		return out;
 	}
 
 	/**
@@ -412,7 +456,7 @@ export class CellBuffer {
 	/**
 	 * Get ycells array for direct iteration (avoids generator overhead)
 	 */
-	getYCells(): number[] {
+	getYCells(): Int32Array {
 		return this.ycells;
 	}
 
@@ -424,16 +468,23 @@ export class CellBuffer {
 	}
 
 	/**
+	 * Number of active scanline rows in the current band
+	 */
+	getBandHeight(): number {
+		return this.bandHeight;
+	}
+
+	/**
 	 * Iterate cells for a single row (for band sweep)
 	 */
 	*iterateRowCells(y: number): Generator<Cell> {
 		const rowIndex = y - this.bandMinY;
 		if (rowIndex < 0 || rowIndex >= this.ycells.length) return;
 
-		let cellIndex = this.ycells[rowIndex];
+		let cellIndex = this.ycells[rowIndex]!;
 		while (cellIndex !== this.nullCellIndex) {
-			yield this.pool[cellIndex];
-			cellIndex = this.pool[cellIndex].next;
+			yield this.makeCell(cellIndex);
+			cellIndex = this.cells[cellIndex * CELL_STRIDE + OFF_NEXT]!;
 		}
 	}
 
@@ -481,7 +532,7 @@ export function applyNonZeroRule(cover: number): number {
 }
 
 /**
- * Apply even-odd fill rule
+ * Apply even-odd (alternating) fill rule
  */
 export function applyEvenOddRule(cover: number): number {
 	let c = cover;

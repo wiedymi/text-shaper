@@ -468,7 +468,8 @@ export class PathBuilder {
 			flipY,
 		});
 
-		return BitmapBuilder.fromBitmapWithBearing(
+		// Freshly rasterized bitmap: adopt without copying.
+		return BitmapBuilder.adoptBitmapWithBearing(
 			bitmap,
 			bounds.minX - padding,
 			-(bounds.minY - padding),

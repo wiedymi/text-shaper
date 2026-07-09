@@ -114,8 +114,11 @@ interface RasterizeOptions {
   flipY?: boolean;         // Flip Y axis (default: true)
   pixelMode?: PixelMode;   // Pixel format (default: Gray)
   fillRule?: FillRule;     // Fill rule (default: NonZero)
+  out?: Uint8Array;        // Optional zeroed output buffer to reuse
 }
 ```
+
+`out` is for allocation-sensitive rendering loops. When provided, the rasterizer reuses it only if its length exactly matches the computed `pitch * height`; otherwise it allocates a fresh bitmap. The buffer must already be zeroed because uncovered pixels are left untouched.
 
 ### BitmapTransformOptions
 
@@ -260,6 +263,35 @@ function rasterizePath(
   options: RasterizeOptions
 ): Bitmap
 ```
+
+### Fill WASM Controls
+
+The gray fill rasterizer can use an optional WebAssembly SIMD fast path. It is self-verified at initialization and automatically falls back to the TypeScript implementation if WebAssembly is unavailable or verification fails.
+
+```typescript
+function ensureFillWasmReady(): void
+function fillWasmStatus(): {
+  status: "uninit" | "ready" | "disabled";
+  enabled: boolean;
+  forceDisabled: boolean;
+}
+function isFillWasmEnabled(): boolean
+function setFillWasmEnabled(enabled: boolean): void
+```
+
+`ensureFillWasmReady()` performs synchronous module compilation and verification. Call it during application warm-up if you want to avoid first-rasterization initialization cost. `setFillWasmEnabled(false)` forces the scalar TypeScript path for diagnostics, benchmarks, or compatibility testing.
+
+### Fill Profiling
+
+Fill profiling is a lightweight benchmark hook for measuring the single-band gray fill path.
+
+```typescript
+function setFillProfiling(enabled: boolean): void
+function resetFillProfile(): void
+function getFillProfile(): { ms: number; count: number }
+```
+
+Profiling is off by default and intended for development or benchmark harnesses.
 
 ## Atlas Building
 

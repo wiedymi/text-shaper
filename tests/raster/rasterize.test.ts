@@ -1165,13 +1165,11 @@ describe("raster/rasterize", () => {
 		});
 
 		test("continues splitting beyond 32 overflows", () => {
-			type RenderBandWithXClip = (
+			type RenderBand = (
 				bitmap: Bitmap,
 				decomposeFn: () => void,
 				minY: number,
 				maxY: number,
-				minX: number,
-				maxX: number,
 				fillRule: FillRule,
 			) => boolean;
 
@@ -1179,13 +1177,18 @@ describe("raster/rasterize", () => {
 
 			let calls = 0;
 
-			const overrideRender: RenderBandWithXClip = () => {
+			const overrideRender: RenderBand = (
+				_bitmap,
+				_decomposeFn,
+				minY,
+				maxY,
+			) => {
 				calls++;
-				return calls >= 40;
+				return calls >= 40 || maxY - minY <= 1;
 			};
 
 			// Force overflow until we have at least 40 attempts
-			Object.defineProperty(raster, "renderBandWithXClip", {
+			Object.defineProperty(raster, "renderBand", {
 				value: overrideRender,
 			});
 
