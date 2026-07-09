@@ -34,7 +34,7 @@ jobs:
       - name: Setup Node.js for npm
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24.15.0
           registry-url: "https://registry.npmjs.org/"
 
       - name: Upgrade npm for trusted publishing
