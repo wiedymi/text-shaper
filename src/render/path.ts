@@ -148,15 +148,12 @@ function scaledFreeTypeContourToPath(contour: Contour): PathCommand[] {
 	}
 	commands.push({ type: "M", x: startX / 64, y: startY / 64 });
 
-	let currentX = startX;
-	let currentY = startY;
+	const pointsToVisit = startIndex >= 0 ? count - 1 : count;
 	let visited = 0;
-	while (visited < count) {
+	while (visited < pointsToVisit) {
 		const point = contour[index]!;
 		if (point.onCurve) {
 			commands.push({ type: "L", x: point.x / 64, y: point.y / 64 });
-			currentX = point.x;
-			currentY = point.y;
 		} else {
 			const nextIndex = index + 1 === count ? 0 : index + 1;
 			const next = contour[nextIndex]!;
@@ -178,13 +175,10 @@ function scaledFreeTypeContourToPath(contour: Contour): PathCommand[] {
 				x: endX / 64,
 				y: endY / 64,
 			});
-			currentX = endX;
-			currentY = endY;
 		}
 		index++;
 		if (index === count) index = 0;
 		visited++;
-		if (currentX === startX && currentY === startY) break;
 	}
 	commands.push({ type: "Z" });
 	return commands;
@@ -404,10 +398,7 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
  */
 // Path cache: WeakMap allows garbage collection when Font is no longer referenced
 const pathCache = new WeakMap<Font, Map<GlyphId, GlyphPath | null>>();
-const sizedPathCache = new WeakMap<
-	Font,
-	Map<string, GlyphPath | null>
->();
+const sizedPathCache = new WeakMap<Font, Map<string, GlyphPath | null>>();
 
 /**
  * Get cached glyph path, computing and caching if not already cached

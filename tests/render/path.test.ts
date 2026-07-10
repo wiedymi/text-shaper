@@ -320,6 +320,38 @@ describe("render/path", () => {
 				}
 			}
 		});
+
+		test("keeps contour points after revisiting the starting coordinates", () => {
+			const syntheticFont = {
+				unitsPerEm: 1000,
+				height: 1000,
+				ascender: 800,
+				descender: -200,
+				head: { yMin: 0, yMax: 1000 },
+				os2: null,
+				getGlyphContoursAndBounds: () => ({
+					contours: [
+						[
+							{ x: 0, y: 0, onCurve: true },
+							{ x: 100, y: 0, onCurve: true },
+							{ x: 0, y: 0, onCurve: true },
+							{ x: 100, y: 100, onCurve: true },
+						],
+					],
+					bounds: { xMin: 0, yMin: 0, xMax: 100, yMax: 100 },
+				}),
+			} as unknown as Font;
+
+			const path = getGlyphPathAtSize(syntheticFont, 1, 10);
+
+			expect(path?.commands).toEqual([
+				{ type: "M", x: 0, y: 0 },
+				{ type: "L", x: 1, y: 0 },
+				{ type: "L", x: 0, y: 0 },
+				{ type: "L", x: 1, y: 1 },
+				{ type: "Z" },
+			]);
+		});
 	});
 
 	describe("pathToSVG", () => {

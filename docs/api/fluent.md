@@ -147,7 +147,7 @@ static fromGlyph(font: Font, glyphId: GlyphId): PathBuilder | null
 
 #### PathBuilder.fromGlyphAtSize()
 
-Extract a typed, scaled outline. `"freetype-real-dim"` follows FreeType/libass real-dimension sizing and 26.6 point rounding.
+Extract a size-specific, scaled outline. `"freetype-real-dim"` follows FreeType/libass real-dimension sizing and 26.6 point rounding.
 
 ```typescript
 static fromGlyphAtSize(

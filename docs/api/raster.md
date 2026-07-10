@@ -284,6 +284,23 @@ function setFillWasmEnabled(enabled: boolean): void
 
 `rasterizer: "libass"` selects a separate embedded 16x16 tiled rasterizer ported from libass. It owns curve subdivision and coverage generation end to end and is not the same kernel as `fill-wasm`, which accelerates the default FreeType-style scan converter. The libass path currently requires Gray pixels, non-zero fill, and a tightly packed output; unsupported combinations fall back to the default rasterizer.
 
+### libass Raster WASM Controls
+
+The libass rasterizer is also self-verified before use. These controls let applications warm it up explicitly or force the default FreeType-style fallback for diagnostics and compatibility testing.
+
+```typescript
+function ensureAssRasterWasmReady(): void
+function assRasterWasmStatus(): {
+  status: "uninit" | "ready" | "disabled";
+  enabled: boolean;
+  forceDisabled: boolean;
+}
+function isAssRasterWasmEnabled(): boolean
+function setAssRasterWasmEnabled(enabled: boolean): void
+```
+
+`ensureAssRasterWasmReady()` performs synchronous module compilation and verification. When the module is unavailable, fails verification, or is force-disabled, `rasterizer: "libass"` falls back to the default rasterizer.
+
 ### Fill Profiling
 
 Fill profiling is a lightweight benchmark hook for measuring the single-band gray fill path.

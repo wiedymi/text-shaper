@@ -59,6 +59,19 @@ if (path) {
 }
 ```
 
+### getGlyphPathAtSize()
+
+Get a cached outline scaled to a concrete pixel size. Coordinates are rounded to FreeType-compatible 26.6 values before implied TrueType conic points are created. Use `"freetype-real-dim"` when matching FreeType/libass face sizing matters.
+
+```typescript
+function getGlyphPathAtSize(
+  font: Font,
+  glyphId: GlyphId,
+  sizePx: number,
+  mode?: "em" | "height" | "freetype-real-dim"
+): GlyphPath | null
+```
+
 ### getGlyphPathWithVariation()
 
 Get path with variable font variation applied.

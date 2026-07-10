@@ -22,7 +22,7 @@ features:
   - title: Complex Scripts
     details: Arabic, Hebrew, Indic, Thai, Khmer, Myanmar, Hangul, and 40+ scripts via Universal Shaping Engine.
   - title: Rasterization
-    details: FreeType-style glyph rasterization with TrueType hinting, LCD subpixel rendering, and texture atlas generation.
+    details: Selectable FreeType-style or libass-style glyph rasterization, plus TrueType hinting, LCD subpixel rendering, and texture atlas generation.
   - title: TypeScript-first
     details: Zero package dependencies and no native bindings. Small embedded WebAssembly kernels accelerate optional raster paths in browsers and Bun/Node.js.
   - title: Color Fonts

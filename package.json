@@ -25,7 +25,7 @@
       "import": "./dist/index.js"
     }
   },
-  "description": "Pure TypeScript text shaping engine with OpenType layout, TrueType hinting, and FreeType-style rasterization",
+  "description": "TypeScript-first text shaping engine with OpenType layout, TrueType hinting, and selectable FreeType-style or libass-style rasterization",
   "files": [
     "dist"
   ],
