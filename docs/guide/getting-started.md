@@ -1,6 +1,6 @@
 # Getting Started
 
-TextShaper is a pure TypeScript text shaping engine. It handles OpenType layout, complex text shaping, TrueType hinting, and FreeType-style rasterization. Supports all major scripts including Arabic, Indic, and CJK.
+TextShaper is a TypeScript-first text shaping engine. It handles OpenType layout, complex text shaping, TrueType hinting, FreeType-style rasterization, and an opt-in libass-style tiled rasterizer backed by a small embedded WebAssembly kernel. It supports all major scripts including Arabic, Indic, and CJK.
 
 ## Installation
 

@@ -145,6 +145,19 @@ Create from a font glyph.
 static fromGlyph(font: Font, glyphId: GlyphId): PathBuilder | null
 ```
 
+#### PathBuilder.fromGlyphAtSize()
+
+Extract a typed, scaled outline. `"freetype-real-dim"` follows FreeType/libass real-dimension sizing and 26.6 point rounding.
+
+```typescript
+static fromGlyphAtSize(
+  font: Font,
+  glyphId: GlyphId,
+  sizePx: number,
+  mode?: "em" | "height" | "freetype-real-dim"
+): PathBuilder | null
+```
+
 #### PathBuilder.fromGlyphWithVariation()
 
 Create from a variable font glyph with axis coordinates.

@@ -3,6 +3,7 @@ import { Font } from "../../src/font/font.ts";
 import {
 	contourToPath,
 	getGlyphPath,
+	getGlyphPathAtSize,
 	pathToSVG,
 	glyphToSVG,
 	glyphBufferToShapedGlyphs,
@@ -289,6 +290,34 @@ describe("render/path", () => {
 				const result2 = getGlyphPath(font, glyphId);
 				// Should be the exact same object (cached)
 				expect(result1).toBe(result2);
+			}
+		});
+	});
+
+	describe("getGlyphPathAtSize", () => {
+		test("returns a cached FreeType-compatible 26.6 outline", () => {
+			const glyphId = font.glyphId("S".codePointAt(0)!);
+			const first = getGlyphPathAtSize(
+				font,
+				glyphId,
+				256,
+				"freetype-real-dim",
+			);
+			const second = getGlyphPathAtSize(
+				font,
+				glyphId,
+				256,
+				"freetype-real-dim",
+			);
+			expect(first).toBe(second);
+			expect(first?.commands.length ?? 0).toBeGreaterThan(0);
+			for (const command of first?.commands ?? []) {
+				for (const key of ["x", "y", "x1", "y1", "x2", "y2"] as const) {
+					const value = command[key as keyof typeof command];
+					if (typeof value === "number") {
+						expect(Number.isInteger(value * 64)).toBe(true);
+					}
+				}
 			}
 		});
 	});

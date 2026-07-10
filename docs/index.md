@@ -4,7 +4,7 @@ layout: home
 
 hero:
   name: "TextShaper"
-  text: "Pure TypeScript Text Shaping Engine"
+  text: "TypeScript-first Text Shaping Engine"
   tagline: OpenType layout, variable fonts, complex scripts, TrueType hinting, and FreeType-style rasterization
   actions:
     - theme: brand
@@ -23,11 +23,10 @@ features:
     details: Arabic, Hebrew, Indic, Thai, Khmer, Myanmar, Hangul, and 40+ scripts via Universal Shaping Engine.
   - title: Rasterization
     details: FreeType-style glyph rasterization with TrueType hinting, LCD subpixel rendering, and texture atlas generation.
-  - title: Pure TypeScript
-    details: Zero dependencies, works in browsers and Bun/Node.js. No WebAssembly or native bindings required.
+  - title: TypeScript-first
+    details: Zero package dependencies and no native bindings. Small embedded WebAssembly kernels accelerate optional raster paths in browsers and Bun/Node.js.
   - title: Color Fonts
     details: COLR/CPAL color palettes, SVG glyphs, sbix bitmaps, and CBDT/CBLC color bitmap support.
 ---
 
 <BenchmarkHero />
-

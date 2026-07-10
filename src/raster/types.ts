@@ -35,6 +35,9 @@ export type FontSizeMode = "em" | "height";
  */
 export type HintTarget = "auto" | "light" | "normal";
 
+/** Scan converter used for path coverage. */
+export type RasterizerMode = "freetype" | "libass";
+
 /**
  * Options for rasterizing a glyph from a font
  */
@@ -153,6 +156,8 @@ export interface RasterizeOptions {
 	fillRule?: FillRule;
 	/** Flip Y axis (font coords are Y-up, bitmap is Y-down) */
 	flipY?: boolean;
+	/** Scan converter. The default preserves the FreeType-style API output. */
+	rasterizer?: RasterizerMode;
 	/**
 	 * Optional caller-owned output buffer. When provided and its length equals
 	 * the computed pitch*height for this rasterization, the returned bitmap

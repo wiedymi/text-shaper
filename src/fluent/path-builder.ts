@@ -49,6 +49,8 @@ import {
 	createPath2D,
 	type GlyphPath,
 	getGlyphPath,
+	getGlyphPathAtSize,
+	type GlyphPathSizeMode,
 	getGlyphPathWithVariation,
 	pathToCanvas,
 	pathToCanvasWithMatrix,
@@ -83,6 +85,24 @@ export class PathBuilder {
 	 */
 	static fromGlyph(font: Font, glyphId: GlyphId): PathBuilder | null {
 		const path = getGlyphPath(font, glyphId);
+		if (!path) return null;
+		return new PathBuilder(
+			path,
+			{ matrix2D: identity2D(), matrix3D: null },
+			font,
+		);
+	}
+
+	/**
+	 * Create a path from an outline scaled and rounded like FreeType.
+	 */
+	static fromGlyphAtSize(
+		font: Font,
+		glyphId: GlyphId,
+		sizePx: number,
+		mode: GlyphPathSizeMode = "em",
+	): PathBuilder | null {
+		const path = getGlyphPathAtSize(font, glyphId, sizePx, mode);
 		if (!path) return null;
 		return new PathBuilder(
 			path,

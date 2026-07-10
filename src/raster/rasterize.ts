@@ -19,6 +19,11 @@ import { scaleFUnits } from "../hinting/scale.ts";
 import type { Matrix2D, Matrix3x3 } from "../render/outline-transform.ts";
 import { type GlyphPath, getGlyphPath } from "../render/path.ts";
 import type { GlyphId } from "../types.ts";
+import {
+	ensureAssRasterWasmReady,
+	fillAssPathWasm,
+	isAssRasterWasmEnabled,
+} from "./ass-wasm/index.ts";
 import { transformBitmap2D, transformBitmap3D } from "./bitmap-utils.ts";
 import { PoolOverflowError } from "./cell.ts";
 import {
@@ -58,6 +63,13 @@ function initFillWasm(): void {
 	if (fillWasmInitDone) return;
 	fillWasmInitDone = true;
 	ensureFillWasmReady();
+}
+
+let assRasterWasmInitDone = false;
+function initAssRasterWasm(): void {
+	if (assRasterWasmInitDone) return;
+	assRasterWasmInitDone = true;
+	ensureAssRasterWasmReady();
 }
 
 // --- optional fill profiler (dev/bench only; default off, one branch when off).
@@ -697,6 +709,7 @@ export function rasterizePath(
 		pixelMode = PixelMode.Gray,
 		fillRule = FillRule.NonZero,
 		flipY = true,
+		rasterizer = "freetype",
 		out,
 	} = options;
 
@@ -731,6 +744,36 @@ export function rasterizePath(
 		}
 	} else {
 		bitmap = createBitmap(width, height, pixelMode);
+	}
+
+	if (
+		rasterizer === "libass" &&
+		pixelMode === PixelMode.Gray &&
+		fillRule === FillRule.NonZero &&
+		bitmap.pitch === width
+	) {
+		const profile = fillProfileOn;
+		const start = profile ? performance.now() : 0;
+		initAssRasterWasm();
+		if (
+			isAssRasterWasmEnabled() &&
+			fillAssPathWasm(
+				path,
+				width,
+				height,
+				scale,
+				offsetX,
+				offsetY,
+				flipY,
+				bitmap.buffer,
+			)
+		) {
+			if (profile) {
+				fillProfileMs += performance.now() - start;
+				fillProfileCount++;
+			}
+			return bitmap;
+		}
 	}
 
 	// Reuse shared rasterizer

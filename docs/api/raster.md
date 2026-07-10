@@ -114,6 +114,7 @@ interface RasterizeOptions {
   flipY?: boolean;         // Flip Y axis (default: true)
   pixelMode?: PixelMode;   // Pixel format (default: Gray)
   fillRule?: FillRule;     // Fill rule (default: NonZero)
+  rasterizer?: "freetype" | "libass"; // Gray non-zero fill engine
   out?: Uint8Array;        // Optional zeroed output buffer to reuse
 }
 ```
@@ -280,6 +281,8 @@ function setFillWasmEnabled(enabled: boolean): void
 ```
 
 `ensureFillWasmReady()` performs synchronous module compilation and verification. Call it during application warm-up if you want to avoid first-rasterization initialization cost. `setFillWasmEnabled(false)` forces the scalar TypeScript path for diagnostics, benchmarks, or compatibility testing.
+
+`rasterizer: "libass"` selects a separate embedded 16x16 tiled rasterizer ported from libass. It owns curve subdivision and coverage generation end to end and is not the same kernel as `fill-wasm`, which accelerates the default FreeType-style scan converter. The libass path currently requires Gray pixels, non-zero fill, and a tightly packed output; unsupported combinations fall back to the default rasterizer.
 
 ### Fill Profiling
 

@@ -6,6 +6,7 @@ out
 dist
 *.tgz
 src/raster/fill-wasm/fill.wasm
+src/raster/ass-wasm/ass-fill.wasm
 
 # code coverage
 coverage

@@ -723,6 +723,12 @@ export {
 } from "./raster/rasterize.ts";
 // Optional WASM(+SIMD) fill scan-conversion fast path (bit-exact, auto-fallback)
 export {
+	assRasterWasmStatus,
+	ensureAssRasterWasmReady,
+	isAssRasterWasmEnabled,
+	setAssRasterWasmEnabled,
+} from "./raster/ass-wasm/index.ts";
+export {
 	ensureFillWasmReady,
 	fillWasmStatus,
 	isFillWasmEnabled,
@@ -748,6 +754,7 @@ export type {
 	GlyphRasterizeOptions,
 	MsdfAtlasOptions,
 	RasterizedGlyph,
+	RasterizerMode,
 	RasterizeOptions,
 	Span,
 	TextRasterizeOptions,
@@ -795,12 +802,18 @@ export {
 	updateMinTransformedX,
 } from "./render/outline-transform.ts";
 // Rendering utilities
-export type { GlyphPath, PathCommand, ShapedGlyph } from "./render/path.ts";
+export type {
+	GlyphPath,
+	GlyphPathSizeMode,
+	PathCommand,
+	ShapedGlyph,
+} from "./render/path.ts";
 export {
 	applyMatrixToContext,
 	contourToPath,
 	createPath2D,
 	getGlyphPath,
+	getGlyphPathAtSize,
 	getGlyphPathWithVariation,
 	getTextWidth,
 	glyphBufferToShapedGlyphs,

@@ -6,7 +6,7 @@
 [![Discord](https://img.shields.io/badge/-Discord-5865F2?style=flat-square&logo=discord&logoColor=white)](https://discord.gg/zemMZtrkSb)
 [![Support me](https://img.shields.io/badge/-Support%20me-ff69b4?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/vivy-company)
 
-Pure TypeScript text shaping engine with OpenType layout, TrueType hinting, and FreeType-style rasterization. Works in browsers and Bun/Node.js with zero dependencies.
+TypeScript-first text shaping engine with OpenType layout, TrueType hinting, and selectable FreeType-style or libass-style rasterization. It works in browsers and Bun/Node.js with zero package dependencies; small embedded, self-verified WebAssembly kernels accelerate optional raster paths.
 
 ## Performance
 
@@ -31,11 +31,11 @@ text-shaper outperforms harfbuzzjs (WebAssembly) and opentype.js across all benc
 - **AAT Support**: morx, kerx, trak tables for Apple fonts
 - **Color Fonts**: SVG, sbix, CBDT/CBLC, COLR/CPAL tables
 - **BiDi**: UAX #9 bidirectional text algorithm
-- **Rasterization**: FreeType-style grayscale, LCD subpixel, and monochrome rendering
+- **Rasterization**: FreeType-style grayscale, LCD subpixel, and monochrome rendering, plus an opt-in libass 16x16 tiled gray rasterizer
 - **TrueType Hinting**: Full bytecode interpreter (150+ opcodes)
 - **Texture Atlas**: GPU-ready glyph atlas generation with shelf packing
 - **SDF/MSDF**: Signed distance field rendering for scalable text
-- **Zero Dependencies**: Pure TypeScript, works in browser and Node.js
+- **Zero Package Dependencies**: TypeScript APIs with embedded optional WebAssembly kernels; works in browser and Node.js
 
 ## Installation
 

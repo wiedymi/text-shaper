@@ -51,6 +51,145 @@ export interface GlyphPath {
 	flags?: OutlineFlags;
 }
 
+/** Font-size interpretation used when extracting a scaled glyph outline. */
+export type GlyphPathSizeMode = "em" | "height" | "freetype-real-dim";
+
+function freeTypeRealDimension(font: Font): number {
+	const os2 = font.os2;
+	if (os2) {
+		const winHeight = os2.usWinAscent + os2.usWinDescent;
+		if (winHeight !== 0) return winHeight;
+	}
+	const faceHeight = font.ascender - font.descender;
+	if (faceHeight !== 0 && font.height !== 0) return faceHeight;
+	if (os2) {
+		const typoHeight = os2.sTypoAscender - os2.sTypoDescender;
+		if (typoHeight !== 0) return typoHeight;
+	}
+	const boundsHeight = font.head.yMax - font.head.yMin;
+	return boundsHeight || font.unitsPerEm;
+}
+
+function glyphPathScaleDenominator(
+	font: Font,
+	mode: GlyphPathSizeMode,
+): number {
+	if (mode === "em") return font.unitsPerEm;
+	if (mode === "height") return font.height || font.unitsPerEm;
+	return freeTypeRealDimension(font);
+}
+
+// FreeType's FT_MulFix: multiply an integer font coordinate by a 16.16 scale
+// and round to the nearest integer 26.6 coordinate.
+function freeTypeMulFix(value: number, scale16: number): number {
+	const product = value * scale16;
+	if (product >= 0) return Math.floor((product + 0x8000) / 0x10000);
+	return -Math.floor((-product + 0x8000) / 0x10000);
+}
+
+function midpointFloor(a: number, b: number): number {
+	return Math.floor((a + b) / 2);
+}
+
+// ass_outline_convert flips Y before calculating implied conic points. For a
+// positive-Y public path that is flipped later at raster time, the equivalent
+// midpoint is ceil((a + b) / 2), not floor((a + b) / 2).
+function midpointFlippedY(a: number, b: number): number {
+	return Math.ceil((a + b) / 2);
+}
+
+function scaledFreeTypeContourToPath(contour: Contour): PathCommand[] {
+	if (contour.length === 0) return [];
+	let cubic = false;
+	for (let i = 0; i < contour.length; i++) {
+		if (!contour[i]!.onCurve && contour[i]!.cubic) {
+			cubic = true;
+			break;
+		}
+	}
+	if (cubic) {
+		const pixelContour: Contour = new Array(contour.length);
+		for (let i = 0; i < contour.length; i++) {
+			const point = contour[i]!;
+			pixelContour[i] = {
+				...point,
+				x: point.x / 64,
+				y: point.y / 64,
+			};
+		}
+		return contourToPathCubic(pixelContour);
+	}
+
+	const commands: PathCommand[] = [];
+	const count = contour.length;
+	let startIndex = -1;
+	for (let i = 0; i < count; i++) {
+		if (contour[i]!.onCurve) {
+			startIndex = i;
+			break;
+		}
+	}
+
+	let startX: number;
+	let startY: number;
+	let index: number;
+	if (startIndex >= 0) {
+		const start = contour[startIndex]!;
+		startX = start.x;
+		startY = start.y;
+		index = startIndex + 1;
+		if (index === count) index = 0;
+	} else {
+		const first = contour[0]!;
+		const last = contour[count - 1]!;
+		startX = midpointFloor(first.x, last.x);
+		startY = midpointFlippedY(first.y, last.y);
+		index = 0;
+	}
+	commands.push({ type: "M", x: startX / 64, y: startY / 64 });
+
+	let currentX = startX;
+	let currentY = startY;
+	let visited = 0;
+	while (visited < count) {
+		const point = contour[index]!;
+		if (point.onCurve) {
+			commands.push({ type: "L", x: point.x / 64, y: point.y / 64 });
+			currentX = point.x;
+			currentY = point.y;
+		} else {
+			const nextIndex = index + 1 === count ? 0 : index + 1;
+			const next = contour[nextIndex]!;
+			let endX: number;
+			let endY: number;
+			if (next.onCurve) {
+				endX = next.x;
+				endY = next.y;
+				index = nextIndex;
+				visited++;
+			} else {
+				endX = midpointFloor(point.x, next.x);
+				endY = midpointFlippedY(point.y, next.y);
+			}
+			commands.push({
+				type: "Q",
+				x1: point.x / 64,
+				y1: point.y / 64,
+				x: endX / 64,
+				y: endY / 64,
+			});
+			currentX = endX;
+			currentY = endY;
+		}
+		index++;
+		if (index === count) index = 0;
+		visited++;
+		if (currentX === startX && currentY === startY) break;
+	}
+	commands.push({ type: "Z" });
+	return commands;
+}
+
 /**
  * Convert contours to path commands
  * Handles both TrueType (quadratic Béziers) and CFF (cubic Béziers)
@@ -265,6 +404,10 @@ function contourToPathQuadratic(contour: Contour): PathCommand[] {
  */
 // Path cache: WeakMap allows garbage collection when Font is no longer referenced
 const pathCache = new WeakMap<Font, Map<GlyphId, GlyphPath | null>>();
+const sizedPathCache = new WeakMap<
+	Font,
+	Map<string, GlyphPath | null>
+>();
 
 /**
  * Get cached glyph path, computing and caching if not already cached
@@ -303,6 +446,75 @@ export function getGlyphPath(font: Font, glyphId: GlyphId): GlyphPath | null {
 		pathCache.set(font, fontCache);
 	}
 	fontCache.set(glyphId, path);
+	return path;
+}
+
+/**
+ * Extract a glyph at a concrete size using FreeType-compatible 26.6 point
+ * rounding before implied TrueType conic points are created.
+ *
+ * `freetype-real-dim` mirrors FT_SIZE_REQUEST_TYPE_REAL_DIM and libass's face
+ * metric selection. It is useful when exact compatibility matters; normal UI
+ * rendering should generally keep using `getGlyphPath` plus a transform.
+ */
+export function getGlyphPathAtSize(
+	font: Font,
+	glyphId: GlyphId,
+	sizePx: number,
+	mode: GlyphPathSizeMode = "em",
+): GlyphPath | null {
+	if (!Number.isFinite(sizePx) || sizePx <= 0) return null;
+	const key = `${glyphId}|${sizePx}|${mode}`;
+	let fontCache = sizedPathCache.get(font);
+	if (fontCache?.has(key)) return fontCache.get(key) ?? null;
+
+	const result = font.getGlyphContoursAndBounds(glyphId);
+	if (!result) {
+		if (!fontCache) {
+			fontCache = new Map();
+			sizedPathCache.set(font, fontCache);
+		}
+		fontCache.set(key, null);
+		return null;
+	}
+
+	const denominator = glyphPathScaleDenominator(font, mode);
+	const scale16 = Math.round((sizePx * 64 * 0x10000) / denominator);
+	const commands: PathCommand[] = [];
+	let minX = Number.POSITIVE_INFINITY;
+	let minY = Number.POSITIVE_INFINITY;
+	let maxX = Number.NEGATIVE_INFINITY;
+	let maxY = Number.NEGATIVE_INFINITY;
+	for (let i = 0; i < result.contours.length; i++) {
+		const source = result.contours[i]!;
+		const scaled: Contour = new Array(source.length);
+		for (let j = 0; j < source.length; j++) {
+			const point = source[j]!;
+			const x26 = freeTypeMulFix(point.x, scale16);
+			const y26 = freeTypeMulFix(point.y, scale16);
+			scaled[j] = { ...point, x: x26, y: y26 };
+			if (x26 < minX) minX = x26;
+			if (x26 > maxX) maxX = x26;
+			if (y26 < minY) minY = y26;
+			if (y26 > maxY) maxY = y26;
+		}
+		commands.push(...scaledFreeTypeContourToPath(scaled));
+	}
+	const bounds =
+		minX === Number.POSITIVE_INFINITY
+			? null
+			: {
+					xMin: minX / 64,
+					yMin: minY / 64,
+					xMax: maxX / 64,
+					yMax: maxY / 64,
+				};
+	const path: GlyphPath = { commands, bounds };
+	if (!fontCache) {
+		fontCache = new Map();
+		sizedPathCache.set(font, fontCache);
+	}
+	fontCache.set(key, path);
 	return path;
 }
 
@@ -499,8 +711,12 @@ export function glyphToSVG(
 	// ViewBox is scaled by SVG_SCALE to match path coordinates
 	const vbX = Math.round((bounds.xMin - strokePadding) * SVG_SCALE);
 	const vbY = Math.round((-bounds.yMax - strokePadding) * SVG_SCALE);
-	const vbW = Math.round((bounds.xMax - bounds.xMin + strokePadding * 2) * SVG_SCALE);
-	const vbH = Math.round((bounds.yMax - bounds.yMin + strokePadding * 2) * SVG_SCALE);
+	const vbW = Math.round(
+		(bounds.xMax - bounds.xMin + strokePadding * 2) * SVG_SCALE,
+	);
+	const vbH = Math.round(
+		(bounds.yMax - bounds.yMin + strokePadding * 2) * SVG_SCALE,
+	);
 	const viewBox = `${vbX} ${vbY} ${vbW} ${vbH}`;
 
 	const pathData = pathToSVG(path, { flipY: true, scale: 1 });
@@ -876,8 +1092,7 @@ export function getGlyphPathWithVariation(
 			if (point.y > yMax) yMax = point.y;
 		}
 	}
-	const bounds =
-		xMin === Infinity ? null : { xMin, yMin, xMax, yMax };
+	const bounds = xMin === Infinity ? null : { xMin, yMin, xMax, yMax };
 
 	return { commands, bounds };
 }
