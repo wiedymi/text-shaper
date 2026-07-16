@@ -69,7 +69,7 @@ import {
 } from "../layout/structures/layout-common.ts";
 import { SetDigest } from "../layout/structures/set-digest.ts";
 import type { GlyphId, GlyphInfo, GlyphPosition } from "../types.ts";
-import { GlyphClass } from "../types.ts";
+import { GlyphClass, tag } from "../types.ts";
 import { setupArabicMasks } from "./complex/arabic.ts";
 import {
 	isKorean,
@@ -100,7 +100,10 @@ import {
 	type ShapeFeature,
 	type ShapePlan,
 } from "./shape-plan.ts";
-import { tag } from "../types.ts";
+import {
+	applyVariationSelectors,
+	hideVariationSelectors,
+} from "./variation-selectors.ts";
 
 /**
  * Options for controlling text shaping behavior.
@@ -402,11 +405,26 @@ export function shapeInto(
 		font,
 	);
 
+	// Resolve <base, variation selector> pairs via cmap format 14
+	const hasVariationSelectors = applyVariationSelectors(font, glyphBuffer);
+
 	// Pre-shaping: Apply complex script analysis
 	preShape(glyphBuffer, script);
 
 	// Apply GSUB
 	applyGsub(font, glyphBuffer, plan);
+
+	// Apply AAT morx substitutions if no GSUB
+	if (!font.gsub && font.morx) {
+		applyMorx(font, glyphBuffer);
+	}
+
+	// Variation selectors are default-ignorable. Keep them through the
+	// substitution stages so GSUB/morx can match them, then remove survivors
+	// before positioning so they cannot interrupt adjacent pairs.
+	if (hasVariationSelectors) {
+		hideVariationSelectors(glyphBuffer);
+	}
 
 	// Initialize positions (using Face for variable font metrics)
 	initializePositions(face, glyphBuffer);
@@ -426,11 +444,6 @@ export function shapeInto(
 			glyphBuffer.infos,
 			glyphBuffer.positions,
 		);
-	}
-
-	// Apply AAT morx substitutions if no GSUB
-	if (!font.gsub && font.morx) {
-		applyMorx(font, glyphBuffer);
 	}
 
 	// Reverse for RTL
