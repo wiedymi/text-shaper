@@ -99,16 +99,19 @@ function readUIntBase128(data: Uint8Array, offset: { value: number }): number {
 }
 
 /** Read 255UInt16 */
-function read255UInt16(data: Uint8Array, offset: { value: number }): number {
+export function read255UInt16(
+	data: Uint8Array,
+	offset: { value: number },
+): number {
 	const code = data[offset.value++];
 	if (code === 253) {
 		const hi = data[offset.value++];
 		const lo = data[offset.value++];
 		return (hi << 8) | lo;
 	} else if (code === 255) {
-		return data[offset.value++] + 253 * 2;
-	} else if (code === 254) {
 		return data[offset.value++] + 253;
+	} else if (code === 254) {
+		return data[offset.value++] + 253 * 2;
 	}
 	return code;
 }
@@ -351,7 +354,7 @@ function reconstructGlyfLoca(
 	if (version !== 0) {
 		throw new Error(`Unsupported glyf transform version: ${version}`);
 	}
-	const optionFlags = readUint16BE(glyfTransform, offset);
+	const _optionFlags = readUint16BE(glyfTransform, offset);
 	offset += 2;
 	const _numGlyphsHeader = readUint16BE(glyfTransform, offset);
 	offset += 2;
