@@ -414,6 +414,18 @@ export function shapeInto(
 	// Apply GSUB
 	applyGsub(font, glyphBuffer, plan);
 
+	// Apply AAT morx substitutions if no GSUB
+	if (!font.gsub && font.morx) {
+		applyMorx(font, glyphBuffer);
+	}
+
+	// Variation selectors are default-ignorable. Keep them through the
+	// substitution stages so GSUB/morx can match them, then remove survivors
+	// before positioning so they cannot interrupt adjacent pairs.
+	if (hasVariationSelectors) {
+		hideVariationSelectors(glyphBuffer);
+	}
+
 	// Initialize positions (using Face for variable font metrics)
 	initializePositions(face, glyphBuffer);
 
@@ -432,17 +444,6 @@ export function shapeInto(
 			glyphBuffer.infos,
 			glyphBuffer.positions,
 		);
-	}
-
-	// Apply AAT morx substitutions if no GSUB
-	if (!font.gsub && font.morx) {
-		applyMorx(font, glyphBuffer);
-	}
-
-	// Variation selectors are default-ignorable: drop any that survived
-	// substitution so they never surface as visible glyphs
-	if (hasVariationSelectors) {
-		hideVariationSelectors(glyphBuffer);
 	}
 
 	// Reverse for RTL

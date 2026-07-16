@@ -1,10 +1,17 @@
 import { beforeAll, describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
+import { GlyphBuffer } from "../../src/buffer/glyph-buffer.ts";
 import { UnicodeBuffer } from "../../src/buffer/unicode-buffer.ts";
 import { Font } from "../../src/font/font.ts";
+import type { CmapTable } from "../../src/font/tables/cmap.ts";
 import { releaseBuffer, shape } from "../../src/shaper/shaper.ts";
-import type { GlyphInfo } from "../../src/types.ts";
+import {
+	applyVariationSelectors,
+	hideVariationSelectors,
+} from "../../src/shaper/variation-selectors.ts";
+import type { GlyphInfo, GlyphPosition } from "../../src/types.ts";
 
+const INTER_PATH = "tests/fixtures/Inter-Regular.woff2";
 const ARIAL_PATH = "/System/Library/Fonts/Supplemental/Arial.ttf";
 const APPLE_COLOR_EMOJI_PATH = "/System/Library/Fonts/Apple Color Emoji.ttc";
 const HIRAGINO_GB_PATH = "/System/Library/Fonts/Hiragino Sans GB.ttc";
@@ -28,6 +35,88 @@ function shapeText(font: Font, text: string): GlyphInfo[] {
 	releaseBuffer(glyphBuffer);
 	return infos;
 }
+
+function shapePositionedText(
+	font: Font,
+	text: string,
+): { infos: GlyphInfo[]; positions: GlyphPosition[] } {
+	const unicodeBuffer = new UnicodeBuffer();
+	unicodeBuffer.addStr(text);
+	const glyphBuffer = shape(font, unicodeBuffer);
+	const result = {
+		infos: glyphBuffer.infos.map((info) => ({ ...info })),
+		positions: glyphBuffer.positions.map((position) => ({ ...position })),
+	};
+	releaseBuffer(glyphBuffer);
+	return result;
+}
+
+test("format 14 remaps the base and merges then removes the selector", () => {
+	const baseCodepoint = 0x793c;
+	const selectorCodepoint = 0xfe00;
+	const cmap = {
+		version: 0,
+		numTables: 2,
+		encodingRecords: [],
+		bestSubtable: {
+			format: 12,
+			groups: [],
+			lookup: (codepoint: number) => (codepoint === baseCodepoint ? 10 : 0),
+		},
+		subtables: new Map([
+			[
+				"0-5",
+				{
+					format: 14,
+					varSelectorRecords: [],
+					lookup: () => undefined,
+					lookupVariation: (codepoint: number, selector: number) =>
+						codepoint === baseCodepoint && selector === selectorCodepoint
+							? 42
+							: undefined,
+				},
+			],
+		]),
+	} as CmapTable;
+	const font = { cmap } as unknown as Font;
+	const buffer = new GlyphBuffer();
+	buffer.initFromInfos([
+		{ glyphId: 10, cluster: 3, mask: 0xffffffff, codepoint: baseCodepoint },
+		{
+			glyphId: 0,
+			cluster: 4,
+			mask: 0xffffffff,
+			codepoint: selectorCodepoint,
+		},
+	]);
+
+	expect(applyVariationSelectors(font, buffer)).toBe(true);
+	expect(buffer.infos[0]?.glyphId).toBe(42);
+	expect(buffer.infos[1]?.cluster).toBe(3);
+
+	hideVariationSelectors(buffer);
+	expect(buffer.infos).toEqual([
+		{ glyphId: 42, cluster: 3, mask: 0xffffffff, codepoint: baseCodepoint },
+	]);
+});
+
+describe("variation selectors and positioning", () => {
+	let font: Font;
+
+	beforeAll(async () => {
+		font = await Font.fromFile(INTER_PATH);
+	});
+
+	test("a selector does not interrupt adjacent pair positioning", () => {
+		const pair = shapePositionedText(font, "AV");
+		const pairWithSelector = shapePositionedText(font, "A\uFE0FV");
+
+		expect(pairWithSelector.infos.map((info) => info.glyphId)).toEqual(
+			pair.infos.map((info) => info.glyphId),
+		);
+		expect(pairWithSelector.positions).toEqual(pair.positions);
+	});
+});
 
 const describeEmoji = existsSync(APPLE_COLOR_EMOJI_PATH)
 	? describe
