@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { woff2ToSfnt } from "../../src/font/woff2.ts";
+import {
+	read255UInt16,
+	woff2ToSfnt,
+} from "../../src/font/woff2.ts";
 import { Font } from "../../src/font/font.ts";
 import { getGlyphPath } from "../../src/render/path.ts";
 
@@ -330,7 +333,7 @@ describe("WOFF2 decoder", () => {
 			const data = new Uint8Array([254, 100]);
 			const offset = { value: 0 };
 			const val = read255UInt16(data, offset);
-			expect(val).toBe(353); // 253 + 100
+			expect(val).toBe(606); // 253 * 2 + 100
 			expect(offset.value).toBe(2);
 		});
 
@@ -338,7 +341,7 @@ describe("WOFF2 decoder", () => {
 			const data = new Uint8Array([255, 50]);
 			const offset = { value: 0 };
 			const val = read255UInt16(data, offset);
-			expect(val).toBe(556); // 253 * 2 + 50
+			expect(val).toBe(303); // 253 + 50
 			expect(offset.value).toBe(2);
 		});
 
@@ -522,20 +525,6 @@ function calcChecksum(
 
 function pad4(n: number): number {
 	return (n + 3) & ~3;
-}
-
-function read255UInt16(data: Uint8Array, offset: { value: number }): number {
-	const code = data[offset.value++];
-	if (code === 253) {
-		const hi = data[offset.value++];
-		const lo = data[offset.value++];
-		return (hi << 8) | lo;
-	} else if (code === 255) {
-		return data[offset.value++] + 253 * 2;
-	} else if (code === 254) {
-		return data[offset.value++] + 253;
-	}
-	return code;
 }
 
 function createInvalidWoff2MissingTables(): ArrayBuffer {
