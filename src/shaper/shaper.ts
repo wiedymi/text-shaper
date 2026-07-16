@@ -69,7 +69,7 @@ import {
 } from "../layout/structures/layout-common.ts";
 import { SetDigest } from "../layout/structures/set-digest.ts";
 import type { GlyphId, GlyphInfo, GlyphPosition } from "../types.ts";
-import { GlyphClass } from "../types.ts";
+import { GlyphClass, tag } from "../types.ts";
 import { setupArabicMasks } from "./complex/arabic.ts";
 import {
 	isKorean,
@@ -100,7 +100,10 @@ import {
 	type ShapeFeature,
 	type ShapePlan,
 } from "./shape-plan.ts";
-import { tag } from "../types.ts";
+import {
+	applyVariationSelectors,
+	hideVariationSelectors,
+} from "./variation-selectors.ts";
 
 /**
  * Options for controlling text shaping behavior.
@@ -402,6 +405,9 @@ export function shapeInto(
 		font,
 	);
 
+	// Resolve <base, variation selector> pairs via cmap format 14
+	const hasVariationSelectors = applyVariationSelectors(font, glyphBuffer);
+
 	// Pre-shaping: Apply complex script analysis
 	preShape(glyphBuffer, script);
 
@@ -431,6 +437,12 @@ export function shapeInto(
 	// Apply AAT morx substitutions if no GSUB
 	if (!font.gsub && font.morx) {
 		applyMorx(font, glyphBuffer);
+	}
+
+	// Variation selectors are default-ignorable: drop any that survived
+	// substitution so they never surface as visible glyphs
+	if (hasVariationSelectors) {
+		hideVariationSelectors(glyphBuffer);
 	}
 
 	// Reverse for RTL
