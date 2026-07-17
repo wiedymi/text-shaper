@@ -1,4 +1,5 @@
 import {
+	MORX_DELETED_GLYPH,
 	processContextual,
 	processInsertion,
 	processLigature,
@@ -2998,6 +2999,23 @@ function applyMorx(font: Font, buffer: GlyphBuffer): void {
 				}
 			}
 		}
+	}
+
+	// Non-contextual subtables substitute the deleted glyph (0xFFFF) to hide
+	// glyphs from later subtables (state machines class it as deleted and pass
+	// through); drop the survivors from the shaped output.
+	const infos = buffer.infos;
+	let hasDeleted = false;
+	for (let i = 0; i < infos.length; i++) {
+		if (infos[i]!.glyphId === MORX_DELETED_GLYPH) {
+			hasDeleted = true;
+			break;
+		}
+	}
+	if (hasDeleted) {
+		buffer.initFromInfos(
+			infos.filter((info) => info.glyphId !== MORX_DELETED_GLYPH),
+		);
 	}
 }
 

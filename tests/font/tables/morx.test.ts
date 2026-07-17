@@ -1960,6 +1960,13 @@ describe("morx table", () => {
 
 			view.setUint16(offset, 0);
 			offset += 2;
+			// Per-glyph values for glyphs 0..2, bounded by the subtable length
+			view.setUint16(offset, 5);
+			offset += 2;
+			view.setUint16(offset, 6);
+			offset += 2;
+			view.setUint16(offset, 7);
+			offset += 2;
 
 			const { Reader } = require("../../../src/font/binary/reader.ts");
 			const reader = new Reader(view);
@@ -1973,7 +1980,10 @@ describe("morx table", () => {
 			expect(subtable.type).toBe(MorxSubtableType.NonContextual);
 			expect(subtable.lookupTable.format).toBe(0);
 			expect(subtable.lookupTable.mapping).toBeInstanceOf(Map);
-			expect(subtable.lookupTable.mapping.size).toBe(0);
+			expect(subtable.lookupTable.mapping.size).toBe(3);
+			expect(subtable.lookupTable.mapping.get(0)).toBe(5);
+			expect(subtable.lookupTable.mapping.get(1)).toBe(6);
+			expect(subtable.lookupTable.mapping.get(2)).toBe(7);
 		});
 
 		test("parses lookup table format 4 (segment array)", () => {
