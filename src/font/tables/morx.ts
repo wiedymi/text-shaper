@@ -221,24 +221,27 @@ function parseMorxSubtable(reader: Reader): MorxSubtable | null {
 
 	const subtableStart = reader.offset;
 	const subtableEnd = subtableStart + length - 12;
+	// Bound each parser to its own subtable: header offsets are relative to
+	// the subtable content, and lookup formats 0/4 need a real end boundary.
+	const body = reader.slice(subtableStart, Math.max(0, length - 12));
 
 	let subtable: MorxSubtable | null = null;
 
 	switch (type) {
 		case MorxSubtableType.Rearrangement:
-			subtable = parseRearrangementSubtable(reader, coverage, subFeatureFlags);
+			subtable = parseRearrangementSubtable(body, coverage, subFeatureFlags);
 			break;
 		case MorxSubtableType.Contextual:
-			subtable = parseContextualSubtable(reader, coverage, subFeatureFlags);
+			subtable = parseContextualSubtable(body, coverage, subFeatureFlags);
 			break;
 		case MorxSubtableType.Ligature:
-			subtable = parseLigatureSubtable(reader, coverage, subFeatureFlags);
+			subtable = parseLigatureSubtable(body, coverage, subFeatureFlags);
 			break;
 		case MorxSubtableType.NonContextual:
-			subtable = parseNonContextualSubtable(reader, coverage, subFeatureFlags);
+			subtable = parseNonContextualSubtable(body, coverage, subFeatureFlags);
 			break;
 		case MorxSubtableType.Insertion:
-			subtable = parseInsertionSubtable(reader, coverage, subFeatureFlags);
+			subtable = parseInsertionSubtable(body, coverage, subFeatureFlags);
 			break;
 	}
 
@@ -306,32 +309,113 @@ function parseLigatureSubtable(
 	const stateTableOffset = reader.offset;
 	const nClasses = reader.uint32();
 	const classTableOffset = reader.offset32();
-	const _stateArrayOffset = reader.offset32();
-	const _entryTableOffset = reader.offset32();
-	const _ligatureActionsOffset = reader.offset32();
-	const _componentsOffset = reader.offset32();
-	const _ligaturesOffset = reader.offset32();
+	const stateArrayOffset = reader.offset32();
+	const entryTableOffset = reader.offset32();
+	const ligatureActionsOffset = reader.offset32();
+	const componentsOffset = reader.offset32();
+	const ligaturesOffset = reader.offset32();
 
-	// Parse class table
-	const classTable = parseClassTable(
-		reader.sliceFrom(stateTableOffset + classTableOffset),
+	// The header gives no element counts; each region runs to the nearest
+	// following region (they are not guaranteed to be emitted in order), or
+	// to the end of the subtable.
+	const tableLength = reader.length - stateTableOffset;
+	const regionEnd = (start: number): number => {
+		let end = tableLength;
+		for (const offset of [
+			classTableOffset,
+			stateArrayOffset,
+			entryTableOffset,
+			ligatureActionsOffset,
+			componentsOffset,
+			ligaturesOffset,
+		]) {
+			if (offset > start && offset < end) end = offset;
+		}
+		return end;
+	};
+	const regionReader = (start: number): Reader => {
+		const boundedStart = Math.min(start, tableLength);
+		const boundedEnd = Math.max(
+			boundedStart,
+			Math.min(regionEnd(start), tableLength),
+		);
+		return reader.slice(
+			stateTableOffset + boundedStart,
+			boundedEnd - boundedStart,
+		);
+	};
+
+	// Format 0 has no embedded count, so the class lookup must not be allowed
+	// to consume the adjacent state, entry, or action regions.
+	const classTable = parseClassTable(regionReader(classTableOffset));
+
+	// State array: rows of nClasses uint16 entry indices
+	const stateArrayReader = regionReader(stateArrayOffset);
+	const stateCount =
+		nClasses > 0 ? Math.floor(stateArrayReader.length / (2 * nClasses)) : 0;
+	const rawStates: number[][] = [];
+	let maxEntryIndex = -1;
+	for (let s = 0; s < stateCount; s++) {
+		const row: number[] = new Array(nClasses);
+		for (let c = 0; c < nClasses; c++) {
+			const entryIndex = stateArrayReader.uint16();
+			row[c] = entryIndex;
+			if (entryIndex > maxEntryIndex) maxEntryIndex = entryIndex;
+		}
+		rawStates.push(row);
+	}
+
+	// Entry table: {newState, flags, ligActionIndex}, sized by the highest
+	// entry index the state array references
+	const entryReader = regionReader(entryTableOffset);
+	const entries: LigatureEntry[] = [];
+	for (let e = 0; e <= maxEntryIndex && entryReader.hasRemaining(6); e++) {
+		entries.push({
+			newState: entryReader.uint16(),
+			flags: entryReader.uint16(),
+			ligActionIndex: entryReader.uint16(),
+		});
+	}
+
+	const fallbackEntry: LigatureEntry = {
+		newState: 0,
+		flags: 0,
+		ligActionIndex: 0,
+	};
+	const stateArray: LigatureEntry[][] = rawStates.map((row) =>
+		row.map((entryIndex) => entries[entryIndex] ?? fallbackEntry),
 	);
 
-	// State table (simplified)
-	const stateTable: StateTable<LigatureEntry> = {
-		nClasses,
-		classTable,
-		stateArray: [],
-	};
+	const ligatureActions: uint32[] = [];
+	const actionsReader = regionReader(ligatureActionsOffset);
+	while (actionsReader.hasRemaining(4)) {
+		ligatureActions.push(actionsReader.uint32());
+	}
+
+	const components: uint16[] = [];
+	const componentsReader = regionReader(componentsOffset);
+	while (componentsReader.hasRemaining(2)) {
+		components.push(componentsReader.uint16());
+	}
+
+	const ligatures: GlyphId[] = [];
+	const ligaturesReader = regionReader(ligaturesOffset);
+	while (ligaturesReader.hasRemaining(2)) {
+		ligatures.push(ligaturesReader.uint16());
+	}
 
 	return {
 		type: MorxSubtableType.Ligature,
 		coverage,
 		subFeatureFlags,
-		stateTable,
-		ligatureActions: [],
-		components: [],
-		ligatures: [],
+		stateTable: {
+			nClasses,
+			classTable,
+			stateArray,
+		},
+		ligatureActions,
+		components,
+		ligatures,
 	};
 }
 
@@ -477,14 +561,24 @@ function parseInsertionSubtable(
 	};
 }
 
+/**
+ * Parse an AAT lookup table (formats 0, 2, 4, 6, 8, 10). The reader must
+ * start at the lookup table itself and be bounded by its containing subtable:
+ * format 0 runs to the end of the data and format 4 uses offsets relative to
+ * the lookup table start.
+ */
 function parseLookupTable(reader: Reader): LookupTable {
 	const format = reader.uint16();
 	const mapping = new Map<GlyphId, GlyphId>();
 
 	switch (format) {
 		case 0: {
-			// Simple array
-			// Format 0 uses lookup by glyph index directly
+			// Simple array: one value per glyph, bounded by the enclosing slice
+			let glyph = 0;
+			while (reader.hasRemaining(2)) {
+				mapping.set(glyph, reader.uint16());
+				glyph++;
+			}
 			break;
 		}
 		case 2: {
@@ -497,6 +591,7 @@ function parseLookupTable(reader: Reader): LookupTable {
 				const lastGlyph = reader.uint16();
 				const firstGlyph = reader.uint16();
 				const value = reader.uint16();
+				if (firstGlyph === 0xffff) continue; // binary-search terminator
 
 				for (let g = firstGlyph; g <= lastGlyph; g++) {
 					mapping.set(g, value);
@@ -505,18 +600,26 @@ function parseLookupTable(reader: Reader): LookupTable {
 			break;
 		}
 		case 4: {
-			// Segment array
+			// Segment array: per-glyph values at an offset from the lookup start
 			const _unitSize = reader.uint16();
 			const nUnits = reader.uint16();
 			reader.skip(6);
 
 			for (let i = 0; i < nUnits; i++) {
-				const _lastGlyph = reader.uint16();
-				const _firstGlyph = reader.uint16();
-				const _valueOffset = reader.uint16();
+				const lastGlyph = reader.uint16();
+				const firstGlyph = reader.uint16();
+				const valueOffset = reader.uint16();
+				if (firstGlyph === 0xffff) continue;
 
-				// Values would be read from valueOffset
-				// Simplified: skip for now
+				const count = lastGlyph - firstGlyph + 1;
+				if (count <= 0 || valueOffset >= reader.length) continue;
+				const values = reader.slice(
+					valueOffset,
+					Math.min(count * 2, reader.length - valueOffset),
+				);
+				for (let g = 0; g < count && values.hasRemaining(2); g++) {
+					mapping.set(firstGlyph + g, values.uint16());
+				}
 			}
 			break;
 		}
@@ -529,6 +632,7 @@ function parseLookupTable(reader: Reader): LookupTable {
 			for (let i = 0; i < nUnits; i++) {
 				const glyph = reader.uint16();
 				const value = reader.uint16();
+				if (glyph === 0xffff) continue;
 				mapping.set(glyph, value);
 			}
 			break;
@@ -546,39 +650,38 @@ function parseLookupTable(reader: Reader): LookupTable {
 			}
 			break;
 		}
+		case 10: {
+			// Extended trimmed array with configurable unit size
+			const unitSize = reader.uint16();
+			const firstGlyph = reader.uint16();
+			const glyphCount = reader.uint16();
+
+			for (let i = 0; i < glyphCount && reader.hasRemaining(unitSize); i++) {
+				const value =
+					unitSize === 1
+						? reader.uint8()
+						: unitSize === 4
+							? reader.uint32()
+							: reader.uint16();
+				mapping.set(firstGlyph + i, value);
+			}
+			break;
+		}
 	}
 
 	return { format, mapping };
 }
 
 function parseClassTable(reader: Reader): ClassTable {
-	const format = reader.uint16();
+	const lookup = parseLookupTable(reader);
 	const classArray: number[] = [];
-
-	if (format === 2) {
-		// Binary search segments
-		const _unitSize = reader.uint16();
-		const nUnits = reader.uint16();
-		reader.skip(6);
-
-		const segments: { first: number; last: number; classValue: number }[] = [];
-		for (let i = 0; i < nUnits; i++) {
-			segments.push({
-				last: reader.uint16(),
-				first: reader.uint16(),
-				classValue: reader.uint16(),
-			});
-		}
-
-		// Build class array (simplified, might be large)
-		const maxGlyph = Math.max(...segments.map((s) => s.last), 0);
-		for (let g = 0; g <= maxGlyph; g++) {
-			const seg = segments.find((s) => g >= s.first && g <= s.last);
-			classArray[g] = seg?.classValue ?? 1; // Class 1 = out of bounds
+	for (const [glyph, value] of lookup.mapping) {
+		if (glyph <= 0xfffe) {
+			classArray[glyph] = value;
 		}
 	}
-
-	return { format, classArray };
+	// Unmapped holes resolve to CLASS_OUT_OF_BOUNDS at lookup time.
+	return { format: lookup.format, classArray };
 }
 
 /**
@@ -588,5 +691,7 @@ export function applyNonContextual(
 	subtable: MorxNonContextualSubtable,
 	glyphId: GlyphId,
 ): GlyphId | null {
-	return subtable.lookupTable.mapping.get(glyphId) ?? null;
+	const replacement = subtable.lookupTable.mapping.get(glyphId);
+	// Apple specifies zero lookup values as explicit no-ops in morx tables.
+	return replacement === undefined || replacement === 0 ? null : replacement;
 }

@@ -27,8 +27,11 @@ export interface StateMachineContext {
  */
 const CLASS_END_OF_TEXT = 0;
 const CLASS_OUT_OF_BOUNDS = 1;
-const _CLASS_DELETED_GLYPH = 2;
+const CLASS_DELETED_GLYPH = 2;
 const _CLASS_END_OF_LINE = 3;
+
+/** The deleted glyph: substituted in by earlier subtables, removed after morx */
+export const MORX_DELETED_GLYPH = 0xffff;
 
 /**
  * Get the class value for a glyph from the class table
@@ -40,6 +43,9 @@ export function getGlyphClass(
 	classTable: ClassTable,
 	glyphId: GlyphId,
 ): number {
+	if (glyphId === MORX_DELETED_GLYPH) {
+		return CLASS_DELETED_GLYPH;
+	}
 	if (glyphId < 0 || glyphId >= classTable.classArray.length) {
 		return CLASS_OUT_OF_BOUNDS;
 	}
@@ -346,11 +352,19 @@ export function processLigature(
 	const result: GlyphInfo[] = [];
 	const deleted = new Set<number>();
 
-	for (let i = 0; i <= infos.length; i++) {
+	// dontAdvance can revisit a glyph, so bound total steps to stay safe
+	// against malformed state machines.
+	let i = 0;
+	let steps = 0;
+	const maxSteps = (infos.length + 1) * 4 + 16;
+	while (i <= infos.length && steps < maxSteps) {
+		steps++;
 		const isEnd = i >= infos.length;
 		const glyphClass = isEnd
 			? CLASS_END_OF_TEXT
-			: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
+			: deleted.has(i)
+				? CLASS_DELETED_GLYPH
+				: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
 
 		const stateRow = stateTable.stateArray[state];
 		if (!stateRow) break;
@@ -358,18 +372,24 @@ export function processLigature(
 		const entry = stateRow[glyphClass] as LigatureEntry | undefined;
 		if (!entry) break;
 
-		// Push to stack
-		if (entry.flags & 0x8000) {
-			stack.push(i);
+		// Push the current position onto the component stack
+		if (entry.flags & 0x8000 && !isEnd) {
+			// A DontAdvance transition may mark the same glyph again. AAT keeps
+			// only one copy of that position on the component stack.
+			if (stack[stack.length - 1] !== i) {
+				if (stack.length >= 64) stack.shift();
+				stack.push(i);
+			}
 		}
 
-		// Perform ligature action
+		// Perform ligature action chain
 		if (entry.flags & 0x2000 && entry.ligActionIndex < ligatureActions.length) {
 			let actionIndex = entry.ligActionIndex;
-			let ligatureGlyph: GlyphId = 0;
-			const componentIndices: number[] = [];
+			let ligatureIndex = 0;
+			// Walk the stack with a cursor. Stored ligatures remain at their
+			// component position until a later action consumes them.
+			let cursor = stack.length;
 
-			// Process action chain
 			while (actionIndex < ligatureActions.length) {
 				const action = ligatureActions[actionIndex];
 				if (action === undefined) break;
@@ -378,40 +398,43 @@ export function processLigature(
 				const store = (action & 0x40000000) !== 0;
 				const componentOffset = ((action & 0x3fffffff) << 2) >> 2; // Sign extend
 
-				const stackIdx = stack.pop();
-				if (stackIdx !== undefined && stackIdx < infos.length) {
-					componentIndices.push(stackIdx);
-					const info = infos[stackIdx];
-					if (info) {
-						const componentIdx = componentOffset;
-
-						if (componentIdx >= 0 && componentIdx < components.length) {
-							const component = components[componentIdx];
-							if (component !== undefined) {
-								ligatureGlyph = ligatureGlyph + component;
-							}
-						}
-					}
+				if (cursor === 0) {
+					// Match HarfBuzz's recovery for a malformed action chain.
+					stack.length = 0;
+					break;
 				}
+				const stackIdx = stack[--cursor];
+				if (stackIdx === undefined || stackIdx >= infos.length) break;
 
-				if (store && ligatureGlyph < ligatures.length) {
-					// Replace first component with ligature
-					const firstIdx = componentIndices[componentIndices.length - 1];
-					if (firstIdx !== undefined && firstIdx < infos.length) {
-						const firstInfo = infos[firstIdx];
-						const ligature = ligatures[ligatureGlyph];
-						if (firstInfo && ligature !== undefined) {
-							firstInfo.glyphId = ligature;
-							// Mark other components for deletion
-							for (let j = 0; j < componentIndices.length; j++) {
-								if (j < componentIndices.length - 1) {
-									const idx = componentIndices[j]!;
-									deleted.add(idx);
-								}
-							}
-						}
+				// The offset is added to the popped glyph's id to index the
+				// component table (per the morx spec; matches HarfBuzz).
+				const glyphId = infos[stackIdx]?.glyphId;
+				if (glyphId === undefined) break;
+				const componentIndex = glyphId + componentOffset;
+				if (componentIndex < 0 || componentIndex >= components.length) break;
+				const component = components[componentIndex];
+				if (component === undefined) break;
+				ligatureIndex += component;
+
+				// Both the store flag and the final action emit a ligature.
+				if (store || last) {
+					const ligature = ligatures[ligatureIndex];
+					const target = infos[stackIdx];
+					if (!target || ligature === undefined) break;
+
+					let cluster = target.cluster;
+					// Remove every component after the stored ligature. Truncating
+					// the stack leaves the new ligature available to later actions.
+					for (let j = stack.length - 1; j > cursor; j--) {
+						const deletedIndex = stack[j];
+						if (deletedIndex === undefined) continue;
+						const deletedInfo = infos[deletedIndex];
+						if (deletedInfo) cluster = Math.min(cluster, deletedInfo.cluster);
+						deleted.add(deletedIndex);
 					}
-					ligatureGlyph = 0;
+					target.glyphId = ligature;
+					target.cluster = cluster;
+					stack.length = cursor + 1;
 				}
 
 				if (last) break;
@@ -419,12 +442,10 @@ export function processLigature(
 			}
 		}
 
-		// Don't advance
-		if (!(entry.flags & 0x4000)) {
-			// Stay
-		}
-
 		state = entry.newState;
+		if (!(entry.flags & 0x4000) || isEnd) {
+			i++;
+		}
 	}
 
 	// Build result without deleted glyphs

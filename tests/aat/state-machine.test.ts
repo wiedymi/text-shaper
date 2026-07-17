@@ -1117,14 +1117,24 @@ describe("state-machine", () => {
 				],
 			};
 
+			// Three actions pop glyphs 30, 20, 10; each action's offset is added
+			// to the popped glyph id to index the component table, and the
+			// summed component values index the ligature list.
+			const components: number[] = new Array(35).fill(0);
+			components[30] = 5;
+			components[20] = 3;
+			components[10] = 2;
+			const ligatures: number[] = new Array(11).fill(0);
+			ligatures[10] = 999;
+
 			const subtable: MorxLigatureSubtable = {
 				type: MorxSubtableType.Ligature,
 				coverage: { vertical: false, descending: false, logical: false },
 				subFeatureFlags: 0,
 				stateTable,
-				ligatureActions: [0x40000000, 0xc0000000],
-				components: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35],
-				ligatures: [999, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+				ligatureActions: [0x00000000, 0x00000000, 0xc0000000],
+				components,
+				ligatures,
 			};
 
 			const infos: GlyphInfo[] = [
@@ -1134,7 +1144,9 @@ describe("state-machine", () => {
 			];
 
 			const result = processLigature(subtable, infos);
-			expect(result.length).toBeLessThan(3);
+			expect(result.length).toBe(1);
+			expect(result[0]?.glyphId).toBe(999);
+			expect(result[0]?.cluster).toBe(0);
 		});
 
 		test("handles empty stack pop", () => {
