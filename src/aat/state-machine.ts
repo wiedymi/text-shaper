@@ -362,7 +362,9 @@ export function processLigature(
 		const isEnd = i >= infos.length;
 		const glyphClass = isEnd
 			? CLASS_END_OF_TEXT
-			: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
+			: deleted.has(i)
+				? CLASS_DELETED_GLYPH
+				: getGlyphClass(stateTable.classTable, infos[i]?.glyphId);
 
 		const stateRow = stateTable.stateArray[state];
 		if (!stateRow) break;
@@ -372,16 +374,21 @@ export function processLigature(
 
 		// Push the current position onto the component stack
 		if (entry.flags & 0x8000 && !isEnd) {
-			if (stack.length >= 64) stack.shift();
-			stack.push(i);
+			// A DontAdvance transition may mark the same glyph again. AAT keeps
+			// only one copy of that position on the component stack.
+			if (stack[stack.length - 1] !== i) {
+				if (stack.length >= 64) stack.shift();
+				stack.push(i);
+			}
 		}
 
 		// Perform ligature action chain
 		if (entry.flags & 0x2000 && entry.ligActionIndex < ligatureActions.length) {
 			let actionIndex = entry.ligActionIndex;
 			let ligatureIndex = 0;
-			// Positions popped since the last stored ligature
-			const group: number[] = [];
+			// Walk the stack with a cursor. Stored ligatures remain at their
+			// component position until a later action consumes them.
+			let cursor = stack.length;
 
 			while (actionIndex < ligatureActions.length) {
 				const action = ligatureActions[actionIndex];
@@ -391,38 +398,43 @@ export function processLigature(
 				const store = (action & 0x40000000) !== 0;
 				const componentOffset = ((action & 0x3fffffff) << 2) >> 2; // Sign extend
 
-				const stackIdx = stack.pop();
+				if (cursor === 0) {
+					// Match HarfBuzz's recovery for a malformed action chain.
+					stack.length = 0;
+					break;
+				}
+				const stackIdx = stack[--cursor];
 				if (stackIdx === undefined || stackIdx >= infos.length) break;
-				group.push(stackIdx);
 
 				// The offset is added to the popped glyph's id to index the
 				// component table (per the morx spec; matches HarfBuzz).
 				const glyphId = infos[stackIdx]?.glyphId;
-				if (glyphId !== undefined) {
-					const component = components[glyphId + componentOffset];
-					if (component !== undefined) {
-						ligatureIndex += component;
-					}
-				}
+				if (glyphId === undefined) break;
+				const componentIndex = glyphId + componentOffset;
+				if (componentIndex < 0 || componentIndex >= components.length) break;
+				const component = components[componentIndex];
+				if (component === undefined) break;
+				ligatureIndex += component;
 
 				// Both the store flag and the final action emit a ligature.
 				if (store || last) {
 					const ligature = ligatures[ligatureIndex];
-					// The most recently popped position is the leftmost
-					// component; the ligature replaces it.
-					const targetIdx = group[group.length - 1]!;
-					const target = infos[targetIdx];
-					if (target && ligature !== undefined) {
-						target.glyphId = ligature;
-						for (const idx of group) {
-							if (idx !== targetIdx) deleted.add(idx);
-						}
-						// The ligature may participate in further ligatures.
-						if (stack.length >= 64) stack.shift();
-						stack.push(targetIdx);
+					const target = infos[stackIdx];
+					if (!target || ligature === undefined) break;
+
+					let cluster = target.cluster;
+					// Remove every component after the stored ligature. Truncating
+					// the stack leaves the new ligature available to later actions.
+					for (let j = stack.length - 1; j > cursor; j--) {
+						const deletedIndex = stack[j];
+						if (deletedIndex === undefined) continue;
+						const deletedInfo = infos[deletedIndex];
+						if (deletedInfo) cluster = Math.min(cluster, deletedInfo.cluster);
+						deleted.add(deletedIndex);
 					}
-					group.length = 0;
-					ligatureIndex = 0;
+					target.glyphId = ligature;
+					target.cluster = cluster;
+					stack.length = cursor + 1;
 				}
 
 				if (last) break;

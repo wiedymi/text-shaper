@@ -315,16 +315,12 @@ function parseLigatureSubtable(
 	const componentsOffset = reader.offset32();
 	const ligaturesOffset = reader.offset32();
 
-	// Parse class table
-	const classTable = parseClassTable(
-		reader.sliceFrom(stateTableOffset + classTableOffset),
-	);
-
 	// The header gives no element counts; each region runs to the nearest
 	// following region (they are not guaranteed to be emitted in order), or
 	// to the end of the subtable.
+	const tableLength = reader.length - stateTableOffset;
 	const regionEnd = (start: number): number => {
-		let end = reader.length - stateTableOffset;
+		let end = tableLength;
 		for (const offset of [
 			classTableOffset,
 			stateArrayOffset,
@@ -337,16 +333,26 @@ function parseLigatureSubtable(
 		}
 		return end;
 	};
+	const regionReader = (start: number): Reader => {
+		const boundedStart = Math.min(start, tableLength);
+		const boundedEnd = Math.max(
+			boundedStart,
+			Math.min(regionEnd(start), tableLength),
+		);
+		return reader.slice(
+			stateTableOffset + boundedStart,
+			boundedEnd - boundedStart,
+		);
+	};
+
+	// Format 0 has no embedded count, so the class lookup must not be allowed
+	// to consume the adjacent state, entry, or action regions.
+	const classTable = parseClassTable(regionReader(classTableOffset));
 
 	// State array: rows of nClasses uint16 entry indices
-	const stateArrayEnd = regionEnd(stateArrayOffset);
+	const stateArrayReader = regionReader(stateArrayOffset);
 	const stateCount =
-		nClasses > 0
-			? Math.floor((stateArrayEnd - stateArrayOffset) / (2 * nClasses))
-			: 0;
-	const stateArrayReader = reader.sliceFrom(
-		stateTableOffset + stateArrayOffset,
-	);
+		nClasses > 0 ? Math.floor(stateArrayReader.length / (2 * nClasses)) : 0;
 	const rawStates: number[][] = [];
 	let maxEntryIndex = -1;
 	for (let s = 0; s < stateCount; s++) {
@@ -361,7 +367,7 @@ function parseLigatureSubtable(
 
 	// Entry table: {newState, flags, ligActionIndex}, sized by the highest
 	// entry index the state array references
-	const entryReader = reader.sliceFrom(stateTableOffset + entryTableOffset);
+	const entryReader = regionReader(entryTableOffset);
 	const entries: LigatureEntry[] = [];
 	for (let e = 0; e <= maxEntryIndex && entryReader.hasRemaining(6); e++) {
 		entries.push({
@@ -381,28 +387,19 @@ function parseLigatureSubtable(
 	);
 
 	const ligatureActions: uint32[] = [];
-	const actionsReader = reader.slice(
-		stateTableOffset + ligatureActionsOffset,
-		regionEnd(ligatureActionsOffset) - ligatureActionsOffset,
-	);
+	const actionsReader = regionReader(ligatureActionsOffset);
 	while (actionsReader.hasRemaining(4)) {
 		ligatureActions.push(actionsReader.uint32());
 	}
 
 	const components: uint16[] = [];
-	const componentsReader = reader.slice(
-		stateTableOffset + componentsOffset,
-		regionEnd(componentsOffset) - componentsOffset,
-	);
+	const componentsReader = regionReader(componentsOffset);
 	while (componentsReader.hasRemaining(2)) {
 		components.push(componentsReader.uint16());
 	}
 
 	const ligatures: GlyphId[] = [];
-	const ligaturesReader = reader.slice(
-		stateTableOffset + ligaturesOffset,
-		regionEnd(ligaturesOffset) - ligaturesOffset,
-	);
+	const ligaturesReader = regionReader(ligaturesOffset);
 	while (ligaturesReader.hasRemaining(2)) {
 		ligatures.push(ligaturesReader.uint16());
 	}
@@ -615,7 +612,11 @@ function parseLookupTable(reader: Reader): LookupTable {
 				if (firstGlyph === 0xffff) continue;
 
 				const count = lastGlyph - firstGlyph + 1;
-				const values = reader.slice(valueOffset, count * 2);
+				if (count <= 0 || valueOffset >= reader.length) continue;
+				const values = reader.slice(
+					valueOffset,
+					Math.min(count * 2, reader.length - valueOffset),
+				);
 				for (let g = 0; g < count && values.hasRemaining(2); g++) {
 					mapping.set(firstGlyph + g, values.uint16());
 				}
@@ -690,5 +691,7 @@ export function applyNonContextual(
 	subtable: MorxNonContextualSubtable,
 	glyphId: GlyphId,
 ): GlyphId | null {
-	return subtable.lookupTable.mapping.get(glyphId) ?? null;
+	const replacement = subtable.lookupTable.mapping.get(glyphId);
+	// Apple specifies zero lookup values as explicit no-ops in morx tables.
+	return replacement === undefined || replacement === 0 ? null : replacement;
 }
