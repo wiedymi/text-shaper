@@ -458,6 +458,8 @@ function reconstructGlyfLoca(
 		} else {
 			// Composite glyph (nContours === -1)
 			const glyphData = reconstructCompositeGlyph(
+				glyphStream,
+				glyphIdx,
 				compositeStream,
 				compositeIdx,
 				bboxData,
@@ -664,6 +666,8 @@ function reconstructSimpleGlyph(
 }
 
 function reconstructCompositeGlyph(
+	glyphStream: Uint8Array,
+	glyphIdx: { value: number },
 	compositeStream: Uint8Array,
 	compositeIdx: { value: number },
 	bboxStream: Uint8Array,
@@ -740,7 +744,8 @@ function reconstructCompositeGlyph(
 
 	// Instructions
 	if (hasInstructions) {
-		const instrLen = read255UInt16(instructionStream, instructionIdx);
+		// 长度存放在字形流中，指令内容才从指令流读取。
+		const instrLen = read255UInt16(glyphStream, glyphIdx);
 		parts.push((instrLen >> 8) & 0xff, instrLen & 0xff);
 		for (let i = 0; i < instrLen; i++) {
 			parts.push(instructionStream[instructionIdx.value++]);
